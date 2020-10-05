@@ -1,0 +1,30 @@
+name: data-pipeline
+version: "2.0"
+author: Jean-Marc Fiaschi <jm.fiaschi@gmail.com>
+about: Give tools to Extract-Transform-Load data everywhere.
+args:
+      - config:
+              short: c
+              long: config
+              value_name: CONFIG
+              help: Sets a custom config
+              takes_value: true
+              required: true
+              index: 1
+      - format:
+              short: f
+              long: format
+              value_name: FORMAT
+              help: Sets the config format [yaml','json'].
+              takes_value: true
+              required: true
+              default_value: "json"
+              index: 2
+              possible_values:
+                    - "json"
+                    - "yaml"
+                    - "yml"
+      - verbose:
+              short: v
+              multiple: true
+              help: Sets the level of verbosity

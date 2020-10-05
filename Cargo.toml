@@ -1,0 +1,52 @@
+[package]
+name = "chewdata"
+version = "0.0.1"
+authors = ["Jean-Marc Fiaschi"]
+edition = "2018"
+description = "Extract Transform and Load data in rust."
+license-file = "LICENSE"
+include = ["src/*","benches/*","Cargo.toml"]
+repository = "https://github.com/jmfiaschi/json_value_merge"
+keywords = ["serde", "json", "value", "merge","path"]
+readme = "README.md"
+categories = ["encoding"]
+
+[dependencies]
+slog = { version="2.5", features = ["max_level_trace", "release_max_level_info"] }
+slog-scope = "4.3"
+slog-term = "2.6"
+slog-async = "2.5"
+slog-stdlog = "4.0"
+slog-envlogger = "2.2"
+glob = "0.3"
+serde_json = "1.0"
+json_value_merge = "0.1.2"
+json_value_resolve = "0.1.1"
+json_value_search = "0.1.1"
+serde = { version = "1.0", features = ["derive"] }
+serde-with-expand-env = "1.1.0"
+jxon = "0.7"
+clap = {version = "2.33", features = ["yaml"]}
+csv = "1.1"
+serde_yaml = "0.8"
+regex = "1"
+toml = "0.5"
+#Template engine for the transformation.
+tera = "1.5"
+uuid = { version = "0.8", features = ["serde", "v4"] }
+#AWS s3
+rusoto_core = "0.45"
+rusoto_s3 = "0.45"
+#curl
+curl = "0.4"
+http = "0.2"
+env_applier = "0.1"
+genawaiter = "0.99"
+tokio = "0.2"
+jsonwebtoken = "7.2"
+base64 = "0.12"
+mime = "0.3"
+
+[dev-dependencies]
+criterion = "0.3"
+chrono = "0.4"

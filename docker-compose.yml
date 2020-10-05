@@ -1,0 +1,23 @@
+version: "3.6"
+services:
+    minio:
+        image: minio/minio:latest
+        volumes:
+            - ./cache/minio/data:/data:cached
+        ports:
+            - 9000:9000
+        environment:
+            MINIO_ACCESS_KEY: ${BUCKET_ACCESS_KEY_ID}
+            MINIO_SECRET_KEY: ${BUCKET_SECRET_ACCESS_KEY}
+        command: server /data
+
+    mc:
+        image: minio/mc:latest
+        volumes:
+            - ./cache/minio/root:/root
+            - ./data:/root/data
+
+    httpbin:
+        image: kennethreitz/httpbin:latest
+        ports:
+            - 8080:80
