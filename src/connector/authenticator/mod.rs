@@ -7,11 +7,12 @@ use bearer::Bearer;
 use curl::easy::{Easy, List};
 use jwt::Jwt;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::io::Result;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
-pub enum Authenticator {
+pub enum AuthenticatorType {
     #[serde(rename = "basic")]
     Basic(Basic),
     #[serde(rename = "bearer")]
@@ -20,16 +21,24 @@ pub enum Authenticator {
     Jwt(Jwt),
 }
 
-impl Authenticator {
-    pub fn get(&self) -> Box<&dyn Authenticate> {
+impl AuthenticatorType {
+    pub fn authenticator(&self) -> &dyn Authenticator {
         match self {
-            Authenticator::Basic(authenticator) => Box::new(authenticator),
-            Authenticator::Bearer(authenticator) => Box::new(authenticator),
-            Authenticator::Jwt(authenticator) => Box::new(authenticator),
+            AuthenticatorType::Basic(authenticator) => authenticator,
+            AuthenticatorType::Bearer(authenticator) => authenticator,
+            AuthenticatorType::Jwt(authenticator) => authenticator,
+        }
+    }
+    pub fn authenticator_mut(&mut self) -> &mut dyn Authenticator {
+        match self {
+            AuthenticatorType::Basic(authenticator) => authenticator,
+            AuthenticatorType::Bearer(authenticator) => authenticator,
+            AuthenticatorType::Jwt(authenticator) => authenticator,
         }
     }
 }
 
-pub trait Authenticate {
-    fn add_authentication(&self, client: &mut Easy, headers: &mut List) -> Result<()>;
+pub trait Authenticator {
+    fn add_authentication(&mut self, client: &mut Easy, headers: &mut List) -> Result<()>;
+    fn set_parameters(&mut self, parameters: Value);
 }

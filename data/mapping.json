@@ -1,0 +1,12 @@
+[{
+    "mapping_code":"value_to_map",
+    "mapping_value":"value mapped"
+},
+{
+    "mapping_code":"value_to_map_2",
+    "mapping_value":"value mapped 2"
+},
+{
+    "mapping_code":"value_to_map_3",
+    "mapping_value":"value mapped 3"
+}]

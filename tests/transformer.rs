@@ -8,7 +8,6 @@ mod transformer {
     use std::process::Command;
 
     const APP_NAME: &str = "chewdata";
-    const APP_ARG_FORMAT_JSON: &str = "json";
     #[test]
     fn it_should_apply_simple_transformation() {
         let now = Utc::now().format("%Y-%m-%d").to_string();
@@ -71,7 +70,7 @@ mod transformer {
         ];
         let configs = [(
             "tera",
-            r#"[{"type":"r","builder":{"type":"json","connector":{"type":"local","path":"./data/one_line.json"}}},{"type": "t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type": "w"}]"#,
+            r#"[{"type":"r", "connector":{"type":"local","path":"./data/one_line.json"}},{"type": "t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type": "w"}]"#,
         )];
         patterns
             .iter()
@@ -82,7 +81,7 @@ mod transformer {
                         field_name, template_engine
                     );
                     let output = Command::new(debug_dir().join(APP_NAME))
-                        .args(&[config, APP_ARG_FORMAT_JSON])
+                        .args(&[config])
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
@@ -99,7 +98,7 @@ mod transformer {
                     );
                     assert!(
                         !json_result.is_empty(),
-                        format!("stdout should not be empty.")
+                        "stdout should not be empty.".to_string()
                     );
                     let object_result: Value =
                         serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -107,7 +106,7 @@ mod transformer {
                         .get(0)
                         .expect("The result should begin with an array.")
                         .get(field_name)
-                        .expect(format!("Should have a '{}'.", field_name).as_str());
+                        .unwrap_or_else(|| panic!("Should have a '{}'.", field_name));
 
                     assert_eq!(
                         &Value::resolve(expected_value.to_string()),
@@ -128,7 +127,7 @@ mod transformer {
         )];
         let configs = [(
             "tera",
-            r#"[{"type":"r","builder":{"type":"json","connector":{"type":"local","path":"{{ INPUT_FILE_PATH }}"}}},{"type":"t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w"}]"#,
+            r#"[{"type":"r","connector":{"type":"local","path":"{{ INPUT_FILE_PATH }}"}},{"type":"t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w"}]"#,
         )];
         patterns
             .iter()
@@ -139,7 +138,7 @@ mod transformer {
                         field_name, template_engine
                     );
                     let output = Command::new(debug_dir().join(APP_NAME))
-                        .args(&[config, APP_ARG_FORMAT_JSON])
+                        .args(&[config])
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
@@ -157,7 +156,7 @@ mod transformer {
                     );
                     assert!(
                         !json_result.is_empty(),
-                        format!("stdout should not be empty.")
+                        "stdout should not be empty.".to_string()
                     );
 
                     let object_result: Value =
@@ -169,7 +168,7 @@ mod transformer {
                     );
                     assert_eq!(
                         Value::resolve(expected_value.to_string()),
-                        object_result.clone(),
+                        object_result,
                         "Tested with the template engine '{}'.",
                         template_engine
                     );
@@ -192,7 +191,7 @@ mod transformer {
         ];
         let configs = [(
             "tera",
-            r#"[{"type":"r","builder":{"type":"json","connector":{"type":"local","path":"./data/one_line.json"}}},{"type":"t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"object1","pattern":"{\"field1\":\"value1\"}"},{"field":"object2","pattern":"{\"field2\":\"value2\"}"},{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w"}]"#,
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"object1","pattern":"{\"field1\":\"value1\"}"},{"field":"object2","pattern":"{\"field2\":\"value2\"}"},{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w"}]"#,
         )];
         patterns
             .iter()
@@ -203,7 +202,7 @@ mod transformer {
                         field_name, template_engine
                     );
                     let output = Command::new(debug_dir().join(APP_NAME))
-                        .args(&[config, APP_ARG_FORMAT_JSON])
+                        .args(&[config])
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
@@ -220,7 +219,7 @@ mod transformer {
                     );
                     assert!(
                         !json_result.is_empty(),
-                        format!("stdout should not be empty.")
+                        "stdout should not be empty.".to_string()
                     );
                     let object_result: Value =
                         serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -228,7 +227,7 @@ mod transformer {
                         .get(0)
                         .expect("The result should begin with an array.")
                         .get(field_name)
-                        .expect(format!("Should have a '{}'.", field_name).as_str());
+                        .unwrap_or_else(|| panic!("Should have a '{}'.", field_name));
 
                     assert_eq!(
                         &Value::resolve(expected_value.to_string()),
@@ -248,7 +247,7 @@ mod transformer {
         )];
         let configs = [(
             "tera",
-            r#"[{"type":"r","builder":{"type":"json","connector":{"type":"local","path":"./data/one_line.json"}}},{"type":"t","updater":{"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]},"refs":[{"type":"reader","alias":"alias_mapping","builder":{"type":"csv","delimiter":";","connector":{"type":"local","path":"./data/mapping.csv"}}}]},{"type": "w"}]"#,
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]},"refs":[{"type":"reader","alias":"alias_mapping","document":{"type":"json"},"connector":{"type":"local","path":"./data/mapping.json"}}]},{"type": "w"}]"#,
         )];
         patterns
             .iter()
@@ -259,7 +258,7 @@ mod transformer {
                         field_name, template_engine
                     );
                     let output = Command::new(debug_dir().join(APP_NAME))
-                        .args(&[config, APP_ARG_FORMAT_JSON])
+                        .args(&[config])
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
@@ -276,7 +275,7 @@ mod transformer {
                     );
                     assert!(
                         !json_result.is_empty(),
-                        format!("stdout should not be empty.")
+                        "stdout should not be empty.".to_string()
                     );
                     let object_result: Value =
                         serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -284,7 +283,7 @@ mod transformer {
                         .get(0)
                         .expect("The result should begin with an array.")
                         .get(field_name)
-                        .expect(format!("Should have a '{}'.", field_name).as_str());
+                        .unwrap_or_else(|| panic!("Should have a '{}'.", field_name));
 
                     assert_eq!(
                         &Value::resolve(expected_value.to_string()),
@@ -304,7 +303,7 @@ mod transformer {
         )];
         let configs = [(
             "tera",
-            r#"[{"type":"r","builder":{"type":"json","connector":{"type":"local","path":"./data/one_line.json"}}},{"type":"t","updater":{"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"/my_field","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w","data_type": "err"}]"#,
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"/my_field","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w","data_type": "err"}]"#,
         )];
         patterns
             .iter()
@@ -315,7 +314,7 @@ mod transformer {
                         field_name, template_engine
                     );
                     let output = Command::new(debug_dir().join(APP_NAME))
-                        .args(&[config, APP_ARG_FORMAT_JSON])
+                        .args(&[config])
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
@@ -327,21 +326,21 @@ mod transformer {
                     let json_result = String::from_utf8_lossy(output.stdout.as_slice());
                     let error_result = String::from_utf8_lossy(output.stderr.as_slice());
                     assert!(
-                        !error_result.is_empty(),
-                        format!("stderr should not be empty {}.", error_result)
+                        error_result.is_empty(),
+                        format!("stderr should be empty {}.", error_result)
                     );
                     assert!(
                         !json_result.is_empty(),
-                        format!("stdout should not be empty.")
+                        "stdout should not be empty.".to_string()
                     );
-                    println!("json_result {}", json_result);
+
                     let object_result: Value =
                         serde_json::from_str(&json_result).expect("Parse json result failed.");
                     let value = object_result
                         .get(0)
                         .expect("The result should begin with an array.")
                         .get(field_name)
-                        .expect(format!("Should have a '{}'.", field_name).as_str());
+                        .unwrap_or_else(|| panic!("Should have a '{}'.", field_name));
 
                     assert_eq!(
                         &Value::resolve(expected_value.to_string()),

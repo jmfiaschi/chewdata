@@ -4,25 +4,17 @@ fn main() -> io::Result<()> {
     let _guard = slog_envlogger::init().unwrap();
 
     let config = r#"
-    [{
-        "type": "r",
-        "builder":{
-            "type":"json",
+    [
+        {
+            "type": "r",
             "connector":{
                 "type": "local",
                 "path": "./data/multi_lines.json"
             }
-        }
-    },
-    {
-        "type": "w",
-        "builder": {
-            "type": "json"
-        }
-    }]
+        },
+        { "type": "w" }
+    ]
     "#;
 
-    chewdata::exec(serde_json::from_str(config)?)?;
-
-    Ok(())
+    chewdata::exec(serde_json::from_str(config)?, None)
 }

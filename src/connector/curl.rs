@@ -1,5 +1,7 @@
-use super::authenticator::Authenticator;
-use super::{resolve_path, Connect};
+use super::authenticator::AuthenticatorType;
+use super::Connector;
+use crate::helper::mustache::Mustache;
+use crate::Metadata;
 use curl::easy::{Easy, List};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -11,7 +13,12 @@ use std::io::{Cursor, Error, ErrorKind, Read, Result, Write};
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Curl {
-    pub authenticator: Option<Authenticator>,
+    #[serde(rename = "metadata")]
+    #[serde(alias = "meta")]
+    pub metadata: Metadata,
+    #[serde(alias = "auth")]
+    #[serde(alias = "authenticator")]
+    pub authenticator_type: Option<AuthenticatorType>,
     // The FQDN endpoint.
     pub endpoint: String,
     // The http uri.
@@ -20,11 +27,9 @@ pub struct Curl {
     pub method: Method,
     // Add complementaries headers. This headers override the default headers.
     pub headers: HashMap<String, String>,
-    // Mime type of the document.
-    pub mime_type: Option<String>,
     pub parameters: Value,
     // Fush data to an API, read the response and add it into the inner buffer.
-    pub flush_and_read: bool,
+    pub can_flush_and_read: bool,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
 }
@@ -72,15 +77,15 @@ pub enum Method {
 impl Default for Curl {
     fn default() -> Self {
         Curl {
-            authenticator: None,
+            metadata: Metadata::default(),
+            authenticator_type: None,
             endpoint: "".to_owned(),
             path: "".to_string(),
             method: Method::Get,
             inner: Cursor::new(Vec::default()),
             parameters: Value::Null,
-            flush_and_read: false,
+            can_flush_and_read: false,
             headers: HashMap::new(),
-            mime_type: None,
         }
     }
 }
@@ -91,13 +96,13 @@ impl Curl {
     /// # Example
     /// ```
     /// use chewdata::connector::curl::{Curl, Method};
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use serde_json::Value;
     ///
     /// let mut connector = Curl::default();
     /// assert_eq!(false, connector.is_variable_path());
     /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
-    /// connector.set_path_parameters(params);
+    /// connector.set_parameters(params);
     /// connector.path = "/get/{{ field }}".to_string();
     /// assert_eq!(true, connector.is_variable_path());
     /// ```
@@ -106,23 +111,26 @@ impl Curl {
         reg.is_match(self.path.as_ref())
     }
     fn init_inner(&mut self) -> Result<()> {
-        trace!(slog_scope::logger(), "Init inner");
+        debug!(slog_scope::logger(), "Init inner");
         let mut client = Easy::new();
         let mut headers = List::new();
         let curl = self.clone();
         let resolved_path = curl.path();
+        let content_type_field = http::header::CONTENT_TYPE;
         client.url(format!("{}{}", curl.endpoint, resolved_path).as_ref())?;
         client.get(true)?;
 
-        if let Some(auth) = self.authenticator.clone() {
-            auth.get().add_authentication(&mut client, &mut headers)?;
+        if let Some(mut authenticator_type) = self.authenticator_type.clone() {
+            let authenticator = authenticator_type.authenticator_mut();
+            authenticator.set_parameters(self.parameters.clone());
+            authenticator.add_authentication(&mut client, &mut headers)?;
         }
 
-        if let Some(mine_type) = self.mime_type.clone() {
-            headers.append(format!("{}:{}", http::header::CONTENT_TYPE, mine_type).as_ref())?;
+        if let Some(mine_type) = self.metadata.clone().mime_type {
+            headers.append(format!("{}:{}", content_type_field, mine_type).as_ref())?;
         }
 
-        if 0 < self.headers.len() {
+        if !self.headers.is_empty() {
             for (key, value) in self.headers.iter() {
                 headers.append(format!("{}:{}", key, value).as_ref())?;
             }
@@ -130,16 +138,17 @@ impl Curl {
 
         client.http_headers(headers)?;
 
-        // Log curl information
-        info!(slog_scope::logger(), "Url"; "method" => format!("{:?}",curl.method), "endpoint" => curl.endpoint, "uri" => resolved_path);
+        info!(slog_scope::logger(), "Request"; "method" => format!("{:?}",curl.method), "endpoint" => curl.endpoint, "uri" => resolved_path);
+        debug!(slog_scope::logger(), "Body"; "payload" => String::from_utf8_lossy(self.inner.get_ref()).to_string());
         client.header_function(|header| {
-            info!(
+            debug!(
                 slog_scope::logger(),
                 "{:?}",
                 std::str::from_utf8(header).unwrap()
             );
             true
         })?;
+        client.follow_location(true)?;
 
         {
             let mut transfer = client.transfer();
@@ -147,44 +156,50 @@ impl Curl {
             transfer.perform()?;
         }
 
-        info!(slog_scope::logger(), "Status"; "code" => client.response_code()?);
+        info!(slog_scope::logger(), "Response"; "code" => client.response_code()?);
         let response_code = client.response_code()?;
         match response_code {
-            200..=299 => (),
+            200..=299 => {
+                trace!(slog_scope::logger(), "Body"; "payload" => String::from_utf8_lossy(self.inner.get_ref()).to_string());
+            }
             _ => {
-                error!(slog_scope::logger(), "Call in error"; "code" => response_code);
+                warn!(slog_scope::logger(), "Call in error"; "code" => response_code);
                 return Err(Error::new(
                     ErrorKind::InvalidData,
-                    format!("HTTP Error '{}'", response_code),
+                    format!(
+                        "Http response code '{}', with message '{}'",
+                        response_code,
+                        String::from_utf8_lossy(self.inner.get_ref())
+                    ),
                 ));
             }
         }
 
         // initialize the position of the cursor
         self.inner.set_position(0);
-        info!(slog_scope::logger(), "Init inner ended");
+        debug!(slog_scope::logger(), "Init inner ended");
         Ok(())
     }
 }
 
-impl Connect for Curl {
+impl Connector for Curl {
     /// Get the resolved path.
     ///
     /// # Example
     /// ```
     /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use serde_json::Value;
     ///
     /// let mut connector = Curl::default();
     /// connector.path = "/resource/{{ field }}".to_string();
     /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
-    /// connector.set_path_parameters(params);
+    /// connector.set_parameters(params);
     /// assert_eq!("/resource/value", connector.path());
     /// ```
     fn path(&self) -> String {
         match (self.is_variable_path(), self.parameters.clone()) {
-            (true, params) => resolve_path(self.path.clone(), params),
+            (true, params) => self.path.clone().replace_mustache(params),
             _ => self.path.clone(),
         }
     }
@@ -193,7 +208,7 @@ impl Connect for Curl {
     /// # Example
     /// ```
     /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let mut connector = Curl::default();
     /// assert_eq!(true, connector.will_be_truncated());
@@ -206,7 +221,7 @@ impl Connect for Curl {
     /// # Example
     /// ```
     /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let connector = Curl::default();
     /// let vec: Vec<u8> = Vec::default();
@@ -214,15 +229,15 @@ impl Connect for Curl {
     fn inner(&self) -> &Vec<u8> {
         self.inner.get_ref()
     }
-    fn set_path_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters.clone();
+    fn set_parameters(&mut self, parameters: Value) {
+        self.parameters = parameters;
     }
     /// Check only if the current inner buffer is empty.
     ///
     /// # Example
     /// ```
     /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let connector = Curl::default();
     /// assert_eq!(true, connector.is_empty().unwrap());
@@ -234,9 +249,11 @@ impl Connect for Curl {
 
         Ok(true)
     }
-    /// Set the mime type of the document.
-    fn set_mime_type(&mut self, mime_type: mime::Mime) -> () {
-        self.mime_type = Some(mime_type.to_string());
+    fn set_flush_and_read(&mut self, flush_and_read: bool) {
+        self.can_flush_and_read = flush_and_read;
+    }
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
     }
 }
 
@@ -246,7 +263,7 @@ impl Read for Curl {
     /// # Example:
     /// ```
     /// use chewdata::connector::curl::{Curl, Method};
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use std::io::Read;
     /// use serde_json::Value;
     ///
@@ -259,7 +276,7 @@ impl Read for Curl {
     /// assert!(0 < len, "Should read one some bytes.");
     /// ```
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if 0 == self.inner.get_ref().len() {
+        if self.inner.get_ref().is_empty() {
             self.init_inner()?;
         }
         self.inner.read(buf)
@@ -288,7 +305,7 @@ impl Write for Curl {
     /// # Example
     /// ```
     /// use chewdata::connector::curl::{Curl, Method};
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use std::io::{Read, Write};
     ///
     /// let mut connector_write = Curl::default();
@@ -300,11 +317,11 @@ impl Write for Curl {
     /// connector_write.flush().unwrap();
     /// assert_eq!(r#""#, format!("{}",connector_write));
     fn flush(&mut self) -> Result<()> {
-        trace!(slog_scope::logger(), "Flush");
+        debug!(slog_scope::logger(), "Flush ended");
 
         if self.is_variable_path()
             && self.parameters == Value::Null
-            && 0 == self.inner.get_ref().len()
+            && self.inner.get_ref().is_empty()
         {
             warn!(slog_scope::logger(), "Can't flush with variable path and without parameters";"path"=>self.path.clone(),"parameters"=>self.parameters.to_string());
             return Ok(());
@@ -314,15 +331,16 @@ impl Write for Curl {
         let mut client = Easy::new();
         let mut headers = List::new();
         let list = List::new();
+        let content_type_field = http::header::CONTENT_TYPE;
 
         // initialize the position of the cursor
         self.inner.set_position(0);
 
-        if let Some(mine_type) = self.mime_type.clone() {
-            headers.append(format!("{}:{}", http::header::CONTENT_TYPE, mine_type).as_ref())?;
+        if let Some(mine_type) = self.metadata.clone().mime_type {
+            headers.append(format!("{}:{}", content_type_field, mine_type).as_ref())?;
         }
 
-        if 0 < self.headers.len() {
+        if !self.headers.is_empty() {
             for (key, value) in self.headers.iter() {
                 headers.append(format!("{}:{}", key, value).as_ref())?;
             }
@@ -354,16 +372,18 @@ impl Write for Curl {
             }
         };
 
-        if let Some(auth) = self.authenticator.clone() {
-            auth.get().add_authentication(&mut client, &mut headers)?;
+        if let Some(mut authenticator_type) = self.authenticator_type.clone() {
+            let authenticator = authenticator_type.authenticator_mut();
+            authenticator.set_parameters(self.parameters.clone());
+            authenticator.add_authentication(&mut client, &mut headers)?;
         }
 
         client.http_headers(headers)?;
 
-        // Log curl information
-        info!(slog_scope::logger(), "Url"; "method" => format!("{:?}",self.method), "endpoint" => self.endpoint.to_owned(), "uri" => path_resolved);
+        info!(slog_scope::logger(), "Request"; "method" => format!("{:?}",self.method), "endpoint" => self.endpoint.to_owned(), "uri" => path_resolved);
+        debug!(slog_scope::logger(), "Body"; "payload" => String::from_utf8_lossy(self.inner.get_ref()).to_string());
         client.header_function(|header| {
-            info!(
+            debug!(
                 slog_scope::logger(),
                 "{:?}",
                 std::str::from_utf8(header).unwrap()
@@ -379,26 +399,32 @@ impl Write for Curl {
             transfer.perform()?;
         }
 
-        let status_code = client.response_code()?;
-        info!(slog_scope::logger(), "Status"; "code" => status_code);
-
-        match status_code {
-            200..=299 => Ok(()),
+        let response_code = client.response_code()?;
+        info!(slog_scope::logger(), "Response"; "code" => response_code);
+        match response_code {
+            200..=299 => {
+                trace!(slog_scope::logger(), "Body"; "payload" => String::from_utf8_lossy(received_data.get_ref()).to_string());
+                Ok(())
+            }
             _ => Err(Error::new(
                 ErrorKind::InvalidData,
-                format!("Http response code '{}'", status_code),
+                format!(
+                    "Http response code '{}', with message '{}'",
+                    response_code,
+                    String::from_utf8_lossy(received_data.get_ref())
+                ),
             )),
         }?;
 
         self.inner.flush()?;
         self.inner = Cursor::new(Vec::default());
 
-        if self.flush_and_read {
-            self.inner.write(received_data.get_ref())?;
+        if self.can_flush_and_read {
+            self.inner.write_all(received_data.get_ref())?;
             self.inner.set_position(0);
         }
 
-        info!(slog_scope::logger(), "Flush ended");
+        debug!(slog_scope::logger(), "Flush ended");
         Ok(())
     }
 }

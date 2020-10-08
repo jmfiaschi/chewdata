@@ -1,105 +1,12 @@
-# The URL the site will be built for
 base_url = "https://chewdata.github.io/"
-
-# The site title and description; used in feeds by default.
 title = "ChewData"
-description = "ChewData is an ETL in Rust"
+description = "ChewData is a light ETL in Rust"
 
-# The default language; used in feeds.
-default_language = "en"
-
-# The site theme to use.
-theme = "zerm"
-
-# Whether to automatically compile all Sass files in the sass directory
 compile_sass = true
-
-# Whether to do syntax highlighting
-# Theme can be customised by setting the `highlight_theme` variable to a theme supported by Zola
 highlight_code = true
 insert_anchor_links = true
-
-# Whether to build a search index to be used later on by a JavaScript library
+highlight_theme = "kronuz"
 build_search_index = true
 
-# Built in taxonomies of zerm. 
-taxonomies = [
-           {name = "tags"},
-           {name = "categories"},
-]
-
-pages = [
-           {name = "tags"},
-           {name = "categories"},
-]
-
 [extra]
-# Put all your custom variables here
-#
-# Many configurations are taken directly from Terminal's config.toml
-# ---------------------------------------------------------
-
-# Author name to be added to posts, if enabled.
 author = "Jean-Marc Fiaschi"
-
-# Show author's name in blog post meta data.
-show_author = false
-
-# Show categories a blog post is marked with in its meta data.
-show_categories = true
-
-# Show tags a blog post is marked with in its meta data.
-show_tags = true
-
-# Theme color. You can have any color you want, so long as it's...
-# ["orange", "blue", "red", "green", "pink"]
-theme_color = "blue"
-
-# Custom css to style over the defaults. This is useful when you only have a
-# few small tweaks to make rather than a major rehaul to the theme.
-# It would be best to make this a proper .sass or .scss file in sass/ rather
-# than placing in static/
-custom_css = "custom.css"
-
-# How many menu items to show on desktop. if you set this to 0, only submenu
-# button will be visible.
-show_menu_items = 5
-
-# set theme to full screen width.
-full_width = true
-
-# center theme with default width.
-center = true
-
-# set a custom favicon. Must be placed in root of static/ directory...
-favicon = "rust.ico"
-
-# Set a custom preview image for your website when posted as a link.
-# Must be placed in root of static/ directory...
-# og_preview_img = ""
-
-# Copyright notice if desired. Defaults to 
-# copyright = "copyright notice here"
-
-# What is displayed in the top left corner of the website. Default is zerm.
-logo_text = "...ChewData..."
-
-# Link in logo. Default returns you to $BASE_URL.
-logo_home_link = "/"
-
-# Menu items to display. You define a url and the name of the menu item.
-# NOTE: `$BASE_URL/` must be included in the url name.
-main_menu = [
-    { url="/docs/", name="Docs" },
-    {url="/contact/", name="Contact"},
-]
-
-# Displayed as title of drop-down menu when size of main_menu > show_menu_items.
-menu_more = "show more"
-
-# Displayed after teaser text for a blog post.
-read_more = "read more"
-
-# not currently used from previous theme, but leaving here for now in case I
-# feel like adding it.
-read_other_posts = "read other posts"

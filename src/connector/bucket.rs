@@ -1,11 +1,12 @@
-use crate::connector::{resolve_path, Connect};
+use crate::connector::Connector;
+use crate::helper::mustache::Mustache;
+use crate::Metadata;
 use http::status::StatusCode;
 use regex::Regex;
-use rusoto_core::{credential::ChainProvider, Region, RusotoError};
+use rusoto_core::{credential::StaticProvider, Region, RusotoError};
 use rusoto_s3::{GetObjectRequest, HeadObjectRequest, PutObjectRequest, S3Client, S3 as RusotoS3};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::env;
 use std::fmt;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
 use tokio::runtime::Runtime;
@@ -13,6 +14,9 @@ use tokio::runtime::Runtime;
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Bucket {
+    #[serde(rename = "metadata")]
+    #[serde(alias = "meta")]
+    pub metadata: Metadata,
     pub endpoint: Option<String>,
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
@@ -23,7 +27,7 @@ pub struct Bucket {
     // Truncate fetch or not the content of the file in the S3 bucket.
     //  true:   Not fetch the files into the bucket.
     //  false:  Fetch the files into the bucket and add the content.
-    pub truncate: bool,
+    pub can_truncate: bool,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
     #[serde(skip)]
@@ -35,6 +39,7 @@ pub struct Bucket {
 impl Default for Bucket {
     fn default() -> Self {
         Bucket {
+            metadata: Metadata::default(),
             endpoint: None,
             access_key_id: None,
             secret_access_key: None,
@@ -43,7 +48,7 @@ impl Default for Bucket {
             path: "".to_owned(),
             inner: Cursor::new(Vec::default()),
             parameters: Value::Null,
-            truncate: false,
+            can_truncate: false,
             runtime: Runtime::new().unwrap(),
             is_truncated: false,
         }
@@ -53,6 +58,7 @@ impl Default for Bucket {
 impl Clone for Bucket {
     fn clone(&self) -> Self {
         Bucket {
+            metadata: self.metadata.to_owned(),
             endpoint: self.endpoint.to_owned(),
             access_key_id: self.access_key_id.to_owned(),
             secret_access_key: self.secret_access_key.to_owned(),
@@ -61,7 +67,7 @@ impl Clone for Bucket {
             path: self.path.to_owned(),
             inner: Cursor::new(Vec::default()),
             parameters: self.parameters.to_owned(),
-            truncate: self.truncate.to_owned(),
+            can_truncate: self.can_truncate.to_owned(),
             runtime: Runtime::new().unwrap(),
             is_truncated: self.is_truncated.to_owned(),
         }
@@ -86,38 +92,38 @@ impl fmt::Display for Bucket {
 impl Bucket {
     fn s3_client(&self) -> S3Client {
         match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
-            (Some(access_key_id), Some(secret_access_key)) => {
-                env::set_var("AWS_ACCESS_KEY_ID", access_key_id);
-                env::set_var("AWS_SECRET_ACCESS_KEY", secret_access_key);
-            }
-            (_, _) => (),
-        }
-
-        let chain_provider = ChainProvider::new();
-        S3Client::new_with(
-            rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
-            chain_provider,
-            Region::Custom {
+            (Some(access_key_id), Some(secret_access_key)) => S3Client::new_with(
+                rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
+                StaticProvider::new_minimal(access_key_id.to_owned(), secret_access_key.to_owned()),
+                Region::Custom {
+                    name: self.region.to_owned(),
+                    endpoint: match self.endpoint.to_owned() {
+                        Some(endpoint) => endpoint,
+                        None => format!("https://s3-{}.amazonaws.com", self.region),
+                    },
+                },
+            ),
+            (_, _) => S3Client::new(Region::Custom {
                 name: self.region.to_owned(),
                 endpoint: match self.endpoint.to_owned() {
                     Some(endpoint) => endpoint,
                     None => format!("https://s3-{}.amazonaws.com", self.region),
                 },
-            },
-        )
+            }),
+        }
     }
     /// Test if the path is variable.
     ///
     /// # Example
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use serde_json::Value;
     ///
     /// let mut connector = Bucket::default();
     /// assert_eq!(false, connector.is_variable_path());
     /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
-    /// connector.set_path_parameters(params);
+    /// connector.set_parameters(params);
     /// connector.path = "/dir/filename_{{ field }}.ext".to_string();
     /// assert_eq!(true, connector.is_variable_path());
     /// ```
@@ -127,12 +133,12 @@ impl Bucket {
     }
     /// Initilize the inner buffer.
     fn init_inner(&mut self) -> Result<()> {
-        trace!(slog_scope::logger(), "Init inner buffer");
+        debug!(slog_scope::logger(), "Init inner buffer");
         let connector = self.clone();
         let s3_client = connector.s3_client();
         let request = GetObjectRequest {
             bucket: connector.bucket.clone(),
-            key: connector.path().to_string(),
+            key: connector.path(),
             ..Default::default()
         };
 
@@ -155,37 +161,37 @@ impl Bucket {
             }
         });
 
-        self.inner.write(result?.as_bytes())?;
+        self.inner.write_all(result?.as_bytes())?;
         // initialize the position of the cursor
         self.inner.set_position(0);
-        info!(slog_scope::logger(), "Init inner buffer ended");
+        debug!(slog_scope::logger(), "Init inner buffer ended");
 
         Ok(())
     }
 }
 
-impl Connect for Bucket {
+impl Connector for Bucket {
     /// Set the path parameters.
     ///
     /// # Example
     /// ```
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::bucket::Bucket;
+    /// use chewdata::connector::Connector;
     /// use serde_json::Value;
     ///
-    /// let mut local = Local::default();
-    /// assert_eq!(Value::Null, local.parameters);
+    /// let mut connector = Bucket::default();
+    /// assert_eq!(Value::Null, connector.parameters);
     /// let params: Value = Value::String("my param".to_string());
-    /// local.set_path_parameters(params.clone());
-    /// assert_eq!(params.clone(), local.parameters.clone());
+    /// connector.set_parameters(params.clone());
+    /// assert_eq!(params.clone(), connector.parameters.clone());
     /// ```
-    fn set_path_parameters(&mut self, parameters: Value) {
+    fn set_parameters(&mut self, parameters: Value) {
         let params_old = self.parameters.clone();
         self.parameters = parameters.clone();
 
         if Value::Null != parameters
             && self.is_variable_path()
-            && super::resolve_path(self.path.clone(), params_old) != self.path()
+            && self.path.clone().replace_mustache(params_old) != self.path()
         {
             self.is_truncated = false;
         }
@@ -195,18 +201,18 @@ impl Connect for Bucket {
     /// # Example
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use serde_json::Value;
     ///
     /// let mut connector = Bucket::default();
     /// connector.path = "/dir/filename_{{ field }}.ext".to_string();
     /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
-    /// connector.set_path_parameters(params);
+    /// connector.set_parameters(params);
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
         match (self.is_variable_path(), self.parameters.clone()) {
-            (true, params) => resolve_path(self.path.clone(), params),
+            (true, params) => self.path.clone().replace_mustache(params),
             _ => self.path.clone(),
         }
     }
@@ -222,7 +228,7 @@ impl Connect for Bucket {
     /// # Example
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let mut connector = Bucket::default();
     /// connector.endpoint = Some("http://localhost:9000".to_string());
@@ -246,7 +252,7 @@ impl Connect for Bucket {
             match connector_clone.read(&mut buf) {
                 Ok(_) => (),
                 Err(_) => {
-                    info!(slog_scope::logger(), "The file not exist"; "path" => format!("{}",connector_clone.path()));
+                    info!(slog_scope::logger(), "The file not exist"; "path" => connector_clone.path());
                     return Ok(true);
                 }
             }
@@ -262,22 +268,22 @@ impl Connect for Bucket {
     /// # Example
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let mut connector = Bucket::default();
     /// assert_eq!(false, connector.will_be_truncated());
-    /// connector.truncate = true;
+    /// connector.can_truncate = true;
     /// assert_eq!(true, connector.will_be_truncated());
     /// ```
     fn will_be_truncated(&self) -> bool {
-        self.truncate && !self.is_truncated
+        self.can_truncate && !self.is_truncated
     }
     /// Get the inner buffer reference.
     ///
     /// # Example
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let connector = Bucket::default();
     /// let vec: Vec<u8> = Vec::default();
@@ -291,7 +297,7 @@ impl Connect for Bucket {
     /// # Example
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let mut connector = Bucket::default();
     /// connector.endpoint = Some("http://localhost:9000".to_string());
@@ -307,7 +313,7 @@ impl Connect for Bucket {
         let s3_client = self.s3_client();
         let request = HeadObjectRequest {
             bucket: self.bucket.clone(),
-            key: self.path().to_string(),
+            key: self.path(),
             ..Default::default()
         };
 
@@ -335,7 +341,7 @@ impl Connect for Bucket {
     /// # Example: Seek from the end
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use std::io::{Read, Write};
     ///
     /// let mut connector_write = Bucket::default();
@@ -344,7 +350,7 @@ impl Connect for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_seek_and_flush_1".to_string();
-    /// connector_write.truncate = true;
+    /// connector_write.can_truncate = true;
     ///
     /// connector_write.write(r#"[{"column1":"value1"}]"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.seek_and_flush(-1).unwrap();
@@ -363,7 +369,7 @@ impl Connect for Bucket {
     /// # Example: Seek from the start
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use std::io::{Read, Write};
     ///
     /// let mut connector_write = Bucket::default();
@@ -372,7 +378,7 @@ impl Connect for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_seek_and_flush_2".to_string();
-    /// connector_write.truncate = true;
+    /// connector_write.can_truncate = true;
     ///
     /// let str = r#"[{"column1":"value1"}]"#;
     /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
@@ -392,7 +398,7 @@ impl Connect for Bucket {
     /// # Example: If the document must not be truncated
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use std::io::{Read, Write};
     ///
     /// let mut connector_write = Bucket::default();
@@ -401,7 +407,7 @@ impl Connect for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_seek_and_flush_3".to_string();
-    /// connector_write.truncate = true;
+    /// connector_write.can_truncate = true;
     ///
     /// let str = r#"[{"column1":"value1"}]"#;
     /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
@@ -417,7 +423,7 @@ impl Connect for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_seek_and_flush_3".to_string();
-    /// connector_write.truncate = false;
+    /// connector_write.can_truncate = false;
     ///
     /// connector_write.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.seek_and_flush(-1).unwrap();
@@ -427,10 +433,10 @@ impl Connect for Bucket {
     /// assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
     /// ```
     fn seek_and_flush(&mut self, position: i64) -> Result<()> {
-        trace!(slog_scope::logger(), "Seek & Flush");
+        debug!(slog_scope::logger(), "Seek & Flush");
         if self.is_variable_path()
             && self.parameters == Value::Null
-            && 0 == self.inner.get_ref().len()
+            && self.inner.get_ref().is_empty()
         {
             warn!(slog_scope::logger(), "Can't flush with variable path and without parameters";"path"=>self.path.clone(),"parameters"=>self.parameters.to_string());
             return Ok(());
@@ -438,7 +444,7 @@ impl Connect for Bucket {
 
         let mut position = position;
 
-        if 0 >= (self.len()? as i64 + position) || true == self.will_be_truncated() {
+        if 0 >= (self.len()? as i64 + position) || self.will_be_truncated() {
             position = 0;
         }
 
@@ -446,13 +452,13 @@ impl Connect for Bucket {
         let path_resolved = self.path();
 
         if 0 != position {
-            info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => format!("{}", path_resolved));
+            info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => path_resolved.to_string());
             {
                 let mut connector_clone = self.clone();
                 match connector_clone.read_to_end(&mut content_file) {
                     Ok(_) => (),
                     Err(_) => {
-                        info!(slog_scope::logger(), "The file not exist"; "path" => format!("{}", path_resolved))
+                        info!(slog_scope::logger(), "The file not exist"; "path" => path_resolved.to_string())
                     }
                 }
             }
@@ -465,12 +471,12 @@ impl Connect for Bucket {
         if 0 > position && !self.will_be_truncated() {
             cursor.seek(SeekFrom::End(position as i64))?;
         }
-        cursor.write(self.inner.get_ref())?;
+        cursor.write_all(self.inner.get_ref())?;
 
         let s3_client = self.s3_client();
         let put_request = PutObjectRequest {
             bucket: self.bucket.to_owned(),
-            key: path_resolved.to_owned(),
+            key: path_resolved,
             body: Some(cursor.into_inner().into()),
             ..Default::default()
         };
@@ -490,6 +496,9 @@ impl Connect for Bucket {
         info!(slog_scope::logger(), "Seek & Flush ended");
         Ok(())
     }
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
+    }
 }
 
 impl Read for Bucket {
@@ -498,7 +507,7 @@ impl Read for Bucket {
     /// # Example:
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use std::io::Read;
     /// use serde_json::Value;
     ///
@@ -513,7 +522,7 @@ impl Read for Bucket {
     /// assert!(0 < len, "Should read one some bytes.");
     /// ```
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if 0 == self.inner.clone().into_inner().len() {
+        if self.inner.clone().into_inner().is_empty() {
             self.init_inner()?;
         }
 
@@ -543,7 +552,7 @@ impl Write for Bucket {
     /// # Example
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use std::io::{Read, Write};
     ///
     /// let mut connector_write = Bucket::default();
@@ -552,7 +561,7 @@ impl Write for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_flush_1".to_string();
-    /// connector_write.truncate = true;
+    /// connector_write.can_truncate = true;
     ///
     /// connector_write.write(r#"{"column1":"value1"}"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.flush().unwrap();
@@ -571,7 +580,7 @@ impl Write for Bucket {
     /// # Example: If the document must not be truncated
     /// ```
     /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     /// use std::io::{Read, Write};
     ///
     /// let mut connector_write = Bucket::default();
@@ -580,7 +589,7 @@ impl Write for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_flush_2".to_string();
-    /// connector_write.truncate = true;
+    /// connector_write.can_truncate = true;
     ///
     /// let str = r#"{"column1":"value1"}"#;
     /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
@@ -596,7 +605,7 @@ impl Write for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_flush_2".to_string();
-    /// connector_write.truncate = false;
+    /// connector_write.can_truncate = false;
     ///
     /// connector_write.write(r#"{"column1":"value2"}"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.flush().unwrap();
@@ -606,11 +615,11 @@ impl Write for Bucket {
     /// assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
     /// ```
     fn flush(&mut self) -> Result<()> {
-        trace!(slog_scope::logger(), "Flush");
+        debug!(slog_scope::logger(), "Flush started");
 
         if self.is_variable_path()
             && self.parameters == Value::Null
-            && 0 == self.inner.get_ref().len()
+            && self.inner.get_ref().is_empty()
         {
             warn!(slog_scope::logger(), "Can't flush with variable path and without parameters";"path"=>self.path.clone(),"parameters"=>self.parameters.to_string());
             return Ok(());
@@ -620,14 +629,14 @@ impl Write for Bucket {
         let path_resolved = self.path();
 
         // Try to fetch the content of the document if exist in the bucket.
-        if false == self.will_be_truncated() {
-            info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => format!("{}", path_resolved));
+        if !self.will_be_truncated() {
+            info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => path_resolved.to_string());
             let mut connector_clone = self.clone();
             connector_clone.inner.set_position(0);
             match connector_clone.read_to_end(&mut content_file) {
                 Ok(_) => (),
                 Err(_) => {
-                    info!(slog_scope::logger(), "The file not exist"; "path" => format!("{}",connector_clone.path()))
+                    info!(slog_scope::logger(), "The file not exist"; "path" => connector_clone.path())
                 }
             }
         }
@@ -638,7 +647,7 @@ impl Write for Bucket {
         let s3_client = self.s3_client();
         let put_request = PutObjectRequest {
             bucket: self.bucket.to_owned(),
-            key: path_resolved.to_owned(),
+            key: path_resolved,
             body: Some(content_file.into()),
             ..Default::default()
         };
@@ -655,7 +664,7 @@ impl Write for Bucket {
             self.is_truncated = true;
         }
 
-        info!(slog_scope::logger(), "Flush ended");
+        debug!(slog_scope::logger(), "Flush ended");
         Ok(())
     }
 }

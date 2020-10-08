@@ -4,6 +4,94 @@ use std::collections::HashMap;
 use tera::*;
 
 /// Merge two Value together.
+///
+/// # Example: Merge single array of scalar.
+/// ```
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use json_value_merge::Merge;
+/// use chewdata::updater::tera_helpers::filters::object::merge;
+///
+/// let mut array: Vec<Value> = Vec::default();
+/// array.push(Value::String("a".to_string()));
+/// array.push(Value::String("b".to_string()));
+///
+/// let obj = Value::Array(array);
+/// let args = HashMap::new();
+///
+/// let result = merge(&obj, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(Value::String("b".to_string()), result.unwrap());
+/// ```
+/// # Example: Merge single array of objects.
+/// ```
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use json_value_merge::Merge;
+/// use chewdata::updater::tera_helpers::filters::object::merge;
+///
+/// let mut array: Vec<Value> = Vec::default();
+/// array.push(serde_json::from_str(r#"{"field1":"value1"}"#).unwrap());
+/// array.push(serde_json::from_str(r#"{"field2":"value2"}"#).unwrap());
+///
+/// let obj = Value::Array(array);
+/// let args = HashMap::new();
+///
+/// let result = merge(&obj, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(
+///     serde_json::from_str::<Value>(r#"{"field1":"value1","field2":"value2"}"#).unwrap(),
+///     result.unwrap()
+/// );
+/// ```
+/// # Example: Merge one object with another.
+/// ```
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use json_value_merge::Merge;
+/// use chewdata::updater::tera_helpers::filters::object::merge;
+///
+/// let mut obj = Value::default();
+/// obj.merge_in("/field", Value::String("value".to_string()));
+///
+/// let mut with = Value::default();
+/// with.merge_in("/other_field", Value::String("other value".to_string()));
+///
+/// let mut args = HashMap::new();
+/// args.insert("with".to_string(), with.clone());
+///
+/// let result = merge(&obj, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(
+///     serde_json::from_str::<Value>(r#"{"field":"value","other_field":"other value"}"#)
+///         .unwrap(),
+///     result.unwrap()
+/// );
+/// ```
+/// # Example: Merge one object with another in specific path.
+/// ```
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use json_value_merge::Merge;
+/// use chewdata::updater::tera_helpers::filters::object::merge;
+///
+/// let mut obj = Value::default();
+/// obj.merge_in("/field", Value::String("value".to_string()));
+///
+/// let with = Value::String("other value".to_string());
+///
+/// let mut args = HashMap::new();
+/// args.insert("with".to_string(), with.clone());
+/// args.insert("in".to_string(), Value::String("/other_field".to_string()));
+///
+/// let result = merge(&obj, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(
+///     serde_json::from_str::<Value>(r#"{"field":"value","other_field":"other value"}"#)
+///         .unwrap(),
+///     result.unwrap()
+/// );
+/// ```
 pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let mut new_value = Value::default();
     let with = match args.get("with") {
@@ -46,80 +134,4 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     };
 
     Ok(new_value)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn if_should_merge_simple_array_of_scalars() {
-        let mut array: Vec<Value> = Vec::default();
-        array.push(Value::String("a".to_string()));
-        array.push(Value::String("b".to_string()));
-
-        let obj = Value::Array(array);
-        let args = HashMap::new();
-
-        let result = merge(&obj, &args);
-        assert!(result.is_ok());
-        assert_eq!(Value::String("b".to_string()), result.unwrap());
-    }
-
-    #[test]
-    fn if_should_merge_simple_array_of_objects() {
-        let mut array: Vec<Value> = Vec::default();
-        array.push(serde_json::from_str(r#"{"field1":"value1"}"#).unwrap());
-        array.push(serde_json::from_str(r#"{"field2":"value2"}"#).unwrap());
-
-        let obj = Value::Array(array);
-        let args = HashMap::new();
-
-        let result = merge(&obj, &args);
-        assert!(result.is_ok());
-        assert_eq!(
-            serde_json::from_str::<Value>(r#"{"field1":"value1","field2":"value2"}"#).unwrap(),
-            result.unwrap()
-        );
-    }
-
-    #[test]
-    fn it_should_merge_one_object_with_another() {
-        let mut obj = Value::default();
-        obj.merge_in("/field", Value::String("value".to_string()));
-
-        let mut with = Value::default();
-        with.merge_in("/other_field", Value::String("other value".to_string()));
-
-        let mut args = HashMap::new();
-        args.insert("with".to_string(), with.clone());
-
-        let result = merge(&obj, &args);
-        assert!(result.is_ok());
-        assert_eq!(
-            serde_json::from_str::<Value>(r#"{"field":"value","other_field":"other value"}"#)
-                .unwrap(),
-            result.unwrap()
-        );
-    }
-
-    #[test]
-    fn it_should_merge_one_object_with_another_in_specific_path() {
-        let mut obj = Value::default();
-        obj.merge_in("/field", Value::String("value".to_string()));
-
-        let with = Value::String("other value".to_string());
-
-        let mut args = HashMap::new();
-        args.insert("with".to_string(), with.clone());
-        args.insert("in".to_string(), Value::String("/other_field".to_string()));
-
-        let result = merge(&obj, &args);
-        assert!(result.is_ok());
-        assert_eq!(
-            serde_json::from_str::<Value>(r#"{"field":"value","other_field":"other value"}"#)
-                .unwrap(),
-            result.unwrap()
-        );
-    }
 }

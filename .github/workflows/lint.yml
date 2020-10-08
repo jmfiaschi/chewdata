@@ -1,0 +1,22 @@
+name: Lint
+
+on: push
+
+jobs:
+  run-linters:
+    name: Run linters
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v2
+
+      - name: lint rust code
+        uses: addnab/docker-run-action@v1
+        with:
+          options: -v ${{github.workspace}}:/volume
+          image: guangie88/rustfmt-clippy:stable
+          run: |
+            rustc --version
+            cargo --version
+            cargo clippy --all-targets --all-features -- -D warnings

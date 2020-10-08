@@ -1,39 +1,107 @@
 # data-pipeline
-[![Actions Status](https://github.com/jmfiaschi/data-pipeline/workflows/CI/badge.svg)](https://github.com/jmfiaschi/data-pipeline/actions)
+[![Linter](https://github.com/jmfiaschi/chewdata/workflows/Lint/badge.svg)](https://github.com/jmfiaschi/chewdata/actions)
+[![Tests](https://github.com/jmfiaschi/chewdata/workflows/CI/badge.svg)](https://github.com/jmfiaschi/chewdata/actions)
 
 ETL (Extract-Transform-Load) in rust. 
 
-How it works ?
+How it works in general ?
 ```Mermaid
 sequenceDiagram
-    participant SourceDocument
+    participant ConnectorSource
+    participant DocumentSource
     participant Reader
     participant Transformer
     participant Writer
-    loop Healthcheck
-        Reader->>SourceDocument: Read document by document
+    loop Read
+        Reader->>DocumentSource: Fetch data through a document type
+        DocumentSource->>ConnectorSource: Fetch data through a connector type
+        ConnectorSource->>DocumentSource: Return a buffer of formatted data
+        DocumentSource->>Reader: Return a denormalized data result 
     end
-    Note left of Reader: It can read these formats:<br/>json,jsonl,yaml,csv,xml
-    Reader-->>Transformer: Send the document to transform
-    loop Healthcheck
-        Transformer->>Transformer: Read each fields into the INPUT data <br/>to transform and return a new OUTPUT data
+    Reader-->>Transformer: Send a dataset of denormalized data result
+    loop Transform
+        Transformer->>Transformer: Read all the dataset and transform each data
     end
-    Note left of Transformer: It use Tera or Handlebars engines<br/> in order to transform the INPUT values.<br/>It can use a referential in order to map some values
-    Transformer-->Writer: Send the new document to the writer
-    Writer->>TargetDocument: Push the new document
-    Note right of Writer: It can write into these formats:<br/>json,jsonl,yaml,csv,xml
+    Transformer-->Writer: Send the transformed dataset
+    loop Write
+        Writer->>DocumentTarget: Read each data result in the dataset and send the data
+        DocumentTarget->>ConnectorTarget: Write normalize data into the connector
+    end
+    Writer->>DocumentTarget: flush & send data
+    DocumentTarget->>ConnectorTarget: flush & send data
 ```
+(if you don't see this schema with your browser, try with the chrome [pluging](https://chrome.google.com/webstore/detail/mermaid-diagrams/phfcghedmopjadpojhmmaffjmfiakfil))
 
 ## Getting started
-### Configure your DataPipeline
+### Requirement
+* [Rust](https://www.rust-lang.org/tools/install)
 
-### Run in local
+### Installation
 ```Bash
-$ make install
-// Edit the .env
-$ vim .env
-// Run with Docker
-$ make run config=./examples/local.config.json format=json
-// Or rust natively
-$ cargo run "$(cat ./examples/local.config.json)" json
+$ git clone https://github.com/jmfiaschi/chewdata.git chewdata
+$ cd chewdata
 ```
+### Configuration
+
+Create the .env file used by the application and customize your configuration
+```Bash
+$ cp .env.dev .env && vim .env
+```
+
+Build the project
+```Bash
+$ make build
+```
+
+Init stack in local
+```Bash
+// if you want to test your etl with buckets
+$ make minio
+$ make minio-install
+// if you want to test your etl with APIs
+$ make httpbin
+```
+
+### Run with ETL configuration
+
+Without ETL configuration, it will use the default configuration that display the data in input.
+```Bash
+$ cat ./data/multi_lines.json | make run 
+=> [{...}]
+```
+With json etl configuration in argument
+```Bash
+$ cat ./data/multi_lines.csv | make run json='[{"type":"r","document":{"type":"csv","meta":{"delimiter":","}}},{"type":"w"}]'
+=> [{...}]
+```
+With etl file configuration in argument
+```Bash
+$ echo '[{"type":"r","document":{"type":"csv","meta":{"delimiter":","}}},{"type":"w"}]' > my_etl.conf.json
+$ cat ./data/multi_lines.csv | make run-file file='my_etl.conf.json'
+=> [{...}]
+```
+
+### Run tests
+After code modifications, please run all tests.
+```Bash
+$ make test
+```
+
+### Run examples
+```Bash
+// list all examples
+$ make example
+$ make example name=read_write-json
+=> [{...}]
+```
+
+## Documentations
+
+in progress...
+
+## How to contribute
+In progress...
+
+## Usefull links
+* Documentation: [Chewdata](http://www.chewdata.org)
+* Doc API : [crates.io](https://crates.io/crates/chewdata)

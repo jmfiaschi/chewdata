@@ -1,17 +1,25 @@
+#[cfg(feature = "use_curl_connector")]
 pub mod authenticator;
+#[cfg(feature = "use_bucket_connector")]
 pub mod bucket;
+#[cfg(feature = "use_bucket_connector")]
+pub mod bucket_select;
+#[cfg(feature = "use_curl_connector")]
 pub mod curl;
+pub mod in_memory;
 pub mod io;
 pub mod local;
-pub mod text;
 
+#[cfg(feature = "use_bucket_connector")]
 use self::bucket::Bucket;
+#[cfg(feature = "use_bucket_connector")]
+use self::bucket_select::BucketSelect;
+#[cfg(feature = "use_curl_connector")]
 use self::curl::Curl;
+use self::in_memory::InMemory;
 use self::io::Io;
 use self::local::Local;
-use self::text::Text;
-use crate::FieldPath;
-use regex::Regex;
+use crate::Metadata;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -19,93 +27,115 @@ use std::io::{Error, ErrorKind, Read, Result, Write};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
-pub enum Connector {
-    #[serde(rename = "text")]
-    Text(Text),
+pub enum ConnectorType {
+    #[serde(rename = "in_memory")]
+    #[serde(alias = "mem")]
+    #[serde(alias = "m")]
+    InMemory(InMemory),
     #[serde(rename = "io")]
+    #[serde(alias = "i")]
     Io(Io),
     #[serde(rename = "local")]
+    #[serde(alias = "l")]
     Local(Local),
+    #[cfg(feature = "use_bucket_connector")]
     #[serde(rename = "bucket")]
+    #[serde(alias = "b")]
     Bucket(Bucket),
+    #[cfg(feature = "use_bucket_connector")]
+    #[serde(rename = "bucket_select")]
+    #[serde(alias = "bs")]
+    BucketSelect(BucketSelect),
+    #[cfg(feature = "use_curl_connector")]
     #[serde(rename = "curl")]
+    #[serde(alias = "c")]
     Curl(Curl),
 }
 
-impl Default for Connector {
+impl Default for ConnectorType {
     fn default() -> Self {
-        Connector::Io(Io::default())
+        ConnectorType::Io(Io::default())
     }
 }
 
-impl std::fmt::Display for Connector {
+impl std::fmt::Display for ConnectorType {
     /// Display a inner buffer into `Connector`.
     ///
     /// # Example
     /// ```
-    /// use chewdata::connector::{Connector, text::Text};
+    /// use chewdata::connector::{ConnectorType, in_memory::InMemory};
     /// use std::io::Write;
     ///
-    /// let mut connector = Connector::Text(Text::new(""));
-    /// connector.writer().write_all("My text".to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!("My text", format!("{}", connector));
+    /// let mut connector_type = ConnectorType::InMemory(InMemory::new(""));
+    /// connector_type.connector_mut().write_all("My text".to_string().into_bytes().as_slice()).unwrap();
+    /// assert_eq!("My text", format!("{}", connector_type));
     /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Connector::Text(connector) => write!(f, "{}", connector),
-            Connector::Io(connector) => write!(f, "{}", connector),
-            Connector::Local(connector) => write!(f, "{}", connector),
-            Connector::Bucket(connector) => write!(f, "{}", connector),
-            Connector::Curl(connector) => write!(f, "{}", connector),
+            ConnectorType::InMemory(connector) => write!(f, "{}", connector),
+            ConnectorType::Io(connector) => write!(f, "{}", connector),
+            ConnectorType::Local(connector) => write!(f, "{}", connector),
+            #[cfg(feature = "use_curl_connector")]
+            ConnectorType::Curl(connector) => write!(f, "{}", connector),
+            #[cfg(feature = "use_bucket_connector")]
+            ConnectorType::Bucket(connector) => write!(f, "{}", connector),
+            #[cfg(feature = "use_bucket_connector")]
+            ConnectorType::BucketSelect(connector) => write!(f, "{}", connector),
         }
     }
 }
 
-impl Connector {
-    pub fn inner(self) -> Box<dyn Connect> {
+impl ConnectorType {
+    pub fn connector_inner(self) -> Box<dyn Connector> {
         match self {
-            Connector::Text(connector) => Box::new(connector),
-            Connector::Io(connector) => Box::new(connector),
-            Connector::Local(connector) => Box::new(connector),
-            Connector::Bucket(connector) => Box::new(connector),
-            Connector::Curl(connector) => Box::new(connector),
+            ConnectorType::InMemory(connector) => Box::new(connector),
+            ConnectorType::Io(connector) => Box::new(connector),
+            ConnectorType::Local(connector) => Box::new(connector),
+            #[cfg(feature = "use_curl_connector")]
+            ConnectorType::Curl(connector) => Box::new(connector),
+            #[cfg(feature = "use_bucket_connector")]
+            ConnectorType::Bucket(connector) => Box::new(connector),
+            #[cfg(feature = "use_bucket_connector")]
+            ConnectorType::BucketSelect(connector) => Box::new(connector),
         }
     }
-    pub fn get(&self) -> Box<&dyn Connect> {
+    pub fn connector(&self) -> &dyn Connector {
         match self {
-            Connector::Text(connector) => Box::new(connector),
-            Connector::Io(connector) => Box::new(connector),
-            Connector::Local(connector) => Box::new(connector),
-            Connector::Bucket(connector) => Box::new(connector),
-            Connector::Curl(connector) => Box::new(connector),
+            ConnectorType::InMemory(connector) => connector,
+            ConnectorType::Io(connector) => connector,
+            ConnectorType::Local(connector) => connector,
+            #[cfg(feature = "use_curl_connector")]
+            ConnectorType::Curl(connector) => connector,
+            #[cfg(feature = "use_bucket_connector")]
+            ConnectorType::Bucket(connector) => connector,
+            #[cfg(feature = "use_bucket_connector")]
+            ConnectorType::BucketSelect(connector) => connector,
         }
     }
-    pub fn get_mut(&mut self) -> Box<&mut dyn Connect> {
+    pub fn connector_mut(&mut self) -> &mut dyn Connector {
         match self {
-            Connector::Text(connector) => Box::new(connector),
-            Connector::Io(connector) => Box::new(connector),
-            Connector::Local(connector) => Box::new(connector),
-            Connector::Bucket(connector) => Box::new(connector),
-            Connector::Curl(connector) => Box::new(connector),
+            ConnectorType::InMemory(connector) => connector,
+            ConnectorType::Io(connector) => connector,
+            ConnectorType::Local(connector) => connector,
+            #[cfg(feature = "use_curl_connector")]
+            ConnectorType::Curl(connector) => connector,
+            #[cfg(feature = "use_bucket_connector")]
+            ConnectorType::Bucket(connector) => connector,
+            #[cfg(feature = "use_bucket_connector")]
+            ConnectorType::BucketSelect(connector) => connector,
         }
-    }
-    pub fn reader(&mut self) -> Box<&mut dyn Connect> {
-        self.get_mut()
-    }
-    pub fn writer(&mut self) -> Box<&mut dyn Connect> {
-        self.get_mut()
     }
 }
 
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
-pub trait Connect: Read + Write + Send {
-    /// Set path parameters.
-    fn set_path_parameters(&mut self, parameters: Value);
+pub trait Connector: Read + Write + Send {
+    /// Set parameters.
+    fn set_parameters(&mut self, parameters: Value);
     /// Get the resolved path.
     fn path(&self) -> String;
     /// Get the connect buffer inner reference.
     fn inner(&self) -> &Vec<u8>;
-    /// Check if the connector has data into the inner buffer.
+    /// Check if the connector and the document have data.
     fn is_empty(&self) -> Result<bool>;
     /// Get the truncate value.
     fn will_be_truncated(&self) -> bool;
@@ -117,66 +147,8 @@ pub trait Connect: Read + Write + Send {
     fn len(&self) -> Result<usize> {
         Err(Error::new(ErrorKind::NotFound, "function not implemented"))
     }
-    /// Set the mime type header of the document. Can be necessary for a connector.
-    fn set_mime_type(&mut self, _mime_type: mime::Mime) -> () {}
-}
-
-/// Resolve path with varaible.
-fn resolve_path(path: String, parameters: Value) -> String {
-    trace!(slog_scope::logger(),
-        "Resolve path";
-        "path" => path.to_owned(),
-        "parameters" => format!("{}", parameters)
-    );
-
-    let mut resolved_path = path.to_owned();
-    let regex = Regex::new("\\{\\{([^}]*)\\}\\}").unwrap();
-    for captured in regex.clone().captures_iter(path.as_ref()) {
-        let pattern_captured = captured[0].to_string();
-        let value_captured = captured[1].trim().to_string();
-        let json_pointer = FieldPath::new(value_captured.to_string()).to_json_pointer();
-
-        let var: String = match parameters.pointer(&json_pointer) {
-            Some(Value::String(string)) => string.to_string(),
-            Some(Value::Number(number)) => format!("{}", number),
-            Some(Value::Bool(boolean)) => format!("{}", boolean),
-            None => {
-                warn!(slog_scope::logger(),
-                    "Can't resolve";
-                    "value" => value_captured
-                );
-                continue;
-            }
-            Some(_) => {
-                warn!(slog_scope::logger(),
-                    "This parameter is not handle, only scalar";
-                    "parameter" => format!("{:?}", parameters.pointer(&json_pointer))
-                );
-                continue;
-            }
-        };
-
-        resolved_path = resolved_path.replace(pattern_captured.as_str(), var.as_str());
-    }
-
-    trace!(slog_scope::logger(), "Resolve path ended"; "path" => resolved_path.to_owned());
-    resolved_path
-}
-
-#[cfg(test)]
-mod connector {
-    use super::*;
-    use json_value_merge::Merge;
-
-    #[test]
-    fn it_should_resolve_the_path() {
-        let path = "my_path/{{ field_1 }}/{{ field_2 }}".to_string();
-
-        let mut parameters = Value::default();
-        parameters.merge_in("/field_1", Value::String("var_1".to_string()));
-        parameters.merge_in("/field_2", Value::String("var_2".to_string()));
-
-        let new_path = resolve_path(path, parameters);
-        assert_eq!("my_path/var_1/var_2", new_path.as_str());
-    }
+    /// Set the metadata of the connection.
+    fn set_metadata(&mut self, _metadata: Metadata) {}
+    /// Change the value of the flush_and_read parameter. Used to update the inner with the document content after flush.
+    fn set_flush_and_read(&mut self, _flush_and_read: bool) {}
 }

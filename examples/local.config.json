@@ -1,9 +1,0 @@
-[{
-    "type":"reader",
-    "connector":{
-        "type":"local",
-        "path":"./data/multi_lines.json"
-    }
-},{
-    "type":"writer"
-}]

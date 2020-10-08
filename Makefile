@@ -2,33 +2,25 @@ include .env
 export $(shell sed 's/=.*//' .env)
 
 .SILENT:
-.PHONY: install build exec test bench help minio minio-install httpbin clean
+.PHONY: build exec test bench help minio minio-install httpbin clean
 
 help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
-FILE_PATH := "$(config)"
-FILE_STRING_ESCAPE := $$(cat $(FILE_PATH) | tr -d '\n')
-
-file-as-param:
-	@echo "$(FILE_STRING_ESCAPE)"
-
-install: $(env-file) ## Install the project for a specific env.
-	@echo "${BLUE}Install the project${NC}"
-	@if [ -z "$$(command -v cargo)" ]; then\
-		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh;\
-	fi
-	@echo "${YELLOW} $(if $(env-file),$(env-file),".env.dist") => .env ${NC}"
-	@cp $(if $(env-file),$(env-file),".env.dist") .env
-
 build: ## Build the script in local
 	@cargo build
 
-run: ## Launch the script in local
-	@if [ -z $(config) ]; then\
-		echo "$(RED)USAGE: run config=[CONFIG_FILE_PATH] format=[CONFIG_FILE_FORMAT]${NC}";exit 1;\
+run-file: ## Launch the script in local
+	@if [ -z $(file) ]; then\
+		echo "$(RED)USAGE: make run file=[FILE_PATH]${NC}";exit 1;\
 	fi
-	@cargo run "$$(make file-as-param)" $(format)
+	@cargo run -- --file $(file)
+
+run: ## Launch the script in local
+	@if [ -z "$(json)" ]; then\
+		echo "$(RED)USAGE: make run json=[JSON]${NC}";\
+	fi
+	@cargo run '$(json)'
 
 example:
 	@if [ -z $(name) ]; then\
@@ -47,7 +39,7 @@ test: ## Launch all tests in local
 bench: httpbin | minio ## Launch benchmark in local
 	@cargo bench
 
-clean: ## Clean tge repo in local
+clean: ## Clean the repo in local
 	echo "${YELLOW}Run this command in sudo${NC}"
 	sudo rm -Rf target
 	sudo sh -c "truncate -s 0 /var/lib/docker/containers/*/*-json.log"

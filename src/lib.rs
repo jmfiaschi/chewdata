@@ -9,60 +9,58 @@ extern crate serde;
 extern crate serde_json;
 
 pub mod connector;
-pub mod document_builder;
-pub mod processor;
+pub mod document;
+pub mod helper;
+pub mod step;
 pub mod updater;
 
-use self::processor::Data;
-use self::processor::Processor;
+use self::step::{Dataset, StepType};
+use serde::{Deserialize, Serialize};
 use std::io;
 
-pub fn exec(processors: Vec<Processor>) -> io::Result<()> {
-    let mut data: Option<Data> = None;
-    for processor in processors {
-        let process = processor.to_owned().get();
-        // skip the processor if it's not enable.
-        if !process.is_enable() {
-            continue;
+pub fn exec(steps: Vec<StepType>, dataset_opt: Option<Dataset>) -> io::Result<()> {
+    match steps.len() {
+        0 => {
+            if let Some(data) = dataset_opt {
+                for _data_result in data {}
+            }
+            return Ok(());
         }
-
-        data = process.exec(data)?.data
-    }
-
-    if let Some(generator) = data {
-        // exec each generator.
-        for _object in generator {}
+        _ => {
+            let mut steps = steps;
+            match steps.remove(0).step().exec(dataset_opt)? {
+                Some(data) => exec(steps, Some(data))?,
+                None => exec(steps, None)?,
+            };
+        }
     }
 
     Ok(())
 }
 
-/// Structure to transform field_path to a json_pointer.
-pub struct FieldPath {
-    path: String,
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct Metadata {
+    pub has_headers: Option<bool>,
+    pub delimiter: Option<String>,
+    pub quote: Option<String>,
+    pub escape: Option<String>,
+    pub comment: Option<String>,
+    pub terminator: Option<String>,
+    pub mime_type: Option<String>,
+    pub compression: Option<String>,
 }
 
-impl FieldPath {
-    pub fn new(path: String) -> Self {
-        FieldPath { path: path }
-    }
-    /// Transform a path_field to a json_pointer (json_path)
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::FieldPath;
-    ///
-    /// let field_path = FieldPath::new("value.sub_value.0.array_value".to_string());
-    /// let pointer = field_path.to_json_pointer();
-    /// assert_eq!("/value/sub_value/0/array_value", pointer);
-    /// ```
-    pub fn to_json_pointer(self) -> String {
-        format!("/{}", self.path)
-            .replace("][", "/")
-            .replace("]", "")
-            .replace("[", "/")
-            .replace(".", "/")
-            .replace("///", "/")
-            .replace("//", "/")
+impl Default for Metadata {
+    fn default() -> Self {
+        Metadata {
+            has_headers: None,
+            delimiter: None,
+            quote: None,
+            escape: None,
+            comment: None,
+            terminator: None,
+            mime_type: None,
+            compression: None,
+        }
     }
 }

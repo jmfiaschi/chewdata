@@ -6,23 +6,21 @@ fn main() -> io::Result<()> {
     let config = r#"
     [{
         "type": "r",
-        "builder":{
-            "type":"json",
-            "connector":{
-                "type": "local",
-                "path": "./data/one_line.toml"
-            }
+        "document" :{
+            "type":"toml"
+        },
+        "connector":{
+            "type": "local",
+            "path": "./data/multi_lines.toml"
         }
     },
     {
         "type": "w",
-        "builder": {
+        "document" : {
             "type": "toml"
         }
     }]
     "#;
 
-    chewdata::exec(serde_json::from_str(config)?)?;
-
-    Ok(())
+    chewdata::exec(serde_json::from_str(config)?, None)
 }

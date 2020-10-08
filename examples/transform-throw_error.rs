@@ -6,12 +6,9 @@ fn main() -> io::Result<()> {
     let config = r#"
     [{
         "type": "r",
-        "builder":{
-            "type":"json",
-            "connector": {
-                "type": "local",
-                "path": "./data/one_line.json"
-            }
+        "connector": {
+            "type": "local",
+            "path": "./data/one_line.json"
         }
     },
     {
@@ -20,7 +17,7 @@ fn main() -> io::Result<()> {
             "type": "tera",
             "actions": [
                 {
-                    "field":"",
+                    "field":"test",
                     "pattern": "{{ throw(message='I throw an error!') }}"
                 }
             ]
@@ -28,17 +25,12 @@ fn main() -> io::Result<()> {
     },
     {
         "type": "w",
-        "builder":{
-            "type":"json",
-            "connector": {
-                "type": "io"
-            }
+        "connector": {
+            "type": "io"
         },
         "data_type": "err"
     }]
     "#;
 
-    chewdata::exec(serde_json::from_str(config)?)?;
-
-    Ok(())
+    chewdata::exec(serde_json::from_str(config)?, None)
 }

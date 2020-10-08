@@ -1,11 +1,16 @@
-use crate::connector::Connect;
+use crate::connector::Connector;
+use crate::Metadata;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 use std::io::{stdin, stdout, Cursor, Read, Result, Write};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(default)]
 pub struct Io {
+    #[serde(rename = "metadata")]
+    #[serde(alias = "meta")]
+    pub metadata: Metadata,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
 }
@@ -13,6 +18,7 @@ pub struct Io {
 impl Default for Io {
     fn default() -> Self {
         Io {
+            metadata: Metadata::default(),
             inner: Cursor::default(),
         }
     }
@@ -33,8 +39,8 @@ impl fmt::Display for Io {
     }
 }
 
-impl Connect for Io {
-    fn set_path_parameters(&mut self, _parameters: Value) {}
+impl Connector for Io {
+    fn set_parameters(&mut self, _parameters: Value) {}
     fn path(&self) -> String {
         String::new()
     }
@@ -43,7 +49,7 @@ impl Connect for Io {
     /// # Example
     /// ```
     /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let connector = Io::default();
     /// assert_eq!(true, connector.is_empty().unwrap());
@@ -56,7 +62,7 @@ impl Connect for Io {
     /// # Example
     /// ```
     /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let mut connector = Io::default();
     /// assert_eq!(true, connector.will_be_truncated());
@@ -69,7 +75,7 @@ impl Connect for Io {
     /// # Example
     /// ```
     /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let mut connector = Io::default();
     /// assert_eq!(0, connector.len().unwrap());
@@ -82,7 +88,7 @@ impl Connect for Io {
     /// # Example
     /// ```
     /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connect;
+    /// use chewdata::connector::Connector;
     ///
     /// let connector = Io::default();
     /// let vec: Vec<u8> = Vec::default();
@@ -90,6 +96,9 @@ impl Connect for Io {
     /// ```
     fn inner(&self) -> &Vec<u8> {
         self.inner.get_ref()
+    }
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
     }
 }
 
@@ -119,11 +128,11 @@ impl Write for Io {
     }
     /// The flush send all the data into the stdout.
     fn flush(&mut self) -> Result<()> {
-        trace!(slog_scope::logger(), "Flush");
-        stdout().write(self.inner.get_ref())?;
+        debug!(slog_scope::logger(), "Flush started");
+        stdout().write_all(self.inner.get_ref())?;
         stdout().flush()?;
         self.inner = Cursor::new(Vec::default());
-        info!(slog_scope::logger(), "Flush ended");
+        debug!(slog_scope::logger(), "Flush ended");
         Ok(())
     }
 }

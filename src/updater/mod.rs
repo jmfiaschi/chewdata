@@ -1,5 +1,5 @@
 mod tera;
-mod tera_helpers;
+pub mod tera_helpers;
 
 use self::tera::Tera;
 use serde::{Deserialize, Serialize};
@@ -9,29 +9,38 @@ use std::{fmt, io};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
-pub enum Updater {
+pub enum UpdaterType {
     #[serde(rename = "tera")]
     #[serde(alias = "t")]
     Tera(Tera),
 }
 
-impl Default for Updater {
+impl Default for UpdaterType {
     fn default() -> Self {
-        Updater::Tera(Tera::default())
+        UpdaterType::Tera(Tera::default())
     }
 }
 
-impl Updater {
-    pub fn get(self) -> Box<dyn Update> {
+impl UpdaterType {
+    pub fn updater_inner(self) -> Box<dyn Updater> {
         match self {
-            Updater::Tera(tera) => Box::new(tera),
-            // Updater::Handlebars(handlebars) => Box::new(handlebars),
+            UpdaterType::Tera(updater) => Box::new(updater),
+        }
+    }
+    pub fn updater(&self) -> &dyn Updater {
+        match self {
+            UpdaterType::Tera(ref updater) => updater,
+        }
+    }
+    pub fn updater_mut(&mut self) -> &mut dyn Updater {
+        match *self {
+            UpdaterType::Tera(ref mut updater) => updater,
         }
     }
 }
 
 /// Trait to format a field of an object with a template engine and a template field.
-pub trait Update: Send + Sync {
+pub trait Updater: Send + Sync {
     /// Update the object with some mapping
     fn update(
         &self,

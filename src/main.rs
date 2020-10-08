@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate clap;
 extern crate env_applier;
 #[macro_use]
@@ -9,22 +8,25 @@ extern crate slog_scope;
 extern crate slog_stdlog;
 extern crate slog_term;
 
-use clap::App;
+use chewdata::step::StepType;
+use clap::{App, Arg};
 use env_applier::EnvApply;
-use serde_json::Value;
 use slog::{Drain, FnValue};
 use std::env;
+use std::fs::File;
+use std::io::Read;
 use std::io::{Error, ErrorKind, Result};
 
-const ARG_FORMAT: &'static str = "format";
-const ARG_CONFIG: &'static str = "config";
+const ARG_JSON: &str = "json";
+const ARG_FILE: &str = "file";
+const DEFAULT_PROCESSORS: &str = r#"[{"type": "r"},{"type": "w"}]"#;
 
 fn main() -> Result<()> {
     // Init logger.
     let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
+    let drain = slog_term::FullFormat::new(decorator).build().fuse();
     let drain = slog_envlogger::new(drain);
-    let drain = slog_async::Async::default(drain);
+    let drain = slog_async::Async::default(drain).fuse();
     let logger = slog::Logger::root(
         drain.fuse(),
         o!("file" => FnValue(move |info| {format!("{}:{}",info.file(),info.line())})),
@@ -32,43 +34,81 @@ fn main() -> Result<()> {
     let _scope_guard = slog_scope::set_global_logger(logger);
     let _log_guard = slog_stdlog::init().unwrap();
 
-    // Init command line argument parser.
-    let yaml = load_yaml!("../config/cli.yml");
-    let args = App::from_yaml(yaml).get_matches();
+    trace!(slog_scope::logger(), "Chewdata start...");
+    let args = application().get_matches();
 
-    let format = args.value_of(ARG_FORMAT).ok_or(Error::new(
-        ErrorKind::InvalidInput,
-        "The parameter 'format' is required.",
-    ))?;
-    let config = args.value_of(ARG_CONFIG).ok_or(Error::new(
-        ErrorKind::InvalidInput,
-        "The parameter 'config' is required.",
-    ))?;
+    if args.value_of("version").is_some() {
+        return Ok(());
+    }
 
-    let config_resolved = env::Vars::apply(config.to_string());
-
-    let config_json_value: Value = match format {
-        "json" => serde_json::from_str(config_resolved.as_ref()).map_err(|e| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                format!("{}. {}", e, config_resolved),
-            )
-        }),
-        "yaml" | "yml" => serde_yaml::from_str(config_resolved.as_ref()).map_err(|e| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                format!("{}. {}", e, config_resolved),
-            )
-        }),
-        _ => Err(Error::new(
-            ErrorKind::InvalidInput,
-            format!("This format '{}' is not supported", format),
-        )),
+    trace!(
+        slog_scope::logger(),
+        "Transform the config in input into steps."
+    );
+    let steps: Vec<StepType> = match (args.value_of(ARG_JSON), args.value_of(ARG_FILE)) {
+        (None, Some(file_path)) => match file_path.split('.').collect::<Vec<&str>>().last() {
+            Some(v) => match *v {
+                    "json" => {
+                        let mut file = File::open(file_path)?;
+                        let mut buf = String::default();
+                        file.read_to_string(&mut buf)?;
+                        serde_json::from_str(env::Vars::apply(buf).as_str())
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+                    },
+                    "yaml"|"yml" => {
+                        let mut file = File::open(file_path)?;
+                        let mut buf = String::default();
+                        file.read_to_string(&mut buf)?;
+                        serde_yaml::from_str_multidoc(env::Vars::apply(buf).as_str())
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+                    },
+                    format => Err(Error::new(
+                        ErrorKind::NotFound,
+                        format!("The format of the config file '{}' is not handle. Valid config file formats are [json, yaml].", format),
+                    )),
+            }
+            None => Err(Error::new(
+                ErrorKind::NotFound,
+                "The format of the config file is not found. Valid config file formats are [json, yaml].",
+            ))
+        }
+        (Some(json), None) => {
+            serde_json::from_str(env::Vars::apply(json.to_string()).as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+        }
+        (Some(json), Some(_file)) => {
+            serde_json::from_str(env::Vars::apply(json.to_string()).as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+        }
+        _ => serde_json::from_str(DEFAULT_PROCESSORS)
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(serde_json::from_str(
-        config_json_value.to_string().as_ref(),
-    )?)?;
+    chewdata::exec(steps, None)?;
 
     Ok(())
+}
+
+fn application() -> App<'static, 'static> {
+    App::new("chewdata")
+        .version("1.0")
+        .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
+        .about("Simple tool to Extract-Transform-Load")
+        .arg(
+            Arg::with_name("json")
+                .short("j")
+                .long("json")
+                .value_name("JSON")
+                .help("Init steps with a json configuration in input")
+                .takes_value(true)
+                .required(false)
+                .index(1),
+        )
+        .arg(
+            Arg::with_name("file")
+                .short("f")
+                .long("file")
+                .value_name("FILE")
+                .help("Init steps with file configuration in input")
+                .takes_value(true)
+                .required(false),
+        )
 }
