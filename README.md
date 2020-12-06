@@ -1,6 +1,8 @@
 # data-pipeline
 [![Linter](https://github.com/jmfiaschi/chewdata/workflows/Lint/badge.svg)](https://github.com/jmfiaschi/chewdata/actions)
 [![Tests](https://github.com/jmfiaschi/chewdata/workflows/CI/badge.svg)](https://github.com/jmfiaschi/chewdata/actions)
+[![codecov](https://codecov.io/gh/jmfiaschi/chewdata/branch/main/graph/badge.svg?token=EI62L7XQAH)](https://codecov.io/gh/jmfiaschi/chewdata)
+
 
 ETL (Extract-Transform-Load) in rust. 
 
