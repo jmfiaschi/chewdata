@@ -60,6 +60,9 @@ httpbin:
 	echo "${YELLOW}Host: http://localhost:8080${NC}"
 	@docker-compose up -d httpbin
 
+semantic-release:
+	@npx semantic-release
+
 # Shell colors.
 RED=\033[0;31m
 LIGHT_RED=\033[1;31m
