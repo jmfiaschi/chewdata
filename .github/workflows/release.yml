@@ -17,9 +17,11 @@ jobs:
           sudo npm install @semantic-release/changelog -g
           sudo npm install @semantic-release/git -g
           sudo npm install @semantic-release/github -g
+          cargo install semantic-release-rust --version 1.0.0-alpha.6
 
       - name: Run Semantic Release
         run: semantic-release
 
         env:
           GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
