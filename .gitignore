@@ -1,3 +1,4 @@
 .env
 cache
 target/*
+Cargo.lock
