@@ -97,10 +97,6 @@ $ make example name=read_write-json
 => [{...}]
 ```
 
-## Documentations
-
-in progress...
-
 ## How to contribute
 In progress...
 
