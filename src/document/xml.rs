@@ -152,7 +152,9 @@ impl Document for Xml {
         let mut string = String::new();
         let mut connector = connector;
 
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(mime::TEXT_XML.to_string());
+        connector.set_metadata(metadata.clone());
         connector.read_to_string(&mut string)?;
 
         let mut root_element: Value = jxon::xml_to_json(string.as_ref()).map_err(|e| {
@@ -353,7 +355,9 @@ impl Document for Xml {
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         debug!(slog_scope::logger(), "Flush called.");
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(mime::TEXT_XML.to_string());
+        connector.set_metadata(metadata.clone());
 
         let indent = match self.is_pretty {
             true => Some((self.indent_char, self.indent_size)),

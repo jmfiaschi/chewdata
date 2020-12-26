@@ -8,6 +8,8 @@ use serde_json::Value;
 use std::io;
 use std::io::prelude::*;
 
+const DEFAULT_MIME: &str = "application/toml";
+
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct Toml {
@@ -19,7 +21,7 @@ pub struct Toml {
 impl Default for Toml {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some("application/toml".to_string()),
+            mime_type: Some(DEFAULT_MIME.to_string()),
             ..Default::default()
         };
         Toml { metadata }
@@ -52,7 +54,9 @@ impl Document for Toml {
         let mut string = String::new();
         let mut connector = connector;
 
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(DEFAULT_MIME.to_string());
+        connector.set_metadata(metadata.clone());
         connector.read_to_string(&mut string)?;
 
         let record: Value = toml::from_str(string.as_str())
@@ -185,7 +189,9 @@ impl Document for Toml {
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         debug!(slog_scope::logger(), "Flush called.");
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(DEFAULT_MIME.to_string());
+        connector.set_metadata(metadata.clone());
         connector.flush()?;
         debug!(slog_scope::logger(), "Flush with success.");
         Ok(())

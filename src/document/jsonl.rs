@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
 
+const DEFAULT_MIME: &str = "application/x-ndjson";
+
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct Jsonl {
@@ -21,7 +23,7 @@ pub struct Jsonl {
 impl Default for Jsonl {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some("application/x-ndjson".to_string()),
+            mime_type: Some(DEFAULT_MIME.to_string()),
             ..Default::default()
         };
         Jsonl {
@@ -107,7 +109,9 @@ impl Document for Jsonl {
     fn read_data(&self, connector: Box<dyn Connector>) -> io::Result<Data> {
         debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self));
         let mut connector = connector;
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(DEFAULT_MIME.to_string());
+        connector.set_metadata(metadata.clone());
 
         let deserializer = serde_json::Deserializer::from_reader(connector);
         let iterator = deserializer.into_iter::<Value>();
@@ -252,7 +256,9 @@ impl Document for Jsonl {
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         debug!(slog_scope::logger(), "Flush called.");
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(DEFAULT_MIME.to_string());
+        connector.set_metadata(metadata.clone());
         connector.flush()?;
         debug!(slog_scope::logger(), "Flush with success.");
         Ok(())

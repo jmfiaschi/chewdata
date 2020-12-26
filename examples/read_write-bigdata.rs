@@ -22,7 +22,7 @@ fn main() -> io::Result<()> {
         }
     },
     {
-        "type": "transformer",
+        "type": "t",
         "updater": {
             "type": "tera",
             "actions": [
@@ -43,7 +43,7 @@ fn main() -> io::Result<()> {
         },
         "connector": {
             "type": "local",
-            "path": "./data/out/bidgata.jsonl",
+            "path": "./data/out/correspondances-code-insee-code-postal.jsonl",
             "can_truncate": true
         }
     }]

@@ -49,7 +49,9 @@ impl Document for Text {
         let mut text = String::default();
         let mut connector = connector;
 
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(mime::TEXT_PLAIN_UTF_8.to_string());
+        connector.set_metadata(metadata.clone());
         connector.read_to_string(&mut text)?;
 
         let data = GenBoxed::new_boxed(|co| async move {
@@ -105,7 +107,9 @@ impl Document for Text {
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         debug!(slog_scope::logger(), "Flush called.");
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(mime::TEXT_PLAIN_UTF_8.to_string());
+        connector.set_metadata(metadata.clone());
         connector.flush()?;
         debug!(slog_scope::logger(), "Flush with success.");
         Ok(())

@@ -17,7 +17,6 @@ const DEFAULT_COMMENT: &str = "#";
 const DEFAULT_TERMINATOR: &str = "\n";
 const DEFAULT_QUOTE_STYLE: &str = "NOT_NUMERIC";
 const DEFAULT_IS_FLEXIBLE: bool = true;
-const DEFAULT_MIME: mime::Mime = mime::TEXT_CSV_UTF_8;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(default)]
@@ -40,7 +39,7 @@ impl Default for Csv {
             escape: Some(DEFAULT_ESCAPE.to_string()),
             comment: Some(DEFAULT_COMMENT.to_string()),
             terminator: Some(DEFAULT_TERMINATOR.to_string()),
-            mime_type: Some(DEFAULT_MIME.to_string()),
+            mime_type: Some(mime::TEXT_CSV_UTF_8.to_string()),
             ..Default::default()
         };
         Csv {
@@ -289,7 +288,8 @@ impl Document for Csv {
     fn read_data(&self, connector: Box<dyn Connector>) -> io::Result<Data> {
         debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self));
         let mut connector = connector;
-        let metadata = self.metadata.clone();
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(mime::TEXT_CSV_UTF_8.to_string());
         connector.set_metadata(metadata.clone());
         let builder_reader = self.reader_builder().from_reader(connector);
         let data = match metadata.has_headers {
@@ -460,7 +460,9 @@ impl Document for Csv {
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         debug!(slog_scope::logger(), "Flush called.");
-        connector.set_metadata(self.metadata.clone());
+        let mut metadata = self.metadata.clone();
+        metadata.mime_type = Some(mime::TEXT_CSV_UTF_8.to_string());
+        connector.set_metadata(metadata.clone());
         connector.flush()?;
         self.header_added = false;
         debug!(slog_scope::logger(), "Flush with success.");

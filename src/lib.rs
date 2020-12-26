@@ -39,6 +39,7 @@ pub fn exec(steps: Vec<StepType>, dataset_opt: Option<Dataset>) -> io::Result<()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(default)]
 pub struct Metadata {
     pub has_headers: Option<bool>,
     pub delimiter: Option<String>,
