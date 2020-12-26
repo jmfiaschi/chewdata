@@ -10,7 +10,7 @@ homepage = "https://www.chewdata.org"
 repository = "https://github.com/jmfiaschi/chewdata"
 
 [dependencies]
-slog = { version="2.5", features = ["max_level_trace", "release_max_level_info"] }
+slog = { version="2.7", features = ["max_level_trace", "release_max_level_info"] }
 slog-scope = "4.3"
 slog-term = "2.6"
 slog-async = "2.5"
@@ -31,7 +31,7 @@ serde_yaml = { version = "0.8", git = "https://github.com/semtexzv/serde-yaml", 
 regex = "1"
 toml = "0.5"
 # For Templates
-tera = "1.5"
+tera = "1.6"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 # For Connectors
 rusoto_core = { version = "0.45", git = "https://github.com/jmfiaschi/rusoto", branch = "feat/s3_select"}
