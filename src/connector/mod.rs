@@ -9,6 +9,8 @@ pub mod curl;
 pub mod in_memory;
 pub mod io;
 pub mod local;
+#[cfg(feature = "use_mongodb_connector")]
+pub mod mongodb;
 
 #[cfg(feature = "use_bucket_connector")]
 use self::bucket::Bucket;
@@ -19,6 +21,8 @@ use self::curl::Curl;
 use self::in_memory::InMemory;
 use self::io::Io;
 use self::local::Local;
+#[cfg(feature = "use_mongodb_connector")]
+use self::mongodb::Mongodb;
 use crate::Metadata;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -50,6 +54,9 @@ pub enum ConnectorType {
     #[serde(rename = "curl")]
     #[serde(alias = "c")]
     Curl(Curl),
+    #[cfg(feature = "use_mongodb_connector")]
+    #[serde(rename = "mongodb")]
+    Mongodb(Mongodb),
 }
 
 impl Default for ConnectorType {
@@ -81,6 +88,8 @@ impl std::fmt::Display for ConnectorType {
             ConnectorType::Bucket(connector) => write!(f, "{}", connector),
             #[cfg(feature = "use_bucket_connector")]
             ConnectorType::BucketSelect(connector) => write!(f, "{}", connector),
+            #[cfg(feature = "use_mongodb_connector")]
+            ConnectorType::Mongodb(connector) => write!(f, "{}", connector),
         }
     }
 }
@@ -97,6 +106,8 @@ impl ConnectorType {
             ConnectorType::Bucket(connector) => Box::new(connector),
             #[cfg(feature = "use_bucket_connector")]
             ConnectorType::BucketSelect(connector) => Box::new(connector),
+            #[cfg(feature = "use_mongodb_connector")]
+            ConnectorType::Mongodb(connector) => Box::new(connector),
         }
     }
     pub fn connector(&self) -> &dyn Connector {
@@ -110,6 +121,8 @@ impl ConnectorType {
             ConnectorType::Bucket(connector) => connector,
             #[cfg(feature = "use_bucket_connector")]
             ConnectorType::BucketSelect(connector) => connector,
+            #[cfg(feature = "use_mongodb_connector")]
+            ConnectorType::Mongodb(connector) => connector,
         }
     }
     pub fn connector_mut(&mut self) -> &mut dyn Connector {
@@ -123,6 +136,8 @@ impl ConnectorType {
             ConnectorType::Bucket(connector) => connector,
             #[cfg(feature = "use_bucket_connector")]
             ConnectorType::BucketSelect(connector) => connector,
+            #[cfg(feature = "use_mongodb_connector")]
+            ConnectorType::Mongodb(connector) => connector,
         }
     }
 }

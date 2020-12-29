@@ -154,6 +154,7 @@ impl Step for Transformer {
                         .collect(),
                 };
 
+                info!(slog_scope::logger(), "Yield transformed dataset"; "step" => format!("{}", transformer));
                 co.yield_(new_data_results).await;
             }
             debug!(slog_scope::logger(), "End generator"; "step" => format!("{}", transformer));

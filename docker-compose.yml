@@ -21,3 +21,19 @@ services:
         image: kennethreitz/httpbin:latest
         ports:
             - 8080:80
+
+    mongo:
+        image: mongo
+        ports:
+            - 27017:27017
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+
+    mongo-express:
+        image: mongo-express
+        ports:
+            - 8081:8081
+        environment:
+            ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_USERNAME}
+            ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_PASSWORD}

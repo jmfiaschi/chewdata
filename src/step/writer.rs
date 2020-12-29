@@ -142,6 +142,7 @@ impl Step for Writer {
                     }
                 };
 
+                info!(slog_scope::logger(), "Yield writed dataset"; "step" => format!("{}", writer));
                 co.yield_(data_results).await;
             }
 

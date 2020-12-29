@@ -8,7 +8,7 @@ help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 build: ## Build the script in local
-	@cargo build
+	@cargo build --jobs 1
 
 run-file: ## Launch the script in local
 	@if [ -z $(file) ]; then\
@@ -30,11 +30,11 @@ example:
 	@cargo run --example $(name)
 
 release: ## Released the script in local
-	@cargo build --release
+	@cargo build --release --jobs 1
 
 test: minio minio-install httpbin
 test: ## Launch all tests in local
-	@cargo test ${test}
+	@cargo test ${test} --jobs 1
 
 bench: httpbin | minio ## Launch benchmark in local
 	@cargo bench
@@ -59,6 +59,13 @@ httpbin:
 	echo "${BLUE}Run httpbin server.${NC}"
 	echo "${YELLOW}Host: http://localhost:8080${NC}"
 	@docker-compose up -d httpbin
+
+mongodb:
+	echo "${BLUE}Run mongodb server.${NC}"
+	@docker-compose up -d mongo
+	echo "${BLUE}Run mongo express.${NC}"
+	echo "${YELLOW}Host: http://localhost:8081${NC}"
+	@docker-compose up -d mongo-express
 
 semantic-release:
 	@npx semantic-release

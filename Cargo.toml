@@ -51,6 +51,11 @@ futures = "0.3"
 criterion = "0.3"
 chrono = "0.4"
 
+[dependencies.mongodb]
+version = "1.1.1"
+default-features = false
+features = ["async-std-runtime"]
+
 [features]
 use_xml_document = []
 use_yaml_document = []
@@ -58,6 +63,7 @@ use_csv_document = []
 use_toml_document = []
 use_bucket_connector = []
 use_curl_connector = []
+use_mongodb_connector = []
 default = [
     'use_xml_document', 
     'use_yaml_document', 
@@ -65,4 +71,5 @@ default = [
     'use_toml_document',
     'use_bucket_connector',
     'use_curl_connector',
+    'use_mongodb_connector',
 ]

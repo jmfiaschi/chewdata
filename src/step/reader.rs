@@ -140,7 +140,7 @@ impl Step for Reader {
             if !dataset.is_empty() {
                 info!(
                     slog_scope::logger(),
-                    "Yield a new dataset"; "dataset_size" => dataset.len(), "step" => format!("{}", step_cloned)
+                    "Yield readed new dataset"; "dataset_size" => dataset.len(), "step" => format!("{}", step_cloned)
                 );
                 co.yield_(dataset).await;
             }
