@@ -73,3 +73,7 @@ default = [
     'use_curl_connector',
     'use_mongodb_connector',
 ]
+
+[[bench]]
+name = "reader_benchmark"
+harness = false
