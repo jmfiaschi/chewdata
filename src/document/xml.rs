@@ -122,6 +122,9 @@ impl Xml {
 }
 
 impl Document for Xml {
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
     /// Read toml data.
     ///
     /// # Example: Should read toml data.

@@ -35,6 +35,9 @@ impl Default for Yaml {
 }
 
 impl Document for Yaml {
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
     /// Read complex yaml data.
     ///
     /// # Example: Should read the input data.

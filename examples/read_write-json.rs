@@ -1,6 +1,7 @@
 use std::io;
 
-fn main() -> io::Result<()> {
+#[tokio::main]
+async fn main() -> io::Result<()> {
     let _guard = slog_envlogger::init().unwrap();
 
     let config = r#"
@@ -16,5 +17,5 @@ fn main() -> io::Result<()> {
     ]
     "#;
 
-    chewdata::exec(serde_json::from_str(config)?, None)
+    chewdata::exec_with_pipe(serde_json::from_str(config)?, None)
 }

@@ -7,6 +7,7 @@ extern crate rusoto_core;
 extern crate rusoto_s3;
 extern crate serde;
 extern crate serde_json;
+extern crate multiqueue2 as multiqueue;
 
 pub mod connector;
 pub mod document;
@@ -14,26 +15,40 @@ pub mod helper;
 pub mod step;
 pub mod updater;
 
-use self::step::{Dataset, StepType};
+use self::step::{StepType, DataResult};
 use serde::{Deserialize, Serialize};
 use std::io;
+use multiqueue::MPMCReceiver;
 
-pub fn exec(steps: Vec<StepType>, dataset_opt: Option<Dataset>) -> io::Result<()> {
-    match steps.len() {
-        0 => {
-            if let Some(data) = dataset_opt {
-                for _data_result in data {}
-            }
-            return Ok(());
+pub fn exec_with_pipe(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>) -> io::Result<()> {
+    let mut handles = vec![];
+
+    let step_types_len = step_types.len();
+
+    for (pos, step_type) in step_types.into_iter().enumerate() {
+        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(10);
+        let step = step_type.step_inner();
+
+        let mut pipe_inbound_option = None;
+            
+        if pos != step_types_len-1 {
+            pipe_inbound_option = Some(pipe_inbound.clone());
         }
-        _ => {
-            let mut steps = steps;
-            match steps.remove(0).step().exec(dataset_opt)? {
-                Some(data) => exec(steps, Some(data))?,
-                None => exec(steps, None)?,
+
+        let handle = std::thread::spawn(move || {
+            match step.exec_with_pipe(previous_step_pipe_outbound, pipe_inbound_option) {
+                Ok(_) => (),
+                Err(e) => error!(slog_scope::logger(), "Exec"; "e" => format!("{}", e))
             };
-        }
+        });
+        handles.push(handle);
+
+        previous_step_pipe_outbound = Some(pipe_outbound);   
     }
+
+    handles.into_iter().for_each(|handle| {
+        handle.join().unwrap();
+    });
 
     Ok(())
 }

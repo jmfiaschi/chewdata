@@ -33,6 +33,9 @@ impl Default for Json {
 }
 
 impl Document for Json {
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
     /// Read complex json data.
     ///
     /// # Example: Should read the array input data.

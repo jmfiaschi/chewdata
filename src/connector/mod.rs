@@ -143,7 +143,7 @@ impl ConnectorType {
 }
 
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
-pub trait Connector: Read + Write + Send {
+pub trait Connector: Read + Write + Send + std::fmt::Debug {
     /// Set parameters.
     fn set_parameters(&mut self, parameters: Value);
     /// Get the resolved path.

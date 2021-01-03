@@ -1,10 +1,10 @@
-use super::{DataResult, Dataset};
+use super::{DataResult};
 use crate::connector::ConnectorType;
 use crate::document::DocumentType;
 use crate::step::Step;
-use genawaiter::sync::GenBoxed;
 use serde::Deserialize;
 use std::{fmt, io};
+use multiqueue::{MPMCReceiver, MPMCSender};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -47,108 +47,68 @@ impl fmt::Display for Reader {
 }
 
 impl Step for Reader {
-    fn exec(&self, dataset_opt: Option<Dataset>) -> io::Result<Option<Dataset>> {
+    fn exec_with_pipe(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
         let document_type = self.document_type.clone();
         let mut connector_type = self.connector_type.clone();
-        let step_cloned = self.to_owned();
-        let dataset_size = self.dataset_size;
-        let data_type = self.data_type.to_owned();
+        let document = document_type.document();
+        let connector = connector_type.connector_mut();
+        connector.set_metadata(document.metadata());
 
-        let dataset = GenBoxed::new_boxed(|co| async move {
-            debug!(slog_scope::logger(), "Generator start"; "step" => format!("{}", step_cloned));
-            info!(
-                slog_scope::logger(),
-                "Read document inner through the connector";"step" => format!("{}", step_cloned)
-            );
-            let mut dataset: Vec<DataResult> = Vec::default();
-            match dataset_opt {
-                Some(input_dataset) => {
-                    for data_results in input_dataset {
-                        data_results.into_iter().for_each(|data_result| {
-                            let json_value = match (data_result.clone(), data_type.as_ref()) {
-                                (DataResult::Ok(_), DataResult::OK) => data_result.to_json_value(),
-                                (DataResult::Err(_), DataResult::ERR) => data_result.to_json_value(),
-                                _ => {
-                                    info!(slog_scope::logger(),
-                                        "This step handle only this data type";
-                                        "data_type" => &data_type,
-                                        "data" => format!("{:?}", data_result),
-                                        "step" => format!("{}", &step_cloned)
-                                    );
-                                    return;
-                                }
-                            };
+        let pipe_inbound = match pipe_inbound_option {
+            Some(pipe_inbound) => pipe_inbound,
+            None => {
+                info!(slog_scope::logger(), "This step is skipped. No inbound pipe found"; "step" => format!("{}", self.clone()));
+                return Ok(())
+            }
+        };
 
-                            let connector = connector_type.connector_mut();
-                            connector.set_parameters(json_value);
-                            
-                            let data = match document_type
-                                .document()
-                                .read_data(connector_type.clone().connector_inner())
-                            {
-                                Ok(data) => data,
-                                Err(e) => {
-                                    error!(slog_scope::logger(), "Can't read the document"; "error" => format!("{}",e));
-                                    return;
-                                }
-                            };
-
-                            for data_result in data {
-                                debug!(slog_scope::logger(), "Add data into the dataset"; "step" => format!("{}", step_cloned), "data_result" => format!("{:?}", data_result));
-                                dataset.push(data_result);
-                            }
-                        });
-                        if dataset_size <= dataset.len() {
-                            info!(
-                                slog_scope::logger(),
-                                "Read data from the document and yield a new dataset"; "dataset_size" => dataset.len(), "step" => format!("{}", step_cloned)
-                            );
-                            co.yield_(dataset).await;
-                            dataset = Vec::default();
-                        }
+        match pipe_outbound_option {
+            Some(pipe_outbound) => {
+                for data_result in pipe_outbound {
+                    if !data_result.is_type(self.data_type.as_ref()) {
+                        info!(slog_scope::logger(),
+                            "This step handle only this data type";
+                            "data_type" => self.data_type.to_string(),
+                            "data" => format!("{:?}", data_result),
+                            "step" => format!("{}", self.clone())
+                        );
+                        continue;
                     }
-                }
-                None => {
-                    let data = match document_type
+
+                    let json_value = data_result.to_json_value();
+
+                    let connector = connector_type.connector_mut();
+                    connector.set_parameters(json_value);
+
+                    let data = document_type
                         .document()
-                        .read_data(connector_type.clone().connector_inner())
-                    {
-                        Ok(data) => data,
-                        Err(e) => {
-                            error!(slog_scope::logger(), "Can't read the document"; "error" => format!("{}",e));
-                            return;
-                        }
-                    };
+                        .read_data(connector_type.clone().connector_inner())?;
+                    
                     for data_result in data {
-                        debug!(slog_scope::logger(), "Add data into the dataset"; "step" => format!("{}", step_cloned), "data_result" => format!("{:?}", data_result));
-                        dataset.push(data_result);
-
-                        if dataset_size <= dataset.len() {
-                            info!(
-                                slog_scope::logger(),
-                                "Yield a new dataset"; "dataset_size" => dataset.len(), "step" => format!("{}", step_cloned)
-                            );
-                            co.yield_(dataset).await;
-                            dataset = Vec::default();
-                        }
+                        pipe_inbound
+                            .try_send(data_result)
+                            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?
                     }
                 }
+            },
+            None => {
+                let data = document_type
+                    .document()
+                    .read_data(connector_type.clone().connector_inner())?;
+                
+                for data_result in data {
+                    pipe_inbound
+                        .try_send(data_result)
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?
+                }
             }
+        };
 
-            if !dataset.is_empty() {
-                info!(
-                    slog_scope::logger(),
-                    "Yield readed new dataset"; "dataset_size" => dataset.len(), "step" => format!("{}", step_cloned)
-                );
-                co.yield_(dataset).await;
-            }
-
-            debug!(slog_scope::logger(), "Generator ended"; "step" => format!("{}", step_cloned));
-        });
+        drop(pipe_inbound);
 
         debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
-        Ok(Some(dataset))
+        Ok(())
     }
 }

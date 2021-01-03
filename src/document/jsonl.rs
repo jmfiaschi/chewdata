@@ -35,6 +35,9 @@ impl Default for Jsonl {
 }
 
 impl Document for Jsonl {
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
     /// Read complex json data.
     ///
     /// # Example: Should read the input data.

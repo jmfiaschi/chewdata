@@ -25,6 +25,7 @@ use crate::connector::Connector;
 use crate::step::{Data, DataResult};
 use serde::{Deserialize, Serialize};
 use std::io;
+use super::Metadata;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(tag = "type")]
@@ -117,6 +118,9 @@ pub trait Document: Send + Sync {
     ) -> io::Result<()>;
     /// Apply actions and flush the connector.
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()>;
+    fn metadata(&self) -> Metadata {
+        Metadata::default()
+    }
 }
 
 #[cfg(test)]

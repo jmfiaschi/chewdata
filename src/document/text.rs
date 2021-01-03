@@ -28,6 +28,9 @@ impl Default for Text {
 }
 
 impl Document for Text {
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
     /// Read complex csv data.
     ///
     /// # Example

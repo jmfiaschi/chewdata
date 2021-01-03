@@ -252,6 +252,9 @@ impl Csv {
 }
 
 impl Document for Csv {
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
     /// Read complex csv data.
     ///
     /// # Example

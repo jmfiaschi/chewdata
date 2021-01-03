@@ -10,6 +10,7 @@ use json_value_merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
 use std::io;
+use multiqueue::{MPMCReceiver, MPMCSender};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -84,12 +85,19 @@ impl DataResult {
             }
         }
     }
+    pub fn is_type(&self, data_type: &str) -> bool {
+        match (self, data_type.as_ref()) {
+            (DataResult::Ok(_), DataResult::OK) => true,
+            (DataResult::Err(_), DataResult::ERR) => true,
+            _ => false
+        }
+    }
 }
 
 pub type Data = GenBoxed<DataResult>;
 pub type Dataset = GenBoxed<Vec<DataResult>>;
 
-pub trait Step {
+pub trait Step: Send + Sync {
     /// Exec the step that implement this trait.
-    fn exec(&self, dataset_opt: Option<Dataset>) -> io::Result<Option<Dataset>>;
+    fn exec_with_pipe(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()>;
 }

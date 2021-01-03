@@ -82,7 +82,7 @@ fn main() -> Result<()> {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(steps, None)?;
+    chewdata::exec_with_pipe(steps, None)?;
 
     Ok(())
 }
