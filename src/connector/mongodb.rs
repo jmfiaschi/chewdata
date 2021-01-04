@@ -136,7 +136,7 @@ impl Connector for Mongodb {
     fn is_empty(&self) -> Result<bool> {
         Ok(0 == self.inner.get_ref().len())
     }
-    /// Return true because the connector truncate the inner when it write the data.
+    /// Get the truncate state of the connector.
     ///
     /// # Example
     /// ```
@@ -144,6 +144,8 @@ impl Connector for Mongodb {
     /// use chewdata::connector::Connector;
     ///
     /// let mut connector = Mongodb::default();
+    /// assert_eq!(false, connector.will_be_truncated());
+    /// connector.can_truncate = true;
     /// assert_eq!(true, connector.will_be_truncated());
     /// ```
     fn will_be_truncated(&self) -> bool {

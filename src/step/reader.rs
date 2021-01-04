@@ -5,6 +5,7 @@ use crate::step::Step;
 use serde::Deserialize;
 use std::{fmt, io};
 use multiqueue::{MPMCReceiver, MPMCSender};
+use std::{thread, time};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -18,6 +19,9 @@ pub struct Reader {
     #[serde(alias = "batch_size")]
     pub dataset_size: usize,
     pub data_type: String,
+    pub max_retry: i32,
+    #[serde(alias = "wait")]
+    pub wait_in_milisec: u64,
 }
 
 impl Default for Reader {
@@ -29,6 +33,8 @@ impl Default for Reader {
             description: None,
             dataset_size: 1000,
             data_type: DataResult::OK.to_string(),
+            max_retry: -1,
+            wait_in_milisec: 10
         }
     }
 }
@@ -99,9 +105,16 @@ impl Step for Reader {
                     .read_data(connector_type.clone().connector_inner())?;
                 
                 for data_result in data {
-                    pipe_inbound
-                        .try_send(data_result)
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?
+                    let mut current_retry = 0;
+                    while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
+                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                        thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                        current_retry = current_retry +1;
+
+                        if self.max_retry > 0 && self.max_retry < current_retry {
+                            return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, format!("Stop to send data after {} retries.", self.max_retry)));
+                        }
+                    }
                 }
             }
         };

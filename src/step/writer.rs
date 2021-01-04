@@ -4,6 +4,7 @@ use crate::step::{DataResult, Step};
 use serde::{Deserialize, Serialize};
 use std::{fmt, io::Result};
 use multiqueue::{MPMCReceiver, MPMCSender};
+use std::{thread, time};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -19,6 +20,9 @@ pub struct Writer {
     // By default, set to true in order to parallize the writting.
     pub is_parallel: bool,
     pub dataset_size: usize,
+    pub max_retry: i32,
+    #[serde(alias = "wait")]
+    pub wait_in_milisec: u64,
 }
 
 impl Default for Writer {
@@ -31,6 +35,8 @@ impl Default for Writer {
             data_type: DataResult::OK.to_string(),
             is_parallel: true,
             dataset_size: 1000,
+            max_retry: -1,
+            wait_in_milisec: 10
         }
     }
 }
@@ -128,9 +134,16 @@ impl Step for Writer {
             }
 
             if let Some(ref pipe_inbound) = pipe_inbound_option {
-                pipe_inbound
-                    .try_send(data_result)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?
+                let mut current_retry = 0;
+                while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
+                    warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                    thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                    current_retry = current_retry +1;
+
+                    if self.max_retry > 0 && self.max_retry < current_retry {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, format!("Stop to send data after {} retries.", self.max_retry)));
+                    }
+                }
             }
 
             current_dataset_size = current_dataset_size + 1;

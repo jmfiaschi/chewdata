@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fmt, io::Result};
 use multiqueue::{MPMCReceiver, MPMCSender};
+use std::{thread, time};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -22,6 +23,9 @@ pub struct Transformer {
     // transform in parallel mode. The data order write into the document is not respected.
     // By default, set to true in order to parallize the writting.
     pub is_parallel: bool,
+    pub max_retry: i32,
+    #[serde(alias = "wait")]
+    pub wait_in_milisec: u64,
 }
 
 impl Default for Transformer {
@@ -34,6 +38,8 @@ impl Default for Transformer {
             is_parallel: true,
             can_refreshed_referentials: true,
             data_type: DataResult::OK.to_string(),
+            max_retry: -1,
+            wait_in_milisec: 10
         }
     }
 }
@@ -66,8 +72,7 @@ fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec
             }
         };
 
-        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(10);
-
+        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
         match referential.exec_with_pipe(None, Some(pipe_inbound)) {
             Ok(dataset_option) => dataset_option,
             Err(e) => {
@@ -146,9 +151,16 @@ impl Step for Transformer {
                     }
                 };
             
-            pipe_inbound
-                .try_send(new_data_results)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?
+            let mut current_retry = 0;
+            while let Err(_) = pipe_inbound.try_send(new_data_results.clone()) {
+                warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                current_retry = current_retry +1;
+
+                if self.max_retry > 0 && self.max_retry < current_retry {
+                    return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, format!("Stop to send data after {} retries.", self.max_retry)));
+                }
+            }
         }
 
         drop(pipe_inbound);

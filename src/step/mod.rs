@@ -97,7 +97,7 @@ impl DataResult {
 pub type Data = GenBoxed<DataResult>;
 pub type Dataset = GenBoxed<Vec<DataResult>>;
 
-pub trait Step: Send + Sync {
+pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display {
     /// Exec the step that implement this trait.
     fn exec_with_pipe(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()>;
 }

@@ -22,11 +22,10 @@ use multiqueue::MPMCReceiver;
 
 pub fn exec_with_pipe(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>) -> io::Result<()> {
     let mut handles = vec![];
-
     let step_types_len = step_types.len();
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
-        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(10);
+        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
         let step = step_type.step_inner();
 
         let mut pipe_inbound_option = None;
@@ -38,7 +37,7 @@ pub fn exec_with_pipe(step_types: Vec<StepType>, mut previous_step_pipe_outbound
         let handle = std::thread::spawn(move || {
             match step.exec_with_pipe(previous_step_pipe_outbound, pipe_inbound_option) {
                 Ok(_) => (),
-                Err(e) => error!(slog_scope::logger(), "Exec"; "e" => format!("{}", e))
+                Err(e) => error!(slog_scope::logger(), "The thread stop with an error"; "e" => format!("{}", e), "step" => format!("{}",step))
             };
         });
         handles.push(handle);
