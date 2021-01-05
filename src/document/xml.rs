@@ -324,7 +324,7 @@ impl Document for Xml {
 
         connector.write_all(xml_new_value.as_bytes())?;
 
-        debug!(slog_scope::logger(), "Write data ended."; "data" => format!("{:?}", data_result));
+        debug!(slog_scope::logger(), "Write data ended"; "data" => format!("{:?}", data_result));
         Ok(())
     }
     /// flush xml data.
@@ -357,7 +357,7 @@ impl Document for Xml {
     /// assert_eq!(r#"<root><item column_1="line_1"/><item column_1="line_2"/></root>"#, buffer);
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called.");
+        debug!(slog_scope::logger(), "Flush called");
         let mut metadata = self.metadata.clone();
         metadata.mime_type = Some(mime::TEXT_XML.to_string());
         connector.set_metadata(metadata.clone());
@@ -391,7 +391,7 @@ impl Document for Xml {
         connector.write_all(xml_entry_path_end.as_bytes())?;
         connector.seek_and_flush(-1 as i64 * xml_entry_path_end.len() as i64)?;
 
-        debug!(slog_scope::logger(), "Flush with success.");
+        debug!(slog_scope::logger(), "Flush with success");
         Ok(())
     }
 }

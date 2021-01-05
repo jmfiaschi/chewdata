@@ -89,7 +89,7 @@ impl Document for Text {
         let value = data_result.to_json_value();
         connector.write_all(value.as_str().unwrap_or("").as_bytes())?;
 
-        debug!(slog_scope::logger(), "Write data ended."; "data" => format!("{:?}", data_result));
+        debug!(slog_scope::logger(), "Write data ended"; "data" => format!("{:?}", data_result));
         Ok(())
     }
     /// Push data from the inner buffer into the document and flush the connector.
@@ -109,12 +109,12 @@ impl Document for Text {
     /// assert_eq!(r#""#, &format!("{}", connector));
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called.");
+        debug!(slog_scope::logger(), "Flush called");
         let mut metadata = self.metadata.clone();
         metadata.mime_type = Some(mime::TEXT_PLAIN_UTF_8.to_string());
         connector.set_metadata(metadata.clone());
         connector.flush()?;
-        debug!(slog_scope::logger(), "Flush with success.");
+        debug!(slog_scope::logger(), "Flush with success");
         Ok(())
     }
 }

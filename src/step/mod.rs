@@ -11,6 +11,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::io;
 use multiqueue::{MPMCReceiver, MPMCSender};
+use std::thread::JoinHandle;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -98,6 +99,7 @@ pub type Data = GenBoxed<DataResult>;
 pub type Dataset = GenBoxed<Vec<DataResult>>;
 
 pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display {
+    fn par_exec(&self, handles: &mut Vec<JoinHandle<()>>, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>);
     /// Exec the step that implement this trait.
-    fn exec_with_pipe(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()>;
+    fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()>;
 }

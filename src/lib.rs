@@ -34,13 +34,7 @@ pub fn exec_with_pipe(step_types: Vec<StepType>, mut previous_step_pipe_outbound
             pipe_inbound_option = Some(pipe_inbound.clone());
         }
 
-        let handle = std::thread::spawn(move || {
-            match step.exec_with_pipe(previous_step_pipe_outbound, pipe_inbound_option) {
-                Ok(_) => (),
-                Err(e) => error!(slog_scope::logger(), "The thread stop with an error"; "e" => format!("{}", e), "step" => format!("{}",step))
-            };
-        });
-        handles.push(handle);
+        step.par_exec(&mut handles, previous_step_pipe_outbound, pipe_inbound_option);
 
         previous_step_pipe_outbound = Some(pipe_outbound);   
     }

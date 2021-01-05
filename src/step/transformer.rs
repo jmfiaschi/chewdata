@@ -4,9 +4,10 @@ use crate::step::Step;
 use crate::updater::UpdaterType;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, fmt, io::Result};
+use std::{collections::HashMap, fmt, io};
 use multiqueue::{MPMCReceiver, MPMCSender};
 use std::{thread, time};
+use std::thread::JoinHandle;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -23,9 +24,9 @@ pub struct Transformer {
     // transform in parallel mode. The data order write into the document is not respected.
     // By default, set to true in order to parallize the writting.
     pub is_parallel: bool,
-    pub max_retry: i32,
     #[serde(alias = "wait")]
     pub wait_in_milisec: u64,
+    pub thread_number: i32,
 }
 
 impl Default for Transformer {
@@ -38,8 +39,8 @@ impl Default for Transformer {
             is_parallel: true,
             can_refreshed_referentials: true,
             data_type: DataResult::OK.to_string(),
-            max_retry: -1,
-            wait_in_milisec: 10
+            wait_in_milisec: 10,
+            thread_number: 1
         }
     }
 }
@@ -73,7 +74,7 @@ fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec
         };
 
         let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
-        match referential.exec_with_pipe(None, Some(pipe_inbound)) {
+        match referential.exec(None, Some(pipe_inbound)) {
             Ok(dataset_option) => dataset_option,
             Err(e) => {
                 warn!(slog_scope::logger(), "Can't read the referentiel"; "error" => format!("{}", e), "referential" => format!("{}", referential));
@@ -92,7 +93,23 @@ fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec
 }
 /// This Step transform a dataset.
 impl Step for Transformer {
-    fn exec_with_pipe(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> Result<()> {
+    fn par_exec<'a>(&self, handles: &mut Vec<JoinHandle<()>>, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) {
+        let thread_number = self.thread_number;
+
+        for _i in 0..thread_number {
+            let step = self.clone();
+            let pipe_outbound_option = pipe_outbound_option.clone();
+            let pipe_inbound_option = pipe_inbound_option.clone();
+            let handle = std::thread::spawn(move || {
+                match step.exec(pipe_outbound_option, pipe_inbound_option) {
+                    Ok(_) => (),
+                    Err(e) => error!(slog_scope::logger(), "The thread stop with an error"; "e" => format!("{}", e), "step" => format!("{}",step))
+                };
+            });
+            handles.push(handle);
+        }
+    }
+    fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
         let pipe_inbound = match pipe_inbound_option {
@@ -153,13 +170,9 @@ impl Step for Transformer {
             
             let mut current_retry = 0;
             while let Err(_) = pipe_inbound.try_send(new_data_results.clone()) {
-                warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
                 thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
                 current_retry = current_retry +1;
-
-                if self.max_retry > 0 && self.max_retry < current_retry {
-                    return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, format!("Stop to send data after {} retries.", self.max_retry)));
-                }
             }
         }
 

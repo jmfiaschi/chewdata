@@ -442,7 +442,7 @@ impl Document for Csv {
 
         connector.write_all(builder_writer.into_inner().unwrap().as_slice())?;
 
-        debug!(slog_scope::logger(), "Write data ended."; "data" => format!("{:?}", data_result));
+        debug!(slog_scope::logger(), "Write data ended"; "data" => format!("{:?}", data_result));
         Ok(())
     }
     /// Push data from the inner buffer into the document and flush the connector.
@@ -462,13 +462,13 @@ impl Document for Csv {
     /// assert_eq!(r#""#, &format!("{}", connector));
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called.");
+        debug!(slog_scope::logger(), "Flush called");
         let mut metadata = self.metadata.clone();
         metadata.mime_type = Some(mime::TEXT_CSV_UTF_8.to_string());
         connector.set_metadata(metadata.clone());
         connector.flush()?;
         self.header_added = false;
-        debug!(slog_scope::logger(), "Flush with success.");
+        debug!(slog_scope::logger(), "Flush with success");
         Ok(())
     }
 }

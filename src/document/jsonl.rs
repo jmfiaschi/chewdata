@@ -223,7 +223,7 @@ impl Document for Jsonl {
         }?;
         connector.write_all(b"\n")?;
 
-        debug!(slog_scope::logger(), "Write data ended."; "data" => format!("{:?}", data_result));
+        debug!(slog_scope::logger(), "Write data ended"; "data" => format!("{:?}", data_result));
         Ok(())
     }
     /// flush jsonl data.
@@ -258,12 +258,12 @@ impl Document for Jsonl {
     /// "#, buffer);
     /// ```
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called.");
+        debug!(slog_scope::logger(), "Flush called");
         let mut metadata = self.metadata.clone();
         metadata.mime_type = Some(DEFAULT_MIME.to_string());
         connector.set_metadata(metadata.clone());
         connector.flush()?;
-        debug!(slog_scope::logger(), "Flush with success.");
+        debug!(slog_scope::logger(), "Flush with success");
         Ok(())
     }
 }
