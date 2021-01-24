@@ -152,8 +152,6 @@ pub trait Connector: Read + Write + Send + std::fmt::Debug {
     fn inner(&self) -> &Vec<u8>;
     /// Check if the connector and the document have data.
     fn is_empty(&self) -> Result<bool>;
-    /// Get the truncate value.
-    fn will_be_truncated(&self) -> bool;
     /// Append the inner buffer into the end of the document and flush the inner buffer.
     fn seek_and_flush(&mut self, _position: i64) -> Result<()> {
         self.flush()
@@ -166,4 +164,8 @@ pub trait Connector: Read + Write + Send + std::fmt::Debug {
     fn set_metadata(&mut self, _metadata: Metadata) {}
     /// Change the value of the flush_and_read parameter. Used to update the inner with the document content after flush.
     fn set_flush_and_read(&mut self, _flush_and_read: bool) {}
+    /// Test if the path is dynamic.
+    fn is_variable_path(&self) -> bool;
+    /// Erase the content of the document.
+    fn erase(&mut self) -> Result<()>;
 }

@@ -203,19 +203,7 @@ impl Connector for Curl {
             _ => self.path.clone(),
         }
     }
-    /// Return true because the curl truncate the inner when it write the data everytime.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let mut connector = Curl::default();
-    /// assert_eq!(true, connector.will_be_truncated());
-    /// ```
-    fn will_be_truncated(&self) -> bool {
-        true
-    }
+    fn is_variable_path(&self) -> bool { false }
     /// Get the inner buffer reference.
     ///
     /// # Example
@@ -254,6 +242,10 @@ impl Connector for Curl {
     }
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
+    }
+    fn erase(&mut self) -> Result<()> { 
+        info!(slog_scope::logger(), "Can't clean the document"; "connector" => format!("{:?}", self), "path" => self.path());
+        Ok(()) 
     }
 }
 

@@ -17,8 +17,6 @@ pub struct Reader {
     connector_type: ConnectorType,
     pub alias: Option<String>,
     pub description: Option<String>,
-    #[serde(alias = "batch_size")]
-    pub dataset_size: usize,
     pub data_type: String,
     #[serde(alias = "wait")]
     pub wait_in_milisec: u64,
@@ -32,7 +30,6 @@ impl Default for Reader {
             connector_type: ConnectorType::default(),
             alias: None,
             description: None,
-            dataset_size: 1000,
             data_type: DataResult::OK.to_string(),
             wait_in_milisec: 10,
             thread_number: 1
@@ -82,8 +79,8 @@ impl Step for Reader {
             }
         };
 
-        match pipe_outbound_option {
-            Some(pipe_outbound) => {
+        match (pipe_outbound_option, connector.is_variable_path()) {
+            (Some(pipe_outbound), true) => {
                 for data_result in pipe_outbound {
                     if !data_result.is_type(self.data_type.as_ref()) {
                         info!(slog_scope::logger(),
@@ -105,13 +102,32 @@ impl Step for Reader {
                         .read_data(connector_type.clone().connector_inner())?;
                     
                     for data_result in data {
-                        pipe_inbound
-                            .try_send(data_result)
-                            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?
+                        let mut current_retry = 0;
+                        while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
+                            debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                            thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                            current_retry = current_retry +1;
+                        }
                     }
                 }
             },
-            None => {
+            (Some(pipe_outbound), false) => {
+                for _data_result in pipe_outbound {}
+
+                let data = document_type
+                    .document()
+                    .read_data(connector_type.clone().connector_inner())?;
+                
+                for data_result in data {
+                    let mut current_retry = 0;
+                    while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
+                        debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                        thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                        current_retry = current_retry +1;
+                    }
+                }
+            }
+            (None, _) => {
                 let data = document_type
                     .document()
                     .read_data(connector_type.clone().connector_inner())?;

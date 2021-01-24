@@ -66,7 +66,7 @@ impl Document for Text {
     }
     /// Write complex csv data.
     ///
-    /// # Example: Add header if connector data empty or if the connector will truncate the previous data.
+    /// # Example
     /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::text::Text;

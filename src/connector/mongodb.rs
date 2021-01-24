@@ -24,11 +24,8 @@ pub struct Mongodb {
     pub update_options: Option<UpdateOptions>,
     #[serde(skip_serializing)]
     pub insert_options: Option<InsertOneOptions>,
-    pub can_truncate: bool,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
-    #[serde(skip)]
-    is_truncated: bool,
 }
 
 impl Default for Mongodb {
@@ -42,8 +39,6 @@ impl Default for Mongodb {
             update_options: None,
             insert_options: None,
             inner: Cursor::default(),
-            can_truncate: false,
-            is_truncated: false,
         }
     }
 }
@@ -120,6 +115,7 @@ impl Mongodb {
 
 impl Connector for Mongodb {
     fn set_parameters(&mut self, _parameters: Value) {}
+    fn is_variable_path(&self) -> bool { false }
     fn path(&self) -> String {
         String::new()
     }
@@ -135,21 +131,6 @@ impl Connector for Mongodb {
     /// ```
     fn is_empty(&self) -> Result<bool> {
         Ok(0 == self.inner.get_ref().len())
-    }
-    /// Get the truncate state of the connector.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::mongodb::Mongodb;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let mut connector = Mongodb::default();
-    /// assert_eq!(false, connector.will_be_truncated());
-    /// connector.can_truncate = true;
-    /// assert_eq!(true, connector.will_be_truncated());
-    /// ```
-    fn will_be_truncated(&self) -> bool {
-        self.can_truncate && !self.is_truncated
     }
     /// Get the document size 0.
     ///  
@@ -177,6 +158,29 @@ impl Connector for Mongodb {
     /// ```
     fn inner(&self) -> &Vec<u8> {
         self.inner.get_ref()
+    }
+    fn erase(&mut self) -> Result<()> {
+        info!(slog_scope::logger(), "Clean the document"; "connector" => format!("{}", self), "path" => self.path());
+
+        let hostname = self.endpoint.clone();
+        let database = self.database.clone();
+        let collection = self.collection.clone();
+        
+        futures::executor::block_on(async {
+            let client = match Client::with_uri_str(&hostname).await {
+                Ok(client) => client,
+                Err(e) => {
+                    error!(slog_scope::logger(), "{}", e);
+                    return ();
+                }
+            };
+            let db = client.database(&database);
+            let collection = db.collection(&collection);
+            collection.delete_many(doc! {}, None).await.unwrap();
+            
+        });
+
+        Ok(())
     }
 }
 
@@ -215,7 +219,6 @@ impl Write for Mongodb {
         let database = self.database.clone();
         let collection = self.collection.clone();
         let docs: Vec<Document> = serde_json::from_slice(self.inner.get_ref()).unwrap();
-        let will_be_truncated = self.will_be_truncated();
         let update_options = self.update_options.clone();
         let insert_options = self.insert_options.clone();
 
@@ -230,11 +233,6 @@ impl Write for Mongodb {
             let db = client.database(&database);
             let collection = db.collection(&collection);
 
-            if will_be_truncated {
-                collection.delete_many(doc! {}, None).await.unwrap();
-                self.is_truncated = true;
-                info!(slog_scope::logger(), "The collection link to the connector has been truncate");
-            }
             for doc in docs {
                 if let Some(id) = doc.get("_id") {
                     collection.update_one(doc! { "_id": id }, doc, update_options.clone()).await.unwrap();

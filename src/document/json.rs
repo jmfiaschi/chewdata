@@ -195,7 +195,7 @@ impl Document for Json {
     /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
     /// assert_eq!(r#"[{"column_1":"line_1"},{"column_1":"line_2"}"#, &format!("{}", connector));
     /// ```
-    /// # Example: Write multi data into truncate inner document and document init with '[]'.
+    /// # Example: Write multi data into inner document and document init with '[]'.
     /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::json::Json;
@@ -214,26 +214,6 @@ impl Document for Json {
     /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
     /// assert_eq!(r#"{"column_1":"line_1"},{"column_1":"line_2"}"#, &format!("{}", connector));
     /// ```
-    /// # Example: Truncate and write into the document.
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::json::Json;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    ///
-    /// let mut document = Json::default();
-    /// let mut connector = InMemory::new(r#"[{"column_1":"line_1"}]"#);
-    /// connector.can_truncate = true;
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"[{"column_1":"line_2"}"#, &format!("{}", connector));
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_3"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"[{"column_1":"line_2"},{"column_1":"line_3"}"#, &format!("{}", connector));
-    /// ```
     fn write_data_result(
         &mut self,
         connector: &mut dyn Connector,
@@ -245,7 +225,6 @@ impl Document for Json {
         connector.set_parameters(value.clone());
 
         if connector.is_empty()? && connector.inner().is_empty()
-            || connector.will_be_truncated() && connector.inner().is_empty()
         {
             connector.write_all(b"[")?;
         } else if 2 < connector.inner().len() || 2 < connector.len()? {

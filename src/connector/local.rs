@@ -20,16 +20,10 @@ pub struct Local {
     pub metadata: Metadata,
     pub path: String,
     pub parameters: Value,
-    // Truncate or not the file before to add the new content.
-    //  true: Set the content of the file to 0 bytes.
-    //  false: Let the content of the file unchanged if this one exist.
-    pub can_truncate: bool,
     #[serde(skip)]
     paths: Option<IntoIter<String>>,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
-    #[serde(skip)]
-    is_truncated: bool,
 }
 
 impl fmt::Display for Local {
@@ -55,8 +49,6 @@ impl Default for Local {
             paths: None,
             inner: Cursor::new(Vec::default()),
             parameters: Value::Null,
-            can_truncate: false,
-            is_truncated: false,
         }
     }
 }
@@ -69,32 +61,11 @@ impl Clone for Local {
             paths: None,
             inner: Cursor::new(Vec::default()),
             parameters: self.parameters.to_owned(),
-            can_truncate: self.can_truncate.to_owned(),
-            is_truncated: self.is_truncated.to_owned(),
         }
     }
 }
 
 impl Local {
-    /// Test if the path is variable.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    /// use serde_json::Value;
-    ///
-    /// let mut connector = Local::default();
-    /// assert_eq!(false, connector.is_variable_path());
-    /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
-    /// connector.set_parameters(params);
-    /// connector.path = "/dir/filename_{{ field }}.ext".to_string();
-    /// assert_eq!(true, connector.is_variable_path());
-    /// ```
-    pub fn is_variable_path(&self) -> bool {
-        let reg = Regex::new("\\{\\{[^}]*\\}\\}").unwrap();
-        reg.is_match(self.path.as_ref())
-    }
     fn init_paths(&mut self) -> Result<()> {
         debug!(slog_scope::logger(), "Init paths"; "path" => self.path.to_owned());
         let paths: Vec<String> = match glob(self.path.as_str()) {
@@ -154,15 +125,24 @@ impl Connector for Local {
     /// assert_eq!(params.clone(), connector.parameters.clone());
     /// ```
     fn set_parameters(&mut self, parameters: Value) {
-        let params_old = self.parameters.clone();
         self.parameters = parameters.clone();
-
-        if Value::Null != parameters
-            && self.is_variable_path()
-            && self.path.clone().replace_mustache(params_old) != self.path()
-        {
-            self.is_truncated = false;
-        }
+    }
+    /// Test if the path is variable.
+    ///
+    /// # Example
+    /// ```
+    /// use chewdata::connector::local::Local;
+    /// use chewdata::connector::Connector;
+    /// use serde_json::Value;
+    ///
+    /// let mut connector = Local::default();
+    /// assert_eq!(false, connector.is_variable_path());
+    /// connector.path = "/dir/filename_{{ field }}.ext".to_string();
+    /// assert_eq!(true, connector.is_variable_path());
+    /// ```
+    fn is_variable_path(&self) -> bool {
+        let reg = Regex::new("\\{\\{[^}]*\\}\\}").unwrap();
+        reg.is_match(self.path.as_ref())
     }
     /// Get the resolved path.
     ///
@@ -223,21 +203,6 @@ impl Connector for Local {
 
         Ok(true)
     }
-    /// Get the truncate state of the connector.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let mut connector = Local::default();
-    /// assert_eq!(false, connector.will_be_truncated());
-    /// connector.can_truncate = true;
-    /// assert_eq!(true, connector.will_be_truncated());
-    /// ```
-    fn will_be_truncated(&self) -> bool {
-        self.can_truncate && !self.is_truncated
-    }
     /// Get the total document size.
     ///
     /// # Example
@@ -276,7 +241,7 @@ impl Connector for Local {
     ///
     /// let mut connector_write = Local::default();
     /// connector_write.path = "./data/out/test_local_seek_and_flush_1".to_string();
-    /// connector_write.can_truncate = true;
+    /// connector_write.erase();
     ///
     /// connector_write.write(r#"[{"column1":"value1"}]"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.seek_and_flush(-1).unwrap();
@@ -300,7 +265,7 @@ impl Connector for Local {
     ///
     /// let mut connector_write = Local::default();
     /// connector_write.path = "./data/out/test_local_seek_and_flush_2".to_string();
-    /// connector_write.can_truncate = true;
+    /// connector_write.erase();
     ///
     /// let str = r#"[{"column1":"value1"}]"#;
     /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
@@ -317,37 +282,8 @@ impl Connector for Local {
     /// connector_read.read_to_string(&mut buffer).unwrap();
     /// assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
     /// ```
-    /// # Example: If the document must not be truncated
-    /// ```
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    /// use std::io::{Read, Write};
-    ///
-    /// let mut connector_write = Local::default();
-    /// connector_write.path = "./data/out/test_local_seek_and_flush_3".to_string();
-    /// connector_write.can_truncate = true;
-    ///
-    /// let str = r#"[{"column1":"value1"}]"#;
-    /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.seek_and_flush(-1).unwrap();
-    /// let mut buffer = String::default();
-    /// let mut connector_read = connector_write.clone();
-    /// connector_read.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
-    ///
-    /// let mut connector_write = Local::default();
-    /// connector_write.path = "./data/out/test_local_seek_and_flush_3".to_string();
-    /// connector_write.can_truncate = false;
-    ///
-    /// connector_write.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.seek_and_flush(-1).unwrap();
-    /// let mut buffer = String::default();
-    /// let mut connector_read = connector_write.clone();
-    /// connector_read.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
-    /// ```
     fn seek_and_flush(&mut self, position: i64) -> Result<()> {
-        debug!(slog_scope::logger(), "Seek & Flush");
+        debug!(slog_scope::logger(), "Seek & Flush"; "path"=>self.path.clone());
 
         if self.is_variable_path()
             && self.parameters == Value::Null
@@ -367,13 +303,13 @@ impl Connector for Local {
             .read(true)
             .create(true)
             .write(true)
-            .truncate(self.will_be_truncated())
+            .truncate(false)
             .open(Path::new(self.path().as_str()))?;
 
-        if 0 < position && !self.will_be_truncated() {
+        if 0 < position {
             file.seek(SeekFrom::Start(position as u64))?;
         }
-        if 0 > position && !self.will_be_truncated() {
+        if 0 > position {
             file.seek(SeekFrom::End(position as i64))?;
         }
 
@@ -381,15 +317,27 @@ impl Connector for Local {
         self.inner.flush()?;
         self.inner = Cursor::new(Vec::default());
 
-        if self.will_be_truncated() {
-            self.is_truncated = true;
-        }
-
-        debug!(slog_scope::logger(), "Seek & Flush ended");
+        debug!(slog_scope::logger(), "Seek & Flush ended"; "path"=>self.path.clone());
         Ok(())
     }
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
+    }
+    fn erase(&mut self) -> Result<()> {
+        info!(slog_scope::logger(), "Erase"; "connector" => format!("{}", self), "path" => self.path());
+
+        let mut file = OpenOptions::new()
+            .read(false)
+            .create(true)
+            .append(false)
+            .write(true)
+            .truncate(true)
+            .open(Path::new(self.path().as_str()))?;
+
+        file.write_all(String::default().as_bytes())?;
+        debug!(slog_scope::logger(), "Erase ended"; "path" => self.path());
+
+        Ok(())
     }
 }
 
@@ -484,7 +432,7 @@ impl Write for Local {
     ///
     /// let mut connector_write = Local::default();
     /// connector_write.path = "./data/out/test_local_flush_1".to_string();
-    /// connector_write.can_truncate = true;
+    /// connector_write.erase();
     ///
     /// connector_write.write(r#"{"column1":"value1"}"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.flush().unwrap();
@@ -500,37 +448,8 @@ impl Write for Local {
     /// connector_read.read_to_string(&mut buffer).unwrap();
     /// assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
     /// ```
-    /// # Example: If the document must not be truncated
-    /// ```
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    /// use std::io::{Read, Write};
-    ///
-    /// let mut connector_write = Local::default();
-    /// connector_write.path = "./data/out/test_local_flush_2".to_string();
-    /// connector_write.can_truncate = true;
-    ///
-    /// let str = r#"{"column1":"value1"}"#;
-    /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.flush().unwrap();
-    /// let mut buffer = String::default();
-    /// let mut connector_read = connector_write.clone();
-    /// connector_read.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"{"column1":"value1"}"#, buffer);
-    ///
-    /// let mut connector_write = Local::default();
-    /// connector_write.path = "./data/out/test_local_flush_2".to_string();
-    /// connector_write.can_truncate = false;
-    ///
-    /// connector_write.write(r#"{"column1":"value2"}"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.flush().unwrap();
-    /// let mut buffer = String::default();
-    /// let mut connector_read = connector_write.clone();
-    /// connector_read.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
-    /// ```
     fn flush(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Flush started");
+        debug!(slog_scope::logger(), "Flush started"; "path"=>self.path.clone());
 
         if self.is_variable_path()
             && self.parameters == Value::Null
@@ -545,9 +464,9 @@ impl Write for Local {
         let mut file = OpenOptions::new()
             .read(false)
             .create(true)
-            .append(!self.will_be_truncated())
+            .append(true)
             .write(true)
-            .truncate(self.will_be_truncated())
+            .truncate(false)
             .open(Path::new(self.path().as_str()))?;
 
         file.write_all(self.inner.get_ref())?;
@@ -555,11 +474,7 @@ impl Write for Local {
         self.inner.flush()?;
         self.inner = Cursor::new(Vec::default());
 
-        if self.will_be_truncated() {
-            self.is_truncated = true;
-        }
-
-        debug!(slog_scope::logger(), "Flush ended");
+        debug!(slog_scope::logger(), "Flush ended"; "path"=>self.path.clone());
         Ok(())
     }
 }

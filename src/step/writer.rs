@@ -60,15 +60,20 @@ impl fmt::Display for Writer {
 // This Step write data from somewhere into another stream.
 impl Step for Writer {
     fn par_exec<'a>(&self, handles: &mut Vec<JoinHandle<()>>, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) {
-        let step = self.clone();
+        let thread_number = self.thread_number;
 
-        let handle = std::thread::spawn(move || {
-            match step.exec(pipe_outbound_option, pipe_inbound_option){
-                Ok(_) => (),
-                Err(e) => error!(slog_scope::logger(), "The thread stop with an error"; "e" => format!("{}", e), "step" => format!("{}",step))
-            };
-        });
-        handles.push(handle);
+        for _i in 0..thread_number {
+            let step = self.clone();
+            let pipe_outbound_option = pipe_outbound_option.clone();
+            let pipe_inbound_option = pipe_inbound_option.clone();
+            let handle = std::thread::spawn(move || {
+                match step.exec(pipe_outbound_option, pipe_inbound_option) {
+                    Ok(_) => (),
+                    Err(e) => error!(slog_scope::logger(), "The thread stop with an error"; "e" => format!("{}", e), "step" => format!("{}",step))
+                };
+            });
+            handles.push(handle);
+        }
     }
     fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
@@ -93,6 +98,15 @@ impl Step for Writer {
         };
 
         for data_result in pipe_outbound {
+            if let Some(ref pipe_inbound) = pipe_inbound_option {
+                let mut current_retry = 0;
+                while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
+                    debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                    thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                    current_retry = current_retry +1;
+                }
+            }
+            
             if !data_result.is_type(self.data_type.as_ref()) {
                 info!(slog_scope::logger(),
                     "This step handle only this data type";
@@ -143,15 +157,6 @@ impl Step for Writer {
                 document_type.document_mut().flush(connector_type.connector_mut())?;
 
                 current_dataset_size = 0;
-            }
-
-            if let Some(ref pipe_inbound) = pipe_inbound_option {
-                let mut current_retry = 0;
-                while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
-                    debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
-                    thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
-                    current_retry = current_retry +1;
-                }
             }
 
             current_dataset_size = current_dataset_size + 1;

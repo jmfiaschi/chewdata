@@ -16,5 +16,5 @@ fn main() -> io::Result<()> {
     ]
     "#;
 
-    chewdata::exec_with_pipe(serde_json::from_str(config)?, None)
+    chewdata::exec(serde_json::from_str(config)?, None)
 }

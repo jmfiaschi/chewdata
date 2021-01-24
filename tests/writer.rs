@@ -10,7 +10,7 @@ mod writer {
     const APP_NAME: &str = "chewdata";
     #[test]
     fn it_should_write_file_in_local_with_one_line() {
-        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w", "document" :{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true},"connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}","can_truncate":true}}]"#;
+        let config = r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w", "document" :{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true},"connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}}]"#;
         let mut formats = vec!["json", "jsonl"];
         if cfg!(feature = "use_csv_document") {
             formats.push("csv");
@@ -97,7 +97,7 @@ mod writer {
     }
     #[test]
     fn it_should_write_file_with_dynamic_name() {
-        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"now","pattern":"{{ now(timestamp=false, utc=true) | date(format='%Y%m%d') }}"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/{{ now }}.json","can_truncate":true}}]"#;
+        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"now","pattern":"{{ now(timestamp=false, utc=true) | date(format='%Y%m%d') }}"}]}},{"type":"e","connector":{"type":"local","path":"./data/out/{{ now }}.json"}},{"type":"w","connector":{"type":"local","path":"./data/out/{{ now }}.json"}}]"#;
         let output_file_path = format!("{}/{}.{}", "data/out", Utc::now().format("%Y%m%d"), "json");
         println!("Try to test this file '{}'.", output_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))
@@ -126,7 +126,7 @@ mod writer {
     }
     #[test]
     fn it_should_truncate_the_file() {
-        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field1","pattern":"value1"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/truncate_file.json","can_truncate":true}}]"#;
+        let config = r#"[{"type":"e","connector":{"type":"local","path":"./data/out/truncate_file.json"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field1","pattern":"value1"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/truncate_file.json"}}]"#;
         let output_file_path = format!("{}/{}.{}", "data/out", "truncate_file", "json");
         println!("Try to test this file '{}'.", output_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))
@@ -147,7 +147,7 @@ mod writer {
             format!("stdout should be empty. {}", json_result)
         );
 
-        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field2","pattern":"value2"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/truncate_file.json","can_truncate":true}}]"#;
+        let config = r#"[{"type":"e","connector":{"type":"local","path":"./data/out/truncate_file.json"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field2","pattern":"value2"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/truncate_file.json"}}]"#;
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
             .env("RUST_LOG", "")
@@ -171,7 +171,7 @@ mod writer {
     }
     #[test]
     fn it_should_not_truncate_the_file() {
-        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field1","pattern":"value1"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/no_truncate_file.json","can_truncate":true}}]"#;
+        let config = r#"[{"type":"e","connector":{"type":"local","path":"./data/out/no_truncate_file.json"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field1","pattern":"value1"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/no_truncate_file.json"}}]"#;
         let output_file_path = format!("{}/{}.{}", "data/out", "no_truncate_file", "json");
         println!("Try to test this file '{}'.", output_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))
@@ -192,7 +192,7 @@ mod writer {
             format!("stdout should be empty. {}", json_result)
         );
 
-        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field2","pattern":"value2"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/no_truncate_file.json","can_truncate":false}}]"#;
+        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field2","pattern":"value2"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/no_truncate_file.json"}}]"#;
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
             .env("RUST_LOG", "")
@@ -216,7 +216,7 @@ mod writer {
     }
     #[test]
     fn it_should_chain_writers() {
-        let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/multi_lines.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"/","pattern":"{% if input.number == 10 %}{{ throw(message='data go to writer.cascade_file2.json') }}{% else %}{{ input | json_encode() }}{% endif %}"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file1.json","can_truncate":true},"data_type":"ok"},{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file2.json","can_truncate":true},"data_type":"err"}]"#;
+        let config = r#"[{"type":"e","connector":{"type":"local","path":"./data/out/cascade_file1.json"}},{"type":"e","connector":{"type":"local","path":"./data/out/cascade_file2.json"}},{"type":"r","connector":{"type":"local","path":"./data/multi_lines.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"/","pattern":"{% if input.number == 10 %}{{ throw(message='data go to writer.cascade_file2.json') }}{% else %}{{ input | json_encode() }}{% endif %}"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file1.json"},"data_type":"ok"},{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file2.json"},"data_type":"err"}]"#;
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
             .env("RUST_LOG", "")

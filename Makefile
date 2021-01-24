@@ -30,11 +30,11 @@ example:
 	@cargo run --example $(name)
 
 release: ## Released the script in local
-	@cargo build --release --jobs 1
+	@cargo build --release --test-threads=1
 
 test: minio minio-install httpbin
 test: ## Launch all tests in local
-	@cargo test ${test} --jobs 1
+	@cargo test -- --test-threads=1 ${test} 
 
 bench: httpbin | minio ## Launch benchmark in local
 	@cargo bench
@@ -60,7 +60,7 @@ httpbin:
 	echo "${YELLOW}Host: http://localhost:8080${NC}"
 	@docker-compose up -d httpbin
 
-mongodb:
+mongo:
 	echo "${BLUE}Run mongodb server.${NC}"
 	@docker-compose up -d mongo
 	echo "${BLUE}Run mongo express.${NC}"

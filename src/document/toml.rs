@@ -108,30 +108,6 @@ impl Document for Toml {
     /// column_1 = "line_2"
     /// "#, &format!("{}", connector));
     /// ```
-    /// # Example: Truncate and write into the document.
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::toml::Toml;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    ///
-    /// let mut document = Toml::default();
-    /// let mut connector = InMemory::new(r#"column_1 = "line_1"
-    /// "#);
-    /// connector.can_truncate = true;
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"column_1 = "line_2"
-    /// "#, &format!("{}", connector));
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_3"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"column_1 = "line_2"
-    /// column_1 = "line_3"
-    /// "#, &format!("{}", connector));
-    /// ```
     fn write_data_result(
         &mut self,
         connector: &mut dyn Connector,

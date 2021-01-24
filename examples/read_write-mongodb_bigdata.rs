@@ -15,8 +15,7 @@ fn main() -> io::Result<()> {
             "connector":{
                 "type": "local",
                 "path": "./data/out/bigdata.csv"
-            },
-            "dataset_size": 1000
+            }
         },{
             "type": "t",
             "updater": {
@@ -43,7 +42,8 @@ fn main() -> io::Result<()> {
                         "pattern": "{{ input['Order Priority'] }}"
                     }
                 ]
-            }
+            },
+            "thread_number":3
         },{
             "type": "w",
             "connector":{
@@ -51,11 +51,12 @@ fn main() -> io::Result<()> {
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
                 "db": "test",
                 "collection": "bigdata"
-            }
+            },
+            "thread_number":3
         }
     ]
     "#;
 
     let config_resolved = env::Vars::apply(config.to_string());
-    chewdata::exec_with_pipe(serde_json::from_str(config_resolved.as_str())?, None)
+    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None)
 }

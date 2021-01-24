@@ -304,7 +304,7 @@ impl Document for Csv {
     }
     /// Write complex csv data.
     ///
-    /// # Example: Add header if connector data empty or if the connector will truncate the previous data.
+    /// # Example: Add header if connector data empty.
     /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::csv::Csv;
@@ -326,26 +326,6 @@ impl Document for Csv {
     /// assert_eq!(r#""column_1"
     /// "line_1"
     /// "line_2"
-    /// "#, &format!("{}", connector));
-    /// ```
-    /// # Example: truncate and write data into the connector
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::csv::Csv;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    ///
-    /// let mut document = Csv::default();
-    /// let mut connector = InMemory::new(r#""column_1"
-    /// "line_1"
-    /// "line_2""#);
-    /// connector.can_truncate = true;
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_3"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#""column_1"
-    /// "line_3"
     /// "#, &format!("{}", connector));
     /// ```
     /// # Example: handle complex csv
@@ -419,14 +399,8 @@ impl Document for Csv {
                     keys.push(key);
                     values.push(value);
                 }
-                // Write header in these cases:
-                // builder::add_header	builder::header_added   connector::truncate	connector::empty 	add_header?
-                // 1			        0                       1			        1		            1
-                // 1			        0                       1			        0		            1
-                // 1			        0                       0			        1		            1
-                if has_header
-                    && !self.header_added
-                    && (connector.will_be_truncated() || connector.is_empty()?)
+                
+                if has_header && !self.header_added
                 {
                     self.header_added = true;
                     builder_writer.write_record(keys)?;

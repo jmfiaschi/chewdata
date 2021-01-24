@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::io;
 use multiqueue::MPMCReceiver;
 
-pub fn exec_with_pipe(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>) -> io::Result<()> {
+pub fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>) -> io::Result<()> {
     let mut handles = vec![];
     let step_types_len = step_types.len();
 

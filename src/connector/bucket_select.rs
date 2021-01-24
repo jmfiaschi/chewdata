@@ -30,16 +30,10 @@ pub struct BucketSelect {
     pub path: String,
     pub query: String,
     pub parameters: Value,
-    // Truncate fetch or not the content of the file in the S3 bucket.
-    //  true:   Not fetch the files into the bucket.
-    //  false:  Fetch the files into the bucket and add the content.
-    pub can_truncate: bool,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
     #[serde(skip)]
     runtime: Runtime,
-    #[serde(skip)]
-    is_truncated: bool,
 }
 
 impl Default for BucketSelect {
@@ -55,9 +49,7 @@ impl Default for BucketSelect {
             query: "".to_owned(),
             inner: Cursor::new(Vec::default()),
             parameters: Value::Null,
-            can_truncate: false,
             runtime: Runtime::new().unwrap(),
-            is_truncated: false,
         }
     }
 }
@@ -75,9 +67,7 @@ impl Clone for BucketSelect {
             query: self.query.to_owned(),
             inner: Cursor::new(Vec::default()),
             parameters: self.parameters.to_owned(),
-            can_truncate: self.can_truncate.to_owned(),
             runtime: Runtime::new().unwrap(),
-            is_truncated: self.is_truncated.to_owned(),
         }
     }
 }
@@ -313,16 +303,9 @@ impl Connector for BucketSelect {
     /// assert_eq!(params.clone(), connector.parameters.clone());
     /// ```
     fn set_parameters(&mut self, parameters: Value) {
-        let params_old = self.parameters.clone();
         self.parameters = parameters.clone();
-
-        if Value::Null != parameters
-            && self.is_variable_path()
-            && self.path.clone().replace_mustache(params_old) != self.path()
-        {
-            self.is_truncated = false;
-        }
     }
+    fn is_variable_path(&self) -> bool { false }
     /// Get the resolved path.
     ///
     /// # Example
@@ -396,21 +379,6 @@ impl Connector for BucketSelect {
 
         Ok(true)
     }
-    /// Get the truncate state of the connector.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let mut connector = BucketSelect::default();
-    /// assert_eq!(false, connector.will_be_truncated());
-    /// connector.can_truncate = true;
-    /// assert_eq!(true, connector.will_be_truncated());
-    /// ```
-    fn will_be_truncated(&self) -> bool {
-        self.can_truncate && !self.is_truncated
-    }
     /// Get the inner buffer reference.
     ///
     /// # Example
@@ -472,6 +440,10 @@ impl Connector for BucketSelect {
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
     }
+    fn erase(&mut self) -> Result<()> { 
+        info!(slog_scope::logger(), "Can't clean the document"; "connector" => format!("{:?}", self), "path" => self.path());
+        Ok(()) 
+    }
 }
 
 impl Read for BucketSelect {
@@ -516,15 +488,13 @@ impl Write for BucketSelect {
         let path_resolved = self.path();
 
         // Try to fetch the content of the document if exist in the bucket.
-        if !self.will_be_truncated() {
-            info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => path_resolved.to_string());
-            let mut connector_clone = self.clone();
-            connector_clone.inner.set_position(0);
-            match connector_clone.read_to_end(&mut content_file) {
-                Ok(_) => (),
-                Err(_) => {
-                    info!(slog_scope::logger(), "The file not exist"; "path" => connector_clone.path())
-                }
+        info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => path_resolved.to_string());
+        let mut connector_clone = self.clone();
+        connector_clone.inner.set_position(0);
+        match connector_clone.read_to_end(&mut content_file) {
+            Ok(_) => (),
+            Err(_) => {
+                info!(slog_scope::logger(), "The file not exist"; "path" => connector_clone.path())
             }
         }
 
@@ -546,10 +516,6 @@ impl Write for BucketSelect {
 
         self.inner.flush()?;
         self.inner = Cursor::new(Vec::default());
-
-        if self.will_be_truncated() {
-            self.is_truncated = true;
-        }
 
         debug!(slog_scope::logger(), "Flush ended");
         Ok(())

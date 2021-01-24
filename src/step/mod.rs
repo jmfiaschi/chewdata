@@ -1,10 +1,12 @@
 mod reader;
 mod transformer;
 mod writer;
+mod eraser;
 
 use super::step::reader::Reader;
 use super::step::transformer::Transformer;
 use super::step::writer::Writer;
+use super::step::eraser::Eraser;
 use genawaiter::sync::GenBoxed;
 use json_value_merge::Merge;
 use serde::Deserialize;
@@ -25,6 +27,10 @@ pub enum StepType {
     #[serde(rename = "transformer")]
     #[serde(alias = "t")]
     Transformer(Transformer),
+    #[serde(rename = "erase")]
+    #[serde(alias = "e")]
+    #[serde(alias = "truncate")]
+    Eraser(Eraser),
 }
 
 impl StepType {
@@ -33,6 +39,7 @@ impl StepType {
             StepType::Reader(step) => Box::new(step),
             StepType::Writer(step) => Box::new(step),
             StepType::Transformer(step) => Box::new(step),
+            StepType::Eraser(step) => Box::new(step),
         }
     }
     pub fn step(&self) -> &dyn Step {
@@ -40,6 +47,7 @@ impl StepType {
             StepType::Reader(ref step) => step,
             StepType::Writer(ref step) => step,
             StepType::Transformer(ref step) => step,
+            StepType::Eraser(ref step) => step,
         }
     }
     pub fn step_mut(&mut self) -> &mut dyn Step {
@@ -47,6 +55,7 @@ impl StepType {
             StepType::Reader(ref mut step) => step,
             StepType::Writer(ref mut step) => step,
             StepType::Transformer(ref mut step) => step,
+            StepType::Eraser(ref mut step) => step,
         }
     }
 }

@@ -235,47 +235,6 @@ impl Document for Xml {
     /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
     /// assert_eq!(r#"<root><item><object column_1="line_1"/></item><item><object column_1="line_2"/></item>"#, &format!("{}", connector));
     /// ```
-    /// # Example: Write multi data into truncate inner document and document init with '[]'.
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    ///
-    /// let mut document = Xml::default();
-    /// let mut connector = InMemory::new(r#"<root></root>"#);
-    /// document.entry_path = "/root/0/item".to_string();
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<item column_1="line_1"/>"#, &format!("{}", connector));
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<item column_1="line_1"/><item column_1="line_2"/>"#, &format!("{}", connector));
-    /// ```
-    /// # Example: Truncate and write into the document.
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    ///
-    /// let mut document = Xml::default();
-    /// let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
-    /// connector.can_truncate = true;
-    /// document.entry_path = "/root/0/item".to_string();
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<root><item column_1="line_2"/>"#, &format!("{}", connector));
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_3"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<root><item column_1="line_2"/><item column_1="line_3"/>"#, &format!("{}", connector));
-    /// ```
     fn write_data_result(
         &mut self,
         connector: &mut dyn Connector,
@@ -317,7 +276,6 @@ impl Document for Xml {
         xml_new_value = xml_new_value.replace(xml_entry_path_end.as_str(), "");
 
         if connector.is_empty()? && connector.inner().is_empty()
-            || connector.will_be_truncated() && connector.inner().is_empty()
         {
             connector.write_all(xml_entry_path_begin.as_bytes())?;
         }

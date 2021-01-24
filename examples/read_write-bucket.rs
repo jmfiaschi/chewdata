@@ -8,6 +8,18 @@ fn main() -> io::Result<()> {
     let config = r#"
     [
         {
+            "type": "e",
+            "connector": {
+                "type": "bucket",
+                "bucket": "my-bucket",
+                "path": "data/out/db.jsonl",
+                "endpoint":"{{ BUCKET_ENDPOINT }}",
+                "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
+                "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
+                "region": "{{ BUCKET_REGION }}"
+            }
+        },
+        {
             "type": "reader",
             "connector": {
                 "type": "local",
@@ -40,7 +52,6 @@ fn main() -> io::Result<()> {
                 "type": "bucket",
                 "bucket": "my-bucket",
                 "path": "data/out/db.jsonl",
-                "can_truncate":false,
                 "endpoint":"{{ BUCKET_ENDPOINT }}",
                 "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
                 "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
@@ -51,5 +62,5 @@ fn main() -> io::Result<()> {
     "#;
 
     let config_resolved = env::Vars::apply(config.to_string());
-    chewdata::exec_with_pipe(serde_json::from_str(config_resolved.as_str())?, None)
+    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None)
 }

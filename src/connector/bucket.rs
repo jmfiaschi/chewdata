@@ -24,16 +24,10 @@ pub struct Bucket {
     pub bucket: String,
     pub path: String,
     pub parameters: Value,
-    // Truncate fetch or not the content of the file in the S3 bucket.
-    //  true:   Not fetch the files into the bucket.
-    //  false:  Fetch the files into the bucket and add the content.
-    pub can_truncate: bool,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
     #[serde(skip)]
     runtime: Runtime,
-    #[serde(skip)]
-    is_truncated: bool,
 }
 
 impl Default for Bucket {
@@ -48,9 +42,7 @@ impl Default for Bucket {
             path: "".to_owned(),
             inner: Cursor::new(Vec::default()),
             parameters: Value::Null,
-            can_truncate: false,
             runtime: Runtime::new().unwrap(),
-            is_truncated: false,
         }
     }
 }
@@ -67,9 +59,7 @@ impl Clone for Bucket {
             path: self.path.to_owned(),
             inner: Cursor::new(Vec::default()),
             parameters: self.parameters.to_owned(),
-            can_truncate: self.can_truncate.to_owned(),
             runtime: Runtime::new().unwrap(),
-            is_truncated: self.is_truncated.to_owned(),
         }
     }
 }
@@ -186,16 +176,9 @@ impl Connector for Bucket {
     /// assert_eq!(params.clone(), connector.parameters.clone());
     /// ```
     fn set_parameters(&mut self, parameters: Value) {
-        let params_old = self.parameters.clone();
         self.parameters = parameters.clone();
-
-        if Value::Null != parameters
-            && self.is_variable_path()
-            && self.path.clone().replace_mustache(params_old) != self.path()
-        {
-            self.is_truncated = false;
-        }
     }
+    fn is_variable_path(&self) -> bool { false }
     /// Get the resolved path.
     ///
     /// # Example
@@ -262,21 +245,6 @@ impl Connector for Bucket {
         }
 
         Ok(true)
-    }
-    /// Get the truncate state of the connector.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let mut connector = Bucket::default();
-    /// assert_eq!(false, connector.will_be_truncated());
-    /// connector.can_truncate = true;
-    /// assert_eq!(true, connector.will_be_truncated());
-    /// ```
-    fn will_be_truncated(&self) -> bool {
-        self.can_truncate && !self.is_truncated
     }
     /// Get the inner buffer reference.
     ///
@@ -350,7 +318,7 @@ impl Connector for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_seek_and_flush_1".to_string();
-    /// connector_write.can_truncate = true;
+    /// connector_write.erase();
     ///
     /// connector_write.write(r#"[{"column1":"value1"}]"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.seek_and_flush(-1).unwrap();
@@ -378,7 +346,7 @@ impl Connector for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_seek_and_flush_2".to_string();
-    /// connector_write.can_truncate = true;
+    /// connector_write.erase();
     ///
     /// let str = r#"[{"column1":"value1"}]"#;
     /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
@@ -390,43 +358,6 @@ impl Connector for Bucket {
     ///
     /// connector_write.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.seek_and_flush((str.len() as i64)-1).unwrap();
-    /// let mut buffer = String::default();
-    /// let mut connector_read = connector_write.clone();
-    /// connector_read.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
-    /// ```
-    /// # Example: If the document must not be truncated
-    /// ```
-    /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connector;
-    /// use std::io::{Read, Write};
-    ///
-    /// let mut connector_write = Bucket::default();
-    /// connector_write.endpoint = Some("http://localhost:9000".to_string());
-    /// connector_write.access_key_id = Some("minio_access_key".to_string());
-    /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
-    /// connector_write.bucket = "my-bucket".to_string();
-    /// connector_write.path = "data/out/test_bucket_seek_and_flush_3".to_string();
-    /// connector_write.can_truncate = true;
-    ///
-    /// let str = r#"[{"column1":"value1"}]"#;
-    /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.seek_and_flush(-1).unwrap();
-    /// let mut buffer = String::default();
-    /// let mut connector_read = connector_write.clone();
-    /// connector_read.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
-    ///
-    /// let mut connector_write = Bucket::default();
-    /// connector_write.endpoint = Some("http://localhost:9000".to_string());
-    /// connector_write.access_key_id = Some("minio_access_key".to_string());
-    /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
-    /// connector_write.bucket = "my-bucket".to_string();
-    /// connector_write.path = "data/out/test_bucket_seek_and_flush_3".to_string();
-    /// connector_write.can_truncate = false;
-    ///
-    /// connector_write.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.seek_and_flush(-1).unwrap();
     /// let mut buffer = String::default();
     /// let mut connector_read = connector_write.clone();
     /// connector_read.read_to_string(&mut buffer).unwrap();
@@ -444,7 +375,7 @@ impl Connector for Bucket {
 
         let mut position = position;
 
-        if 0 >= (self.len()? as i64 + position) || self.will_be_truncated() {
+        if 0 >= (self.len()? as i64 + position) {
             position = 0;
         }
 
@@ -465,10 +396,10 @@ impl Connector for Bucket {
         }
 
         let mut cursor = Cursor::new(content_file);
-        if 0 < position && !self.will_be_truncated() {
+        if 0 < position {
             cursor.seek(SeekFrom::Start(position as u64))?;
         }
-        if 0 > position && !self.will_be_truncated() {
+        if 0 > position {
             cursor.seek(SeekFrom::End(position as i64))?;
         }
         cursor.write_all(self.inner.get_ref())?;
@@ -489,15 +420,27 @@ impl Connector for Bucket {
         self.inner.flush()?;
         self.inner = Cursor::new(Vec::default());
 
-        if self.will_be_truncated() {
-            self.is_truncated = true;
-        }
-
         info!(slog_scope::logger(), "Seek & Flush ended");
         Ok(())
     }
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
+    }
+    fn erase(&mut self) -> Result<()> {
+        info!(slog_scope::logger(), "Clean the document"; "connector" => format!("{}", self), "path" => self.path());
+        let path_resolved = self.path();
+        let s3_client = self.s3_client();
+        let put_request = PutObjectRequest {
+            bucket: self.bucket.to_owned(),
+            key: path_resolved,
+            body: Some(Vec::default().into()),
+            ..Default::default()
+        };
+
+        match self.runtime.block_on(s3_client.put_object(put_request)) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(Error::new(ErrorKind::NotFound, e)),
+        }
     }
 }
 
@@ -561,7 +504,7 @@ impl Write for Bucket {
     /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
     /// connector_write.bucket = "my-bucket".to_string();
     /// connector_write.path = "data/out/test_bucket_flush_1".to_string();
-    /// connector_write.can_truncate = true;
+    /// connector_write.erase();
     ///
     /// connector_write.write(r#"{"column1":"value1"}"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.flush().unwrap();
@@ -569,43 +512,6 @@ impl Write for Bucket {
     /// let mut connector_read = connector_write.clone();
     /// connector_read.read_to_string(&mut buffer).unwrap();
     /// assert_eq!(r#"{"column1":"value1"}"#, buffer);
-    ///
-    /// connector_write.write(r#"{"column1":"value2"}"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.flush().unwrap();
-    /// let mut buffer = String::default();
-    /// let mut connector_read = connector_write.clone();
-    /// connector_read.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
-    /// ```
-    /// # Example: If the document must not be truncated
-    /// ```
-    /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connector;
-    /// use std::io::{Read, Write};
-    ///
-    /// let mut connector_write = Bucket::default();
-    /// connector_write.endpoint = Some("http://localhost:9000".to_string());
-    /// connector_write.access_key_id = Some("minio_access_key".to_string());
-    /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
-    /// connector_write.bucket = "my-bucket".to_string();
-    /// connector_write.path = "data/out/test_bucket_flush_2".to_string();
-    /// connector_write.can_truncate = true;
-    ///
-    /// let str = r#"{"column1":"value1"}"#;
-    /// connector_write.write(str.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.flush().unwrap();
-    /// let mut buffer = String::default();
-    /// let mut connector_read = connector_write.clone();
-    /// connector_read.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"{"column1":"value1"}"#, buffer);
-    ///
-    /// let mut connector_write = Bucket::default();
-    /// connector_write.endpoint = Some("http://localhost:9000".to_string());
-    /// connector_write.access_key_id = Some("minio_access_key".to_string());
-    /// connector_write.secret_access_key = Some("minio_secret_key".to_string());
-    /// connector_write.bucket = "my-bucket".to_string();
-    /// connector_write.path = "data/out/test_bucket_flush_2".to_string();
-    /// connector_write.can_truncate = false;
     ///
     /// connector_write.write(r#"{"column1":"value2"}"#.to_string().into_bytes().as_slice()).unwrap();
     /// connector_write.flush().unwrap();
@@ -629,15 +535,13 @@ impl Write for Bucket {
         let path_resolved = self.path();
 
         // Try to fetch the content of the document if exist in the bucket.
-        if !self.will_be_truncated() {
-            info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => path_resolved.to_string());
-            let mut connector_clone = self.clone();
-            connector_clone.inner.set_position(0);
-            match connector_clone.read_to_end(&mut content_file) {
-                Ok(_) => (),
-                Err(_) => {
-                    info!(slog_scope::logger(), "The file not exist"; "path" => connector_clone.path())
-                }
+        info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => path_resolved.to_string());
+        let mut connector_clone = self.clone();
+        connector_clone.inner.set_position(0);
+        match connector_clone.read_to_end(&mut content_file) {
+            Ok(_) => (),
+            Err(_) => {
+                info!(slog_scope::logger(), "The file not exist"; "path" => connector_clone.path())
             }
         }
 
@@ -659,10 +563,6 @@ impl Write for Bucket {
 
         self.inner.flush()?;
         self.inner = Cursor::new(Vec::default());
-
-        if self.will_be_truncated() {
-            self.is_truncated = true;
-        }
 
         debug!(slog_scope::logger(), "Flush ended");
         Ok(())

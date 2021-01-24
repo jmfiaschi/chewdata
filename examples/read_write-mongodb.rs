@@ -8,27 +8,18 @@ fn main() -> io::Result<()> {
     let config = r#"
     [
         {
+            "type": "c",
+            "connector":{
+                "type": "mongodb",
+                "endpoint": "{{ MONGODB_ENDPOINT }}",
+                "db": "test",
+                "collection": "bigdata"
+            }
+        },{
             "type": "r",
             "connector":{
                 "type": "local",
-                "path": "./data/multi_lines.json"
-            }
-        },{
-            "type": "w",
-            "connector":{
-                "type": "mongodb",
-                "endpoint": "{{ MONGODB_ENDPOINT }}",
-                "db": "test",
-                "collection": "mongo",
-                "can_truncate": true
-            }
-        },{
-            "type": "r",
-            "connector":{
-                "type": "mongodb",
-                "endpoint": "{{ MONGODB_ENDPOINT }}",
-                "db": "test",
-                "collection": "mongo"
+                "path": "./data/multi_lines_tmp.json"
             }
         },{
             "type": "t",
@@ -44,7 +35,8 @@ fn main() -> io::Result<()> {
                         "pattern": "{{ now() }}"
                     }
                 ]
-            }
+            },
+            "thread_number":3
         },{
             "type": "w",
             "connector":{
@@ -52,15 +44,15 @@ fn main() -> io::Result<()> {
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
                 "db": "test",
                 "collection": "bigdata",
-                "can_truncate": true,
                 "update_options": {
                     "upsert": true
                 }
-            }
+            },
+            "thread_number":3
         }
     ]
     "#;
 
     let config_resolved = env::Vars::apply(config.to_string());
-    chewdata::exec_with_pipe(serde_json::from_str(config_resolved.as_str())?, None)
+    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None)
 }

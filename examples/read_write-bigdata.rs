@@ -7,6 +7,12 @@ fn main() -> io::Result<()> {
 
     let config = r#"
     [{
+        "type": "e",
+        "connector": {
+            "type": "local",
+            "path": "./data/out/correspondances-code-insee-code-postal.jsonl",
+        }
+    },{
         "type": "r",
          "document" :{
             "type":"csv",
@@ -43,12 +49,11 @@ fn main() -> io::Result<()> {
         },
         "connector": {
             "type": "local",
-            "path": "./data/out/correspondances-code-insee-code-postal.jsonl",
-            "can_truncate": true
+            "path": "./data/out/correspondances-code-insee-code-postal.jsonl"
         }
     }]
     "#;
 
     let config_resolved = env::Vars::apply(config.to_string());
-    chewdata::exec_with_pipe(serde_json::from_str(config_resolved.as_str())?, None)
+    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None)
 }

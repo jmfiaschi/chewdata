@@ -41,6 +41,7 @@ impl fmt::Display for Io {
 
 impl Connector for Io {
     fn set_parameters(&mut self, _parameters: Value) {}
+    fn is_variable_path(&self) -> bool { false }
     fn path(&self) -> String {
         String::new()
     }
@@ -56,19 +57,6 @@ impl Connector for Io {
     /// ```
     fn is_empty(&self) -> Result<bool> {
         Ok(0 == self.inner.get_ref().len())
-    }
-    /// Return true because the stdout truncate the inner when it write the data.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let mut connector = Io::default();
-    /// assert_eq!(true, connector.will_be_truncated());
-    /// ```
-    fn will_be_truncated(&self) -> bool {
-        true
     }
     /// Get the document size 0.
     ///  
@@ -99,6 +87,10 @@ impl Connector for Io {
     }
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
+    }
+    fn erase(&mut self) -> Result<()> { 
+        info!(slog_scope::logger(), "Can't clean the document"; "connector" => format!("{:?}", self), "path" => self.path());
+        Ok(()) 
     }
 }
 

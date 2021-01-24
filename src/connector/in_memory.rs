@@ -21,9 +21,6 @@ pub struct InMemory {
     // The result value like if the document is in remote.
     // Read the content only with the method io::Read::read().
     document: io::Cursor<Vec<u8>>,
-    pub can_truncate: bool,
-    #[serde(skip)]
-    is_truncated: bool,
     #[serde(skip)]
     inner: io::Cursor<Vec<u8>>,
 }
@@ -78,13 +75,12 @@ impl Default for InMemory {
             metadata: Metadata::default(),
             inner: io::Cursor::default(),
             document: io::Cursor::default(),
-            can_truncate: false,
-            is_truncated: false,
         }
     }
 }
 
 impl Connector for InMemory {
+    fn is_variable_path(&self) -> bool { false }
     /// Get the inner buffer.
     ///
     /// # Example
@@ -120,21 +116,6 @@ impl Connector for InMemory {
         }
         Ok(true)
     }
-    /// Get the truncate state of the connector.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let mut connector = InMemory::default();
-    /// assert_eq!(false, connector.will_be_truncated());
-    /// connector.can_truncate = true;
-    /// assert_eq!(true, connector.will_be_truncated());
-    /// ```
-    fn will_be_truncated(&self) -> bool {
-        self.can_truncate && !self.is_truncated
-    }
     /// Seek the position into the document, append the inner buffer data and flush the connector.
     ///
     /// # Example: Seek from the end
@@ -166,34 +147,12 @@ impl Connector for InMemory {
     /// connector.read_to_string(&mut buffer).unwrap();
     /// assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
     /// ```
-    /// # Example: If the document must be truncated
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::connector::Connector;
-    /// use std::io::{Read, Write};
-    ///
-    /// let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
-    /// connector.can_truncate = true;
-    ///
-    /// connector.write(r#"[{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector.seek_and_flush(-1).unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"[{"column1":"value2"}]"#, buffer);
-    ///
-    /// connector.write(r#",{"column1":"value3"}]"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector.seek_and_flush(-1).unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"[{"column1":"value2"},{"column1":"value3"}]"#, buffer);
-    /// ```
     fn seek_and_flush(&mut self, position: i64) -> io::Result<()> {
         debug!(slog_scope::logger(), "Seek & Flush");
         let mut position = position;
-        if 0 >= (self.len()? as i64 + position) || self.will_be_truncated() {
+        if 0 >= (self.len()? as i64 + position){
             position = 0;
             self.document = io::Cursor::new(Vec::default());
-            self.is_truncated = true;
         }
 
         if 0 < position {
@@ -232,6 +191,12 @@ impl Connector for InMemory {
     }
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
+    }
+    fn erase(&mut self) -> io::Result<()> {
+        info!(slog_scope::logger(), "Clean the document"; "connector" => format!("{}", self), "path" => self.path());
+        self.document = io::Cursor::default();
+
+        Ok(())
     }
 }
 
@@ -294,35 +259,8 @@ impl io::Write for InMemory {
     /// connector.read_to_string(&mut buffer).unwrap();
     /// assert_eq!("My text", buffer);
     /// ```
-    ///
-    /// # Example: Truncate and flush the data.
-    /// ```
-    /// use chewdata::connector::{Connector,in_memory::InMemory};
-    /// use std::io::{Write,Read};
-    ///
-    /// let mut connector = InMemory::new(r#"My text"#);
-    /// connector.can_truncate = true;
-    ///
-    /// assert_eq!("", format!("{}",connector));
-    /// connector.write_all("My new text".to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!("My new text", format!("{}",connector));
-    /// connector.flush().unwrap();
-    /// assert_eq!("", format!("{}",connector));
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!("My new text", buffer);
-    /// connector.write_all(" and more !".to_string().into_bytes().as_slice()).unwrap();
-    /// connector.flush().unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!("My new text and more !", buffer);
-    /// ```
     fn flush(&mut self) -> io::Result<()> {
         debug!(slog_scope::logger(), "Flush started");
-        if self.will_be_truncated() {
-            self.document = io::Cursor::default();
-            self.is_truncated = true;
-        }
         self.document.write_all(self.inner.get_ref())?;
         self.document.set_position(0);
         self.inner = io::Cursor::default();
