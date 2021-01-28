@@ -143,7 +143,7 @@ impl ConnectorType {
 }
 
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
-pub trait Connector: Read + Write + Send + std::fmt::Debug {
+pub trait Connector: Read + Write + Send + std::fmt::Debug + ConnectorClone {
     /// Set parameters.
     fn set_parameters(&mut self, parameters: Value);
     /// Get the resolved path.
@@ -168,4 +168,23 @@ pub trait Connector: Read + Write + Send + std::fmt::Debug {
     fn is_variable_path(&self) -> bool;
     /// Erase the content of the document.
     fn erase(&mut self) -> Result<()>;
+}
+
+pub trait ConnectorClone {
+    fn clone_box(&self) -> Box<dyn Connector>;
+}
+
+impl<T> ConnectorClone for T
+where
+    T: 'static + Connector + Clone,
+{
+    fn clone_box(&self) -> Box<dyn Connector> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Connector> {
+    fn clone(&self) -> Box<dyn Connector> {
+        self.clone_box()
+    }
 }

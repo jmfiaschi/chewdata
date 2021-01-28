@@ -107,7 +107,7 @@ impl DocumentType {
 }
 
 /// Every document_builder that implement this trait can get/write json_value through a connector.
-pub trait Document: Send + Sync {
+pub trait Document: Send + Sync + DocumentClone {
     /// Apply some actions and read the data though the Connector.
     fn read_data(&self, reader: Box<dyn Connector>) -> io::Result<Data>;
     /// Format the data result into the document format, apply some action and write into the connector.
@@ -120,6 +120,25 @@ pub trait Document: Send + Sync {
     fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()>;
     fn metadata(&self) -> Metadata {
         Metadata::default()
+    }
+}
+
+pub trait DocumentClone {
+    fn clone_box(&self) -> Box<dyn Document>;
+}
+
+impl<T> DocumentClone for T
+where
+    T: 'static + Document + Clone,
+{
+    fn clone_box(&self) -> Box<dyn Document> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Document> {
+    fn clone(&self) -> Box<dyn Document> {
+        self.clone_box()
     }
 }
 

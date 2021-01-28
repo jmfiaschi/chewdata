@@ -107,8 +107,27 @@ impl DataResult {
 pub type Data = GenBoxed<DataResult>;
 pub type Dataset = GenBoxed<Vec<DataResult>>;
 
-pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display {
+pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     fn par_exec(&self, handles: &mut Vec<JoinHandle<()>>, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>);
     /// Exec the step that implement this trait.
     fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()>;
+}
+
+pub trait StepClone {
+    fn clone_box(&self) -> Box<dyn Step>;
+}
+
+impl<T> StepClone for T
+where
+    T: 'static + Step + Clone,
+{
+    fn clone_box(&self) -> Box<dyn Step> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Step> {
+    fn clone(&self) -> Box<dyn Step> {
+        self.clone_box()
+    }
 }
