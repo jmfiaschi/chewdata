@@ -8,7 +8,7 @@ fn main() -> io::Result<()> {
     let config = r#"
     [
         {
-            "type": "c",
+            "type": "e",
             "connector":{
                 "type": "mongodb",
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
