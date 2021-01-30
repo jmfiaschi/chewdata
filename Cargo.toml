@@ -44,9 +44,10 @@ tokio = "0.2"
 jsonwebtoken = "7.2"
 base64 = "0.13.0"
 mime = "0.3"
-rayon = "1.5"
 futures = "0.3"
 multiqueue2= "0.1.7"
+async-std = "1.9"
+async-trait = "0.1"
 
 [dev-dependencies]
 criterion = "0.3"

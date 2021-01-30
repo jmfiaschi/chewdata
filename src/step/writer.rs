@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::{fmt, io};
 use multiqueue::{MPMCReceiver, MPMCSender};
 use std::{thread, time};
-use std::thread::JoinHandle;
+use async_trait::async_trait;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -58,24 +58,9 @@ impl fmt::Display for Writer {
 }
 
 // This Step write data from somewhere into another stream.
+#[async_trait]
 impl Step for Writer {
-    fn par_exec<'a>(&self, handles: &mut Vec<JoinHandle<()>>, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) {
-        let thread_number = self.thread_number;
-
-        for _i in 0..thread_number {
-            let step = self.clone();
-            let pipe_outbound_option = pipe_outbound_option.clone();
-            let pipe_inbound_option = pipe_inbound_option.clone();
-            let handle = std::thread::spawn(move || {
-                match step.exec(pipe_outbound_option, pipe_inbound_option) {
-                    Ok(_) => (),
-                    Err(e) => error!(slog_scope::logger(), "The thread stop with an error"; "e" => format!("{}", e), "step" => format!("{}",step))
-                };
-            });
-            handles.push(handle);
-        }
-    }
-    fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
+    async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
         let reader = self.clone();
@@ -172,5 +157,8 @@ impl Step for Writer {
         
         debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
         Ok(())
+    }
+    fn thread_number(&self) -> i32 {
+        self.thread_number
     }
 }

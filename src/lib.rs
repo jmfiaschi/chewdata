@@ -19,29 +19,36 @@ use self::step::{StepType, DataResult};
 use serde::{Deserialize, Serialize};
 use std::io;
 use multiqueue::MPMCReceiver;
+use async_std::task;
 
-pub fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>) -> io::Result<()> {
-    let mut handles = vec![];
+pub async fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>) -> io::Result<()> {
+    let mut steps = Vec::default();
+    let mut handles = Vec::default();
     let step_types_len = step_types.len();
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
         let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
-        let step = step_type.step_inner();
+        let step = step_type.step_inner().clone();
+        let thread_number = step.thread_number();
 
-        let mut pipe_inbound_option = None;
-            
+        let mut pipe_inbound_option = None;   
         if pos != step_types_len-1 {
             pipe_inbound_option = Some(pipe_inbound.clone());
         }
 
-        step.par_exec(&mut handles, previous_step_pipe_outbound, pipe_inbound_option);
-
-        previous_step_pipe_outbound = Some(pipe_outbound);   
+        for _pos in 0..thread_number {
+            steps.push((step.clone(), previous_step_pipe_outbound.clone(), pipe_inbound_option.clone()));
+        }
+        previous_step_pipe_outbound = Some(pipe_outbound);
     }
 
-    handles.into_iter().for_each(|handle| {
-        handle.join().unwrap();
-    });
+    for (step, inbound, outbound) in steps {
+        handles.push(task::spawn(async move { step.exec(inbound, outbound).await }));
+    }
+
+    for result in futures::future::join_all(handles).await {
+        result?;
+    }
 
     Ok(())
 }

@@ -13,7 +13,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::io;
 use multiqueue::{MPMCReceiver, MPMCSender};
-use std::thread::JoinHandle;
+use async_trait::async_trait;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -106,11 +106,12 @@ impl DataResult {
 
 pub type Data = GenBoxed<DataResult>;
 pub type Dataset = GenBoxed<Vec<DataResult>>;
-
+#[async_trait]
 pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
-    fn par_exec(&self, handles: &mut Vec<JoinHandle<()>>, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>);
-    /// Exec the step that implement this trait.
-    fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()>;
+    async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()>;
+    fn thread_number(&self) -> i32 {
+        1
+    }
 }
 
 pub trait StepClone {

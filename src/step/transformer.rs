@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::{collections::HashMap, fmt, io};
 use multiqueue::{MPMCReceiver, MPMCSender};
 use std::{thread, time};
-use std::thread::JoinHandle;
+use async_trait::async_trait;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -60,7 +60,7 @@ impl fmt::Display for Transformer {
     }
 }
 /// Return a referentials hashmap indexed by the alias of the referential.
-fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec<Value>>> {
+async fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec<Value>>> {
     let mut referentials_hashmap = HashMap::new();
 
     // For each reader, try to build the referential.
@@ -74,7 +74,7 @@ fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec
         };
 
         let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
-        match referential.exec(None, Some(pipe_inbound)) {
+        match referential.exec(None, Some(pipe_inbound)).await {
             Ok(dataset_option) => dataset_option,
             Err(e) => {
                 warn!(slog_scope::logger(), "Can't read the referentiel"; "error" => format!("{}", e), "referential" => format!("{}", referential));
@@ -92,24 +92,9 @@ fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec
     Some(referentials_hashmap)
 }
 /// This Step transform a dataset.
+#[async_trait]
 impl Step for Transformer {
-    fn par_exec<'a>(&self, handles: &mut Vec<JoinHandle<()>>, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) {
-        let thread_number = self.thread_number;
-
-        for _i in 0..thread_number {
-            let step = self.clone();
-            let pipe_outbound_option = pipe_outbound_option.clone();
-            let pipe_inbound_option = pipe_inbound_option.clone();
-            let handle = std::thread::spawn(move || {
-                match step.exec(pipe_outbound_option, pipe_inbound_option) {
-                    Ok(_) => (),
-                    Err(e) => error!(slog_scope::logger(), "The thread stop with an error"; "e" => format!("{}", e), "step" => format!("{}",step))
-                };
-            });
-            handles.push(handle);
-        }
-    }
-    fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
+    async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
         let pipe_inbound = match pipe_inbound_option {
@@ -129,7 +114,7 @@ impl Step for Transformer {
         };
 
         let mapping = match self.referentials.clone() {
-            Some(referentials) => referentials_hashmap(referentials),
+            Some(referentials) => referentials_hashmap(referentials).await,
             None => None
         };
 
@@ -180,5 +165,8 @@ impl Step for Transformer {
 
         debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
         Ok(())
+    }
+    fn thread_number(&self) -> i32 {
+        self.thread_number
     }
 }

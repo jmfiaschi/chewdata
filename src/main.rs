@@ -21,7 +21,8 @@ const ARG_JSON: &str = "json";
 const ARG_FILE: &str = "file";
 const DEFAULT_PROCESSORS: &str = r#"[{"type": "r"},{"type": "w"}]"#;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Init logger.
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
@@ -82,9 +83,7 @@ fn main() -> Result<()> {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(steps, None)?;
-
-    Ok(())
+    chewdata::exec(steps, None).await
 }
 
 fn application() -> App<'static, 'static> {

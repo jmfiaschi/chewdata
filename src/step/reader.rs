@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::{fmt, io};
 use multiqueue::{MPMCReceiver, MPMCSender};
 use std::{thread, time};
-use std::thread::JoinHandle;
+use async_trait::async_trait;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -50,19 +50,9 @@ impl fmt::Display for Reader {
     }
 }
 
+#[async_trait]
 impl Step for Reader {
-    fn par_exec<'a>(&self, handles: &mut Vec<JoinHandle<()>>, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) {
-        let step = self.clone();
-
-        let handle = std::thread::spawn(move || {
-            match step.exec(pipe_outbound_option, pipe_inbound_option){
-                Ok(_) => (),
-                Err(e) => error!(slog_scope::logger(), "The thread stop with an error"; "e" => format!("{}", e), "step" => format!("{}",step))
-            };
-        });
-        handles.push(handle);
-    }
-    fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
+    async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
         let document_type = self.document_type.clone();
