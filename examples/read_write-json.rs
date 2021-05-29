@@ -6,8 +6,8 @@ extern crate slog_scope;
 extern crate slog_stdlog;
 extern crate slog_term;
 
-use std::io;
 use slog::{Drain, FnValue};
+use std::io;
 
 #[async_std::main]
 async fn main() -> io::Result<()> {
