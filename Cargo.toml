@@ -11,9 +11,9 @@ repository = "https://github.com/jmfiaschi/chewdata"
 
 [dependencies]
 slog = { version="2.7", features = ["max_level_trace", "release_max_level_info"] }
-slog-scope = "4.3"
-slog-term = "2.6"
-slog-async = "2.5"
+slog-scope = "4.4.0"
+slog-term = "2.8.0"
+slog-async = "2.6.0"
 slog-stdlog = "4.1.0"
 slog-envlogger = "2.2"
 glob = "0.3"
@@ -28,26 +28,31 @@ jxon = "0.7"
 clap = {version = "2.33", features = ["yaml"]}
 csv = "1.1"
 serde_yaml = { version = "0.8", git = "https://github.com/semtexzv/serde-yaml", branch = "multidoc"}
-regex = "1"
+regex = "1.4.5"
 toml = "0.5"
 # For Templates
-tera = "1.6"
+tera = "1.7.0"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 # For Connectors
-rusoto_core = { version = "0.45", git = "https://github.com/jmfiaschi/rusoto", branch = "feat/s3_select"}
-rusoto_s3 = { version = "0.45", git = "https://github.com/jmfiaschi/rusoto", branch = "feat/s3_select" }
-curl = "0.4"
+rusoto_core = { version = "0.46"}
+rusoto_s3 = { version = "0.46"}
 http = "0.2"
 env_applier = "0.1"
 genawaiter = "0.99"
-tokio = "0.2"
+futures = "0.3"
+tokio = "1.4.0"
 jsonwebtoken = "7.2"
 base64 = "0.13.0"
 mime = "0.3"
-futures = "0.3"
 multiqueue2= "0.1.7"
 async-std = "1.9"
 async-trait = "0.1"
+tokio-serde = "0.8"
+tokio-util = "0.6"
+hyper = { version = "0.14.5"}
+async-stream = { version = "0.3.0" }
+futures-core = { version = "0.3.14" }
+bytes = { version = "1.0.1"}
 
 [dev-dependencies]
 criterion = "0.3"

@@ -1,7 +1,7 @@
 use super::{DataResult};
 use crate::connector::ConnectorType;
-use crate::document::DocumentType;
 use crate::step::Step;
+use futures::StreamExt;
 use serde::Deserialize;
 use std::{fmt, io};
 use multiqueue::{MPMCReceiver, MPMCSender};
@@ -11,8 +11,6 @@ use async_trait::async_trait;
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct Reader {
-    #[serde(alias = "document")]
-    document_type: DocumentType,
     #[serde(alias = "connector")]
     connector_type: ConnectorType,
     pub alias: Option<String>,
@@ -26,7 +24,6 @@ pub struct Reader {
 impl Default for Reader {
     fn default() -> Self {
         Reader {
-            document_type: DocumentType::default(),
             connector_type: ConnectorType::default(),
             alias: None,
             description: None,
@@ -55,12 +52,6 @@ impl Step for Reader {
     async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
-        let document_type = self.document_type.clone();
-        let mut connector_type = self.connector_type.clone();
-        let document = document_type.document();
-        let connector = connector_type.connector_mut();
-        connector.set_metadata(document.metadata());
-
         let pipe_inbound = match pipe_inbound_option {
             Some(pipe_inbound) => pipe_inbound,
             None => {
@@ -69,7 +60,10 @@ impl Step for Reader {
             }
         };
 
-        match (pipe_outbound_option, connector.is_variable_path()) {
+        let is_variable = self.connector_type.connector().is_variable();
+        let mut connector = self.connector_type.clone().connector_inner();
+        
+        match (pipe_outbound_option, is_variable) {
             (Some(pipe_outbound), true) => {
                 for data_result in pipe_outbound {
                     if !data_result.is_type(self.data_type.as_ref()) {
@@ -82,16 +76,11 @@ impl Step for Reader {
                         continue;
                     }
 
-                    let json_value = data_result.to_json_value();
-
-                    let connector = connector_type.connector_mut();
-                    connector.set_parameters(json_value);
-
-                    let data = document_type
-                        .document()
-                        .read_data(connector_type.clone().connector_inner())?;
                     
-                    for data_result in data {
+                    connector.set_parameters(data_result.to_json_value());
+                    let mut data = connector.pull_data().await?;
+                    while let Some(data_result) = data.next().await {
+                                
                         let mut current_retry = 0;
                         while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
                             debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
@@ -102,13 +91,11 @@ impl Step for Reader {
                 }
             },
             (Some(pipe_outbound), false) => {
+                // If the connector is not variable, it is useless to use the data into the pipe.
                 for _data_result in pipe_outbound {}
-
-                let data = document_type
-                    .document()
-                    .read_data(connector_type.clone().connector_inner())?;
                 
-                for data_result in data {
+                let mut data = connector.pull_data().await?;
+                while let Some(data_result) = data.next().await {
                     let mut current_retry = 0;
                     while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
                         debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
@@ -117,12 +104,9 @@ impl Step for Reader {
                     }
                 }
             }
-            (None, _) => {
-                let data = document_type
-                    .document()
-                    .read_data(connector_type.clone().connector_inner())?;
-                
-                for data_result in data {
+            (None, _) => {    
+                let mut data = connector.pull_data().await?;         
+                while let Some(data_result) = data.next().await {
                     let mut current_retry = 0;
                     while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
                         debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);

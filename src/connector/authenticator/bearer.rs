@@ -1,9 +1,10 @@
 use super::Authenticator;
 use crate::helper::mustache::Mustache;
-use curl::easy::{Easy, List};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{Error, ErrorKind, Result};
+use async_trait::async_trait;
+use http::request::Builder;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -46,6 +47,7 @@ impl Bearer {
     }
 }
 
+#[async_trait]
 impl Authenticator for Bearer {
     /// Add authentification to a request and connect the system to a document protected by bearer token.
     ///
@@ -104,7 +106,7 @@ impl Authenticator for Bearer {
     /// let len = connector.read_to_string(&mut buffer).unwrap();
     /// assert!(0 < len, "Should read one some bytes.");
     /// ```
-    fn add_authentication(&mut self, _client: &mut Easy, headers: &mut List) -> Result<()> {
+    async fn add_authentication(&mut self, request_builder: Builder) -> Result<Builder> {
         if let "" = self.token.as_ref() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -123,9 +125,9 @@ impl Authenticator for Bearer {
             token = base64::encode(token);
         }
 
-        headers.append(format!("Authorization: Bearer {}", token).as_ref())?;
+        let bearer = base64::encode(token);
 
-        Ok(())
+        Ok(request_builder.header(http::header::AUTHORIZATION, format!("bearer {}", bearer)))
     }
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;

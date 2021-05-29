@@ -33,7 +33,6 @@ async fn main() -> Result<()> {
         o!("file" => FnValue(move |info| {format!("{}:{}",info.file(),info.line())})),
     );
     let _scope_guard = slog_scope::set_global_logger(logger);
-    let _log_guard = slog_stdlog::init().unwrap();
 
     trace!(slog_scope::logger(), "Chewdata start...");
     let args = application().get_matches();

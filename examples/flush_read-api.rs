@@ -19,8 +19,7 @@ async fn main() -> io::Result<()> {
             "type": "curl",
             "endpoint": "{{ CURL_ENDPOINT }}",
             "path": "/post",
-            "method": "post",
-            "can_flush_and_read":true
+            "method": "post"
         }
     },
     {

@@ -1,17 +1,34 @@
+#[macro_use]
+extern crate slog;
+extern crate slog_async;
+extern crate slog_envlogger;
+extern crate slog_scope;
+extern crate slog_stdlog;
+extern crate slog_term;
+
 use env_applier::EnvApply;
+use slog::{Drain, FnValue};
 use std::env;
 use std::io;
 
-#[tokio::main]
+#[async_std::main]
 async fn main() -> io::Result<()> {
-    let _guard = slog_envlogger::init().unwrap();
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::FullFormat::new(decorator).build().fuse();
+    let drain = slog_envlogger::new(drain);
+    let drain = slog_async::Async::default(drain).fuse();
+    let logger = slog::Logger::root(
+        drain.fuse(),
+        o!("file" => FnValue(move |info| {format!("{}:{}",info.file(),info.line())})),
+    );
+    let _scope_guard = slog_scope::set_global_logger(logger);
 
     let config = r#"
     [
         {
             "type": "e",
             "connector":{
-                "type": "mongodb",
+                "type": "mongo",
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
                 "db": "test",
                 "collection": "bigdata"
@@ -37,11 +54,11 @@ async fn main() -> io::Result<()> {
                     }
                 ]
             },
-            "thread_number":3
+            "thread_number":1
         },{
             "type": "w",
             "connector":{
-                "type": "mongodb",
+                "type": "mongo",
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
                 "db": "test",
                 "collection": "bigdata",
@@ -49,7 +66,7 @@ async fn main() -> io::Result<()> {
                     "upsert": true
                 }
             },
-            "thread_number":3
+            "thread_number":1
         }
     ]
     "#;

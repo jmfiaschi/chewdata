@@ -1,130 +1,187 @@
-use crate::connector::Connector;
+use super::{Connector, Paginator};
+use crate::document::DocumentType;
 use crate::Metadata;
+use async_std::io::{stdin, stdout};
+use async_std::prelude::*;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::fmt;
-use std::io::{stdin, stdout, Cursor, Read, Result, Write};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::{
+    fmt,
+    io::{Cursor, Result},
+};
+use crate::step::DataResult;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct Io {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
+    #[serde(alias = "document")]
+    document_type: DocumentType,
     #[serde(skip)]
-    inner: Cursor<Vec<u8>>,
-}
-
-impl Default for Io {
-    fn default() -> Self {
-        Io {
-            metadata: Metadata::default(),
-            inner: Cursor::default(),
-        }
-    }
+    pub inner: Cursor<Vec<u8>>,
 }
 
 impl fmt::Display for Io {
-    /// Can't display the content of `Io`.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::io::Io;
-    ///
-    /// let connector = Io::default();
-    /// assert_eq!("", format!("{}", connector));
-    /// ```
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", &String::from_utf8_lossy(self.inner.get_ref()))
+        write!(f, "{}", self.path())
     }
 }
 
+#[async_trait]
 impl Connector for Io {
-    fn set_parameters(&mut self, _parameters: Value) {}
-    fn is_variable_path(&self) -> bool { false }
+    /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
-        String::new()
+        "stdout".to_string()
     }
-    /// Check if the inner buffer in the connector is empty.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let connector = Io::default();
-    /// assert_eq!(true, connector.is_empty().unwrap());
-    /// ```
-    fn is_empty(&self) -> Result<bool> {
-        Ok(0 == self.inner.get_ref().len())
-    }
-    /// Get the document size 0.
-    ///  
-    /// # Example
-    /// ```
-    /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let mut connector = Io::default();
-    /// assert_eq!(0, connector.len().unwrap());
-    /// ```
-    fn len(&self) -> Result<usize> {
-        Ok(0)
-    }
-    /// Get the connect buffer inner reference.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let connector = Io::default();
-    /// let vec: Vec<u8> = Vec::default();
-    /// assert_eq!(&vec, connector.inner());
-    /// ```
-    fn inner(&self) -> &Vec<u8> {
-        self.inner.get_ref()
-    }
+    /// See [`Connector::set_metadata`] for more details.
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
     }
-    fn erase(&mut self) -> Result<()> { 
-        info!(slog_scope::logger(), "Can't clean the document"; "connector" => format!("{:?}", self), "path" => self.path());
-        Ok(()) 
+    /// See [`Connector::set_parameters`] for more details.
+    fn set_parameters(&mut self, _parameters: Value) {}
+    /// See [`Connector::is_variable_path`] for more details.
+    fn is_variable(&self) -> bool {
+        false
+    }
+    /// See [`Connector::is_empty`] for more details.
+    async fn is_empty(&self) -> Result<bool> {
+        Ok(true)
+    }
+    /// See [`Connector::len`] for more details.
+    async fn len(&self) -> Result<usize> {
+        Ok(0)
+    }
+    /// See [`Connector::document_type`] for more details.
+    fn document_type(&self) -> DocumentType {
+        self.document_type.clone()
+    }
+    /// See [`Connector::is_resource_will_change`] for more details.
+    fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool>{
+        Ok(false)
+    }
+    /// See [`Connector::inner`] for more details.
+    fn inner(&self) -> &Vec<u8> {
+        self.inner.get_ref()
+    }
+    /// See [`Connector::push_data`] for more details.
+    async fn push_data(&mut self, data: DataResult) -> Result<()> {
+        let connector = self;
+        let document = connector.document_type().document_inner();
+
+        document.write_data(connector, data.to_json_value()).await
+    }
+    /// See [`Connector::fetch`] for more details.
+    async fn fetch(&mut self) -> Result<()> {
+        self.inner = Cursor::new(Vec::default());
+
+        Ok(())
+    }
+    /// See [`Connector::send`] for more details.
+    async fn send(&mut self) -> Result<()> {
+        self.document_type()
+            .document_inner()
+            .flush(self)
+            .await
+    }
+    /// See [`Connector::erase`] for more details.
+    async fn erase(&mut self) -> Result<()> {
+        Ok(())
+    }
+    /// See [`Connector::flush_into`] for more details.
+    async fn flush_into(&mut self, _position: i64) -> Result<()> {
+        stdout().write_all(self.inner.get_ref()).await?;
+        self.flush().await?;
+        self.inner = Default::default();
+        Ok(())
+    }
+    /// See [`Connector::paginator`] for more details.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+        Ok(Box::pin(IoPaginator::new(Box::new(self.clone()))?))
     }
 }
 
-impl Read for Io {
-    /// Read the data from the stdin and write it into the buffer.
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        stdin().read(buf)
+#[async_trait]
+impl async_std::io::Read for Io {
+    /// See [`Read::poll_read`] for more details.
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut stdin()).poll_read(cx, buf)
     }
 }
 
-impl Write for Io {
-    /// Write the data into the inner buffer.
+#[async_trait]
+impl async_std::io::Write for Io {
+    /// See [`Write::poll_write`] for more details.
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
+    }
+    /// See [`Write::poll_flush`] for more details.
+    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(std::io::Write::flush(&mut self.inner))
+    }
+    /// See [`Write::poll_close`] for more details.
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush(cx)
+    }
+}
+
+#[derive(Debug)]
+pub struct IoPaginator {
+    connector: Box<dyn Connector>,
+    has_next: bool,
+}
+
+impl IoPaginator {
+    pub fn new(connector: Box<dyn Connector>) -> Result<Self> {
+        Ok(IoPaginator {
+            connector: connector,
+            has_next: true,
+        })
+    }
+}
+
+#[async_trait]
+impl Paginator for IoPaginator {
+    /// See [`Paginator::next_page`] for more details.
     ///
     /// # Example
-    /// ```
+    /// ```rust
     /// use chewdata::connector::io::Io;
-    /// use std::io::Write;
+    /// use chewdata::connector::Connector;
+    /// use std::io;
     ///
-    /// let mut connector = Io::default();
-    /// let buffer = "My text";
-    /// let len = connector.write(buffer.to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!(7, len);
-    /// assert_eq!("My text", format!("{}", connector));
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Io::default();
+    ///     let mut paginator = connector.paginator().await?;
+    ///
+    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
+    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.inner.write(buf)
-    }
-    /// The flush send all the data into the stdout.
-    fn flush(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Flush started");
-        stdout().write_all(self.inner.get_ref())?;
-        stdout().flush()?;
-        self.inner = Cursor::new(Vec::default());
-        debug!(slog_scope::logger(), "Flush ended");
-        Ok(())
+    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        let mut connector = Io::default();
+        Ok(match self.has_next {
+            true => {
+                self.has_next = false;
+                connector.fetch().await?;
+                Some(Box::new(connector))
+            }
+            false => None,
+        })
     }
 }

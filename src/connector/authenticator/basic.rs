@@ -1,9 +1,10 @@
 use super::Authenticator;
 use crate::helper::mustache::Mustache;
-use curl::easy::{Easy, List};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{Error, ErrorKind, Result};
+use async_trait::async_trait;
+use http::request::Builder;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -51,6 +52,7 @@ impl Basic {
     }
 }
 
+#[async_trait]
 impl Authenticator for Basic {
     /// Add authentification to a request and connect the system to a document protected by basic auth.
     ///
@@ -110,7 +112,7 @@ impl Authenticator for Basic {
     /// let len = connector.read_to_string(&mut buffer).unwrap();
     /// assert!(0 < len, "Should read one some bytes.");
     /// ```
-    fn add_authentication(&mut self, client: &mut Easy, _headers: &mut List) -> Result<()> {
+    async fn add_authentication(&mut self, request_builder: Builder) -> Result<Builder> {
         if let ("", "") = (self.username.as_ref(), self.password.as_ref()) {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -129,10 +131,9 @@ impl Authenticator for Basic {
             password = password.replace_mustache(parameters);
         }
 
-        client.username(username.as_str())?;
-        client.password(password.as_str())?;
+        let basic = base64::encode(format!("{}:{}", username, password));
 
-        Ok(())
+        Ok(request_builder.header(http::header::AUTHORIZATION, format!("basic {}", basic)))
     }
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;

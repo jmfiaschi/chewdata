@@ -43,7 +43,9 @@ pub async fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Op
     }
 
     for (step, inbound, outbound) in steps {
-        handles.push(task::spawn(async move { step.exec(inbound, outbound).await }));
+        handles.push(task::spawn(async move { 
+            step.exec(inbound, outbound).await 
+        }));
     }
 
     for result in futures::future::join_all(handles).await {
@@ -57,12 +59,14 @@ pub async fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Op
 #[serde(default)]
 pub struct Metadata {
     pub has_headers: Option<bool>,
-    pub delimiter: Option<String>,
-    pub quote: Option<String>,
-    pub escape: Option<String>,
-    pub comment: Option<String>,
-    pub terminator: Option<String>,
+    pub delimiter: Option<[u8; 1]>,
+    pub quote: Option<[u8; 1]>,
+    pub escape: Option<[u8; 1]>,
+    pub comment: Option<[u8; 1]>,
+    pub terminator: Option<[u8; 2]>,
     pub mime_type: Option<String>,
+    pub mime_subtype: Option<String>,
+    pub charset: Option<String>,
     pub compression: Option<String>,
 }
 
@@ -76,6 +80,8 @@ impl Default for Metadata {
             comment: None,
             terminator: None,
             mime_type: None,
+            mime_subtype: None,
+            charset: None,
             compression: None,
         }
     }

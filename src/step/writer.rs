@@ -1,17 +1,14 @@
 use crate::connector::ConnectorType;
-use crate::document::DocumentType;
 use crate::step::{DataResult, Step};
+use async_trait::async_trait;
+use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};
-use multiqueue::{MPMCReceiver, MPMCSender};
 use std::{thread, time};
-use async_trait::async_trait;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Writer {
-    #[serde(alias = "document")]
-    document_type: DocumentType,
     #[serde(alias = "connector")]
     connector_type: ConnectorType,
     pub alias: Option<String>,
@@ -29,7 +26,6 @@ pub struct Writer {
 impl Default for Writer {
     fn default() -> Self {
         Writer {
-            document_type: DocumentType::default(),
             connector_type: ConnectorType::default(),
             alias: None,
             description: None,
@@ -37,7 +33,7 @@ impl Default for Writer {
             is_parallel: true,
             dataset_size: 1000,
             wait_in_milisec: 10,
-            thread_number: 1
+            thread_number: 1,
         }
     }
 }
@@ -60,17 +56,12 @@ impl fmt::Display for Writer {
 // This Step write data from somewhere into another stream.
 #[async_trait]
 impl Step for Writer {
-    async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
+    async fn exec(
+        &self,
+        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
+        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+    ) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
-
-        let reader = self.clone();
-        let mut document_type = reader.document_type.clone();
-        let mut connector_type = reader.connector_type.clone();
-        let document = document_type.document();
-        let connector = connector_type.connector_mut();
-
-        let metadata = document.metadata();
-        connector.set_metadata(metadata);
 
         let mut current_dataset_size = 0;
 
@@ -78,9 +69,11 @@ impl Step for Writer {
             Some(pipe_outbound) => pipe_outbound,
             None => {
                 info!(slog_scope::logger(), "This step is skipped. No outbound pipe found"; "step" => format!("{}", self.clone()));
-                return Ok(())
+                return Ok(());
             }
         };
+
+        let mut connector = self.connector_type.clone().connector_inner();
 
         for data_result in pipe_outbound {
             if let Some(ref pipe_inbound) = pipe_inbound_option {
@@ -88,7 +81,7 @@ impl Step for Writer {
                 while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
                     debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
                     thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
-                    current_retry = current_retry +1;
+                    current_retry = current_retry + 1;
                 }
             }
             
@@ -102,45 +95,20 @@ impl Step for Writer {
                 continue;
             }
 
-            let json_value = data_result.to_json_value();
-
             {
                 // If the path change, the writer flush and send the data in the buffer though the connector.
-                let mut connector_tmp = connector_type.clone().connector_inner();
-                connector_tmp.set_parameters(json_value.clone());
-                let new_path = connector_tmp.path();
-                let current_path = connector_type.connector().path();
-                if current_path != new_path && !connector_type.connector().inner().is_empty() {
-                    info!(slog_scope::logger(), "Document will change"; "step" => format!("{}", self), "current_path"=>current_path,"new_path"=>new_path);
-                    match document_type
-                        .document_mut()
-                        .flush(connector_type.connector_mut())
-                    {
-                        Ok(_) => (),
-                        Err(e) => error!(slog_scope::logger(), "Can't flush data. {}", e),
-                    };
+                if connector.is_resource_will_change(data_result.to_json_value())? {
+                    connector.send().await?;
+                    current_dataset_size = 0;
+                    connector = self.connector_type.clone().connector_inner();
                 }
             }
-
-            debug!(slog_scope::logger(), "Write data result"; "step" => format!("{}", self), "data_result" => format!("{:?}", data_result));
-            match document_type
-                .document_mut()
-                .write_data_result(connector_type.connector_mut(), data_result.clone()) {
-                    Ok(_) => (),
-                    Err(e) => {
-                        let new_data_result = DataResult::Err((json_value.clone(), e));
-                        error!(slog_scope::logger(),
-                            "Can't write into the document. Yield data result";
-                            "data" => format!("{}", &json_value),
-                            "data_result" => format!("{:?}", new_data_result)
-                        );
-                        continue;
-                    }
-                };
+            
+            connector.set_parameters(data_result.to_json_value());
+            connector.push_data(data_result).await?;
 
             if self.dataset_size <= current_dataset_size {
-                document_type.document_mut().flush(connector_type.connector_mut())?;
-
+                connector.send().await?;
                 current_dataset_size = 0;
             }
 
@@ -148,13 +116,13 @@ impl Step for Writer {
         }
 
         if 0 < current_dataset_size {
-            document_type.document_mut().flush(connector_type.connector_mut())?;
+            connector.send().await?;
         }
 
         if let Some(ref pipe_inbound) = pipe_inbound_option {
             drop(pipe_inbound);
         }
-        
+
         debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
         Ok(())
     }

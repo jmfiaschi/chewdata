@@ -41,6 +41,7 @@ bench: httpbin | minio ## Launch benchmark in local
 
 clean: ## Clean the repo in local
 	echo "${YELLOW}Run this command in sudo${NC}"
+	cargo clean
 	sudo rm -Rf target
 	sudo sh -c "truncate -s 0 /var/lib/docker/containers/*/*-json.log"
 

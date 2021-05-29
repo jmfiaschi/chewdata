@@ -2,11 +2,13 @@ use super::Authenticator;
 use crate::connector::ConnectorType;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
-use curl::easy::{Easy, List};
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use async_std::io::prelude::WriteExt;
 use std::io::{Error, ErrorKind, Result};
+use async_trait::async_trait;
+use http::request::Builder;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -83,7 +85,6 @@ impl Jwt {
     /// connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     /// connector.path = "/tokens".to_string();
     /// connector.method = Method::Post;
-    /// connector.can_flush_and_read = true;
     /// let mut jwt = Jwt::default();
     /// jwt.key = "my_key".to_string();
     /// jwt.payload = serde_json::from_str(r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#).expect("Error to parse the json str.");
@@ -92,7 +93,7 @@ impl Jwt {
     /// jwt.refresh().expect("Error during the refresh");
     /// assert!(10 < jwt.token.unwrap().len(),"The token should be refresh");
     /// ```
-    pub fn refresh(&mut self) -> Result<()> {
+    pub async fn refresh(&mut self) -> Result<()> {
         debug!(slog_scope::logger(), "Refresh the jwt token started.");
         if let Some(connector_type) = self.refresh_connector.clone() {
             let metadata = Metadata {
@@ -109,21 +110,18 @@ impl Jwt {
 
             let mut connector = connector_type.connector_inner();
             connector.set_metadata(metadata);
-            connector.set_flush_and_read(true);
-            connector.write_all(payload.as_bytes())?;
-            connector.flush()?;
+            let mut writer = connector.writer().await?;
+            writer.write_all(payload.as_bytes()).await?;
+            writer.flush().await?;
 
-            let mut buf = String::default();
-            connector.read_to_string(&mut buf)?;
-
-            if buf.is_empty() {
+            if writer.inner().is_empty() {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Can't find a jwt token on empty response body.",
                 ));
             }
 
-            let payload: Value = serde_json::from_str(buf.as_str())?;
+            let payload: Value = serde_json::from_slice(writer.inner().as_slice())?;
 
             match payload.get(self.refresh_token.clone()) {
                 Some(Value::String(token)) => {
@@ -204,6 +202,7 @@ impl Jwt {
     }
 }
 
+#[async_trait]
 impl Authenticator for Jwt {
     /// Add authentification to a request and connect the system to a document protected by jwt.
     ///
@@ -239,20 +238,14 @@ impl Authenticator for Jwt {
     /// auth.add_authentication(&mut client, &mut headers);
     /// assert_eq!("Authorization: Bearer my_token", String::from_utf8(headers.iter().next().unwrap().to_vec()).unwrap());
     /// ```
-    fn add_authentication(&mut self, _client: &mut Easy, headers: &mut List) -> Result<()> {
+    async fn add_authentication(&mut self, request_builder: Builder) -> Result<Builder> {
         let mut token_option = self.token.clone();
         let parameters = self.parameters.clone();
 
         if let (None, Some(_)) = (token_option.clone(), self.refresh_connector.clone()) {
-            self.refresh()?;
-            headers.append(
-                format!(
-                    "Authorization: Bearer {}",
-                    self.token.clone().unwrap_or_else(|| "".to_string())
-                )
-                .as_ref(),
-            )?;
-            return Ok(());
+            self.refresh().await?;
+            let bearer = base64::encode(self.token.clone().unwrap_or_else(|| "".to_string()));
+            return Ok(request_builder.header(http::header::AUTHORIZATION, format!("bearer {}", bearer)));
         }
 
         if let Some(token) = token_option.clone() {
@@ -272,23 +265,25 @@ impl Authenticator for Jwt {
                             .replace_mustache(parameters)
                             .eq(&jwt_payload.claims)
                     {
-                        self.refresh()?;
+                        self.refresh().await?;
                         token_option = self.token.clone();
                     }
                 }
                 Err(e) => {
                     warn!(slog_scope::logger(), "Can't decode the jwt";"error"=>e.to_string());
-                    self.refresh()?;
+                    self.refresh().await?;
                     token_option = self.token.clone();
                 }
             };
         }
 
-        if let Some(token) = token_option {
-            headers.append(format!("Authorization: Bearer {}", token).as_ref())?;
-        }
-
-        Ok(())
+        Ok(match token_option {
+            Some(token) => {
+                let bearer = base64::encode(token);
+                request_builder.header(http::header::AUTHORIZATION, format!("bearer {}", bearer))
+            },
+            None => request_builder
+        })
     }
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;

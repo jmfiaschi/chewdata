@@ -1,6 +1,6 @@
 use std::io;
 
-#[tokio::main]
+#[async_std::main]
 async fn main() -> io::Result<()> {
     let _guard = slog_envlogger::init().unwrap();
 
