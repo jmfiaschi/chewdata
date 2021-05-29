@@ -2,11 +2,14 @@ use crate::connector::Connector;
 use crate::document::Document;
 use crate::step::{Data, DataResult};
 use crate::Metadata;
+use async_std::io::prelude::WriteExt;
 use genawaiter::sync::GenBoxed;
 use json_value_search::Search;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
+use async_trait::async_trait;
+use async_std::io::ReadExt;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default)]
@@ -21,7 +24,8 @@ pub struct Json {
 impl Default for Json {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some(mime::APPLICATION_JSON.to_string()),
+            mime_type: Some(mime::APPLICATION.to_string()),
+            mime_subtype: Some(mime::JSON.to_string()),
             ..Default::default()
         };
         Json {
@@ -32,9 +36,10 @@ impl Default for Json {
     }
 }
 
+#[async_trait]
 impl Document for Json {
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        Json::default().metadata
     }
     /// Read complex json data.
     ///
@@ -122,14 +127,14 @@ impl Document for Json {
     /// let data = data_iter.next().unwrap().to_json_value();
     /// assert_eq!(expected_data, data);
     /// ```
-    fn read_data(&self, connector: Box<dyn Connector>) -> io::Result<Data> {
-        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self));
-        let mut connector = connector;
-        let mut metadata = self.metadata.clone();
-        metadata.mime_type = Some(mime::APPLICATION_JSON.to_string());
-        connector.set_metadata(metadata.clone());
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+        let mut buf = Vec::new();
+        connector.read_to_end(&mut buf).await?;
+        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self), "buf"=> format!("{:?}", String::from_utf8(buf.clone())));
 
-        let deserializer = serde_json::Deserializer::from_reader(connector);
+        let cursor = io::Cursor::new(buf);
+
+        let deserializer = serde_json::Deserializer::from_reader(cursor);
         let iterator = deserializer.into_iter::<Value>();
         let entry_path_option = self.entry_path.clone();
 
@@ -188,11 +193,11 @@ impl Document for Json {
     /// let mut connector = InMemory::new(r#""#);
     ///
     /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
+    /// document.write_data(&mut connector, DataResult::Ok(value)).unwrap();
     /// assert_eq!(r#"[{"column_1":"line_1"}"#, &format!("{}", connector));
     ///
     /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
+    /// document.write_data(&mut connector, DataResult::Ok(value)).unwrap();
     /// assert_eq!(r#"[{"column_1":"line_1"},{"column_1":"line_2"}"#, &format!("{}", connector));
     /// ```
     /// # Example: Write multi data into inner document and document init with '[]'.
@@ -207,36 +212,31 @@ impl Document for Json {
     /// let mut connector = InMemory::new(r#"[]"#);
     ///
     /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
+    /// document.write_data(&mut connector, DataResult::Ok(value)).unwrap();
     /// assert_eq!(r#"{"column_1":"line_1"}"#, &format!("{}", connector));
     ///
     /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
+    /// document.write_data(&mut connector, DataResult::Ok(value)).unwrap();
     /// assert_eq!(r#"{"column_1":"line_1"},{"column_1":"line_2"}"#, &format!("{}", connector));
     /// ```
-    fn write_data_result(
-        &mut self,
-        connector: &mut dyn Connector,
-        data_result: DataResult,
+    async fn write_data(
+        &self,
+        writer: &mut dyn Connector,
+        value: Value,
     ) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Write data"; "data" => format!("{:?}", data_result));
-        let value = data_result.to_json_value();
-
-        connector.set_parameters(value.clone());
-
-        if connector.is_empty()? && connector.inner().is_empty()
+        if writer.inner().is_empty() && writer.is_empty().await?
         {
-            connector.write_all(b"[")?;
-        } else if 2 < connector.inner().len() || 2 < connector.len()? {
-            connector.write_all(b",")?;
+            writer.write_all(b"[").await?;
+        } else if 2 < writer.inner().len() || 2 < writer.len().await? {
+            writer.write_all(b",").await?;
         }
 
+        let mut buf = Vec::new();
         match self.is_pretty {
-            true => serde_json::to_writer_pretty(connector, &value),
-            false => serde_json::to_writer(connector, &value),
+            true => serde_json::to_writer_pretty(&mut buf, &value),
+            false => serde_json::to_writer(&mut buf, &value),
         }?;
-
-        debug!(slog_scope::logger(), "Write data ended"; "data" => format!("{:?}", data_result));
+        writer.write_all(buf.clone().as_slice()).await?;
         Ok(())
     }
     /// flush json data.
@@ -267,14 +267,11 @@ impl Document for Json {
     /// connector.read_to_string(&mut buffer).unwrap();
     /// assert_eq!(r#"[{"column_1":"line_1"},{"column_1":"line_2"}]"#, buffer);
     /// ```
-    fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called");
-        let mut metadata = self.metadata.clone();
-        metadata.mime_type = Some(mime::APPLICATION_JSON.to_string());
-        connector.set_metadata(metadata.clone());
-        connector.write_all(b"]")?;
-        connector.seek_and_flush(-1)?;
-        debug!(slog_scope::logger(), "Flush with success");
+    async fn flush(&self, writer: &mut dyn Connector) -> io::Result<()> {
+        info!(slog_scope::logger(), "flush started");
+        writer.write_all(b"]").await?;
+        writer.flush_into(-1).await?;
+        info!(slog_scope::logger(), "flush ended");
         Ok(())
     }
 }

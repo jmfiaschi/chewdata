@@ -7,8 +7,10 @@ use json_value_search::Search;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
+use async_trait::async_trait;
+use async_std::io::{ReadExt, prelude::WriteExt};
 
-const DEFAULT_MIME: &str = "application/x-ndjson";
+const DEFAULT_MIME_TYPE: &str = "x-ndjson";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default)]
@@ -23,7 +25,8 @@ pub struct Jsonl {
 impl Default for Jsonl {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some(DEFAULT_MIME.to_string()),
+            mime_type: Some(mime::APPLICATION.to_string()),
+            mime_subtype: Some(DEFAULT_MIME_TYPE.to_string()),
             ..Default::default()
         };
         Jsonl {
@@ -34,9 +37,10 @@ impl Default for Jsonl {
     }
 }
 
+#[async_trait]
 impl Document for Jsonl {
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        Jsonl::default().metadata
     }
     /// Read complex json data.
     ///
@@ -109,14 +113,14 @@ impl Document for Jsonl {
     /// let data = data_iter.next().unwrap().to_json_value();
     /// assert_eq!(expected_data, data);
     /// ```
-    fn read_data(&self, connector: Box<dyn Connector>) -> io::Result<Data> {
-        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self));
-        let mut connector = connector;
-        let mut metadata = self.metadata.clone();
-        metadata.mime_type = Some(DEFAULT_MIME.to_string());
-        connector.set_metadata(metadata.clone());
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+        let mut buf = Vec::new();
+        connector.read_to_end(&mut buf).await?;
+        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self), "buf"=> format!("{:?}", String::from_utf8(buf.clone())));
 
-        let deserializer = serde_json::Deserializer::from_reader(connector);
+        let cursor = io::Cursor::new(buf);
+
+        let deserializer = serde_json::Deserializer::from_reader(cursor);
         let iterator = deserializer.into_iter::<Value>();
         let entry_path_option = self.entry_path.clone();
 
@@ -170,37 +174,31 @@ impl Document for Jsonl {
     ///
     /// let mut document = Jsonl::default();
     /// let mut connector = InMemory::new(r#""#);
+    /// let mut writer = connector.writer()?;
     ///
     /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
+    /// document.write_data(&mut writer, value).unwrap();
     /// assert_eq!(r#"{"column_1":"line_1"}
     /// "#, &format!("{}", connector));
     ///
     /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
+    /// document.write_data(&mut writer, value).unwrap();
     /// assert_eq!(r#"{"column_1":"line_1"}
     /// {"column_1":"line_2"}
     /// "#, &format!("{}", connector));
     /// ```
-    fn write_data_result(
-        &mut self,
-        connector: &mut dyn Connector,
-        data_result: DataResult,
+    async fn write_data(
+        &self,
+        writer: &mut dyn Connector,
+        value: Value,
     ) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Write data"; "data" => format!("{:?}", data_result));
-        let mut connector = connector;
-        let value = data_result.to_json_value();
-        let is_pretty = self.is_pretty;
-
-        connector.set_parameters(value.clone());
-
-        match is_pretty {
-            true => serde_json::to_writer_pretty(&mut connector, &value),
-            false => serde_json::to_writer(&mut connector, &value),
+        let mut buf = Vec::new();
+        match self.is_pretty {
+            true => serde_json::to_writer_pretty(&mut buf, &value),
+            false => serde_json::to_writer(&mut buf, &value),
         }?;
-        connector.write_all(b"\n")?;
-
-        debug!(slog_scope::logger(), "Write data ended"; "data" => format!("{:?}", data_result));
+        writer.write_all(buf.clone().as_slice()).await?;
+        writer.write_all(b"\n").await?;
         Ok(())
     }
     /// flush jsonl data.
@@ -234,13 +232,7 @@ impl Document for Jsonl {
     /// {"column_1":"line_2"}
     /// "#, buffer);
     /// ```
-    fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called");
-        let mut metadata = self.metadata.clone();
-        metadata.mime_type = Some(DEFAULT_MIME.to_string());
-        connector.set_metadata(metadata.clone());
-        connector.flush()?;
-        debug!(slog_scope::logger(), "Flush with success");
-        Ok(())
+    async fn flush(&self, writer: &mut dyn Connector) -> io::Result<()> {
+        writer.flush_into(0).await
     }
 }
