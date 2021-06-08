@@ -63,7 +63,7 @@ pub struct Metadata {
     pub quote: Option<[u8; 1]>,
     pub escape: Option<[u8; 1]>,
     pub comment: Option<[u8; 1]>,
-    pub terminator: Option<[u8; 2]>,
+    pub terminator: Option<[u8; 4]>,
     pub mime_type: Option<String>,
     pub mime_subtype: Option<String>,
     pub charset: Option<String>,
@@ -83,6 +83,23 @@ impl Default for Metadata {
             mime_subtype: None,
             charset: None,
             compression: None,
+        }
+    }
+}
+
+impl Metadata {
+    fn merge(self, metadata: Metadata) -> Metadata {
+        Metadata {
+            has_headers: self.has_headers.or(metadata.has_headers),
+            delimiter: self.delimiter.or(metadata.delimiter),
+            quote: self.quote.or(metadata.quote),
+            escape: self.escape.or(metadata.escape),
+            comment: self.comment.or(metadata.comment),
+            terminator: self.terminator.or(metadata.terminator),
+            mime_type: self.mime_type.or(metadata.mime_type),
+            mime_subtype: self.mime_subtype.or(metadata.mime_subtype),
+            charset: self.charset.or(metadata.charset),
+            compression: self.compression.or(metadata.compression),
         }
     }
 }

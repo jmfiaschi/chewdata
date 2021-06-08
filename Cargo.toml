@@ -27,7 +27,7 @@ serde-with-expand-env = "1.1.0"
 jxon = "0.7"
 clap = {version = "2.33", features = ["yaml"]}
 csv = "1.1"
-serde_yaml = { version = "0.8", git = "https://github.com/semtexzv/serde-yaml", branch = "multidoc"}
+serde_yaml = "0.8"
 regex = "1.4.5"
 toml = "0.5"
 # For Templates

@@ -26,9 +26,6 @@ async fn main() -> io::Result<()> {
     },
     {
         "type": "w",
-        "connector": {
-            "type": "io"
-        },
         "data_type": "err"
     }]
     "#;

@@ -54,7 +54,7 @@ impl Step for Eraser {
         let connector = connector_type.connector_mut();
         let mut exclude_paths = self.exclude_paths.clone();
 
-        match (pipe_outbound_option, connector.is_variable_path())  {
+        match (pipe_outbound_option, connector.is_variable())  {
             (Some(pipe_outbound), true) => {
                 for data_result in pipe_outbound {
                     let json_value = data_result.to_json_value();
@@ -62,7 +62,7 @@ impl Step for Eraser {
                     let path = connector.path();
 
                     if !exclude_paths.contains(&path) {
-                        connector.erase()?; 
+                        connector.erase().await?; 
                         exclude_paths.push(path);
                     }
 
@@ -78,10 +78,10 @@ impl Step for Eraser {
             },
             (Some(pipe_outbound), false) => {
                 for _data_result in pipe_outbound {}
-                connector.erase()?;
+                connector.erase().await?;
             }
             (_, _) => {
-                connector.erase()?;
+                connector.erase().await?;
             }
         };
 

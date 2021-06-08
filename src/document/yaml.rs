@@ -2,10 +2,12 @@ use crate::connector::Connector;
 use crate::document::Document;
 use crate::step::{Data, DataResult};
 use crate::Metadata;
+use async_std::io::prelude::WriteExt;
+use async_trait::async_trait;
+use futures::AsyncReadExt;
 use genawaiter::sync::GenBoxed;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::prelude::*;
 use std::{fmt, io};
 
 const DEFAULT_MIME: &str = "application/x-yaml";
@@ -34,21 +36,26 @@ impl Default for Yaml {
     }
 }
 
+#[async_trait]
 impl Document for Yaml {
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        Yaml::default().metadata
     }
-    /// Read complex yaml data.
+    /// See [`Document::read_data`] for more details.
     ///
     /// # Example: Should read the input data.
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::yaml::Yaml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Yaml::default();
-    /// let yaml_str = r#"
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Yaml::default();
+    ///     let yaml_str = r#"
     /// ---
     /// number: 10
     /// string: value to test
@@ -57,25 +64,29 @@ impl Document for Yaml {
     /// special_char: é
     /// date: 2019-12-31
     /// "#;
-    /// let connector = InMemory::new(&format!("{}", yaml_str.clone()));
+    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(&format!("{}", yaml_str.clone())));
+    ///     connector.fetch().await?;
     ///
-    /// let mut data_iter = document.read_data(Box::new(connector)).unwrap().into_iter();
-    /// let line = data_iter.next().unwrap().to_json_value();
-    /// let expected_line: Value = serde_yaml::from_str(yaml_str).unwrap();
-    /// assert_eq!(expected_line, line);
+    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
+    ///     let line = data_iter.next().unwrap().to_json_value();
+    ///     let expected_line: Value = serde_yaml::from_str(yaml_str).unwrap();
+    ///     assert_eq!(expected_line, line);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn read_data(&self, connector: Box<dyn Connector>) -> io::Result<Data> {
-        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{}", self));
-        let mut connector = connector;
-        let mut metadata = self.metadata.clone();
-        metadata.mime_type = Some(DEFAULT_MIME.to_string());
-        connector.set_metadata(metadata.clone());
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+        let mut string = String::new();
+        connector.read_to_string(&mut string).await?;
+        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self), "buf"=> format!("{:?}", string));
 
-        let mut buf = String::default();
-        connector.read_to_string(&mut buf)?;
-
-        let records: Vec<Value> = serde_yaml::from_str_multidoc(buf.as_str())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let documents = serde_yaml::Deserializer::from_str(string.as_str());
+        let mut records = Vec::<Value>::default();
+        for document in documents {
+            let value = Value::deserialize(document)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            records.push(value);
+        }
 
         let data = GenBoxed::new_boxed(|co| async move {
             debug!(slog_scope::logger(), "Start generator");
@@ -85,10 +96,10 @@ impl Document for Yaml {
             }
             debug!(slog_scope::logger(), "End generator");
         });
-        debug!(slog_scope::logger(), "Read data ended"; "documents" => format!("{:?}", self));
+
         Ok(data)
     }
-    /// Write complex yaml data.
+    /// See [`Document::write_data`] for more details.
     ///
     /// # Example: Write multi data into empty inner document.
     /// ```
@@ -96,87 +107,89 @@ impl Document for Yaml {
     /// use chewdata::document::yaml::Yaml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Yaml::default();
-    /// let mut connector = InMemory::new(r#""#);
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Yaml::default();
+    ///     let mut connector = InMemory::new(r#""#);
     ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"---
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     assert_eq!(r#"---
     /// column_1: line_1
     /// "#, &format!("{}", connector));
     ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"---
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     assert_eq!(r#"---
     /// column_1: line_1
     /// ---
     /// column_1: line_2
     /// "#, &format!("{}", connector));
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn write_data_result(
-        &mut self,
-        connector: &mut dyn Connector,
-        data_result: DataResult,
-    ) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Write data"; "data" => format!("{:?}", data_result));
-        let value = data_result.to_json_value();
-        let mut connector = connector;
-        connector.set_parameters(value.clone());
+    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+        let mut buf: io::Cursor<Vec<_>> = io::Cursor::default();
 
-        serde_yaml::to_writer(&mut connector, &value).map_err(|e| {
+        serde_yaml::to_writer(&mut buf, &value).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("Can't write the data into the connector. {}", e),
             )
         })?;
-        connector.write_all(b"\n")?;
-
-        debug!(slog_scope::logger(), "Write data ended"; "data" => format!("{:?}", data_result));
-        Ok(())
+        connector.write_all(buf.into_inner().as_slice()).await
     }
-    /// flush data.
+    /// See [`Document::flush`] for more details.
     ///
     /// # Example
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::yaml::Yaml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
     /// use std::io::Read;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Yaml::default();
-    /// let mut connector = InMemory::new(r#""#);
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Yaml::default();
+    ///     let mut connector = InMemory::new(r#""#);
     ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// document.flush(&mut connector).unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"---
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     document.flush(&mut connector).await?;
+    ///
+    ///     let mut connector_read = connector.clone();
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"---
     /// column_1: line_1
     /// "#, buffer);
     ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// document.flush(&mut connector).unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"---
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     document.flush(&mut connector).await?;
+    ///
+    ///     let mut connector_read = connector.clone();
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"---
     /// column_1: line_1
     /// ---
     /// column_1: line_2
     /// "#, buffer);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called");
-        let mut metadata = self.metadata.clone();
-        metadata.mime_type = Some(DEFAULT_MIME.to_string());
-        connector.set_metadata(metadata.clone());
-        connector.flush()?;
-        debug!(slog_scope::logger(), "Flush with success");
-        Ok(())
+    async fn flush(&self, connector: &mut dyn Connector) -> io::Result<()> {
+        connector.flush_into(connector.len().await? as i64).await
     }
 }

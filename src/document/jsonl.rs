@@ -2,13 +2,13 @@ use crate::connector::Connector;
 use crate::document::Document;
 use crate::step::{Data, DataResult};
 use crate::Metadata;
+use async_std::io::{prelude::WriteExt, ReadExt};
+use async_trait::async_trait;
 use genawaiter::sync::GenBoxed;
 use json_value_search::Search;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
-use async_trait::async_trait;
-use async_std::io::{ReadExt, prelude::WriteExt};
 
 const DEFAULT_MIME_TYPE: &str = "x-ndjson";
 
@@ -42,76 +42,106 @@ impl Document for Jsonl {
     fn metadata(&self) -> Metadata {
         Jsonl::default().metadata
     }
-    /// Read complex json data.
+    /// See [`Document::read_data`] for more details.
     ///
     /// # Example: Should read the input data.
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Jsonl::default();
-    /// let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#;
-    /// let connector = InMemory::new(&format!("{}", json_str.clone()));
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Jsonl::default();
+    ///     let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#;
+    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(&format!("{}", json_str.clone())));
+    ///     connector.fetch().await?;
+    /// 
+    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
+    ///     let line = data_iter.next().unwrap().to_json_value();
+    ///     let expected_line: Value = serde_json::from_str(json_str)?;
+    ///     assert_eq!(expected_line, line);
     ///
-    /// let mut data_iter = document.read_data(Box::new(connector)).unwrap().into_iter();
-    /// let line = data_iter.next().unwrap().to_json_value();
-    /// let expected_line: Value = serde_json::from_str(json_str).unwrap();
-    /// assert_eq!(expected_line, line);
+    ///     Ok(())
+    /// }
     /// ```
     /// # Example: Should not read the input data.
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
     /// use chewdata::step::DataResult;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Jsonl::default();
-    /// let connector = InMemory::new("My text");
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Jsonl::default();
+    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new("My text"));
+    ///     connector.fetch().await?;
+    /// 
+    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
+    ///     let line = data_iter.next().unwrap();
+    ///     match line {
+    ///         DataResult::Ok(_) => assert!(false, "The line readed by the json builder should be in error."),
+    ///         DataResult::Err(_) => ()
+    ///     };
     ///
-    /// let mut data_iter = document.read_data(Box::new(connector)).unwrap().into_iter();
-    /// let line = data_iter.next().unwrap();
-    /// match line {
-    ///     DataResult::Ok(_) => assert!(false, "The line readed by the json builder should be in error."),
-    ///     DataResult::Err(_) => ()
-    /// };
+    ///     Ok(())
+    /// }
     /// ```
     /// # Example: Should read specific array in the records and return each data.
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Jsonl::default();
-    /// document.entry_path = Some("/array*/*".to_string());
-    /// let connector = InMemory::new(r#"{"array1":[{"field":"value1"},{"field":"value2"}]}
-    /// {"array1":[{"field":"value3"},{"field":"value4"}]}"#);
-    /// let expected_data: Value = serde_json::from_str(r#"{"field":"value1"}"#).unwrap();
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Jsonl::default();
+    ///     document.entry_path = Some("/array*/*".to_string());
+    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"{"array1":[{"field":"value1"},{"field":"value2"}]}
+    ///     {"array1":[{"field":"value3"},{"field":"value4"}]}"#));
+    ///     connector.fetch().await?;
+    ///     let expected_data: Value = serde_json::from_str(r#"{"field":"value1"}"#)?;
+    /// 
+    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
+    ///     let data = data_iter.next().unwrap().to_json_value();
+    ///     assert_eq!(expected_data, data);
     ///
-    /// let mut data_iter = document.read_data(Box::new(connector)).unwrap().into_iter();
-    /// let data = data_iter.next().unwrap().to_json_value();
-    /// assert_eq!(expected_data, data);
+    ///     Ok(())
+    /// }
     /// ```
     /// # Example: Should not found the entry path.
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Jsonl::default();
-    /// document.entry_path = Some("/not_found/*".to_string());
-    /// let connector = InMemory::new(r#"{"array1":[{"field":"value1"},{"field":"value2"}]}"#);
-    /// let expected_data: Value = serde_json::from_str(r#"{"array1":[{"field":"value1"},{"field":"value2"}],"_error":"Entry path '/not_found/*' not found."}"#).unwrap();
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Jsonl::default();
+    ///     document.entry_path = Some("/not_found/*".to_string());
+    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"{"array1":[{"field":"value1"},{"field":"value2"}]}"#));
+    ///     connector.fetch().await?;
+    ///     let expected_data: Value = serde_json::from_str(r#"{"array1":[{"field":"value1"},{"field":"value2"}],"_error":"Entry path '/not_found/*' not found."}"#)?;
+    /// 
+    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
+    ///     let data = data_iter.next().unwrap().to_json_value();
+    ///     assert_eq!(expected_data, data);
     ///
-    /// let mut data_iter = document.read_data(Box::new(connector)).unwrap().into_iter();
-    /// let data = data_iter.next().unwrap().to_json_value();
-    /// assert_eq!(expected_data, data);
+    ///     Ok(())
+    /// }
     /// ```
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
         let mut buf = Vec::new();
@@ -159,10 +189,9 @@ impl Document for Jsonl {
             debug!(slog_scope::logger(), "End generator");
         });
 
-        debug!(slog_scope::logger(), "Read data ended"; "documents" => format!("{:?}", self));
         Ok(data)
     }
-    /// Write complex jsonl data.
+    /// See [`Document::write_data`] for more details.
     ///
     /// # Example: Write multi data into empty inner document.
     /// ```
@@ -170,69 +199,80 @@ impl Document for Jsonl {
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Jsonl::default();
-    /// let mut connector = InMemory::new(r#""#);
-    /// let mut writer = connector.writer()?;
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data(&mut writer, value).unwrap();
-    /// assert_eq!(r#"{"column_1":"line_1"}
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Jsonl::default();
+    ///     let mut connector = InMemory::new(r#""#);
+    /// 
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     assert_eq!(r#"{"column_1":"line_1"}
     /// "#, &format!("{}", connector));
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data(&mut writer, value).unwrap();
-    /// assert_eq!(r#"{"column_1":"line_1"}
+    /// 
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     assert_eq!(r#"{"column_1":"line_1"}
     /// {"column_1":"line_2"}
     /// "#, &format!("{}", connector));
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    async fn write_data(
-        &self,
-        writer: &mut dyn Connector,
-        value: Value,
-    ) -> io::Result<()> {
+    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         let mut buf = Vec::new();
         match self.is_pretty {
             true => serde_json::to_writer_pretty(&mut buf, &value),
             false => serde_json::to_writer(&mut buf, &value),
         }?;
-        writer.write_all(buf.clone().as_slice()).await?;
-        writer.write_all(b"\n").await?;
-        Ok(())
+        connector.write_all(buf.clone().as_slice()).await?;
+        connector.write_all(b"\n").await
     }
-    /// flush jsonl data.
+    /// See [`Document::flush`] for more details.
     ///
     /// # Example
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    /// use std::io::Read;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Jsonl::default();
-    /// let mut connector = InMemory::new(r#""#);
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Jsonl::default();
+    ///     let mut connector = InMemory::new(r#""#);
+    /// 
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     document.flush(&mut connector).await?;
     ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
-    /// document.flush(&mut connector).unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"{"column_1":"line_1"}
+    ///     let mut connector_read = connector.clone();
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"{"column_1":"line_1"}
     /// "#, buffer);
+    /// 
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     document.flush(&mut connector).await?;
     ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector, DataResult::Ok(value)).unwrap();
-    /// document.flush(&mut connector).unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"{"column_1":"line_1"}
+    ///     let mut connector_read = connector.clone();
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"{"column_1":"line_1"}
     /// {"column_1":"line_2"}
     /// "#, buffer);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    async fn flush(&self, writer: &mut dyn Connector) -> io::Result<()> {
-        writer.flush_into(0).await
+    async fn flush(&self, connector: &mut dyn Connector) -> io::Result<()> {
+        connector.flush_into(connector.len().await? as i64).await
     }
 }

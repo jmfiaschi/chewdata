@@ -11,6 +11,7 @@ extern crate slog_term;
 use chewdata::step::StepType;
 use clap::{App, Arg};
 use env_applier::EnvApply;
+use serde::Deserialize;
 use slog::{Drain, FnValue};
 use std::env;
 use std::fs::File;
@@ -59,8 +60,16 @@ async fn main() -> Result<()> {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        serde_yaml::from_str_multidoc(env::Vars::apply(buf).as_str())
-                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+                        let config = env::Vars::apply(buf);
+                        let documents = serde_yaml::Deserializer::from_str(config.as_str());
+                        let mut steps = Vec::<StepType>::default();
+
+                        for document in documents {
+                            let step: StepType = StepType::deserialize(document)
+                                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+                            steps.push(step);
+                        }
+                        Ok(steps)
                     },
                     format => Err(Error::new(
                         ErrorKind::NotFound,

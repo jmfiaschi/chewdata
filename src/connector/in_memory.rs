@@ -1,18 +1,25 @@
-use crate::connector::Connector;
+use super::{Connector, Paginator};
+use crate::document::DocumentType;
+use crate::step::DataResult;
 use crate::Metadata;
+use async_std::sync::Mutex;
+use async_trait::async_trait;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
-use std::fmt;
-use std::io;
-use std::io::prelude::*;
-use std::io::SeekFrom;
+use std::io::{Cursor, Result, Seek, SeekFrom, Write};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use std::{fmt, io};
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct InMemory {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
+    #[serde(alias = "document")]
+    document_type: DocumentType,
     #[serde(alias = "value")]
     #[serde(alias = "doc")]
     #[serde(alias = "data")]
@@ -20,251 +27,320 @@ pub struct InMemory {
     #[serde(skip_serializing)]
     // The result value like if the document is in remote.
     // Read the content only with the method io::Read::read().
-    document: io::Cursor<Vec<u8>>,
+    pub document: Arc<Mutex<Cursor<Vec<u8>>>>,
     #[serde(skip)]
-    inner: io::Cursor<Vec<u8>>,
+    pub inner: Cursor<Vec<u8>>,
 }
 
-fn deserialize_inner<'de, D>(deserializer: D) -> Result<io::Cursor<Vec<u8>>, D::Error>
+impl fmt::Display for InMemory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string()))
+    }
+}
+
+fn deserialize_inner<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Arc<Mutex<Cursor<Vec<u8>>>>, D::Error>
 where
     D: de::Deserializer<'de>,
 {
     let s: String = de::Deserialize::deserialize(deserializer)?;
-    Ok(io::Cursor::new(s.into_bytes()))
-}
-
-impl fmt::Display for InMemory {
-    /// Display a `InMemory`.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use std::io::Write;
-    ///
-    /// let mut connector = InMemory::new("My text");
-    /// let buffer = "My new text".to_string();
-    /// connector.write_all(&buffer.into_bytes()).unwrap();
-    /// assert_eq!("My new text", format!("{}",connector));
-    /// ```
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", &String::from_utf8_lossy(self.inner.get_ref()))
-    }
+    Ok(Arc::new(Mutex::new(Cursor::new(s.into_bytes()))))
 }
 
 impl InMemory {
-    /// Creates a new document type `InMemory` that implement Connect.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    ///
-    /// let connector = InMemory::new("My text");
-    /// assert_eq!("", format!("{}", connector));
-    /// ```
+    /// Creates a new document type `InMemory`.
     pub fn new(str: &str) -> InMemory {
         InMemory {
-            document: io::Cursor::new(str.to_string().into_bytes()),
+            document: Arc::new(Mutex::new(Cursor::new(str.to_string().into_bytes()))),
             ..Default::default()
         }
     }
 }
 
-impl Default for InMemory {
-    fn default() -> Self {
-        InMemory {
-            metadata: Metadata::default(),
-            inner: io::Cursor::default(),
-            document: io::Cursor::default(),
-        }
-    }
-}
-
+#[async_trait]
 impl Connector for InMemory {
-    fn is_variable_path(&self) -> bool { false }
-    /// Get the inner buffer.
+    /// See [`Connector::document_type`] for more details.
+    fn document_type(&self) -> DocumentType {
+        self.document_type.clone()
+    }
+    /// See [`Connector::path`] for more details.
+    fn path(&self) -> String {
+        "in_memory".to_string()
+    }
+    /// See [`Connector::is_variable`] for more details.
+    fn is_variable(&self) -> bool {
+        false
+    }
+    /// See [`Connector::is_empty`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::Connector;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let connector = InMemory::new("");
+    ///     assert_eq!(true, connector.is_empty().await?);
+    ///     let connector = InMemory::new("My text");
+    ///     assert_eq!(false, connector.is_empty().await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn is_empty(&self) -> io::Result<bool> {
+        Ok(self.document.lock().await.get_ref().is_empty())
+    }
+    /// See [`Connector::len`] for more details.
     ///
     /// # Example
     /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
+    /// use std::io;
     ///
-    /// let connector = InMemory::new("My text");
-    /// let vec: Vec<u8> = Vec::default();
-    /// assert_eq!(&vec, connector.inner());
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let connector = InMemory::new(r#"[{"column1":"value1"}]"#);
+    ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0.");
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn inner(&self) -> &Vec<u8> {
-        self.inner.get_ref()
+    async fn len(&self) -> io::Result<usize> {
+        Ok(self.document.lock().await.get_ref().len())
     }
-    /// Check if the inner buffer in the connector is empty.
+    /// See [`Connector::set_parameters`] for more details.
+    fn set_parameters(&mut self, _parameters: Value) {}
+    /// See [`Connector::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
+    }
+    /// See [`Connector::metadata`] for more details.
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
+    /// See [`Connector::is_resource_will_change`] for more details.
+    fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
+        Ok(false)
+    }
+    /// See [`Connector::push_data`] for more details.
+    async fn push_data(&mut self, data: DataResult) -> Result<()> {
+        debug!(slog_scope::logger(), "push data"; "data" => format!("{}", data.to_json_value()));
+        let document = self.document_type().document_inner();
+        document.write_data(self, data.to_json_value()).await
+    }
+    /// See [`Connector::fetch`] for more details.
     ///
     /// # Example
-    /// ```
+    /// ```rust
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
+    /// use async_std::io::{Read, Write};
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let connector = InMemory::new("");
-    /// assert_eq!(true, connector.is_empty().unwrap());
-    /// let connector = InMemory::new("My text");
-    /// assert_eq!(false, connector.is_empty().unwrap());
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = InMemory::new("My text");
+    ///     assert_eq!(0, connector.inner().len());
+    ///     connector.fetch().await?;
+    ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn is_empty(&self) -> io::Result<bool> {
-        if 0 < self.inner.get_ref().len() {
-            return Ok(false);
-        }
-        if 0 < self.document.get_ref().len() {
-            return Ok(false);
-        }
-        Ok(true)
+    async fn fetch(&mut self) -> Result<()> {
+        let document = self.document.lock().await;
+        self.inner = io::Cursor::new(document.get_ref().clone());
+        Ok(())
     }
-    /// Seek the position into the document, append the inner buffer data and flush the connector.
+    /// See [`Connector::erase`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = InMemory::new("My text");
+    ///     connector.erase().await?;
+    ///     let mut buffer = String::default();
+    ///     connector.fetch().await?;
+    ///     connector.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#""#, buffer);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn erase(&mut self) -> io::Result<()> {
+        let mut document = self.document.lock().await;
+        *document = Cursor::default();
+        Ok(())
+    }
+    /// See [`Connector::flush_into`] for more details.
     ///
     /// # Example: Seek from the end
     /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
-    /// use std::io::{Read, Write};
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut connector = InMemory::new(r#"[{"column":"value"}]"#);
-    /// connector.write(r#",{"column":"value"}]"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector.seek_and_flush(-1).unwrap();
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = InMemory::new(r#"[{"column":"value"}]"#);
+    ///     connector.write(r#",{"column":"value"}]"#.to_string().into_bytes().as_slice()).await?;
+    ///     connector.flush_into(-1).await?;
     ///
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"[{"column":"value"},{"column":"value"}]"#, buffer);
+    ///     let mut buffer = String::default();
+    ///     connector.fetch().await?;
+    ///     connector.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"[{"column":"value"},{"column":"value"}]"#, buffer);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
     /// # Example: Seek from the start
     /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
-    /// use std::io::{Read, Write};
+    /// use async_std::io::{Read, Write};
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let str = r#"[{"column1":"value1"}]"#;
-    /// let mut connector = InMemory::new(str);
-    /// connector.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector.seek_and_flush((str.len() as i64)-1).unwrap();
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
+    ///     connector.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).await?;
+    ///     connector.flush_into((connector.len().await? as i64)-1).await?;
     ///
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
+    ///     let mut buffer = String::default();
+    ///     connector.fetch().await?;
+    ///     connector.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn seek_and_flush(&mut self, position: i64) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Seek & Flush");
+    async fn flush_into(&mut self, position: i64) -> io::Result<()> {
         let mut position = position;
-        if 0 >= (self.len()? as i64 + position){
+        let mut document = self.document.lock().await;
+        let len = document.get_ref().len();
+
+        if 0 >= (len as i64 + position) {
             position = 0;
-            self.document = io::Cursor::new(Vec::default());
         }
 
-        if 0 < position {
-            self.document.seek(SeekFrom::Start(position as u64))?;
+        if 0 <= position {
+            document.seek(SeekFrom::Start(position as u64))?;
         }
         if 0 > position {
-            self.document.seek(SeekFrom::End(position as i64))?;
+            document.seek(SeekFrom::End(position as i64))?;
         }
 
-        self.document.write_all(self.inner.get_ref())?;
-        self.document.set_position(0);
-        self.inner = io::Cursor::default();
-
-        info!(slog_scope::logger(), "Seek & Flush ended");
+        document.write_all(self.inner())?;
+        document.set_position(0);
+        self.inner = Cursor::default();
         Ok(())
     }
-    /// Get the total document size.
+    /// See [`Connector::send`] for more details.
+    async fn send(&mut self) -> Result<()> {
+        self.document_type().document_inner().flush(self).await
+    }
+    /// See [`Connector::inner`] for more details.
+    fn inner(&self) -> &Vec<u8> {
+        self.inner.get_ref()
+    }
+    /// See [`Connector::paginator`] for more details.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+        Ok(Box::pin(InMemoryPaginator::new(Box::new(self.clone()))?))
+    }
+}
+
+#[async_trait]
+impl async_std::io::Read for InMemory {
+    /// See [`Read::poll_read`] for more details.
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
+    }
+}
+
+#[async_trait]
+impl async_std::io::Write for InMemory {
+    /// See [`Write::poll_write`] for more details.
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
+    }
+    /// See [`Write::poll_flush`] for more details.
+    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(std::io::Write::flush(&mut self.inner))
+    }
+    /// See [`Write::poll_close`] for more details.
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.poll_flush(cx)
+    }
+}
+
+#[derive(Debug)]
+pub struct InMemoryPaginator {
+    connector: Box<dyn Connector>,
+    has_next: bool,
+}
+
+impl InMemoryPaginator {
+    pub fn new(connector: Box<dyn Connector>) -> Result<Self> {
+        Ok(InMemoryPaginator {
+            connector: connector,
+            has_next: true,
+        })
+    }
+}
+
+#[async_trait]
+impl Paginator for InMemoryPaginator {
+    /// See [`Paginator::next_page`] for more details.
     ///
     /// # Example
-    /// ```
+    /// ```rust
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
-    /// assert!(0 < connector.len().unwrap(), "The length of the document is not greather than 0.");
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = InMemory::default();
+    ///     let mut paginator = connector.paginator().await?;
+    ///
+    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
+    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn len(&self) -> io::Result<usize> {
-        Ok(self.document.get_ref().len())
-    }
-    /// Set the path parameters.
-    /// Not used into this component.
-    fn set_parameters(&mut self, _parameters: Value) {}
-    /// Get a new path, but it's not used by this component.
-    fn path(&self) -> String {
-        String::new()
-    }
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
-    fn erase(&mut self) -> io::Result<()> {
-        info!(slog_scope::logger(), "Clean the document"; "connector" => format!("{}", self), "path" => self.path());
-        self.document = io::Cursor::default();
-
-        Ok(())
-    }
-}
-
-impl io::Read for InMemory {
-    /// Read text document.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::{Connector,in_memory::InMemory};
-    /// use std::io::Read;
-    ///
-    /// let mut connector = InMemory::new(r#"My text"#);
-    /// let mut buffer = [0; 10];
-    ///
-    /// let len = connector.read(&mut buffer).unwrap();
-    /// assert_eq!(7, len);
-    /// assert_eq!("My text", std::str::from_utf8(&buffer).unwrap().trim_matches(char::from(0)));
-    /// let len = connector.read(&mut buffer).unwrap();
-    /// assert_eq!(0, len);
-    /// ```
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.document.read(buf)
-    }
-}
-
-impl io::Write for InMemory {
-    /// Write text into the inner buffer.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::{Connector,in_memory::InMemory};
-    /// use std::io::Write;
-    ///
-    /// let mut connector = InMemory::new(r#""#);
-    /// let mut buffer = "My text";
-    /// let len = connector.write(buffer.to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!(7, len);
-    /// assert_eq!("My text", format!("{}",connector));
-    /// let mut buffer = " and another";
-    /// let len = connector.write(buffer.to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!(12, len);
-    /// assert_eq!("My text and another", format!("{}",connector));
-    /// ```
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.inner.write(buf)
-    }
-    /// Push the data form inner buffer to the document and flush the inner buffer.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::{Connector,in_memory::InMemory};
-    /// use std::io::{Write,Read};
-    ///
-    /// let mut connector = InMemory::new(r#""#);
-    /// connector.write_all("My text".to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!("My text", format!("{}",connector));
-    /// connector.flush().unwrap();
-    /// assert_eq!("", format!("{}",connector));
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!("My text", buffer);
-    /// ```
-    fn flush(&mut self) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush started");
-        self.document.write_all(self.inner.get_ref())?;
-        self.document.set_position(0);
-        self.inner = io::Cursor::default();
-        debug!(slog_scope::logger(), "Flush ended");
-        Ok(())
+    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        let mut connector = InMemory::default();
+        Ok(match self.has_next {
+            true => {
+                self.has_next = false;
+                connector.fetch().await?;
+                Some(Box::new(connector))
+            }
+            false => None,
+        })
     }
 }

@@ -1,6 +1,7 @@
 use super::{Connector, Paginator};
 use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
+use crate::step::DataResult;
 use crate::Metadata;
 use async_trait::async_trait;
 use glob::glob;
@@ -15,7 +16,6 @@ use std::{
     io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write},
 };
 use std::{fs, fs::OpenOptions};
-use crate::step::DataResult;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
@@ -33,7 +33,7 @@ pub struct Local {
 
 impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.path())
+        write!(f, "{}", String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string()))
     }
 }
 
@@ -181,12 +181,13 @@ impl Connector for Local {
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
     }
+    /// See [`Connector::metadata`] for more details.
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
     /// See [`Connector::send`] for more details.
     async fn send(&mut self) -> Result<()> {
-        self.document_type()
-            .document_inner()
-            .flush(self)
-            .await
+        self.document_type().document_inner().flush(self).await
     }
     /// See [`Connector::is_resource_will_change`] for more details.
     ///
@@ -204,7 +205,7 @@ impl Connector for Local {
     /// connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
     /// assert_eq!(true, connector.is_resource_will_change(params).unwrap());
     /// ```
-    fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool>{
+    fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
             return Ok(false);
         }
@@ -213,7 +214,7 @@ impl Connector for Local {
         let new_path = self.path.clone().replace_mustache(new_parameters);
 
         if actuel_path == new_path {
-            return Ok(false)
+            return Ok(false);
         }
 
         Ok(true)
@@ -341,43 +342,43 @@ impl Connector for Local {
     /// ```
     /// # Example: Seek from the start
     /// ```
-    ///  use chewdata::connector::local::Local;
-    ///  use chewdata::connector::Connector;
-    ///  use async_std::io::{Read, Write};
-    ///  use async_std::prelude::*;
-    ///  use std::io;
-    /// 
-    ///  #[async_std::main]
-    ///  async fn main() -> io::Result<()> {
-    ///      let mut connector_write = Local::default();
-    ///      connector_write.path = "./data/out/test_local_seek_and_flush_2".to_string();
-    ///      connector_write.erase().await?;
-    /// 
-    ///      let str = r#"[{"column1":"value1"}]"#;
-    ///      connector_write.write(str.to_string().into_bytes().as_slice()).await?;
-    ///      connector_write.flush_into(0).await?;
+    /// use chewdata::connector::local::Local;
+    /// use chewdata::connector::Connector;
+    /// use async_std::io::{Read, Write};
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    ///      let mut connector_read = Local::default();
-    ///      connector_read.path = "./data/out/test_local_seek_and_flush_2".to_string();
-    ///      connector_read.fetch().await?;
-    ///      let mut buffer = String::default();
-    ///      connector_read.read_to_string(&mut buffer).await?;
-    ///      assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
-    /// 
-    ///      connector_write.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).await?;
-    ///      connector_write.flush_into((str.len() as i64)-1).await?;
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector_write = Local::default();
+    ///     connector_write.path = "./data/out/test_local_seek_and_flush_2".to_string();
+    ///     connector_write.erase().await?;
     ///
-    ///      connector_read.fetch().await?;
-    ///      let mut buffer = String::default();
-    ///      connector_read.read_to_string(&mut buffer).await?;
-    ///      assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
-    /// 
-    ///      Ok(())
-    ///  }
+    ///     let str = r#"[{"column1":"value1"}]"#;
+    ///     connector_write.write(str.to_string().into_bytes().as_slice()).await?;
+    ///     connector_write.flush_into(0).await?;
+    ///
+    ///     let mut connector_read = Local::default();
+    ///     connector_read.path = "./data/out/test_local_seek_and_flush_2".to_string();
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
+    ///
+    ///     connector_write.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).await?;
+    ///     connector_write.flush_into((str.len() as i64)-1).await?;
+    ///
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
     async fn flush_into(&mut self, position: i64) -> Result<()> {
         let mut position = position;
-    
+
         let mut file = OpenOptions::new()
             .read(true)
             .create(true)

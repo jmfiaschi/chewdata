@@ -28,7 +28,7 @@ pub struct Io {
 
 impl fmt::Display for Io {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.path())
+        write!(f, "{}", String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string()))
     }
 }
 
@@ -41,6 +41,10 @@ impl Connector for Io {
     /// See [`Connector::set_metadata`] for more details.
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
+    }
+    /// See [`Connector::metadata`] for more details.
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
