@@ -323,4 +323,12 @@ impl Document for Json {
         connector.write_all(b"]").await?;
         connector.flush_into(-1).await
     }
+    /// See [`Document::has_data`] for more details.
+    fn has_data(&self, str: &str) -> bool {
+        match str {
+            "[]" => false,
+            "" => false,
+            _ => true
+        }
+    }
 }

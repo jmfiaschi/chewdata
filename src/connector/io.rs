@@ -53,11 +53,11 @@ impl Connector for Io {
         false
     }
     /// See [`Connector::is_empty`] for more details.
-    async fn is_empty(&self) -> Result<bool> {
+    async fn is_empty(&mut self) -> Result<bool> {
         Ok(true)
     }
     /// See [`Connector::len`] for more details.
-    async fn len(&self) -> Result<usize> {
+    async fn len(&mut self) -> Result<usize> {
         Ok(0)
     }
     /// See [`Connector::document_type`] for more details.
@@ -105,7 +105,7 @@ impl Connector for Io {
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
-        Ok(Box::pin(IoPaginator::new(Box::new(self.clone()))?))
+        Ok(Box::pin(IoPaginator::new(self.clone())?))
     }
 }
 
@@ -143,12 +143,12 @@ impl async_std::io::Write for Io {
 
 #[derive(Debug)]
 pub struct IoPaginator {
-    connector: Box<dyn Connector>,
+    connector: Io,
     has_next: bool,
 }
 
 impl IoPaginator {
-    pub fn new(connector: Box<dyn Connector>) -> Result<Self> {
+    pub fn new(connector: Io) -> Result<Self> {
         Ok(IoPaginator {
             connector: connector,
             has_next: true,
@@ -178,9 +178,9 @@ impl Paginator for IoPaginator {
     /// }
     /// ```
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        let mut connector = Io::default();
         Ok(match self.has_next {
             true => {
+                let mut connector = self.connector.clone();
                 self.has_next = false;
                 connector.fetch().await?;
                 Some(Box::new(connector))

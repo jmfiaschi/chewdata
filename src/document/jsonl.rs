@@ -273,6 +273,15 @@ impl Document for Jsonl {
     /// }
     /// ```
     async fn flush(&self, connector: &mut dyn Connector) -> io::Result<()> {
-        connector.flush_into(connector.len().await? as i64).await
+        let size = connector.len().await? as i64;
+        connector.flush_into(size).await
+    }
+    /// See [`Document::has_data`] for more details.
+    fn has_data(&self, str: &str) -> bool {
+        match str {
+            "{}" => false,
+            "" => false,
+            _ => true
+        }
     }
 }

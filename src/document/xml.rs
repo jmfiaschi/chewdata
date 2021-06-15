@@ -356,4 +356,56 @@ impl Document for Xml {
         connector.write_all(xml_entry_path_end.as_bytes()).await?;
         connector.flush_into(-1 as i64 * xml_entry_path_end.len() as i64).await
     }
+    /// See [`Document::has_data`] for more details.
+    ///
+    /// # Example
+    /// ```
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
+    /// use chewdata::document::xml::Xml;
+    /// use chewdata::document::Document;
+    /// use serde_json::Value;
+    /// use std::io::Read;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     let mut connector = InMemory::new(r#"<root></root>"#);
+    ///     document.entry_path = "/root/0/item".to_string();
+    /// 
+    ///     assert_eq!(true, document.has_data());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    fn has_data(&self, str: &str) -> bool {
+        let xml_entry_path = match self.xml_entry_path() {
+            Ok(xml) => xml,
+            Err(e) => {
+                warn!(slog_scope::logger(), "Entry path not valid in order to write data."; "entry_path" => self.entry_path.clone(), "error" => e.to_string());
+                "".to_string()
+            }
+        };
+
+        let xml_entry_path_begin: String = xml_entry_path
+            .split('<')
+            .filter(|node| !node.contains('/') && !node.is_empty())
+            .map(|node| format!("<{}", node))
+            .collect();
+        let xml_entry_path_end: String = xml_entry_path
+            .split('<')
+            .filter(|node| node.contains('/') && !node.is_empty())
+            .map(|node| format!("<{}", node))
+            .collect();
+           
+        if format!("{}{}", xml_entry_path_begin, xml_entry_path_end) == str {
+            return false;
+        }
+
+        match str {
+            "" => false,
+            _ => true
+        }
+    }
 }

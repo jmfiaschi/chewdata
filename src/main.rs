@@ -22,7 +22,7 @@ const ARG_JSON: &str = "json";
 const ARG_FILE: &str = "file";
 const DEFAULT_PROCESSORS: &str = r#"[{"type": "r"},{"type": "w"}]"#;
 
-#[tokio::main]
+#[async_std::main]
 async fn main() -> Result<()> {
     // Init logger.
     let decorator = slog_term::TermDecorator::new().build();

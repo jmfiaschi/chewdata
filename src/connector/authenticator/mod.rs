@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Result;
 use async_trait::async_trait;
-use http::request::Builder;
+use surf::RequestBuilder;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
@@ -41,6 +41,8 @@ impl AuthenticatorType {
 
 #[async_trait]
 pub trait Authenticator: Sync + Send {
-    async fn add_authentication(&mut self, request_builder: Builder) -> Result<Builder>;
+    /// Authenticate the request
+    async fn authenticate(&mut self, request_builder: RequestBuilder) -> Result<RequestBuilder>;
+    /// Set the parameters used to authenticate the request
     fn set_parameters(&mut self, parameters: Value);
 }

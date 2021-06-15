@@ -90,7 +90,7 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
-    async fn is_empty(&self) -> io::Result<bool> {
+    async fn is_empty(&mut self) -> io::Result<bool> {
         Ok(self.document.lock().await.get_ref().is_empty())
     }
     /// See [`Connector::len`] for more details.
@@ -109,7 +109,7 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
-    async fn len(&self) -> io::Result<usize> {
+    async fn len(&mut self) -> io::Result<usize> {
         Ok(self.document.lock().await.get_ref().len())
     }
     /// See [`Connector::set_parameters`] for more details.
@@ -259,7 +259,7 @@ impl Connector for InMemory {
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
-        Ok(Box::pin(InMemoryPaginator::new(Box::new(self.clone()))?))
+        Ok(Box::pin(InMemoryPaginator::new(self.clone())?))
     }
 }
 
@@ -297,12 +297,12 @@ impl async_std::io::Write for InMemory {
 
 #[derive(Debug)]
 pub struct InMemoryPaginator {
-    connector: Box<dyn Connector>,
+    connector: InMemory,
     has_next: bool,
 }
 
 impl InMemoryPaginator {
-    pub fn new(connector: Box<dyn Connector>) -> Result<Self> {
+    pub fn new(connector: InMemory) -> Result<Self> {
         Ok(InMemoryPaginator {
             connector: connector,
             has_next: true,
@@ -333,7 +333,7 @@ impl Paginator for InMemoryPaginator {
     /// }
     /// ```
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        let mut connector = InMemory::default();
+        let mut connector = self.connector.clone();
         Ok(match self.has_next {
             true => {
                 self.has_next = false;

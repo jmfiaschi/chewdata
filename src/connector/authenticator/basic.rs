@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{Error, ErrorKind, Result};
 use async_trait::async_trait;
-use http::request::Builder;
+use surf::{RequestBuilder, http::headers};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -54,65 +54,87 @@ impl Basic {
 
 #[async_trait]
 impl Authenticator for Basic {
-    /// Add authentification to a request and connect the system to a document protected by basic auth.
+    /// See [`Authenticator::authenticate`] for more details.
     ///
     /// # Example: Should authenticate the http call
     /// ```
-    /// use chewdata::connector::curl::{Curl, Method};
+    /// use chewdata::connector::{Connector, curl::Curl};
+    /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
-    /// use std::io::Read;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let username = "my_username";
-    /// let password = "my_password";
-    /// let mut connector = Curl::default();
-    /// connector.endpoint = "http://localhost:8080".to_string();
-    /// connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new(username, password)));
-    /// connector.method = Method::Get;
-    /// connector.path = format!("/basic-auth/{}/{}", username, password);
-    /// let mut buffer = String::default();
-    /// let len = connector.read_to_string(&mut buffer).unwrap();
-    /// assert!(0 < len, "Should read one some bytes.");
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let username = "my_username";
+    ///     let password = "my_password";
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new(username, password)));
+    ///     connector.method = Method::Get;
+    ///     connector.path = format!("/basic-auth/{}/{}", username, password);
+    ///     connector.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     let len = connector.read_to_string(&mut buffer).await?;
+    ///     assert!(0 < len, "Should read one some bytes.");
+    ///
+    ///     Ok(())
+    /// }
     /// ```
     /// # Example: failed the authentification
     /// ```
-    /// use chewdata::connector::curl::{Curl, Method};
+    /// use chewdata::connector::{Connector, curl::Curl};
+    /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
-    /// use std::io::Read;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut connector = Curl::default();
-    /// connector.endpoint = "http://localhost:8080".to_string();
-    /// connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new("bad_username", "bad_password")));
-    /// connector.method = Method::Get;
-    /// connector.path = "/basic-auth/true_username/true_password".to_string();
-    /// let mut buffer = String::default();
-    /// match connector.read_to_string(&mut buffer) {
-    ///     Ok(_) => assert!(false, "Should generate an error."),
-    ///     Err(_) => assert!(true),
-    /// };
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new("bad_username", "bad_password")));
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/basic-auth/true_username/true_password".to_string();
+    ///     match connector.fetch().await {
+    ///         Ok(_) => assert!(false, "Should generate an error."),
+    ///         Err(_) => assert!(true),
+    ///     };
+    ///
+    ///     Ok(())
+    /// }
     /// ```
     /// # Example: Set username/password with parameters
     /// ```
-    /// use chewdata::connector::curl::{Curl, Method};
+    /// use chewdata::connector::{Connector, curl::Curl};
+    /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
-    /// use std::io::Read;
     /// use serde_json::Value;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let username = "{{ username }}";
-    /// let password = "{{ password }}";
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let username = "{{ username }}";
+    ///     let password = "{{ password }}";
+    /// 
+    ///     let mut parameters: Value = serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#)?;
+    /// 
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new(username, password)));
+    ///     connector.method = Method::Get;
+    ///     connector.path = format!("/basic-auth/{}/{}", "my_username", "my_password");
+    ///     connector.parameters = parameters;
+    ///     connector.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     let len = connector.read_to_string(&mut buffer).await?;;
+    ///     assert!(0 < len, "Should read one some bytes.");
     ///
-    /// let mut parameters: Value = serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
-    ///
-    /// let mut connector = Curl::default();
-    /// connector.endpoint = "http://localhost:8080".to_string();
-    /// connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new(username, password)));
-    /// connector.method = Method::Get;
-    /// connector.path = format!("/basic-auth/{}/{}", "my_username", "my_password");
-    /// connector.parameters = parameters;
-    /// let mut buffer = String::default();
-    /// let len = connector.read_to_string(&mut buffer).unwrap();
-    /// assert!(0 < len, "Should read one some bytes.");
+    ///     Ok(())
+    /// }
     /// ```
-    async fn add_authentication(&mut self, request_builder: Builder) -> Result<Builder> {
+    async fn authenticate(&mut self, request_builder: RequestBuilder) -> Result<RequestBuilder> {
         if let ("", "") = (self.username.as_ref(), self.password.as_ref()) {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -133,8 +155,9 @@ impl Authenticator for Basic {
 
         let basic = base64::encode(format!("{}:{}", username, password));
 
-        Ok(request_builder.header(http::header::AUTHORIZATION, format!("basic {}", basic)))
+        Ok(request_builder.header(headers::AUTHORIZATION, format!("Basic {}", basic)))
     }
+    /// See [`Authenticator::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;
     }

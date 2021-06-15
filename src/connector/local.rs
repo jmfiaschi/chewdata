@@ -86,7 +86,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
-    async fn len(&self) -> Result<usize> {
+    async fn len(&mut self) -> Result<usize> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
             return Err(Error::new(
@@ -121,7 +121,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
-    async fn is_empty(&self) -> Result<bool> {
+    async fn is_empty(&mut self) -> Result<bool> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
             return Err(Error::new(

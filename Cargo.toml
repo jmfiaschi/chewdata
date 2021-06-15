@@ -10,56 +10,58 @@ homepage = "https://www.chewdata.org"
 repository = "https://github.com/jmfiaschi/chewdata"
 
 [dependencies]
-slog = { version="2.7", features = ["max_level_trace", "release_max_level_info"] }
+slog = { version="2.7.0", features = ["max_level_trace", "release_max_level_info"] }
 slog-scope = "4.4.0"
 slog-term = "2.8.0"
 slog-async = "2.6.0"
 slog-stdlog = "4.1.0"
-slog-envlogger = "2.2"
-glob = "0.3"
-serde_json = "1.0"
+slog-envlogger = "2.2.0"
+glob = "0.3.0"
+serde_json = "1.0.64"
 json_value_merge = "0.1.2"
 json_value_resolve = "0.1.1"
 json_value_search = "0.1.1"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0.126", features = ["derive"] }
 serde-with-expand-env = "1.1.0"
 # For readers
 jxon = "0.7"
-clap = {version = "2.33", features = ["yaml"]}
-csv = "1.1"
-serde_yaml = "0.8"
-regex = "1.4.5"
-toml = "0.5"
+clap = {version = "2.33.3", features = ["yaml"]}
+csv = "1.1.6"
+serde_yaml = "0.8.17"
+regex = "1.5.4"
+toml = "0.5.8"
 # For Templates
-tera = "1.7.0"
-uuid = { version = "0.8", features = ["serde", "v4"] }
+tera = "1.10.0"
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
 # For Connectors
 rusoto_core = { version = "0.46"}
 rusoto_s3 = { version = "0.46"}
-http = "0.2"
+http = "0.2.4"
 env_applier = "0.1"
-genawaiter = "0.99"
-futures = "0.3"
-tokio = "1.4.0"
+genawaiter = "0.99.1"
+futures = "0.3.15"
+tokio = "1.6.1"
 jsonwebtoken = "7.2"
 base64 = "0.13.0"
-mime = "0.3"
+mime = "0.3.16"
 multiqueue2= "0.1.7"
-async-std = "1.9"
-async-trait = "0.1"
-tokio-serde = "0.8"
-tokio-util = "0.6"
-hyper = { version = "0.14.5"}
-async-stream = { version = "0.3.0" }
-futures-core = { version = "0.3.14" }
+async-std = "1.9.0"
+async-trait = "0.1.50"
+tokio-serde = "0.8.0"
+tokio-util = "0.6.7"
+hyper = { version = "0.14.9"}
+async-stream = { version = "0.3.2" }
+futures-core = { version = "0.3.15" }
 bytes = { version = "1.0.1"}
+# tokio-compat-02 = "0.2.0"
+surf = { version = "2.2.0", default-features = false, features = ["h1-client"] }
 
 [dev-dependencies]
-criterion = "0.3"
-chrono = "0.4"
+criterion = "0.3.4"
+chrono = "0.4.19"
 
 [dependencies.mongodb]
-version = "1.1.1"
+version = "1.2.2"
 default-features = false
 features = ["async-std-runtime"]
 

@@ -190,6 +190,7 @@ impl Document for Yaml {
     /// }
     /// ```
     async fn flush(&self, connector: &mut dyn Connector) -> io::Result<()> {
-        connector.flush_into(connector.len().await? as i64).await
+        let size = connector.len().await? as i64;
+        connector.flush_into(size).await
     }
 }

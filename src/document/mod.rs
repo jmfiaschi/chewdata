@@ -124,6 +124,13 @@ pub trait Document: Send + Sync + DocumentClone {
     fn metadata(&self) -> Metadata {
         Metadata::default()
     }
+    /// Check if the str in argument has an empty data
+    fn has_data(&self, str: &str) -> bool {
+        match str {
+            "" => false,
+            _ => true
+        }
+    }
 }
 
 pub trait DocumentClone {
