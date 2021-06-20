@@ -30,8 +30,8 @@ async fn main() -> io::Result<()> {
             "connector":{
                 "type": "mongo",
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
-                "db": "test",
-                "collection": "bigdata"
+                "db": "tests",
+                "collection": "read_write"
             }
         },{
             "type": "r",
@@ -54,19 +54,19 @@ async fn main() -> io::Result<()> {
                     }
                 ]
             },
-            "thread_number":1
+            "thread_number":3
         },{
             "type": "w",
             "connector":{
-                "type": "mongo",
+                "type": "mongodb",
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
-                "db": "test",
-                "collection": "bigdata",
+                "db": "tests",
+                "collection": "read_write",
                 "update_options": {
                     "upsert": true
                 }
             },
-            "thread_number":1
+            "thread_number":3
         }
     ]
     "#;

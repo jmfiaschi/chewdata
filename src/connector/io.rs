@@ -1,5 +1,6 @@
 use super::{Connector, Paginator};
 use crate::document::DocumentType;
+use crate::step::DataResult;
 use crate::Metadata;
 use async_std::io::{stdin, stdout};
 use async_std::prelude::*;
@@ -12,9 +13,8 @@ use std::{
     fmt,
     io::{Cursor, Result},
 };
-use crate::step::DataResult;
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct Io {
     #[serde(rename = "metadata")]
@@ -28,7 +28,21 @@ pub struct Io {
 
 impl fmt::Display for Io {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string()))
+        write!(
+            f,
+            "{}",
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+        )
+    }
+}
+
+// Not display the inner for better performance with big data
+impl fmt::Debug for Io {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Io")
+            .field("metadata", &self.metadata)
+            .field("document_type", &self.document_type)
+            .finish()
     }
 }
 
@@ -65,7 +79,7 @@ impl Connector for Io {
         self.document_type.clone()
     }
     /// See [`Connector::is_resource_will_change`] for more details.
-    fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool>{
+    fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
         Ok(false)
     }
     /// See [`Connector::inner`] for more details.
@@ -87,25 +101,27 @@ impl Connector for Io {
     }
     /// See [`Connector::send`] for more details.
     async fn send(&mut self) -> Result<()> {
-        self.document_type()
-            .document_inner()
-            .flush(self)
-            .await
+        self.document_type().document_inner().close(self).await?;
+
+        stdout().write_all(self.inner.get_ref()).await?;
+
+        self.flush().await?;
+        
+        self.clear();
+
+        Ok(())
     }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
         Ok(())
     }
-    /// See [`Connector::flush_into`] for more details.
-    async fn flush_into(&mut self, _position: i64) -> Result<()> {
-        stdout().write_all(self.inner.get_ref()).await?;
-        self.flush().await?;
-        self.inner = Default::default();
-        Ok(())
-    }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
         Ok(Box::pin(IoPaginator::new(self.clone())?))
+    }
+    /// See [`Connector::clear`] for more details.
+    fn clear(&mut self) {
+        self.inner = Default::default();
     }
 }
 

@@ -68,8 +68,8 @@ impl Step for Reader {
 
         let mut connector = self.connector_type.clone().connector_inner();
 
-        match pipe_outbound_option {
-            Some(pipe_outbound) => {
+        match (pipe_outbound_option, connector.is_variable()) {
+            (Some(pipe_outbound), true) => {
                 for data_result in pipe_outbound {
                     if !data_result.is_type(self.data_type.as_ref()) {
                         info!(slog_scope::logger(),
@@ -99,7 +99,25 @@ impl Step for Reader {
                     }
                 }
             }
-            None => {
+            (Some(pipe_outbound), false) => {
+                for _data_result in pipe_outbound {}
+                let mut data = connector.pull_data().await?;
+                while let Some(data_result) = data.next().await {
+                    debug!(slog_scope::logger(),
+                        "Data send to the queue";
+                        "data" => format!("{:?}", data_result),
+                        "step" => format!("{}", self.clone()),
+                        "pipe_outbound" => true
+                    );
+                    let mut current_retry = 0;
+                    while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
+                        debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                        thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                        current_retry = current_retry + 1;
+                    }
+                }
+            },
+            (None, _) => {
                 let mut data = connector.pull_data().await?;
                 while let Some(data_result) = data.next().await {
                     debug!(slog_scope::logger(),

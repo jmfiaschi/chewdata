@@ -17,7 +17,7 @@ use std::{
 };
 use std::{fs, fs::OpenOptions};
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct Local {
     #[serde(rename = "metadata")]
@@ -33,14 +33,23 @@ pub struct Local {
 
 impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string()))
+        write!(
+            f,
+            "{}",
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+        )
     }
 }
 
-impl Local {
-    /// Set the current path
-    fn set_path(&mut self, path: String) {
-        self.path = path;
+// Not display the inner for better performance with big data
+impl fmt::Debug for Local {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Local")
+            .field("metadata", &self.metadata)
+            .field("document_type", &self.document_type)
+            .field("path", &self.path)
+            .field("parameters", &self.parameters)
+            .finish()
     }
 }
 
@@ -186,8 +195,77 @@ impl Connector for Local {
         self.metadata.clone()
     }
     /// See [`Connector::send`] for more details.
+    ///
+    /// # Example:
+    /// ```rust
+    /// use chewdata::connector::local::Local;
+    /// use chewdata::connector::Connector;
+    /// use chewdata::step::DataResult;
+    /// use serde_json::{from_str, Value};
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let value: Value = from_str(r#"{"column1":"value1"}"#)?;
+    ///     let data = DataResult::Ok(value);
+    ///
+    ///     let mut connector_write = Local::default();
+    ///     connector_write.path = "./data/out/test_local_send".to_string();
+    ///     connector_write.erase().await?;
+    ///     connector_write.push_data(data).await?;
+    ///     connector_write.send().await?;
+    ///     
+    ///     let mut connector_read = Local::default();
+    ///     connector_read.path = "./data/out/test_local_send".to_string();
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
+    ///
+    ///     let value: Value = from_str(r#"{"column1":"value2"}"#)?;
+    ///     let data = DataResult::Ok(value);
+    ///
+    ///     connector_write.push_data(data).await?;
+    ///     connector_write.send().await?;
+    ///
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     async fn send(&mut self) -> Result<()> {
-        self.document_type().document_inner().flush(self).await
+        self.document_type().document_inner().close(self).await?;
+
+        let entry_point_path_end_len = self
+            .document_type()
+            .document_inner()
+            .entry_point_path_end()
+            .len();
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(self.path().as_str())?;
+
+        let file_len = file.metadata()?.len();
+        let mut position = file_len as i64 - (entry_point_path_end_len as i64);
+
+        if 0 >= position {
+            position = 0;
+        }
+
+        file.seek(SeekFrom::Start(position as u64))?;
+        file.write_all(self.inner.get_ref())?;
+
+        self.clear();
+
+        Ok(())
     }
     /// See [`Connector::is_resource_will_change`] for more details.
     ///
@@ -264,7 +342,6 @@ impl Connector for Local {
     }
     /// See [`Connector::push_data`] for more details.
     async fn push_data(&mut self, data: DataResult) -> Result<()> {
-        debug!(slog_scope::logger(), "push data"; "data" => format!("{}", data.to_json_value()));
         let connector = self;
         let document = connector.document_type().document_inner();
 
@@ -276,21 +353,23 @@ impl Connector for Local {
     /// ```rust
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
-    /// use async_std::io::{Read, Write};
+    /// use chewdata::step::DataResult;
+    /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
+    ///     let value: Value = from_str(r#"{"column1":"value1"}"#)?;
+    ///     let data = DataResult::Ok(value);
+    ///
     ///     let mut connector = Local::default();
-    ///     connector.path = "./data/out/test_local_flush_1".to_string();
-    ///     connector.write(r#"{"column1":"value1"}"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector.flush().await?;
+    ///     connector.path = "./data/out/test_local_erase".to_string();
+    ///     connector.push_data(data).await?;
+    ///     connector.send().await?;
     ///     connector.erase().await?;
     ///     connector.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#""#, buffer);
+    ///     assert_eq!(false, connector.inner_has_data());
     ///
     ///     Ok(())
     /// }
@@ -305,105 +384,13 @@ impl Connector for Local {
             .open(self.path().as_str())?
             .write_all(String::default().as_bytes())
     }
-    /// See [`Connector::flush_into`] for more details.
-    ///
-    /// # Example: Seek from the end
-    /// ```rust
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    /// use async_std::io::{Read, Write};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector_write = Local::default();
-    ///     connector_write.path = "./data/out/test_local_seek_and_flush_1".to_string();
-    ///     connector_write.erase().await?;
-    ///     connector_write.write(r#"[{"column1":"value1"}]"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector_write.flush_into(0).await?;
-    ///     
-    ///     let mut connector_read = Local::default();
-    ///     connector_read.path = "./data/out/test_local_seek_and_flush_1".to_string();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
-    ///
-    ///     connector_write.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector_write.flush_into(-1).await?;
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Seek from the start
-    /// ```
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    /// use async_std::io::{Read, Write};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector_write = Local::default();
-    ///     connector_write.path = "./data/out/test_local_seek_and_flush_2".to_string();
-    ///     connector_write.erase().await?;
-    ///
-    ///     let str = r#"[{"column1":"value1"}]"#;
-    ///     connector_write.write(str.to_string().into_bytes().as_slice()).await?;
-    ///     connector_write.flush_into(0).await?;
-    ///
-    ///     let mut connector_read = Local::default();
-    ///     connector_read.path = "./data/out/test_local_seek_and_flush_2".to_string();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
-    ///
-    ///     connector_write.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector_write.flush_into((str.len() as i64)-1).await?;
-    ///
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn flush_into(&mut self, position: i64) -> Result<()> {
-        let mut position = position;
-
-        let mut file = OpenOptions::new()
-            .read(true)
-            .create(true)
-            .write(true)
-            .truncate(false)
-            .open(self.path().as_str())?;
-
-        if 0 >= (file.metadata()?.len() as i64 + position) {
-            position = 0;
-        }
-
-        if 0 <= position {
-            file.seek(SeekFrom::Start(position as u64))?;
-        }
-        if 0 > position {
-            file.seek(SeekFrom::End(position as i64))?;
-        }
-
-        file.write_all(self.inner.get_ref())?;
-        self.inner = Default::default();
-        Ok(())
-    }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
-        Ok(Box::pin(LocalPaginator::new(Box::new(self.clone()))?))
+        Ok(Box::pin(LocalPaginator::new(self.clone())?))
+    }
+    /// See [`Connector::clear`] for more details.
+    fn clear(&mut self) {
+        self.inner = Default::default();
     }
 }
 
@@ -430,59 +417,7 @@ impl async_std::io::Write for Local {
         Poll::Ready(std::io::Write::write(&mut self.inner, buf))
     }
     /// See [`Write::poll_flush`] for more details.
-    ///
-    /// # Example
-    /// ```rust
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    /// use async_std::io::{Read, Write};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector_write = Local::default();
-    ///     connector_write.path = "./data/out/test_local_flush_1".to_string();
-    ///     connector_write.erase().await?;
-    ///     connector_write.write(r#"{"column1":"value1"}"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector_write.flush().await?;
-    ///     
-    ///     let mut connector_read = Local::default();
-    ///     connector_read.path = "./data/out/test_local_flush_1".to_string();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column1":"value1"}"#, buffer);
-    ///
-    ///     connector_write.write(r#",{"column1":"value2"}"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector_write.flush().await?;
-    ///
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column1":"value1"},{"column1":"value2"}"#, buffer);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
     fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
-        // initialize the position of the cursor in order to write the content.
-        self.inner.set_position(0);
-
-        if self.inner.get_ref().is_empty() {
-            // Nothing to flush
-            return Poll::Ready(Ok(()));
-        }
-
-        OpenOptions::new()
-            .create(true)
-            .append(true)
-            .write(true)
-            .open(self.path())?
-            .write_all(self.inner.get_ref())?;
-
-        self.inner = Default::default();
-
         Poll::Ready(std::io::Write::flush(&mut self.inner))
     }
     /// See [`Write::poll_close`] for more details.
@@ -493,7 +428,7 @@ impl async_std::io::Write for Local {
 
 #[derive(Debug)]
 pub struct LocalPaginator {
-    connector: Box<dyn Connector>,
+    connector: Local,
     paths: IntoIter<String>,
 }
 
@@ -511,7 +446,7 @@ impl LocalPaginator {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/one_line.*".to_string();
-    ///     let mut paginator = LocalPaginator::new(ConnectorType::Local(connector))?;
+    ///     let mut paginator = LocalPaginator::new(connector)?;
     ///     
     ///     assert_eq!(r#"data/one_line.csv"#, paginator.next_page().await?.unwrap().path());
     ///     assert_eq!(r#"data/one_line.json"#, paginator.next_page().await?.unwrap().path());
@@ -519,7 +454,7 @@ impl LocalPaginator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new(connector: Box<dyn Connector>) -> Result<Self> {
+    pub fn new(connector: Local) -> Result<Self> {
         let paths: Vec<String> = match glob(connector.path().as_str()) {
             Ok(paths) => Ok(paths
                 .filter(|p| p.is_ok())
@@ -553,7 +488,6 @@ impl Paginator for LocalPaginator {
     /// ```rust
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
-    /// use async_std::io::{Read, Write};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -582,8 +516,7 @@ impl Paginator for LocalPaginator {
 
         Ok(match self.paths.next() {
             Some(path) => {
-                info!(slog_scope::logger(), "next page"; "path"=> path.clone());
-                connector.set_path(path);
+                connector.path = path;
                 connector.fetch().await?;
                 Some(Box::new(connector))
             }

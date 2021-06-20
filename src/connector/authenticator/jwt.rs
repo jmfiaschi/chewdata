@@ -117,7 +117,7 @@ impl Jwt {
             let mut connector = connector_type.connector_inner();
             connector.set_metadata(metadata);
             connector.write_all(payload.as_bytes()).await?;
-            connector.flush_into(0).await?;
+            connector.send().await?;
 
             if connector.inner().is_empty() {
                 return Err(Error::new(

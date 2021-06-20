@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::{fmt, io};
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct InMemory {
     #[serde(rename = "metadata")]
@@ -34,7 +34,21 @@ pub struct InMemory {
 
 impl fmt::Display for InMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string()))
+        write!(
+            f,
+            "{}",
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+        )
+    }
+}
+
+// Not display the inner for better performance with big data
+impl fmt::Debug for InMemory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InMemory")
+            .field("metadata", &self.metadata)
+            .field("document_type", &self.document_type)
+            .finish()
     }
 }
 
@@ -82,9 +96,9 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let connector = InMemory::new("");
+    ///     let mut connector = InMemory::new("");
     ///     assert_eq!(true, connector.is_empty().await?);
-    ///     let connector = InMemory::new("My text");
+    ///     let mut connector = InMemory::new("My text");
     ///     assert_eq!(false, connector.is_empty().await?);
     ///
     ///     Ok(())
@@ -96,14 +110,14 @@ impl Connector for InMemory {
     /// See [`Connector::len`] for more details.
     ///
     /// # Example
-    /// ```
+    /// ```rust
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let connector = InMemory::new(r#"[{"column1":"value1"}]"#);
+    ///     let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0.");
     ///
     ///     Ok(())
@@ -170,10 +184,8 @@ impl Connector for InMemory {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = InMemory::new("My text");
     ///     connector.erase().await?;
-    ///     let mut buffer = String::default();
     ///     connector.fetch().await?;
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#""#, buffer);
+    ///     assert_eq!(false, connector.inner_has_data());
     ///
     ///     Ok(())
     /// }
@@ -183,42 +195,25 @@ impl Connector for InMemory {
         *document = Cursor::default();
         Ok(())
     }
-    /// See [`Connector::flush_into`] for more details.
+    /// See [`Connector::send`] for more details.
     ///
-    /// # Example: Seek from the end
-    /// ```
+    /// # Example
+    /// ```rust
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
+    /// use chewdata::step::DataResult;
+    /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut connector = InMemory::new(r#"[{"column":"value"}]"#);
-    ///     connector.write(r#",{"column":"value"}]"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector.flush_into(-1).await?;
+    ///     let value: Value = from_str(r#"{"column1":"value2"}"#)?;
+    ///     let data = DataResult::Ok(value);
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.fetch().await?;
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column":"value"},{"column":"value"}]"#, buffer);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Seek from the start
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::connector::Connector;
-    /// use async_std::io::{Read, Write};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
     ///     let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
-    ///     connector.write(r#",{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector.flush_into((connector.len().await? as i64)-1).await?;
+    ///     connector.push_data(data).await?;
+    ///     connector.send().await?;
     ///
     ///     let mut buffer = String::default();
     ///     connector.fetch().await?;
@@ -228,30 +223,49 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
-    async fn flush_into(&mut self, position: i64) -> io::Result<()> {
-        let mut position = position;
-        let mut document = self.document.lock().await;
-        let len = document.get_ref().len();
+    async fn send(&mut self) -> Result<()> {
+        self.document_type().document_inner().close(self).await?;
 
-        if 0 >= (len as i64 + position) {
+        let entry_point_path_start_len = self
+            .document_type()
+            .document_inner()
+            .entry_point_path_start()
+            .len();
+        let entry_point_path_end_len = self
+            .document_type()
+            .document_inner()
+            .entry_point_path_end()
+            .len();
+
+        let inner = self.inner().clone();
+        self.clear();
+        let remote_len = self.len().await?;
+
+        let mut position: i64 = remote_len as i64 - entry_point_path_end_len as i64;
+
+        if 0 > position {
             position = 0;
         }
 
-        if 0 <= position {
-            document.seek(SeekFrom::Start(position as u64))?;
-        }
-        if 0 > position {
-            document.seek(SeekFrom::End(position as i64))?;
+        let mut document = self.document.lock().await;
+        if remote_len == 0 {
+            document.seek(SeekFrom::Start(0))?;
         }
 
-        document.write_all(self.inner())?;
+        if remote_len == entry_point_path_start_len + entry_point_path_end_len {
+            document.seek(SeekFrom::Start(0))?;
+        }
+
+        if remote_len > entry_point_path_start_len + entry_point_path_end_len {
+            document.seek(SeekFrom::Start(position as u64))?;
+        }
+
+        document.seek(SeekFrom::Start(position as u64))?;
+
+        document.write_all(&inner)?;
         document.set_position(0);
-        self.inner = Cursor::default();
+
         Ok(())
-    }
-    /// See [`Connector::send`] for more details.
-    async fn send(&mut self) -> Result<()> {
-        self.document_type().document_inner().flush(self).await
     }
     /// See [`Connector::inner`] for more details.
     fn inner(&self) -> &Vec<u8> {
@@ -260,6 +274,10 @@ impl Connector for InMemory {
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
         Ok(Box::pin(InMemoryPaginator::new(self.clone())?))
+    }
+    /// See [`Connector::clear`] for more details.
+    fn clear(&mut self) {
+        self.inner = Default::default();
     }
 }
 

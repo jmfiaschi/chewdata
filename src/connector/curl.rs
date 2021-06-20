@@ -16,7 +16,7 @@ use std::task::{Context, Poll};
 use std::{collections::HashMap, fmt};
 use surf::http::{headers, Method, Url};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Curl {
     #[serde(rename = "metadata")]
@@ -86,6 +86,25 @@ impl fmt::Display for Curl {
             "{}",
             String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
         )
+    }
+}
+
+// Not display the inner for better performance with big data
+impl fmt::Debug for Curl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Curl")
+            .field("metadata", &self.metadata)
+            .field("document_type", &self.document_type)
+            .field("authenticator_type", &self.authenticator_type)
+            .field("endpoint", &self.endpoint)
+            .field("path", &self.path)
+            .field("method", &self.method)
+            .field("headers", &self.headers)
+            .field("parameters", &self.parameters)
+            .field("limit", &self.limit)
+            .field("skip", &self.skip)
+            .field("paginator_parameters", &self.paginator_parameters)
+            .finish()
     }
 }
 
@@ -226,7 +245,7 @@ impl Connector for Curl {
     /// See [`Connector::is_variable_path`] for more details.
     ///
     /// # Example
-    /// ```
+    /// ```rust
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use surf::http::Method;
     /// use serde_json::Value;
@@ -339,107 +358,45 @@ impl Connector for Curl {
         Ok(content_length)
     }
     /// See [`Connector::send`] for more details.
-    async fn send(&mut self) -> Result<()> {
-        self.document_type().document_inner().flush(self).await
-    }
-    /// See [`Connector::erase`] for more details.
-    ///
-    /// # Example
-    /// ```rust
-    /// use chewdata::connector::{curl::Curl, Connector};
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.path = "/status/200".to_string();
-    ///     connector.erase().await?;
-    ///     assert_eq!(true, connector.is_empty().await?);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn erase(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Erase started");
-        let client = surf::client();
-        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        let mut request_builder = surf::RequestBuilder::new(Method::Delete, url);
-
-        if let Some(ref mut authenticator_type) = self.authenticator_type {
-            let authenticator = authenticator_type.authenticator_mut();
-            authenticator.set_parameters(self.parameters.clone());
-            request_builder = authenticator.authenticate(request_builder).await?;
-        }
-
-        if let Some(ref mine_type) = self.metadata.mime_type {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, mine_type);
-        }
-
-        if !self.headers.is_empty() {
-            for (key, value) in self.headers.iter() {
-                request_builder = request_builder.header(key.as_str(), value.as_str());
-            }
-        }
-
-        let req = request_builder.build();
-        let mut res = client
-            .send(req)
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        if !res.status().is_success() {
-            return Err(Error::new(
-                ErrorKind::Interrupted,
-                format!(
-                    "Curl failed with status code '{}' and response body: {}",
-                    res.status(),
-                    res.body_string()
-                        .await
-                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-                ),
-            ));
-        }
-
-        debug!(slog_scope::logger(), "Erase ended");
-        Ok(())
-    }
-    /// See [`Connector::flush_into`] for more details.
     ///
     /// # Example
     /// ```rust
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use surf::http::Method;
+    /// use chewdata::step::DataResult;
+    /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
+    ///     let value: Value = from_str(r#"{"column1":"value2"}"#)?;
+    ///     let data = DataResult::Ok(value);
+    ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Post;
     ///     connector.path = "/post".to_string();
     ///     
-    ///     connector.write(r#"[{"column1":"value2"}]"#.to_string().into_bytes().as_slice()).await?;
-    ///     connector.flush_into(0).await?;
+    ///     connector.push_data(data).await?;
+    ///     connector.send().await?;
     ///     assert_eq!(r#"{
-    ///   "args": {},
-    ///   "data": "[{\"column1\":\"value2\"}]",
-    ///   "files": {},
-    ///   "form": {},
+    ///   "args": {}, 
+    ///   "data": "[{\"column1\":\"value2\"}]", 
+    ///   "files": {}, 
+    ///   "form": {}, 
     ///   "headers": {
-    ///     "Connection": "keep-alive",
-    ///     "Content-Length": "22",
-    ///     "Content-Type": "application/octet-stream",
+    ///     "Connection": "keep-alive", 
+    ///     "Content-Length": "22", 
+    ///     "Content-Type": "application/octet-stream", 
     ///     "Host": "localhost:8080"
-    ///   },
+    ///   }, 
     ///   "json": [
     ///     {
     ///       "column1": "value2"
     ///     }
-    ///   ],
-    ///   "origin": "172.18.0.1",
+    ///   ], 
+    ///   "origin": "172.18.0.1", 
     ///   "url": "http://localhost:8080/post"
     /// }
     /// "#, std::str::from_utf8(connector.inner()).unwrap());
@@ -447,8 +404,9 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    async fn flush_into(&mut self, _position: i64) -> Result<()> {
-        debug!(slog_scope::logger(), "Flush into started");
+    async fn send(&mut self) -> Result<()> {
+        self.document_type().document_inner().close(self).await?;
+
         let client = surf::client();
         // initialize the position of the cursor
         self.inner.set_position(0);
@@ -503,12 +461,76 @@ impl Connector for Curl {
             self.inner.set_position(0);
         }
 
-        debug!(slog_scope::logger(), "Flush into ended");
         self.flush().await
+    }
+    /// See [`Connector::erase`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.path = "/status/200".to_string();
+    ///     connector.erase().await?;
+    ///     assert_eq!(true, connector.is_empty().await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn erase(&mut self) -> Result<()> {
+        let client = surf::client();
+        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let mut request_builder = surf::RequestBuilder::new(Method::Delete, url);
+
+        if let Some(ref mut authenticator_type) = self.authenticator_type {
+            let authenticator = authenticator_type.authenticator_mut();
+            authenticator.set_parameters(self.parameters.clone());
+            request_builder = authenticator.authenticate(request_builder).await?;
+        }
+
+        if let Some(ref mine_type) = self.metadata.mime_type {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, mine_type);
+        }
+
+        if !self.headers.is_empty() {
+            for (key, value) in self.headers.iter() {
+                request_builder = request_builder.header(key.as_str(), value.as_str());
+            }
+        }
+
+        let req = request_builder.build();
+        let mut res = client
+            .send(req)
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if !res.status().is_success() {
+            return Err(Error::new(
+                ErrorKind::Interrupted,
+                format!(
+                    "Curl failed with status code '{}' and response body: {}",
+                    res.status(),
+                    res.body_string()
+                        .await
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                ),
+            ));
+        }
+
+        Ok(())
     }
     /// See [`Writer::inner`] for more details.
     fn inner(&self) -> &Vec<u8> {
         self.inner.get_ref()
+    }
+    /// See [`Connector::clear`] for more details.
+    fn clear(&mut self) {
+        self.inner = Default::default();
     }
 }
 
@@ -623,7 +645,6 @@ impl Paginator for CurlPaginator {
     /// }
     /// ```
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        debug!(slog_scope::logger(), "Next page started"; "next" => self.has_next);
         Ok(match self.has_next {
             true => {
                 self.skip = self.connector.limit + self.skip;
@@ -659,7 +680,7 @@ impl Paginator for CurlPaginator {
                     (false, true) => Some(Box::new(new_connector)),
                     (true, true) => Some(Box::new(new_connector)),
                     (empty, has_data) => {
-                        debug!(slog_scope::logger(), "Next page ended, no data found"; "inner has data" => has_data, "remote document is empty" => empty);
+                        debug!(slog_scope::logger(), "No data found"; "inner has data" => has_data, "remote document is empty" => empty);
                         None
                     }
                 }
