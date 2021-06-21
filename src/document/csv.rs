@@ -326,7 +326,6 @@ impl Document for Csv {
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
         let mut buf = Vec::new();
         connector.read_to_end(&mut buf).await?;
-        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self), "buf"=> format!("{:?}", String::from_utf8(buf.clone())));
 
         let cursor = io::Cursor::new(buf);
 
@@ -413,8 +412,8 @@ impl Document for Csv {
         let write_header = match (self.metadata().has_headers, connector.metadata().has_headers) {
             (None, _) => false,
             (Some(false), _) => false,
-            (Some(true), Some(false)) => false,
-            (Some(true), _) => true,
+            (_, Some(true)) => false,
+            (_, _) => true,
         };
         // Use a buffer here because the csv builder flush everytime it write something.
         let mut builder_writer = self.writer_builder().from_writer(vec![]);
@@ -442,10 +441,10 @@ impl Document for Csv {
                     values.push(value);
                 }
 
-                if write_header && 0 == connector.inner().len() {
+                if write_header {
                     builder_writer.write_record(keys)?;
                     let mut metadata = connector.metadata();
-                    metadata.has_headers = Some(false);
+                    metadata.has_headers = Some(true);
                     connector.set_metadata(metadata);
                 }
                 builder_writer.serialize(values)?;
@@ -465,54 +464,5 @@ impl Document for Csv {
                     .as_slice(),
             )
             .await
-    }
-    /// See [`Document::flush`] for more details.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::csv::Csv;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use std::io::Read;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Csv::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.flush(&mut connector).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#""column_1"
-    /// "line_1"
-    /// "#, buffer);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.flush(&mut connector).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#""column_1"
-    /// "line_1"
-    /// "line_2"
-    /// "#, buffer);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn flush(&self, connector: &mut dyn Connector) -> io::Result<()> {
-        let size = connector.len().await? as i64;
-        connector.flush_into(size).await
     }
 }

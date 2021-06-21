@@ -112,6 +112,7 @@ impl Step for Writer {
             connector.set_parameters(data_result.to_json_value());
             debug!(slog_scope::logger(),
                 "Push data";
+                "connector" => format!("{:?}", &connector),
                 "data" => format!("{:?}", data_result),
                 "step" => format!("{}", self.clone()),
             );
@@ -124,14 +125,14 @@ impl Step for Writer {
                 );
                 connector.send().await?;
                 current_dataset_size = 0;
+            } else {
+                current_dataset_size = current_dataset_size + 1;
             }
-
-            current_dataset_size = current_dataset_size + 1;
         }
 
         if 0 < current_dataset_size {
             debug!(slog_scope::logger(),
-                "Send data";
+                "Send data before to end the step";
                 "step" => format!("{}", self.clone()),
             );
             connector.send().await?;

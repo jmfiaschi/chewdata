@@ -146,7 +146,6 @@ impl Document for Jsonl {
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
         let mut buf = Vec::new();
         connector.read_to_end(&mut buf).await?;
-        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self), "buf"=> format!("{:?}", String::from_utf8(buf.clone())));
 
         let cursor = io::Cursor::new(buf);
 
@@ -229,52 +228,6 @@ impl Document for Jsonl {
         }?;
         connector.write_all(buf.clone().as_slice()).await?;
         connector.write_all(b"\n").await
-    }
-    /// See [`Document::flush`] for more details.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::jsonl::Jsonl;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Jsonl::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    /// 
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.flush(&mut connector).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column_1":"line_1"}
-    /// "#, buffer);
-    /// 
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.flush(&mut connector).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column_1":"line_1"}
-    /// {"column_1":"line_2"}
-    /// "#, buffer);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn flush(&self, connector: &mut dyn Connector) -> io::Result<()> {
-        let size = connector.len().await? as i64;
-        connector.flush_into(size).await
     }
     /// See [`Document::has_data`] for more details.
     fn has_data(&self, str: &str) -> bool {

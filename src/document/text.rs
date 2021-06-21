@@ -62,7 +62,6 @@ impl Document for Text {
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
         let mut text = String::default();
         connector.read_to_string(&mut text).await?;
-        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self), "buf"=> format!("{:?}", text));
 
         let data = GenBoxed::new_boxed(|co| async move {
             co.yield_(DataResult::Ok(Value::String(text))).await;
@@ -96,49 +95,5 @@ impl Document for Text {
         connector
             .write_all(value.as_str().unwrap_or("").as_bytes())
             .await
-    }
-    /// See [`Document::flush`] for more details.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::text::Text;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use std::io::Read;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Text::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    ///
-    ///     document.write_data(&mut connector, Value::String("My Text".to_string())).await?;
-    ///     document.flush(&mut connector).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"My Text"#, buffer);
-    ///
-    ///     document.write_data(&mut connector, Value::String("
-    /// and my other Text".to_string())).await?;
-    ///     document.flush(&mut connector).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"My Text
-    /// and my other Text"#, buffer);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn flush(&self, connector: &mut dyn Connector) -> io::Result<()> {
-        let size = connector.len().await? as i64;
-        connector.flush_into(size).await
     }
 }

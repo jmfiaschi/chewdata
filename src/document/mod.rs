@@ -119,8 +119,10 @@ pub trait Document: Send + Sync + DocumentClone {
         writer: &mut dyn Connector,
         value: Value,
     ) -> io::Result<()>;
-    /// Apply actions and flush the connector.
-    async fn flush(&self, writer: &mut dyn Connector) -> io::Result<()>;
+    /// Apply actions to close the document.
+    async fn close(&self, _writer: &mut dyn Connector) -> io::Result<()> {
+        Ok(())
+    }
     fn metadata(&self) -> Metadata {
         Metadata::default()
     }
@@ -130,6 +132,12 @@ pub trait Document: Send + Sync + DocumentClone {
             "" => false,
             _ => true
         }
+    }
+    fn entry_point_path_start(&self) -> String {
+        "".to_string()
+    }
+    fn entry_point_path_end(&self) -> String {
+        "".to_string()
     }
 }
 
@@ -155,15 +163,15 @@ impl Clone for Box<dyn Document> {
 #[cfg(test)]
 mod test {
     use super::*;
-    // #[cfg(feature = "use_csv_document")]
-    // #[test]
-    // fn it_should_deserialize_in_csv_type() {
-    //     let config = r#"{"type":"csv"}"#;
-    //     let document_builder_expected = DocumentType::Csv(Csv::default());
-    //     let document_builder_result: DocumentType =
-    //         serde_json::from_str(config).expect("Can't deserialize the config");
-    //     assert_eq!(document_builder_expected, document_builder_result);
-    // }
+    #[cfg(feature = "use_csv_document")]
+    #[test]
+    fn it_should_deserialize_in_csv_type() {
+        let config = r#"{"type":"csv"}"#;
+        let document_builder_expected = DocumentType::Csv(Csv::default());
+        let document_builder_result: DocumentType =
+            serde_json::from_str(config).expect("Can't deserialize the config");
+        assert_eq!(document_builder_expected, document_builder_result);
+    }
     #[test]
     fn it_should_deserialize_in_json_type() {
         let config = r#"{"type":"json"}"#;
@@ -180,33 +188,33 @@ mod test {
             serde_json::from_str(config).expect("Can't deserialize the config");
         assert_eq!(document_builder_expected, document_builder_result);
     }
-    // #[cfg(feature = "use_yaml_document")]
-    // #[test]
-    // fn it_should_deserialize_in_yaml_type() {
-    //     let config = r#"{"type":"yaml"}"#;
-    //     let document_builder_expected = DocumentType::Yaml(Yaml::default());
-    //     let document_builder_result: DocumentType =
-    //         serde_json::from_str(config).expect("Can't deserialize the config");
-    //     assert_eq!(document_builder_expected, document_builder_result);
-    // }
-    // #[cfg(feature = "use_xml_document")]
-    // #[test]
-    // fn it_should_deserialize_in_xml_type() {
-    //     let config = r#"{"type":"xml"}"#;
-    //     let document_builder_expected = DocumentType::Xml(Xml::default());
-    //     let document_builder_result: DocumentType =
-    //         serde_json::from_str(config).expect("Can't deserialize the config");
-    //     assert_eq!(document_builder_expected, document_builder_result);
-    // }
-    // #[cfg(feature = "use_toml_document")]
-    // #[test]
-    // fn it_should_deserialize_in_toml_type() {
-    //     let config = r#"{"type":"toml"}"#;
-    //     let document_builder_expected = DocumentType::Toml(Toml::default());
-    //     let document_builder_result: DocumentType =
-    //         serde_json::from_str(config).expect("Can't deserialize the config");
-    //     assert_eq!(document_builder_expected, document_builder_result);
-    // }
+    #[cfg(feature = "use_yaml_document")]
+    #[test]
+    fn it_should_deserialize_in_yaml_type() {
+        let config = r#"{"type":"yaml"}"#;
+        let document_builder_expected = DocumentType::Yaml(Yaml::default());
+        let document_builder_result: DocumentType =
+            serde_json::from_str(config).expect("Can't deserialize the config");
+        assert_eq!(document_builder_expected, document_builder_result);
+    }
+    #[cfg(feature = "use_xml_document")]
+    #[test]
+    fn it_should_deserialize_in_xml_type() {
+        let config = r#"{"type":"xml"}"#;
+        let document_builder_expected = DocumentType::Xml(Xml::default());
+        let document_builder_result: DocumentType =
+            serde_json::from_str(config).expect("Can't deserialize the config");
+        assert_eq!(document_builder_expected, document_builder_result);
+    }
+    #[cfg(feature = "use_toml_document")]
+    #[test]
+    fn it_should_deserialize_in_toml_type() {
+        let config = r#"{"type":"toml"}"#;
+        let document_builder_expected = DocumentType::Toml(Toml::default());
+        let document_builder_result: DocumentType =
+            serde_json::from_str(config).expect("Can't deserialize the config");
+        assert_eq!(document_builder_expected, document_builder_result);
+    }
     #[test]
     #[should_panic(expected = "missing field `type`")]
     fn it_should_not_deserialize_without_type() {
