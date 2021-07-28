@@ -90,8 +90,6 @@ impl Connector for Local {
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0");
     ///     connector.path = "./not_found_file".to_string();
     ///     assert_eq!(0, connector.len().await?);
-    ///     connector.path = "./*.ext".to_string();
-    ///     assert_eq!(connector.len().await.map_err(|e| e.kind()), Err(io::ErrorKind::Other));
     ///     Ok(())
     /// }
     /// ```
@@ -125,8 +123,6 @@ impl Connector for Local {
     ///     assert_eq!(false, connector.is_empty().await?);
     ///     connector.path = "./null_file".to_string();
     ///     assert_eq!(true, connector.is_empty().await?);
-    ///     connector.path = "./*.ext".to_string();
-    ///     assert_eq!(connector.len().await.map_err(|e| e.kind()), Err(io::ErrorKind::Other));
     ///     Ok(())
     /// }
     /// ```
@@ -153,19 +149,6 @@ impl Connector for Local {
         Ok(true)
     }
     /// See [`Connector::set_parameters`] for more details.
-    ///
-    /// # Example
-    /// ```rust
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    /// use serde_json::Value;
-    ///
-    /// let mut connector = Local::default();
-    /// assert_eq!(Value::Null, connector.parameters);
-    /// let params: Value = Value::String("my param".to_string());
-    /// connector.set_parameters(params.clone());
-    /// assert_eq!(params.clone(), connector.parameters.clone());
-    /// ```
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters.clone();
     }
@@ -216,8 +199,7 @@ impl Connector for Local {
     ///     connector_write.push_data(data).await?;
     ///     connector_write.send().await?;
     ///     
-    ///     let mut connector_read = Local::default();
-    ///     connector_read.path = "./data/out/test_local_send".to_string();
+    ///     let mut connector_read = connector_write.clone();
     ///     connector_read.fetch().await?;
     ///     let mut buffer = String::default();
     ///     connector_read.read_to_string(&mut buffer).await?;

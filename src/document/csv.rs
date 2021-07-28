@@ -12,12 +12,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::io;
 
-const DEFAULT_QUOTE: [u8; 1] = [b'\"'];
-const DEFAULT_DELIMITER: [u8; 1] = [b','];
+const DEFAULT_QUOTE: &str = "\"";
+const DEFAULT_DELIMITER: &str = ",";
 const DEFAULT_HAS_HEADERS: bool = true;
-const DEFAULT_ESCAPE: [u8; 1] = [b'\\'];
-const DEFAULT_COMMENT: [u8; 1] = [b'#'];
-const DEFAULT_TERMINATOR: [u8; 4] = [b'\n', b'0', b'0', b'0'];
+const DEFAULT_ESCAPE: &str = "\"";
+const DEFAULT_COMMENT: &str = "#";
+const DEFAULT_TERMINATOR: &str = "\n";
 const DEFAULT_QUOTE_STYLE: &str = "NOT_NUMERIC";
 const DEFAULT_IS_FLEXIBLE: bool = true;
 
@@ -35,11 +35,11 @@ impl Default for Csv {
     fn default() -> Self {
         let metadata = Metadata {
             has_headers: Some(DEFAULT_HAS_HEADERS),
-            delimiter: Some(DEFAULT_DELIMITER),
-            quote: Some(DEFAULT_QUOTE),
-            escape: Some(DEFAULT_ESCAPE),
-            comment: Some(DEFAULT_COMMENT),
-            terminator: Some(DEFAULT_TERMINATOR),
+            delimiter: Some(DEFAULT_DELIMITER.to_string()),
+            quote: Some(DEFAULT_QUOTE.to_string()),
+            escape: Some(DEFAULT_ESCAPE.to_string()),
+            comment: Some(DEFAULT_COMMENT.to_string()),
+            terminator: Some(DEFAULT_TERMINATOR.to_string()),
             mime_type: Some(mime::TEXT_CSV_UTF_8.to_string()),
             ..Default::default()
         };
@@ -59,36 +59,35 @@ impl Csv {
         builder.flexible(self.is_flexible);
 
         metadata.has_headers.map(|value| builder.has_headers(value));
-        metadata.clone().quote.map(|value| match value {
-            [b'\"'] => builder.double_quote(true),
+        metadata.clone().quote.map(|value| match value.as_str() {
+            "\"" => builder.double_quote(true),
             _ => builder.double_quote(false),
         });
-        metadata.clone().quote.map(|value| match value {
-            [b'\''] | [b'"'] => builder.quoting(true),
+        metadata.clone().quote.map(|value| match value.as_str() {
+            "'" | "\"" => builder.quoting(true),
             _ => builder.quoting(false),
         });
         metadata
             .clone()
             .quote
-            .map(|value| builder.quote(*value.first().unwrap()));
+            .map(|value| builder.quote(*value.as_bytes().to_vec().first().unwrap()));
         metadata
             .clone()
             .delimiter
-            .map(|value| builder.delimiter(*value.first().unwrap()));
+            .map(|value| builder.delimiter(*value.as_bytes().to_vec().first().unwrap()));
         metadata
             .clone()
             .escape
-            .map(|value| builder.escape(Some(*value.first().unwrap())));
+            .map(|value| builder.escape(Some(*value.as_bytes().to_vec().first().unwrap())));
         metadata
             .clone()
             .comment
-            .map(|value| builder.comment(Some(*value.first().unwrap())));
-        metadata.terminator.map(|value| match value {
-            [b'C', b'R', b'L', b'F']
-            | [b'C', b'R', b'0', b'0']
-            | [b'L', b'F', b'0', b'0']
-            | [b'\n', b'\r', b'0', b'0'] => builder.terminator(csv::Terminator::CRLF),
-            _ => builder.terminator(csv::Terminator::Any(*value.first().unwrap())),
+            .map(|value| builder.comment(Some(*value.as_bytes().to_vec().first().unwrap())));
+        metadata.terminator.map(|value| match value.as_str() {
+            "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
+            _ => builder.terminator(csv::Terminator::Any(
+                *value.as_bytes().to_vec().first().unwrap(),
+            )),
         });
 
         builder
@@ -102,28 +101,25 @@ impl Csv {
         metadata
             .has_headers
             .map(|has_headers| builder.has_headers(has_headers));
-        metadata.clone().quote.map(|value| match value {
-            [b'\"'] => builder.double_quote(true),
+        metadata.clone().quote.map(|value| match value.as_str() {
+            "\"" => builder.double_quote(true),
             _ => builder.double_quote(false),
         });
         metadata
             .clone()
             .quote
-            .map(|value| builder.quote(*value.first().unwrap()));
+            .map(|value| builder.quote(*value.as_bytes().to_vec().first().unwrap()));
         metadata
             .clone()
             .delimiter
-            .map(|value| builder.delimiter(*value.first().unwrap()));
+            .map(|value| builder.delimiter(*value.as_bytes().to_vec().first().unwrap()));
         metadata
             .clone()
             .escape
-            .map(|value| builder.escape(*value.first().unwrap()));
-        metadata.terminator.map(|value| match value {
-            [b'C', b'R', b'L', b'F']
-            | [b'C', b'R', b'0', b'0']
-            | [b'L', b'F', b'0', b'0']
-            | [b'\n', b'\r', b'0', b'0'] => builder.terminator(csv::Terminator::CRLF),
-            _ => builder.terminator(csv::Terminator::Any(*value.first().unwrap())),
+            .map(|value| builder.escape(*value.as_bytes().to_vec().first().unwrap()));
+        metadata.terminator.map(|value| match value.as_str() {
+            "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
+            _ => builder.terminator(csv::Terminator::Any(*value.as_bytes().to_vec().first().unwrap())),
         });
         match self.quote_style.clone().to_uppercase().as_ref() {
             "ALWAYS" => builder.quote_style(csv::QuoteStyle::Always),
@@ -409,7 +405,10 @@ impl Document for Csv {
     /// }
     /// ```
     async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        let write_header = match (self.metadata().has_headers, connector.metadata().has_headers) {
+        let write_header = match (
+            self.metadata().has_headers,
+            connector.metadata().has_headers,
+        ) {
             (None, _) => false,
             (Some(false), _) => false,
             (_, Some(true)) => false,

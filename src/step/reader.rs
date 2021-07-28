@@ -84,7 +84,7 @@ impl Step for Reader {
                     connector.set_parameters(data_result.to_json_value());
                     let mut data = connector.pull_data().await?;
                     while let Some(data_result) = data.next().await {
-                        debug!(slog_scope::logger(),
+                        info!(slog_scope::logger(),
                             "Data send to the queue";
                             "data" => format!("{:?}", data_result),
                             "step" => format!("{}", self.clone()),
@@ -92,7 +92,7 @@ impl Step for Reader {
                         );
                         let mut current_retry = 0;
                         while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
-                            debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
                             thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
                             current_retry = current_retry + 1;
                         }
@@ -103,7 +103,7 @@ impl Step for Reader {
                 for _data_result in pipe_outbound {}
                 let mut data = connector.pull_data().await?;
                 while let Some(data_result) = data.next().await {
-                    debug!(slog_scope::logger(),
+                    info!(slog_scope::logger(),
                         "Data send to the queue";
                         "data" => format!("{:?}", data_result),
                         "step" => format!("{}", self.clone()),
@@ -111,7 +111,7 @@ impl Step for Reader {
                     );
                     let mut current_retry = 0;
                     while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
-                        debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
                         thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
                         current_retry = current_retry + 1;
                     }
@@ -120,7 +120,7 @@ impl Step for Reader {
             (None, _) => {
                 let mut data = connector.pull_data().await?;
                 while let Some(data_result) = data.next().await {
-                    debug!(slog_scope::logger(),
+                    info!(slog_scope::logger(),
                         "Data send to the queue";
                         "data" => format!("{:?}", data_result),
                         "step" => format!("{}", self.clone()),
@@ -128,7 +128,7 @@ impl Step for Reader {
                     );
                     let mut current_retry = 0;
                     while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
-                        debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
                         thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
                         current_retry = current_retry + 1;
                     }

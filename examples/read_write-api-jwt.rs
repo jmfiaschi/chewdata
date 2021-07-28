@@ -28,7 +28,7 @@ async fn main() -> io::Result<()> {
         "type": "r",
         "connector":{
             "type": "mem",
-            "data": "[{\"username\":\"my_username\",\"password\":\"my_password\"}]"
+            "data": "{\"username\":\"my_username\",\"password\":\"my_password\"}"
         }
     },
     {

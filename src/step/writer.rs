@@ -77,14 +77,14 @@ impl Step for Writer {
 
         for data_result in pipe_outbound {
             if let Some(ref pipe_inbound) = pipe_inbound_option {
-                debug!(slog_scope::logger(),
+                info!(slog_scope::logger(),
                     "Data send to the queue";
                     "data" => format!("{:?}", data_result),
                     "step" => format!("{}", self.clone())
                 );
                 let mut current_retry = 0;
                 while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
-                    debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                    warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
                     thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
                     current_retry = current_retry + 1;
                 }
@@ -110,7 +110,7 @@ impl Step for Writer {
             }
             
             connector.set_parameters(data_result.to_json_value());
-            debug!(slog_scope::logger(),
+            info!(slog_scope::logger(),
                 "Push data";
                 "connector" => format!("{:?}", &connector),
                 "data" => format!("{:?}", data_result),
@@ -119,7 +119,7 @@ impl Step for Writer {
             connector.push_data(data_result).await?;
 
             if self.dataset_size <= current_dataset_size {
-                debug!(slog_scope::logger(),
+                info!(slog_scope::logger(),
                     "Send data";
                     "step" => format!("{}", self.clone()),
                 );
@@ -131,7 +131,7 @@ impl Step for Writer {
         }
 
         if 0 < current_dataset_size {
-            debug!(slog_scope::logger(),
+            info!(slog_scope::logger(),
                 "Send data before to end the step";
                 "step" => format!("{}", self.clone()),
             );

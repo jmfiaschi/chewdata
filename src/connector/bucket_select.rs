@@ -1,32 +1,37 @@
+use super::Paginator;
 use crate::connector::Connector;
+use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
+use crate::step::DataResult;
 use crate::Metadata;
-use futures::StreamExt;
-use http::status::StatusCode;
+use async_std::prelude::*;
+use async_trait::async_trait;
 use regex::Regex;
-use rusoto_core::{credential::StaticProvider, Region, RusotoError};
+use rusoto_core::credential::ProvideAwsCredentials;
 use rusoto_s3::{
-    CSVInput, CSVOutput, HeadObjectRequest, InputSerialization, JSONInput, JSONOutput,
-    OutputSerialization, ParquetInput, S3Client, SelectObjectContentRequest,
-    S3 as RusotoS3,
+    CSVInput, CSVOutput, InputSerialization, JSONInput, JSONOutput, OutputSerialization,
+    ParquetInput, SelectObjectContentRequest,
 };
-use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::fmt;
-use std::io::{Error, ErrorKind, Result};
-use async_trait::async_trait;
-use async_std::io::{Cursor, Write, prelude::WriteExt};
 use std::pin::Pin;
-use std::task::{Poll, Context};
-use async_std::prelude::*;
+use std::task::{Context, Poll};
+use std::{
+    fmt,
+    io::{Cursor, Error, ErrorKind, Result, Write},
+};
+use surf_bucket_select::model::{
+    event_stream::EventStream, select_object_content::SelectObjectContentEventStreamItem,
+};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct BucketSelect {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
+    #[serde(alias = "document")]
+    document_type: DocumentType,
     pub endpoint: Option<String>,
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
@@ -43,85 +48,56 @@ impl Default for BucketSelect {
     fn default() -> Self {
         BucketSelect {
             metadata: Metadata::default(),
+            query: "select * from s3object".to_string(),
+            document_type: DocumentType::default(),
             endpoint: None,
             access_key_id: None,
             secret_access_key: None,
-            region: Region::default().name().to_owned(),
-            bucket: "".to_owned(),
-            path: "".to_owned(),
-            query: "".to_owned(),
-            inner: Cursor::new(Vec::default()),
-            parameters: Value::Null,
-        }
-    }
-}
-
-impl Clone for BucketSelect {
-    fn clone(&self) -> Self {
-        BucketSelect {
-            metadata: self.metadata.to_owned(),
-            endpoint: self.endpoint.to_owned(),
-            access_key_id: self.access_key_id.to_owned(),
-            secret_access_key: self.secret_access_key.to_owned(),
-            region: self.region.to_owned(),
-            bucket: self.bucket.to_owned(),
-            path: self.path.to_owned(),
-            query: self.query.to_owned(),
-            inner: Cursor::new(Vec::default()),
-            parameters: self.parameters.to_owned(),
+            region: rusoto_core::Region::default().name().to_string(),
+            bucket: String::default(),
+            path: String::default(),
+            parameters: Value::default(),
+            inner: Cursor::default(),
         }
     }
 }
 
 impl fmt::Display for BucketSelect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.path())
+        write!(
+            f,
+            "{}",
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+        )
     }
 }
 
+// Not display the inner for better performance with big data
+impl fmt::Debug for BucketSelect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut secret_access_key = self.secret_access_key.clone().unwrap_or("".to_string());
+        secret_access_key.replace_range(
+            0..(secret_access_key.len() / 2),
+            (0..(secret_access_key.len() / 2))
+                .map(|_| "#")
+                .collect::<String>()
+                .as_str(),
+        );
+        f.debug_struct("BucketSelect")
+            .field("metadata", &self.metadata)
+            .field("document_type", &self.document_type)
+            .field("endpoint", &self.endpoint)
+            .field("access_key_id", &self.access_key_id)
+            .field("secret_access_key", &secret_access_key)
+            .field("region", &self.region)
+            .field("bucket", &self.bucket)
+            .field("path", &self.path)
+            .field("parameters", &self.parameters)
+            .finish()
+    }
+}
 
 impl BucketSelect {
-    pub fn s3_client(&self) -> S3Client {
-        match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
-            (Some(access_key_id), Some(secret_access_key)) => S3Client::new_with(
-                rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
-                StaticProvider::new_minimal(access_key_id.to_owned(), secret_access_key.to_owned()),
-                Region::Custom {
-                    name: self.region.to_owned(),
-                    endpoint: match self.endpoint.to_owned() {
-                        Some(endpoint) => endpoint,
-                        None => format!("https://s3-{}.amazonaws.com", self.region),
-                    },
-                },
-            ),
-            (_, _) => S3Client::new(Region::Custom {
-                name: self.region.to_owned(),
-                endpoint: match self.endpoint.to_owned() {
-                    Some(endpoint) => endpoint,
-                    None => format!("https://s3-{}.amazonaws.com", self.region),
-                },
-            }),
-        }
-    }
-    /// Test if the path is variable.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::connector::Connector;
-    /// use serde_json::Value;
-    ///
-    /// let mut connector = BucketSelect::default();
-    /// assert_eq!(false, connector.is_variable_path());
-    /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
-    /// connector.set_parameters(params);
-    /// connector.path = "/dir/filename_{{ field }}.ext".to_string();
-    /// assert_eq!(true, connector.is_variable_path());
-    /// ```
-    pub fn is_variable_path(&self) -> bool {
-        let reg = Regex::new("\\{\\{[^}]*\\}\\}").unwrap();
-        reg.is_match(self.path.as_ref())
-    }
     fn select_object_content_request(
         &mut self,
         query: String,
@@ -129,10 +105,10 @@ impl BucketSelect {
     ) -> SelectObjectContentRequest {
         let connector = self.clone();
 
-        let input_serialization = match metadata.mime_type.as_deref() {
+        let input_serialization = match metadata.clone().mime_type.as_deref() {
             Some("text/csv; charset=utf-8") | Some("text/csv") => InputSerialization {
                 csv: Some(CSVInput {
-                    field_delimiter: metadata.delimiter.to_owned(),
+                    field_delimiter: metadata.clone().delimiter,
                     file_header_info: Some(
                         match metadata.has_headers {
                             Some(true) => "USE",
@@ -141,55 +117,61 @@ impl BucketSelect {
                         }
                         .to_owned(),
                     ),
-                    quote_character: metadata.quote.to_owned(),
-                    quote_escape_character: metadata.escape.to_owned(),
+                    quote_character: metadata.clone().quote,
+                    quote_escape_character: metadata.clone().escape,
                     ..Default::default()
                 }),
-                compression_type: metadata.compression.to_owned(),
+                compression_type: metadata.clone().compression.to_owned(),
                 ..Default::default()
             },
             Some("application/octet-stream") => InputSerialization {
                 parquet: Some(ParquetInput {}),
-                compression_type: metadata.compression.to_owned(),
+                compression_type: metadata.clone().compression.to_owned(),
                 ..Default::default()
             },
             Some("application/json") => InputSerialization {
                 json: Some(JSONInput {
                     type_: Some("DOCUMENT".to_owned()),
                 }),
-                compression_type: metadata.compression.to_owned(),
+                compression_type: metadata.clone().compression.to_owned(),
                 ..Default::default()
             },
             Some("application/x-ndjson") => InputSerialization {
                 json: Some(JSONInput {
                     type_: Some("DOCUMENT".to_owned()),
                 }),
-                compression_type: metadata.compression.to_owned(),
+                compression_type: metadata.clone().compression.to_owned(),
                 ..Default::default()
             },
             _ => InputSerialization {
                 json: Some(JSONInput {
                     type_: Some("LINES".to_owned()),
                 }),
-                compression_type: metadata.compression.to_owned(),
+                compression_type: metadata.clone().compression.to_owned(),
                 ..Default::default()
             },
         };
 
-        let output_serialization = match metadata.mime_type.as_deref() {
+        let output_serialization = match metadata.clone().mime_type.as_deref() {
             Some("text/csv; charset=utf-8") | Some("text/csv") => OutputSerialization {
                 csv: Some(CSVOutput {
-                    field_delimiter: metadata.delimiter.to_owned(),
-                    quote_character: metadata.quote.to_owned(),
-                    quote_escape_character: metadata.escape.to_owned(),
-                    record_delimiter: metadata.terminator.to_owned(),
+                    field_delimiter: metadata.clone().delimiter,
+                    quote_character: metadata.clone().quote,
+                    quote_escape_character: metadata.clone().escape,
+                    record_delimiter: match metadata.clone().terminator.unwrap_or("\n".to_string()).as_str()
+                    {
+                        "CRLF" => Some("\n\r".to_string()),
+                        "CR" => Some("\n".to_string()),
+                        "LF" => Some("\r".to_string()),
+                        terminal => Some(terminal.to_string()),
+                    },
                     ..Default::default()
                 }),
                 ..Default::default()
             },
             _ => OutputSerialization {
                 json: Some(JSONOutput {
-                    record_delimiter: metadata.delimiter.to_owned(),
+                    record_delimiter: metadata.clone().delimiter,
                 }),
                 ..Default::default()
             },
@@ -205,101 +187,231 @@ impl BucketSelect {
             ..Default::default()
         }
     }
-    async fn init_buffer_by_query_and_metadata(
+    async fn fetch_data_by_query_and_metadata(
         &mut self,
         query: String,
         metadata: Metadata,
-    ) -> Result<()> {
-        let connector = self.clone();
-        let s3_client = connector.s3_client();
-        let request = self.select_object_content_request(query, metadata);
-
-        let output = s3_client
-                .select_object_content(request)
-                .await
-                .map_err(|e| Error::new(ErrorKind::NotFound, e))?;
-
-        let mut event_stream = match output.payload {
-            Some(event_stream) => event_stream,
-            None => return Ok(()),
+    ) -> Result<String> {
+        let client = surf::client();
+        let endpoint = match self.endpoint.to_owned() {
+            Some(endpoint) => endpoint,
+            None => format!("https://s3-{}.amazonaws.com", self.region),
         };
 
+        let credentials_provider: Box<dyn ProvideAwsCredentials + Sync + Send> =
+            match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
+                (Some(access_key_id), Some(secret_access_key)) => {
+                    Box::new(rusoto_core::credential::StaticProvider::new_minimal(
+                        access_key_id.to_owned(),
+                        secret_access_key.to_owned(),
+                    ))
+                }
+                (_, _) => Box::new(
+                    rusoto_core::credential::DefaultCredentialsProvider::new()
+                        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?,
+                ),
+            };
+
+        let select_object_content_request = self.select_object_content_request(query, metadata);
+
+        let req = surf_bucket_select::select_object_content(
+            endpoint,
+            select_object_content_request,
+            Some(credentials_provider),
+            self.region.to_owned(),
+            None,
+        )
+        .await
+        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
+        .build();
+
+        let mut res = client
+            .send(req)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        let payload = res
+            .body_bytes()
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+        if !res.status().is_success() {
+            return Err(Error::new(
+                ErrorKind::Interrupted,
+                format!(
+                    "Curl failed with status code '{}' and response body: {}",
+                    res.status(),
+                    String::from_utf8(payload)
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                ),
+            ));
+        }
+
+        let mut event_stream =
+            EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
         let mut buffer = String::default();
+
         while let Some(Ok(item)) = event_stream.next().await {
-            if let rusoto_s3::SelectObjectContentEventStreamItem::Records(records_event) = item
-            {
-                if let Some(bytes) = records_event.payload {
-                    buffer.push_str(&String::from_utf8(bytes.to_vec()).unwrap());
-                };
+            match item {
+                SelectObjectContentEventStreamItem::Records(records_event) => {
+                    if let Some(bytes) = records_event.payload {
+                        buffer.push_str(&String::from_utf8(bytes.to_vec()).unwrap());
+                    };
+                }
+                SelectObjectContentEventStreamItem::End(_) => break,
+                _ => {}
             }
-        };
+        }
 
-        self.inner.write_all(buffer.as_bytes()).await?;
-
-        Ok(())
+        Ok(buffer)
     }
-    async fn initialize(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Init inner buffer");
-        let mut metadata_header = self.metadata.clone();
-        metadata_header.has_headers = Some(false);
-        let metadata_body = self.metadata.clone();
-
-        match (
-            metadata_body.has_headers,
-            metadata_body.mime_type.as_deref(),
-        ) {
-            (Some(true), Some("text/csv")) | (Some(true), Some("text/csv; charset=utf-8")) => self
-                .init_buffer_by_query_and_metadata(
-                    format!(
-                        "{} {}",
-                        self.query
-                            .clone()
-                            .to_lowercase()
-                            .split("where")
-                            .next()
-                            .unwrap(),
-                        "limit 1"
-                    ),
-                    metadata_header,
-                ).await?,
-            _ => (),
+    async fn fetch_length_by_query_and_metadata(
+        &mut self,
+        query: String,
+        metadata: Metadata,
+    ) -> Result<usize> {
+        let client = surf::client();
+        let endpoint = match self.endpoint.to_owned() {
+            Some(endpoint) => endpoint,
+            None => format!("https://s3-{}.amazonaws.com", self.region),
         };
 
-        self.init_buffer_by_query_and_metadata(self.query.clone(), metadata_body).await?;
+        let credentials_provider: Box<dyn ProvideAwsCredentials + Sync + Send> =
+            match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
+                (Some(access_key_id), Some(secret_access_key)) => {
+                    Box::new(rusoto_core::credential::StaticProvider::new_minimal(
+                        access_key_id.to_owned(),
+                        secret_access_key.to_owned(),
+                    ))
+                }
+                (_, _) => Box::new(
+                    rusoto_core::credential::DefaultCredentialsProvider::new()
+                        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?,
+                ),
+            };
 
-        // initialize the position of the cursor
-        self.inner.set_position(0);
+        let select_object_content_request = self.select_object_content_request(query, metadata);
 
-        debug!(slog_scope::logger(), "Init inner buffer ended");
+        let req = surf_bucket_select::select_object_content(
+            endpoint,
+            select_object_content_request,
+            Some(credentials_provider),
+            self.region.to_owned(),
+            None,
+        )
+        .await
+        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
+        .build();
 
-        Ok(())
+        let mut res = client
+            .send(req)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        let payload = res
+            .body_bytes()
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+        if !res.status().is_success() {
+            return Err(Error::new(
+                ErrorKind::Interrupted,
+                format!(
+                    "Curl failed with status code '{}' and response body: {}",
+                    res.status(),
+                    String::from_utf8(payload)
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                ),
+            ));
+        }
+
+        let mut event_stream =
+            EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
+        let mut buffer: usize = 0;
+
+        while let Some(Ok(item)) = event_stream.next().await {
+            match item {
+                SelectObjectContentEventStreamItem::Stats(stats) => {
+                    if let Some(stats) = stats.details {
+                        buffer = buffer + stats.bytes_scanned.unwrap_or(0) as usize;
+                    };
+                }
+                SelectObjectContentEventStreamItem::End(_) => break,
+                _ => {}
+            }
+        }
+
+        Ok(buffer)
     }
 }
 
 #[async_trait]
 impl Connector for BucketSelect {
-    /// Set the path parameters.
+    /// See [`Connector::set_parameters`] for more details.
+    fn set_parameters(&mut self, parameters: Value) {
+        self.parameters = parameters.clone();
+    }
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
+    }
+    /// See [`Connector::metadata`] for more details.
+    fn metadata(&self) -> Metadata {
+        self.metadata
+            .clone()
+            .merge(self.document_type.document().metadata())
+    }
+    /// See [`Connector::is_variable`] for more details.
     ///
     /// # Example
-    /// ```
+    /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
     ///
     /// let mut connector = BucketSelect::default();
-    /// assert_eq!(Value::Null, connector.parameters);
-    /// let params: Value = Value::String("my param".to_string());
-    /// connector.set_parameters(params.clone());
-    /// assert_eq!(params.clone(), connector.parameters.clone());
+    /// assert_eq!(false, connector.is_variable());
+    /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
+    /// connector.set_parameters(params);
+    /// connector.path = "/dir/filename_{{ field }}.ext".to_string();
+    /// assert_eq!(true, connector.is_variable());
     /// ```
-    fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters.clone();
+    fn is_variable(&self) -> bool {
+        let reg = Regex::new("\\{\\{[^}]*\\}\\}").unwrap();
+        reg.is_match(self.path.as_ref())
     }
-    fn is_variable_path(&self) -> bool { false }
-    /// Get the resolved path.
+    /// See [`Connector::is_resource_will_change`] for more details.
     ///
     /// # Example
+    /// ```rust
+    /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
+    /// use serde_json::Value;
+    ///
+    /// let mut connector = BucketSelect::default();
+    /// let params = serde_json::from_str(r#"{"field":"test"}"#).unwrap();
+    /// assert_eq!(false, connector.is_resource_will_change(Value::Null).unwrap());
+    /// connector.path = "/dir/static.ext".to_string();
+    /// assert_eq!(false, connector.is_resource_will_change(Value::Null).unwrap());
+    /// connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
+    /// assert_eq!(true, connector.is_resource_will_change(params).unwrap());
     /// ```
+    fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
+        if !self.is_variable() {
+            return Ok(false);
+        }
+
+        let actuel_path = self.path.clone().replace_mustache(self.parameters.clone());
+        let new_path = self.path.clone().replace_mustache(new_parameters);
+
+        if actuel_path == new_path {
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+    /// See [`Connector::path`] for more details.
+    ///
+    /// # Example
+    /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -311,169 +423,252 @@ impl Connector for BucketSelect {
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
-        match (self.is_variable_path(), self.parameters.clone()) {
+        match (self.is_variable(), self.parameters.clone()) {
             (true, params) => self.path.clone().replace_mustache(params),
             _ => self.path.clone(),
         }
     }
-    /// Check if the connector of the current path has data.
-    /// If
-    ///     - Check if the current connector has data into the inner buffer.
-    /// If No
-    ///     - Try to fetch the remote file.
-    /// If Yes
-    ///     - Check if the remote file contains bytes.
-    /// If every tests failed, return true.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::connector::Connector;
-    /// use chewdata::Metadata;
-    ///
-    /// let mut metadata = Metadata::default();
-    /// metadata.mime_type = Some("application/json".to_string());
-    ///
-    /// let mut connector = BucketSelect::default();
-    /// connector.endpoint = Some("http://localhost:9000".to_string());
-    /// connector.access_key_id = Some("minio_access_key".to_string());
-    /// connector.secret_access_key = Some("minio_secret_key".to_string());
-    /// connector.bucket = "my-bucket".to_string();
-    /// connector.path = "data/one_line.json".to_string();
-    /// connector.query = "select * from s3object".to_string();
-    /// connector.metadata = metadata;
-    /// assert!(!connector.is_empty().unwrap(), "The document should not be empty.");
-    /// connector.path = "data/not_found.json".to_string();
-    /// assert!(connector.is_empty().unwrap(), "The document should be empty because the document not exist.");
-    /// ```
-    async fn is_empty(&self) -> Result<bool> {
-        if 0 < self.inner().len() {
-            return Ok(false);
-        }
-
-        {
-            let mut connector_clone = self.clone();
-            let mut buf = String::new();
-            connector_clone.inner.set_position(0);
-            match connector_clone.read_to_string(&mut buf).await {
-                Ok(_) => (),
-                Err(_) => {
-                    info!(slog_scope::logger(), "The file not exist"; "path" => connector_clone.path());
-                    return Ok(true);
-                }
-            }
-            if 0 < buf.len() {
-                return Ok(false);
-            }
-        }
-
-        Ok(true)
+    /// See [`Connector::document_type`] for more details.
+    fn document_type(&self) -> DocumentType {
+        self.document_type.clone()
     }
-    /// Get the inner buffer reference.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let connector = BucketSelect::default();
-    /// let vec: Vec<u8> = Vec::default();
-    /// assert_eq!(&vec, connector.inner());
-    /// ```
+    /// See [`Connector::inner`] for more details.
     fn inner(&self) -> &Vec<u8> {
         self.inner.get_ref()
     }
-    /// Get the total document size.
+    /// See [`Connector::len`] for more details.
     ///
     /// # Example
-    /// ```
+    /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
+    /// use std::io;
     ///
-    /// let mut connector = BucketSelect::default();
-    /// connector.endpoint = Some("http://localhost:9000".to_string());
-    /// connector.access_key_id = Some("minio_access_key".to_string());
-    /// connector.secret_access_key = Some("minio_secret_key".to_string());
-    /// connector.bucket = "my-bucket".to_string();
-    /// connector.path = "data/one_line.json".to_string();
-    /// assert!(0 < connector.len().unwrap(), "The length of the document is not greather than 0");
-    /// connector.path = "data/not-found-file".to_string();
-    /// assert_eq!(0, connector.len().unwrap());
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = BucketSelect::default();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.access_key_id = Some("minio_access_key".to_string());
+    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.path = "data/one_line.json".to_string();
+    ///     connector.query = "select * from s3object".to_string();
+    ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0");
+    ///     connector.path = "data/not-found-file".to_string();
+    ///     assert_eq!(0, connector.len().await?);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    async fn len(&self) -> Result<usize> {
-        let s3_client = self.s3_client();
-        let request = HeadObjectRequest {
-            bucket: self.bucket.clone(),
-            key: self.path(),
-            ..Default::default()
+    async fn len(&mut self) -> Result<usize> {
+        let query = format!(
+            "{} {}",
+            self.query
+                .clone()
+                .to_lowercase()
+                .split("where")
+                .next()
+                .unwrap(),
+            "limit 1"
+        );
+
+        Ok(self
+            .fetch_length_by_query_and_metadata(query.clone(), self.metadata())
+            .await
+            .unwrap_or(0))
+    }
+    /// See [`Connector::is_empty`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::bucket_select::BucketSelect;
+    /// use chewdata::connector::Connector;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = BucketSelect::default();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.access_key_id = Some("minio_access_key".to_string());
+    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.path = "data/one_line.json".to_string();
+    ///     connector.query = "select * from s3object".to_string();
+    ///     assert_eq!(false, connector.is_empty().await?);
+    ///     connector.path = "data/not_found.json".to_string();
+    ///     assert_eq!(true, connector.is_empty().await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn is_empty(&mut self) -> Result<bool> {
+        Ok(0 == self.len().await?)
+    }
+    /// See [`Connector::fetch`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
+    /// use chewdata::document::DocumentType;
+    /// use surf::http::Method;
+    /// use chewdata::Metadata;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = BucketSelect::default();
+    ///     assert_eq!(0, connector.inner().len());
+    ///     connector.path = "data/one_line.json".to_string();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.access_key_id = Some("minio_access_key".to_string());
+    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.query = "select * from s3object".to_string();
+    ///     connector.fetch().await?;
+    ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn fetch(&mut self) -> Result<()> {
+        let metadata = self.metadata();
+
+        match (metadata.has_headers, metadata.mime_type.as_deref()) {
+            (Some(true), Some("text/csv")) | (Some(true), Some("text/csv; charset=utf-8")) => {
+                let mut metadata_header = metadata.clone();
+                metadata_header.has_headers = Some(false);
+                let headers = self
+                    .fetch_data_by_query_and_metadata(
+                        format!(
+                            "{} {}",
+                            self.query
+                                .clone()
+                                .to_lowercase()
+                                .split("where")
+                                .next()
+                                .unwrap(),
+                            "limit 1"
+                        ),
+                        metadata_header,
+                    )
+                    .await?;
+                self.inner.write_all(headers.as_bytes())?;
+            }
+            _ => (),
         };
 
-        match s3_client.head_object(request).await {
-            Ok(response) => match response.content_length {
-                Some(len) => Ok(len as usize),
-                None => Ok(0 as usize),
-            },
-            Err(e) => {
-                let error = format!("{:?}", e);
-                match e {
-                    RusotoError::Unknown(http_response) => match http_response.status {
-                        StatusCode::NOT_FOUND => Ok(0),
-                        _ => Err(Error::new(ErrorKind::Interrupted, error)),
-                    },
-                    _ => Err(Error::new(ErrorKind::Interrupted, e)),
-                }
-            }
-        }
+        let body = self
+            .fetch_data_by_query_and_metadata(self.query.clone(), metadata)
+            .await?;
+        self.inner.write_all(body.as_bytes())?;
+
+        // initialize the position of the cursors
+        self.inner.set_position(0);
+
+        Ok(())
     }
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
+    /// See [`Connector::push_data`] for more details.
+    async fn push_data(&mut self, data: DataResult) -> Result<()> {
+        let document = self.document_type().document_inner();
+        document.write_data(self, data.to_json_value()).await
     }
-    async fn erase(&mut self) -> Result<()> { 
-        info!(slog_scope::logger(), "Can't clean the document"; "connector" => format!("{:?}", self), "path" => self.path());
-        Ok(()) 
+    async fn erase(&mut self) -> Result<()> {
+        info!(slog_scope::logger(), "Can't erase the document. Use the bucket connector instead of this connector"; "connector" => format!("{:?}", self), "path" => self.path());
+
+        Ok(())
     }
-    async fn seek_and_flush(&mut self, _position: i64) -> Result<()> {
-        self.flush().await
+    async fn send(&mut self) -> Result<()> {
+        info!(slog_scope::logger(), "Can't send data to the remote document. Use the bucket connector instead of this connector"; "connector" => format!("{:?}", self), "path" => self.path());
+
+        Ok(())
+    }
+    /// See [`Connector::paginator`] for more details.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+        Ok(Box::pin(BucketSelectPaginator::new(self.clone())?))
+    }
+    /// See [`Connector::clear`] for more details.
+    fn clear(&mut self) {
+        self.inner = Default::default();
     }
 }
 
 #[async_trait]
 impl async_std::io::Read for BucketSelect {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        if self.inner.clone().into_inner().is_empty() {
-            match self.initialize().boxed().poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => (),
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(Error::new(ErrorKind::Interrupted, e))),
-                Poll::Pending => return Poll::Pending
-            };
-        }
-
-        Pin::new(&mut self.inner).poll_read(cx, buf)
+    /// See [`Read::poll_read`] for more details.
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
     }
 }
 
 #[async_trait]
-impl Write for BucketSelect {
-    /// Write the data into the inner buffer before to flush it.
+impl async_std::io::Write for BucketSelect {
+    /// See [`Write::poll_write`] for more details.
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
+    }
+    /// See [`Write::poll_flush`] for more details.
+    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(std::io::Write::flush(&mut self.inner))
+    }
+    /// See [`Write::poll_close`] for more details.
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush(cx)
+    }
+}
+
+#[derive(Debug)]
+pub struct BucketSelectPaginator {
+    connector: BucketSelect,
+    has_next: bool,
+}
+
+impl BucketSelectPaginator {
+    pub fn new(connector: BucketSelect) -> Result<Self> {
+        Ok(BucketSelectPaginator {
+            connector: connector,
+            has_next: true,
+        })
+    }
+}
+
+#[async_trait]
+impl Paginator for BucketSelectPaginator {
+    /// See [`Paginator::next_page`] for more details.
     ///
     /// # Example
-    /// ```
+    /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use std::io::Write;
+    /// use chewdata::connector::Connector;
+    /// use std::io;
     ///
-    /// let mut connector = BucketSelect::default();
-    /// let buffer = "My text";
-    /// let len = connector.write(buffer.to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!(7, len);
-    /// assert_eq!("My text", format!("{}", connector));
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = BucketSelect::default();
+    ///     let mut paginator = connector.paginator().await?;
+    ///
+    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
+    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn poll_write(self: Pin<&mut Self>, _cx: &mut Context<'_>, _buf: &[u8]) -> Poll<Result<usize>> {
-        Poll::Ready(Err(Error::new(ErrorKind::Interrupted, "Connector type 'bucket_select' can't write data into the connector because it used only to retrieve data in a bucket file. use instead the connector 'bucket'")))
-    }
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(ErrorKind::Interrupted, "Connector type 'bucket_select' can't flush data into the connector because it used only to retrieve data in a bucket file. use instead the connector 'bucket'")))
-    }
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>>{
-        Pin::new(&mut self.inner).poll_close(cx)
+    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        Ok(match self.has_next {
+            true => {
+                let mut connector = self.connector.clone();
+                self.has_next = false;
+                connector.fetch().await?;
+                Some(Box::new(connector))
+            }
+            false => None,
+        })
     }
 }

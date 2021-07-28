@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Jean-Marc Fiaschi"]
 edition = "2018"
 description = "Extract Transform and Load data"
@@ -34,8 +34,8 @@ toml = "0.5.8"
 tera = "1.10.0"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 # For Connectors
-rusoto_core = { version = "0.46"}
-rusoto_s3 = { version = "0.46"}
+rusoto_core = { version = "0.47.0"}
+rusoto_s3 = { version = "0.47.0"}
 http = "0.2.4"
 env_applier = "0.1"
 genawaiter = "0.99.1"
@@ -49,12 +49,10 @@ async-std = "1.9.0"
 async-trait = "0.1.50"
 tokio-serde = "0.8.0"
 tokio-util = "0.6.7"
-hyper = { version = "0.14.9"}
 async-stream = { version = "0.3.2" }
 futures-core = { version = "0.3.15" }
-bytes = { version = "1.0.1"}
-# tokio-compat-02 = "0.2.0"
 surf = { version = "2.2.0", default-features = false, features = ["h1-client"] }
+surf_bucket_select = { version = "0.1.1" }
 
 [dev-dependencies]
 criterion = "0.3.4"

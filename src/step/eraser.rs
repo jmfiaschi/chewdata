@@ -75,7 +75,7 @@ impl Step for Eraser {
                     }
 
                     if let Some(ref pipe_inbound) = pipe_inbound_option {
-                        debug!(slog_scope::logger(),
+                        info!(slog_scope::logger(),
                             "Data send to the queue";
                             "data" => format!("{:?}", data_result),
                             "step" => format!("{}", self.clone()),
@@ -83,7 +83,7 @@ impl Step for Eraser {
                         );
                         let mut current_retry = 0;
                         while let Err(_) = pipe_inbound.try_send(data_result.clone()) {
-                            debug!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
                             thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
                             current_retry = current_retry + 1;
                         }

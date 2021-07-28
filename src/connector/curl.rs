@@ -313,7 +313,6 @@ impl Connector for Curl {
     /// }
     /// ```
     async fn len(&mut self) -> Result<usize> {
-        debug!(slog_scope::logger(), "Len started");
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -342,6 +341,7 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         if !res.status().is_success() {
+            error!(slog_scope::logger(), "Can't get the len of the remote document"; "connector" => format!("{:?}", self));
             return Ok(0);
         }
 
@@ -354,7 +354,6 @@ impl Connector for Curl {
             .parse::<usize>()
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        debug!(slog_scope::logger(), "Len ended");
         Ok(content_length)
     }
     /// See [`Connector::send`] for more details.

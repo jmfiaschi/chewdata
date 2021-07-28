@@ -59,11 +59,11 @@ pub async fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Op
 #[serde(default)]
 pub struct Metadata {
     pub has_headers: Option<bool>,
-    pub delimiter: Option<[u8; 1]>,
-    pub quote: Option<[u8; 1]>,
-    pub escape: Option<[u8; 1]>,
-    pub comment: Option<[u8; 1]>,
-    pub terminator: Option<[u8; 4]>,
+    pub delimiter: Option<String>,
+    pub quote: Option<String>,
+    pub escape: Option<String>,
+    pub comment: Option<String>,
+    pub terminator: Option<String>,
     pub mime_type: Option<String>,
     pub mime_subtype: Option<String>,
     pub charset: Option<String>,

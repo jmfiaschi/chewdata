@@ -21,12 +21,12 @@ mod reader {
         if cfg!(feature = "use_xml_document") {
             formats.push("xml");
         }
-        for format in formats {
+            for format in formats {
             let data_file_path = format!("{}/{}.{}", "data", "one_line", format);
             println!("Try to test this file '{}'.", data_file_path);
             let output = Command::new(debug_dir().join(APP_NAME))
-                .args(&[config])
-                .env("APP_FILE_PATH_INPUT", &data_file_path)
+            .args(&[config])
+            .env("APP_FILE_PATH_INPUT", &data_file_path)
                 .env("APP_FORMAT_INPUT", format)
                 .env("RUST_LOG", "")
                 .current_dir(repo_dir())
