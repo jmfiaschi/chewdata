@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::Duration;
 use std::{
     fmt,
     io::{Cursor, Error, ErrorKind, Result, Write},
@@ -40,6 +41,7 @@ pub struct BucketSelect {
     pub path: String,
     pub query: String,
     pub parameters: Value,
+    pub timeout: Option<Duration>,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
 }
@@ -57,6 +59,7 @@ impl Default for BucketSelect {
             bucket: String::default(),
             path: String::default(),
             parameters: Value::default(),
+            timeout: None,
             inner: Cursor::default(),
         }
     }
@@ -219,7 +222,7 @@ impl BucketSelect {
             select_object_content_request,
             Some(credentials_provider),
             self.region.to_owned(),
-            None,
+            self.timeout,
         )
         .await
         .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
@@ -568,19 +571,16 @@ impl Connector for BucketSelect {
         Ok(())
     }
     /// See [`Connector::push_data`] for more details.
-    async fn push_data(&mut self, data: DataResult) -> Result<()> {
-        let document = self.document_type().document_inner();
-        document.write_data(self, data.to_json_value()).await
+    async fn push_data(&mut self, _data: DataResult) -> Result<()> {
+        Err(Error::new(ErrorKind::Unsupported, "Can't push data to the remote document. Use the bucket connector instead of this connector"))
     }
+    /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
-        info!(slog_scope::logger(), "Can't erase the document. Use the bucket connector instead of this connector"; "connector" => format!("{:?}", self), "path" => self.path());
-
-        Ok(())
+        Err(Error::new(ErrorKind::Unsupported, "Can't erase the document. Use the bucket connector instead of this connector"))
     }
+    /// See [`Connector::send`] for more details.
     async fn send(&mut self) -> Result<()> {
-        info!(slog_scope::logger(), "Can't send data to the remote document. Use the bucket connector instead of this connector"; "connector" => format!("{:?}", self), "path" => self.path());
-
-        Ok(())
+        Err(Error::new(ErrorKind::Unsupported, "Can't send data to the remote document. Use the bucket connector instead of this connector"))
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
@@ -594,7 +594,7 @@ impl Connector for BucketSelect {
 
 #[async_trait]
 impl async_std::io::Read for BucketSelect {
-    /// See [`Read::poll_read`] for more details.
+    /// See [`async_std::io::Read::poll_read`] for more details.
     fn poll_read(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -606,7 +606,7 @@ impl async_std::io::Read for BucketSelect {
 
 #[async_trait]
 impl async_std::io::Write for BucketSelect {
-    /// See [`Write::poll_write`] for more details.
+    /// See [`async_std::io::Write::poll_write`] for more details.
     fn poll_write(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -614,11 +614,11 @@ impl async_std::io::Write for BucketSelect {
     ) -> Poll<Result<usize>> {
         Poll::Ready(std::io::Write::write(&mut self.inner, buf))
     }
-    /// See [`Write::poll_flush`] for more details.
+    /// See [`async_std::io::Write::poll_flush`] for more details.
     fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(std::io::Write::flush(&mut self.inner))
     }
-    /// See [`Write::poll_close`] for more details.
+    /// See [`async_std::io::Write::poll_close`] for more details.
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.poll_flush(cx)
     }
@@ -652,6 +652,12 @@ impl Paginator for BucketSelectPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
+    ///     connector.path = "data/multi_lines.json".to_string();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.access_key_id = Some("minio_access_key".to_string());
+    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.query = "select * from s3object".to_string();
     ///     let mut paginator = connector.paginator().await?;
     ///
     ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");

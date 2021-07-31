@@ -6,7 +6,6 @@ use crate::step::DataResult;
 use crate::Metadata;
 use async_std::prelude::*;
 use async_trait::async_trait;
-use http::status::StatusCode;
 use regex::Regex;
 use rusoto_core::{credential::StaticProvider, Region, RusotoError};
 use rusoto_s3::{GetObjectRequest, HeadObjectRequest, PutObjectRequest, S3Client, S3 as RusotoS3};
@@ -229,8 +228,8 @@ impl Connector for Bucket {
                 Err(e) => {
                     let error = format!("{:?}", e);
                     match e {
-                        RusotoError::Unknown(http_response) => match http_response.status {
-                            StatusCode::NOT_FOUND => Ok(0),
+                        RusotoError::Unknown(http_response) => match http_response.status.as_str() {
+                            "NOT_FOUND" => Ok(0),
                             _ => Err(Error::new(ErrorKind::Interrupted, error)),
                         },
                         _ => Err(Error::new(ErrorKind::Interrupted, e)),
@@ -468,7 +467,7 @@ impl Connector for Bucket {
 
 #[async_trait]
 impl async_std::io::Read for Bucket {
-    /// See [`Read::poll_read`] for more details.
+    /// See [`async_std::io::Read::poll_read`] for more details.
     fn poll_read(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -480,7 +479,7 @@ impl async_std::io::Read for Bucket {
 
 #[async_trait]
 impl async_std::io::Write for Bucket {
-    /// See [`Write::poll_write`] for more details.
+    /// See [`async_std::io::Write::poll_write`] for more details.
     fn poll_write(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -488,11 +487,11 @@ impl async_std::io::Write for Bucket {
     ) -> Poll<Result<usize>> {
         Poll::Ready(std::io::Write::write(&mut self.inner, buf))
     }
-    /// See [`Write::poll_flush`] for more details.
+    /// See [`async_std::io::Write::poll_flush`] for more details.
     fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(std::io::Write::flush(&mut self.inner))
     }
-    /// See [`Write::poll_close`] for more details.
+    /// See [`async_std::io::Write::poll_close`] for more details.
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.poll_flush(cx)
     }

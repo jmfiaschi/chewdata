@@ -535,7 +535,7 @@ impl Connector for Curl {
 
 #[async_trait]
 impl async_std::io::Read for Curl {
-    /// See [`Read::poll_read`] for more details.
+    /// See [`async_std::io::Read::poll_read`] for more details.
     fn poll_read(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -547,7 +547,7 @@ impl async_std::io::Read for Curl {
 
 #[async_trait]
 impl async_std::io::Write for Curl {
-    /// See [`Write::poll_write`] for more details.
+    /// See [`async_std::io::Write::poll_write`] for more details.
     fn poll_write(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -555,11 +555,11 @@ impl async_std::io::Write for Curl {
     ) -> Poll<Result<usize>> {
         Poll::Ready(std::io::Write::write(&mut self.inner, buf))
     }
-    /// See [`Write::poll_flush`] for more details.
+    /// See [`async_std::io::Write::poll_flush`] for more details.
     fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(std::io::Write::flush(&mut self.inner))
     }
-    /// See [`Write::poll_close`] for more details.
+    /// See [`async_std::io::Write::poll_close`] for more details.
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.poll_flush(cx)
     }
