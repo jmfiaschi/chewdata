@@ -24,7 +24,7 @@ pub struct Local {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    document_type: DocumentType,
+    pub document_type: DocumentType,
     pub path: String,
     pub parameters: Value,
     #[serde(skip)]

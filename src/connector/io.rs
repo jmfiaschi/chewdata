@@ -21,7 +21,7 @@ pub struct Io {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    document_type: DocumentType,
+    pub document_type: DocumentType,
     #[serde(skip)]
     pub inner: Cursor<Vec<u8>>,
 }

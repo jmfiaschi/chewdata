@@ -34,7 +34,9 @@ release: ## Released the script in local
 
 test: minio minio-install httpbin
 test: ## Launch all tests in local
-	@cargo test -- --test-threads=1 ${test} 
+	@cargo test --doc -- --test-threads=1 ${test} 
+	@cargo test --lib -- --test-threads=1 ${test} 
+	@cargo test --tests -- --test-threads=1 ${test} 
 
 bench: httpbin | minio ## Launch benchmark in local
 	@cargo bench

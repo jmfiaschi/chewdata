@@ -10,7 +10,7 @@ mod writer {
     const APP_NAME: &str = "chewdata";
     #[test]
     fn it_should_write_file_in_local_with_one_line() {
-        let config = r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w", "document" :{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true},"connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}}]"#;
+        let config = r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}", "document" :{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}}]"#;
         let mut formats = vec!["json", "jsonl"];
         if cfg!(feature = "use_csv_document") {
             formats.push("csv");
@@ -37,11 +37,13 @@ mod writer {
             let error_result = String::from_utf8_lossy(output.stderr.as_slice());
             assert!(
                 error_result.is_empty(),
-                format!("stderr should be empty. {}.", error_result)
+                "stderr should be empty. {}.",
+                error_result
             );
             assert!(
                 json_result.is_empty(),
-                format!("stdout should be empty. {}", json_result)
+                "stdout should be empty. {}",
+                json_result
             );
 
             let value_result = data(&output_file_path);
@@ -67,8 +69,8 @@ mod writer {
 
             let json_result = String::from_utf8_lossy(output.stdout.as_slice());
             let error_result = String::from_utf8_lossy(output.stderr.as_slice());
-            assert!(error_result.is_empty(), format!("stderr should be empty. {}.", error_result));
-            assert!(json_result.is_empty(), format!("stdout should be empty. {}", json_result));
+            assert!(error_result.is_empty(), "stderr should be empty. {}.", error_result);
+            assert!(json_result.is_empty(), "stdout should be empty. {}", json_result);
         });
     }
     #[cfg(feature = "use_curl_connector")]
@@ -77,7 +79,7 @@ mod writer {
         ["POST","PUT","PATCH","DELETE"].iter().for_each(|method| {
             ["400","401","404","500"].iter().for_each(|status| {
                 println!("Try to call '{} /status/{}'.", method, status);
-                let config = r#"[{"type":"r","connector":{"type":"local","paths":"./data/one_line.json"}},{"type":"w","connector": {"type":"curl","method":"{{ METHOD }}","endpoint":"{{ CURL_ENDPOINT }}","path":"/status/{{ STATUS }}"}}]"#;
+                let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector": {"type":"curl","method":"{{ METHOD }}","endpoint":"{{ CURL_ENDPOINT }}","path":"/status/{{ STATUS }}"}}]"#;
                 let output = Command::new(debug_dir().join(APP_NAME))
                     .args(&[config])
                     .env("CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
@@ -90,8 +92,8 @@ mod writer {
 
                 let json_result = String::from_utf8_lossy(output.stdout.as_slice());
                 let error_result = String::from_utf8_lossy(output.stderr.as_slice());
-                assert!(error_result.is_empty(), format!("stderr should be empty. {}.", error_result));
-                assert!(json_result.is_empty(), format!("stdout should be empty. {}", json_result));
+                assert!(error_result.is_empty(), "stderr should be empty. {}.", error_result);
+                assert!(json_result.is_empty(), "stdout should be empty. {}", json_result);
             });
         });
     }
@@ -111,11 +113,13 @@ mod writer {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             json_result.is_empty(),
-            format!("stdout should be empty. {}", json_result)
+            "stdout should be empty. {}",
+            json_result
         );
 
         let value_result = data(&output_file_path);
@@ -140,11 +144,13 @@ mod writer {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             json_result.is_empty(),
-            format!("stdout should be empty. {}", json_result)
+            "stdout should be empty. {}",
+            json_result
         );
 
         let config = r#"[{"type":"e","connector":{"type":"local","path":"./data/out/truncate_file.json"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field2","pattern":"value2"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/truncate_file.json"}}]"#;
@@ -159,11 +165,13 @@ mod writer {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             json_result.is_empty(),
-            format!("stdout should be empty. {}", json_result)
+            "stdout should be empty. {}",
+            json_result
         );
 
         let value_result = data(&output_file_path);
@@ -185,11 +193,13 @@ mod writer {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             json_result.is_empty(),
-            format!("stdout should be empty. {}", json_result)
+            "stdout should be empty. {}",
+            json_result
         );
 
         let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"tera","actions":[{"field":"field2","pattern":"value2"}]}},{"type":"w","connector":{"type":"local","path":"./data/out/no_truncate_file.json"}}]"#;
@@ -204,11 +214,13 @@ mod writer {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             json_result.is_empty(),
-            format!("stdout should be empty. {}", json_result)
+            "stdout should be empty. {}",
+            json_result
         );
 
         let value_result = data(&output_file_path);
@@ -228,11 +240,13 @@ mod writer {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr should be empty {}.", error_result)
+            "stderr should be empty {}.",
+            error_result
         );
         assert!(
             json_result.is_empty(),
-            format!("stdout should be empty. {}", json_result)
+            "stdout should be empty. {}",
+            json_result
         );
 
         let output_file1_path = format!("{}/{}.{}", "data/out", "cascade_file1", "json");

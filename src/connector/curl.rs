@@ -23,7 +23,7 @@ pub struct Curl {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    document_type: DocumentType,
+    pub document_type: DocumentType,
     #[serde(alias = "auth")]
     #[serde(alias = "authenticator")]
     pub authenticator_type: Option<AuthenticatorType>,
@@ -341,8 +341,12 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         if !res.status().is_success() {
-            error!(slog_scope::logger(), "Can't get the len of the remote document"; "connector" => format!("{:?}", self));
-            return Ok(0);
+            warn!(slog_scope::logger(), "Can't get the len of the remote document"; "connector" => format!("{:?}", self), "status" => res.status().to_string());
+
+            return match res.status() {
+                surf::StatusCode::MethodNotAllowed => Ok(0),
+                _ => Err(Error::new(ErrorKind::Interrupted, "Can't get the len of the remote document"))
+            };
         }
 
         let header_value = res

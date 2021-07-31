@@ -19,7 +19,7 @@ pub struct InMemory {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    document_type: DocumentType,
+    pub document_type: DocumentType,
     #[serde(alias = "value")]
     #[serde(alias = "doc")]
     #[serde(alias = "data")]

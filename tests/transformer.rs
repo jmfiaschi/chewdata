@@ -94,11 +94,12 @@ mod transformer {
                     let error_result = String::from_utf8_lossy(output.stderr.as_slice());
                     assert!(
                         error_result.is_empty(),
-                        format!("stderr is not empty with this value {}.", error_result)
+                        "stderr is not empty with this value {}.",
+                        error_result
                     );
                     assert!(
                         !json_result.is_empty(),
-                        "stdout should not be empty.".to_string()
+                        "stdout should not be empty."
                     );
                     let object_result: Value =
                         serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -152,11 +153,12 @@ mod transformer {
                     let error_result = String::from_utf8_lossy(output.stderr.as_slice());
                     assert!(
                         error_result.is_empty(),
-                        format!("stderr is not empty with this value {}.", error_result)
+                        "stderr is not empty with this value {}.",
+                        error_result
                     );
                     assert!(
                         !json_result.is_empty(),
-                        "stdout should not be empty.".to_string()
+                        "stdout should not be empty."
                     );
 
                     let object_result: Value =
@@ -215,11 +217,12 @@ mod transformer {
                     let error_result = String::from_utf8_lossy(output.stderr.as_slice());
                     assert!(
                         error_result.is_empty(),
-                        format!("stderr is not empty with this value {}.", error_result)
+                        "stderr is not empty with this value {}.",
+                        error_result
                     );
                     assert!(
                         !json_result.is_empty(),
-                        "stdout should not be empty.".to_string()
+                        "stdout should not be empty."
                     );
                     let object_result: Value =
                         serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -271,11 +274,12 @@ mod transformer {
                     let error_result = String::from_utf8_lossy(output.stderr.as_slice());
                     assert!(
                         error_result.is_empty(),
-                        format!("stderr is not empty with this value {}.", error_result)
+                        "stderr is not empty with this value {}.",
+                        error_result
                     );
                     assert!(
                         !json_result.is_empty(),
-                        "stdout should not be empty.".to_string()
+                        "stdout should not be empty."
                     );
                     let object_result: Value =
                         serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -327,11 +331,12 @@ mod transformer {
                     let error_result = String::from_utf8_lossy(output.stderr.as_slice());
                     assert!(
                         error_result.is_empty(),
-                        format!("stderr should be empty {}.", error_result)
+                        "stderr should be empty {}.",
+                        error_result
                     );
                     assert!(
                         !json_result.is_empty(),
-                        "stdout should not be empty.".to_string()
+                        "stdout should not be empty."
                     );
 
                     let object_result: Value =
