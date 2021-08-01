@@ -15,11 +15,15 @@ pub mod helper;
 pub mod step;
 pub mod updater;
 
-use self::step::{StepType, DataResult};
+use self::step::StepType;
 use serde::{Deserialize, Serialize};
 use std::io;
 use multiqueue::MPMCReceiver;
 use async_std::task;
+use std::pin::Pin;
+use futures::stream::Stream;
+use serde_json::Value;
+use json_value_merge::Merge;
 
 pub async fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>) -> io::Result<()> {
     let mut steps = Vec::default();
@@ -103,3 +107,49 @@ impl Metadata {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum DataResult {
+    Ok(Value),
+    Err((Value, io::Error)),
+}
+
+impl Clone for DataResult {
+    fn clone(&self) -> Self {
+        match self {
+            DataResult::Ok(value) => DataResult::Ok(value.clone()),
+            DataResult::Err((value, e)) => {
+                DataResult::Err((value.clone(), io::Error::new(e.kind(), e.to_string())))
+            }
+        }
+    }
+}
+
+impl DataResult {
+    pub const OK: &'static str = "ok";
+    pub const ERR: &'static str = "err";
+    const FIELD_ERROR: &'static str = "_error";
+
+    pub fn to_json_value(&self) -> Value {
+        match self {
+            DataResult::Ok(value) => value.to_owned(),
+            DataResult::Err((value, error)) => {
+                let mut json_value = value.to_owned();
+                json_value.merge_in(
+                    format!("/{}", DataResult::FIELD_ERROR).as_ref(),
+                    Value::String(format!("{}", error)),
+                );
+                json_value
+            }
+        }
+    }
+    pub fn is_type(&self, data_type: &str) -> bool {
+        match (self, data_type.as_ref()) {
+            (DataResult::Ok(_), DataResult::OK) => true,
+            (DataResult::Err(_), DataResult::ERR) => true,
+            _ => false
+        }
+    }
+}
+
+pub type Dataset = Pin<Box<dyn Stream<Item = DataResult> + Send>>;

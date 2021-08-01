@@ -1,19 +1,18 @@
+mod eraser;
 mod reader;
 mod transformer;
 mod writer;
-mod eraser;
 
+use super::step::eraser::Eraser;
 use super::step::reader::Reader;
 use super::step::transformer::Transformer;
 use super::step::writer::Writer;
-use super::step::eraser::Eraser;
-use genawaiter::sync::GenBoxed;
-use json_value_merge::Merge;
+use crate::DataResult;
 use serde::Deserialize;
-use serde_json::Value;
-use std::io;
-use multiqueue::{MPMCReceiver, MPMCSender};
+
 use async_trait::async_trait;
+use multiqueue::{MPMCReceiver, MPMCSender};
+use std::io;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -60,55 +59,13 @@ impl StepType {
     }
 }
 
-#[derive(Debug)]
-pub enum DataResult {
-    Ok(Value),
-    Err((Value, io::Error)),
-}
-
-impl Clone for DataResult {
-    fn clone(&self) -> Self {
-        match self {
-            DataResult::Ok(value) => DataResult::Ok(value.clone()),
-            DataResult::Err((value, e)) => {
-                DataResult::Err((value.clone(), io::Error::new(e.kind(), e.to_string())))
-            }
-        }
-    }
-}
-
-impl DataResult {
-    pub const OK: &'static str = "ok";
-    pub const ERR: &'static str = "err";
-    const FIELD_ERROR: &'static str = "_error";
-
-    pub fn to_json_value(&self) -> Value {
-        match self {
-            DataResult::Ok(value) => value.to_owned(),
-            DataResult::Err((value, error)) => {
-                let mut json_value = value.to_owned();
-                json_value.merge_in(
-                    format!("/{}", DataResult::FIELD_ERROR).as_ref(),
-                    Value::String(format!("{}", error)),
-                );
-                json_value
-            }
-        }
-    }
-    pub fn is_type(&self, data_type: &str) -> bool {
-        match (self, data_type.as_ref()) {
-            (DataResult::Ok(_), DataResult::OK) => true,
-            (DataResult::Err(_), DataResult::ERR) => true,
-            _ => false
-        }
-    }
-}
-
-pub type Data = GenBoxed<DataResult>;
-pub type Dataset = GenBoxed<Vec<DataResult>>;
 #[async_trait]
 pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
-    async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()>;
+    async fn exec(
+        &self,
+        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
+        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+    ) -> io::Result<()>;
     fn thread_number(&self) -> i32 {
         1
     }

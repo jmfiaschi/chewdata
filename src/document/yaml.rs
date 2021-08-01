@@ -1,11 +1,11 @@
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::step::{Data, DataResult};
+use crate::{Dataset, DataResult};
 use crate::Metadata;
 use async_std::io::prelude::WriteExt;
+use async_stream::stream;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
-use genawaiter::sync::GenBoxed;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fmt, io};
@@ -67,15 +67,15 @@ impl Document for Yaml {
     ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(&format!("{}", yaml_str.clone())));
     ///     connector.fetch().await?;
     ///
-    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
-    ///     let line = data_iter.next().unwrap().to_json_value();
-    ///     let expected_line: Value = serde_yaml::from_str(yaml_str).unwrap();
-    ///     assert_eq!(expected_line, line);
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data: Value = serde_yaml::from_str(yaml_str).unwrap();
+    ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut string = String::new();
         connector.read_to_string(&mut string).await?;
 
@@ -87,16 +87,11 @@ impl Document for Yaml {
             records.push(value);
         }
 
-        let data = GenBoxed::new_boxed(|co| async move {
-            debug!(slog_scope::logger(), "Start generator");
+        Ok(Box::pin(stream! {
             for record in records {
-                debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
-                co.yield_(DataResult::Ok(record)).await;
+                yield DataResult::Ok(record);
             }
-            debug!(slog_scope::logger(), "End generator");
-        });
-
-        Ok(data)
+        }))
     }
     /// See [`Document::write_data`] for more details.
     ///

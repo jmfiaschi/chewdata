@@ -1,6 +1,6 @@
 use super::{Connector, Paginator};
 use crate::document::DocumentType;
-use crate::step::DataResult;
+use crate::DataResult;
 use crate::Metadata;
 use async_std::io::{stdin, stdout};
 use async_std::prelude::*;

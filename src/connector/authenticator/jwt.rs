@@ -1,7 +1,8 @@
 use super::Authenticator;
-use crate::{connector::ConnectorType, step::DataResult};
+use crate::{connector::ConnectorType};
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
+use crate::DataResult;
 use async_trait::async_trait;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};

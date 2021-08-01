@@ -1,6 +1,6 @@
 use super::{Connector, Paginator};
 use crate::document::DocumentType;
-use crate::step::DataResult;
+use crate::DataResult;
 use crate::Metadata;
 use async_std::sync::Mutex;
 use async_trait::async_trait;
@@ -201,7 +201,7 @@ impl Connector for InMemory {
     /// ```rust
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;

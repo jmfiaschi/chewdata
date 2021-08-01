@@ -30,7 +30,6 @@ async-trait = "0.1"
 async-stream = { version = "0.3" }
 mime = "0.3"
 multiqueue2= "0.1"
-genawaiter = "0.99.1"
 base64 = "0.13.0"
 regex = "1.5"
 clap = { version = "2.33", features = ["yaml"] }

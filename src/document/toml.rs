@@ -1,14 +1,14 @@
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::step::{Data, DataResult};
+use crate::{Dataset, DataResult};
 use crate::Metadata;
 use async_std::io::prelude::WriteExt;
+use async_stream::stream;
+use async_trait::async_trait;
 use futures::AsyncReadExt;
-use genawaiter::sync::GenBoxed;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
-use async_trait::async_trait;
 
 const DEFAULT_MIME: &str = "application/toml";
 
@@ -54,39 +54,36 @@ impl Document for Toml {
     ///     key_2 = "value_2"
     ///     "#));
     ///     connector.fetch().await?;
-    /// 
-    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
-    ///     let line = data_iter.next().unwrap().to_json_value();
-    ///     let expected_line: Value = serde_json::from_str(r#"{"Title":{"key_1":"value_1","key_2":"value_2"}}"#)?;
-    ///     assert_eq!(expected_line, line);
+    ///
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data: Value = serde_json::from_str(r#"{"Title":{"key_1":"value_1","key_2":"value_2"}}"#)?;
+    ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut string = String::new();
         connector.read_to_string(&mut string).await?;
 
         let record: Value = toml::from_str(string.as_str())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let data = GenBoxed::new_boxed(|co| async move {
-            debug!(slog_scope::logger(), "Start generator");
+        Ok(Box::pin(stream! {
             match record {
                 Value::Array(records) => {
                     for record in records {
                         debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
-                        co.yield_(DataResult::Ok(record)).await;
+                        yield DataResult::Ok(record);
                     }
                 }
                 record => {
                     debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
-                    co.yield_(DataResult::Ok(record)).await;
+                    yield DataResult::Ok(record);
                 }
             };
-            debug!(slog_scope::logger(), "End generator");
-        });
-        Ok(data)
+        }))
     }
     /// See [`Document::write_data`] for more details.
     ///
@@ -103,12 +100,12 @@ impl Document for Toml {
     /// async fn main() -> io::Result<()> {
     ///     let mut document = Toml::default();
     ///     let mut connector = InMemory::new(r#""#);
-    /// 
+    ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
     ///     document.write_data(&mut connector, value).await?;
     ///     assert_eq!(r#"column_1 = "line_1"
     /// "#, &format!("{}", connector));
-    /// 
+    ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
     ///     document.write_data(&mut connector, value).await?;
     ///     assert_eq!(r#"column_1 = "line_1"

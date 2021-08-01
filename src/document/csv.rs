@@ -2,12 +2,12 @@ extern crate csv;
 
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::step::{Data, DataResult};
+use crate::{Dataset, DataResult};
 use crate::Metadata;
 use async_std::io::prelude::WriteExt;
+use async_stream::stream;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
-use genawaiter::sync::GenBoxed;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::io;
@@ -119,7 +119,9 @@ impl Csv {
             .map(|value| builder.escape(*value.as_bytes().to_vec().first().unwrap()));
         metadata.terminator.map(|value| match value.as_str() {
             "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
-            _ => builder.terminator(csv::Terminator::Any(*value.as_bytes().to_vec().first().unwrap())),
+            _ => builder.terminator(csv::Terminator::Any(
+                *value.as_bytes().to_vec().first().unwrap(),
+            )),
         });
         match self.quote_style.clone().to_uppercase().as_ref() {
             "ALWAYS" => builder.quote_style(csv::QuoteStyle::Always),
@@ -148,13 +150,13 @@ impl Csv {
     ///     connector.fetch().await?;
     ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
     ///
-    ///     let mut data_iter = document.read_data(&mut boxed_connector).await?.into_iter();
-    ///     let line_1 = data_iter.next().unwrap().to_json_value();
-    ///     let line_2 = data_iter.next().unwrap().to_json_value();
-    ///     let expected_line_1: Value = serde_json::from_str(r#"{"column1":"A1","column2":"A2"}"#)?;
-    ///     let expected_line_2: Value = serde_json::from_str(r#"{"column1":"B1","column2":"B2"}"#)?;
-    ///     assert_eq!(expected_line_1, line_1);
-    ///     assert_eq!(expected_line_2, line_2);
+    ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
+    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
+    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data_1: Value = serde_json::from_str(r#"{"column1":"A1","column2":"A2"}"#)?;
+    ///     let expected_data_2: Value = serde_json::from_str(r#"{"column1":"B1","column2":"B2"}"#)?;
+    ///     assert_eq!(expected_data_1, data_1);
+    ///     assert_eq!(expected_data_2, data_2);
     ///
     ///     Ok(())
     /// }
@@ -165,7 +167,7 @@ impl Csv {
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -176,9 +178,9 @@ impl Csv {
     ///     connector.fetch().await?;
     ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
     ///
-    ///     let mut data_iter = document.read_data(&mut boxed_connector).await?.into_iter();
-    ///     let line = data_iter.next().unwrap();
-    ///     match line {
+    ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
+    ///     let data = dataset.next().await.unwrap();
+    ///     match data {
     ///         DataResult::Ok(_) => assert!(false, "The line readed by the csv builder should be in error."),
     ///         DataResult::Err(_) => ()
     ///     };
@@ -186,8 +188,8 @@ impl Csv {
     ///     Ok(())
     /// }
     /// ```
-    fn read_with_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<Data> {
-        Ok(GenBoxed::new_boxed(|co| async move {
+    fn read_with_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<Dataset> {
+        Ok(Box::pin(stream! {
             let data = reader.into_deserialize::<Map<String, Value>>();
             for record in data {
                 let data_result = match record {
@@ -204,7 +206,7 @@ impl Csv {
                         DataResult::Err((Value::Null, e.into()))
                     }
                 };
-                co.yield_(data_result).await;
+                yield data_result;
             }
             debug!(slog_scope::logger(), "End generator");
         }))
@@ -233,19 +235,19 @@ impl Csv {
     ///     connector.fetch().await?;
     ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
     ///
-    ///     let mut data_iter = document.read_data(&mut boxed_connector).await?.into_iter();
-    ///     let line_1 = data_iter.next().unwrap().to_json_value();
-    ///     let line_2 = data_iter.next().unwrap().to_json_value();
-    ///     let expected_line_1 = Value::Array(vec![Value::String("A1".to_string()),Value::String("A2".to_string())]);
-    ///     let expected_line_2 = Value::Array(vec![Value::String("B1".to_string()),Value::String("B2".to_string())]);
-    ///     assert_eq!(expected_line_1, line_1);
-    ///     assert_eq!(expected_line_2, line_2);
+    ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
+    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
+    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data_1 = Value::Array(vec![Value::String("A1".to_string()),Value::String("A2".to_string())]);
+    ///     let expected_data_2 = Value::Array(vec![Value::String("B1".to_string()),Value::String("B2".to_string())]);
+    ///     assert_eq!(expected_data_1, data_1);
+    ///     assert_eq!(expected_data_2, data_2);
     ///
     ///     Ok(())
     /// }
     /// ```
-    fn read_without_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<Data> {
-        Ok(GenBoxed::new_boxed(|co| async move {
+    fn read_without_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<Dataset> {
+        Ok(Box::pin(stream! {
             debug!(slog_scope::logger(), "Start generator");
             for record in reader.into_records() {
                 let data_result = match record {
@@ -265,7 +267,7 @@ impl Csv {
                         ))
                     }
                 };
-                co.yield_(data_result).await;
+                yield data_result;
             }
             debug!(slog_scope::logger(), "End generator");
         }))
@@ -304,9 +306,9 @@ impl Document for Csv {
     ///     connector.fetch().await?;
     ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
     ///
-    ///     let mut data_iter = document.read_data(&mut boxed_connector).await?.into_iter();
-    ///     let line = data_iter.next().unwrap().to_json_value();
-    ///     let expected_line: Value = serde_json::from_str(r#"{
+    ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
+    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data: Value = serde_json::from_str(r#"{
     ///     "string":"My text",
     ///     "string_backspace":"My text with\n backspace",
     ///     "special_char":"€",
@@ -314,12 +316,12 @@ impl Document for Csv {
     ///     "float":9.5,
     ///     "bool":true
     ///     }"#)?;
-    ///     assert_eq!(expected_line, line);
+    ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut buf = Vec::new();
         connector.read_to_end(&mut buf).await?;
 

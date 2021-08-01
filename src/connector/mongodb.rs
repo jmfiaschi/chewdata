@@ -1,6 +1,6 @@
-use crate::{document::DocumentType, step::DataResult};
-
 use super::{Connector, Paginator};
+use crate::document::DocumentType;
+use crate::DataResult;
 use async_std::prelude::*;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -187,7 +187,7 @@ impl Connector for Mongodb {
     /// ```rust
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -235,7 +235,7 @@ impl Connector for Mongodb {
     /// ```rust
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -282,7 +282,7 @@ impl Connector for Mongodb {
     /// ```rust
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -486,7 +486,7 @@ impl Paginator for MongodbPaginator {
         };
 
         self.skip = limit + find_options.skip.unwrap_or(self.skip);
-  
+
         find_options.skip = Some(self.skip);
         connector.find_options = Some(find_options.clone());
         connector.fetch().await?;
@@ -494,7 +494,7 @@ impl Paginator for MongodbPaginator {
         if !connector.inner_has_data() {
             return Ok(None);
         }
-        
+
         Ok(Some(Box::new(connector)))
     }
 }

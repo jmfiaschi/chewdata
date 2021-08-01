@@ -23,17 +23,18 @@ use self::io::Io;
 use self::local::Local;
 #[cfg(feature = "use_mongodb_connector")]
 use self::mongodb::Mongodb;
-use crate::step::DataResult;
+use crate::DataResult;
 use crate::{document::DocumentType, Metadata};
 use async_std::io::{Read, Write};
 use async_stream::stream;
 use async_trait::async_trait;
-use futures::stream::Stream;
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
+use crate::Dataset;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
@@ -122,7 +123,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     // Pull the data from the inner connector, transform the data with the document type and return data as a stream.
     async fn pull_data(
         &mut self,
-    ) -> std::io::Result<Pin<Box<dyn Stream<Item = DataResult> + Send>>> {
+    ) -> std::io::Result<Dataset> {
         debug!(slog_scope::logger(), "pull data");
         let mut paginator = self.paginator().await?;
         let document = self.document_type().document_inner();
@@ -136,14 +137,14 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                 }
             } {
                 debug!(slog_scope::logger(), "Next page started"; "connector" => format!("{:?}", connector_reader));
-                let data = match document.read_data(connector_reader).await {
+                let mut data = match document.read_data(connector_reader).await {
                     Ok(data) => data,
                     Err(e) => {
                         error!(slog_scope::logger(), "Can't pull the data"; "connector" => format!("{:?}", connector_reader), "error" => e);
                         break;
                     }
                 };
-                for data_result in data {
+                while let Some(data_result) = data.next().await {
                     yield data_result;
                 }
                 debug!(slog_scope::logger(), "Next page ended"; "connector" => format!("{:?}", connector_reader));

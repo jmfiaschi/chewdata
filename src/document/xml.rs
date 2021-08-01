@@ -3,12 +3,12 @@ extern crate jxon;
 use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::json_pointer::JsonPointer;
-use crate::step::{Data, DataResult};
+use crate::{Dataset, DataResult};
 use crate::Metadata;
 use async_std::io::prelude::WriteExt;
+use async_stream::stream;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
-use genawaiter::sync::GenBoxed;
 use json_value_merge::Merge;
 use json_value_search::Search;
 use regex::Regex;
@@ -150,19 +150,19 @@ impl Document for Xml {
     ///     </root>"#));
     ///     connector.fetch().await?;
     ///
-    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
-    ///     let line_1 = data_iter.next().unwrap().to_json_value();
-    ///     let expected_line_1: Value = serde_json::from_str(r#"{"key_1":"value_1"}"#)?;
-    ///     assert_eq!(expected_line_1, line_1);
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data_1: Value = serde_json::from_str(r#"{"key_1":"value_1"}"#)?;
+    ///     assert_eq!(expected_data_1, data_1);
     ///
-    ///     let line_2 = data_iter.next().unwrap().to_json_value();
-    ///     let expected_line_2: Value = serde_json::from_str(r#"{"key_1":"value_2"}"#)?;
-    ///     assert_eq!(expected_line_2, line_2);
+    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data_2: Value = serde_json::from_str(r#"{"key_1":"value_2"}"#)?;
+    ///     assert_eq!(expected_data_2, data_2);
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut string = String::new();
         connector.read_to_string(&mut string).await?;
 
@@ -179,28 +179,27 @@ impl Document for Xml {
             records_option = Some(Xml::trim_array(&records));
         } else {
             warn!(slog_scope::logger(), "Entry path not found"; "entry_path" => &self.entry_path);
-            return Ok(GenBoxed::new_boxed(|_| async move {}));
+            return Ok(Box::pin(stream! { yield DataResult::Ok(serde_json::Value::Null); }));
         }
 
         let entry_path = self.entry_path.clone();
-        let data = GenBoxed::new_boxed(|co| async move {
-            debug!(slog_scope::logger(), "Start generator");
+        Ok(Box::pin(stream! {
             match records_option {
                 Some(record) => match record {
                     Value::Array(vec) => {
                         for json_value in vec {
                             debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",json_value));
-                            co.yield_(DataResult::Ok(json_value.clone())).await;
+                            yield DataResult::Ok(json_value.clone());
                         }
                     }
                     _ => {
                         debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
-                        co.yield_(DataResult::Ok(record.clone())).await;
+                        yield DataResult::Ok(record.clone());
                     }
                 },
                 None => {
                     warn!(slog_scope::logger(), "This path not found into the document."; "path"=>entry_path.clone(), "xml"=>string.clone());
-                    co.yield_(DataResult::Err((
+                    yield DataResult::Err((
                         Value::Null,
                         io::Error::new(
                             io::ErrorKind::NotFound,
@@ -209,14 +208,10 @@ impl Document for Xml {
                                 entry_path.clone()
                             ),
                         ),
-                    )))
-                    .await;
+                    ));
                 }
             };
-            debug!(slog_scope::logger(), "End generator");
-        });
-
-        Ok(data)
+        }))
     }
     /// See [`Document::write_data`] for more details.
     ///

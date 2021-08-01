@@ -2,7 +2,7 @@ use super::Paginator;
 use crate::connector::Connector;
 use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
-use crate::step::DataResult;
+use crate::DataResult;
 use crate::Metadata;
 use async_std::prelude::*;
 use async_trait::async_trait;
@@ -337,7 +337,7 @@ impl Connector for Bucket {
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;

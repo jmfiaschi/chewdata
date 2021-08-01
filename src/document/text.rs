@@ -1,11 +1,11 @@
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::step::{Data, DataResult};
+use crate::{Dataset, DataResult};
 use crate::Metadata;
 use async_std::io::prelude::WriteExt;
+use async_stream::stream;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
-use genawaiter::sync::GenBoxed;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
@@ -52,22 +52,20 @@ impl Document for Text {
     ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"My text1 \n My text 2"#));
     ///     connector.fetch().await?;
     ///
-    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
-    ///     let line = data_iter.next().unwrap().to_json_value();
-    ///     assert_eq!(r#"My text1 \n My text 2"#, line);
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     assert_eq!(r#"My text1 \n My text 2"#, data);
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut text = String::default();
         connector.read_to_string(&mut text).await?;
 
-        let data = GenBoxed::new_boxed(|co| async move {
-            co.yield_(DataResult::Ok(Value::String(text))).await;
-        });
-
-        Ok(data)
+        Ok(Box::pin(stream! {
+            yield DataResult::Ok(Value::String(text));
+        }))
     }
     /// See [`Document::write_data`] for more details.
     ///

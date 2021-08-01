@@ -2,7 +2,7 @@ use super::authenticator::AuthenticatorType;
 use super::{Connector, Paginator};
 use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
-use crate::step::DataResult;
+use crate::DataResult;
 use crate::Metadata;
 use async_std::io::prelude::WriteExt;
 use async_trait::async_trait;
@@ -363,7 +363,7 @@ impl Connector for Curl {
     /// ```rust
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use surf::http::Method;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;

@@ -1,6 +1,6 @@
-use super::DataResult;
 use crate::connector::ConnectorType;
 use crate::step::Step;
+use crate::DataResult;
 use async_trait::async_trait;
 use futures::StreamExt;
 use multiqueue::{MPMCReceiver, MPMCSender};
@@ -116,7 +116,7 @@ impl Step for Reader {
                         current_retry = current_retry + 1;
                     }
                 }
-            },
+            }
             (None, _) => {
                 let mut data = connector.pull_data().await?;
                 while let Some(data_result) = data.next().await {

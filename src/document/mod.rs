@@ -22,7 +22,7 @@ use self::xml::Xml;
 #[cfg(feature = "use_yaml_document")]
 use self::yaml::Yaml;
 use crate::connector::Connector;
-use crate::step::Data;
+use crate::Dataset;
 use serde::{Deserialize, Serialize};
 use std::io;
 use super::Metadata;
@@ -112,7 +112,7 @@ impl DocumentType {
 #[async_trait]
 pub trait Document: Send + Sync + DocumentClone {
     /// Apply some actions and read the data though the Connector.
-    async fn read_data(&self, reader: &mut Box<dyn Connector>) -> io::Result<Data>;
+    async fn read_data(&self, reader: &mut Box<dyn Connector>) -> io::Result<Dataset>;
     /// Format the data result into the document format, apply some action and write into the connector.
     async fn write_data(
         &self,

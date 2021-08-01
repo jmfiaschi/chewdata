@@ -1,6 +1,6 @@
-use super::DataResult;
 use crate::connector::ConnectorType;
 use crate::step::Step;
+use crate::DataResult;
 use async_trait::async_trait;
 use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;

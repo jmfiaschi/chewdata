@@ -1,7 +1,7 @@
 use super::{Connector, Paginator};
 use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
-use crate::step::DataResult;
+use crate::DataResult;
 use crate::Metadata;
 use async_trait::async_trait;
 use glob::glob;
@@ -183,7 +183,7 @@ impl Connector for Local {
     /// ```rust
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -335,7 +335,7 @@ impl Connector for Local {
     /// ```rust
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;

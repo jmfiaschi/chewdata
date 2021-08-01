@@ -1,10 +1,10 @@
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::step::{Data, DataResult};
+use crate::{Dataset, DataResult};
 use crate::Metadata;
 use async_std::io::{prelude::WriteExt, ReadExt};
+use async_stream::stream;
 use async_trait::async_trait;
-use genawaiter::sync::GenBoxed;
 use json_value_search::Search;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -59,11 +59,11 @@ impl Document for Jsonl {
     ///     let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#;
     ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(&format!("{}", json_str.clone())));
     ///     connector.fetch().await?;
-    /// 
-    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
-    ///     let line = data_iter.next().unwrap().to_json_value();
-    ///     let expected_line: Value = serde_json::from_str(json_str)?;
-    ///     assert_eq!(expected_line, line);
+    ///
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data: Value = serde_json::from_str(json_str)?;
+    ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
     /// }
@@ -74,7 +74,7 @@ impl Document for Jsonl {
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
+    /// use chewdata::DataResult;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -83,10 +83,10 @@ impl Document for Jsonl {
     ///     let mut document = Jsonl::default();
     ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new("My text"));
     ///     connector.fetch().await?;
-    /// 
-    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
-    ///     let line = data_iter.next().unwrap();
-    ///     match line {
+    ///
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data = dataset.next().await.unwrap();
+    ///     match data {
     ///         DataResult::Ok(_) => assert!(false, "The line readed by the json builder should be in error."),
     ///         DataResult::Err(_) => ()
     ///     };
@@ -111,9 +111,9 @@ impl Document for Jsonl {
     ///     {"array1":[{"field":"value3"},{"field":"value4"}]}"#));
     ///     connector.fetch().await?;
     ///     let expected_data: Value = serde_json::from_str(r#"{"field":"value1"}"#)?;
-    /// 
-    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
-    ///     let data = data_iter.next().unwrap().to_json_value();
+    ///
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data = dataset.next().await.unwrap().to_json_value();
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
@@ -135,15 +135,15 @@ impl Document for Jsonl {
     ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"{"array1":[{"field":"value1"},{"field":"value2"}]}"#));
     ///     connector.fetch().await?;
     ///     let expected_data: Value = serde_json::from_str(r#"{"array1":[{"field":"value1"},{"field":"value2"}],"_error":"Entry path '/not_found/*' not found."}"#)?;
-    /// 
-    ///     let mut data_iter = document.read_data(&mut connector).await?.into_iter();
-    ///     let data = data_iter.next().unwrap().to_json_value();
+    ///
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data = dataset.next().await.unwrap().to_json_value();
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Data> {
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut buf = Vec::new();
         connector.read_to_end(&mut buf).await?;
 
@@ -153,42 +153,37 @@ impl Document for Jsonl {
         let iterator = deserializer.into_iter::<Value>();
         let entry_path_option = self.entry_path.clone();
 
-        let data = GenBoxed::new_boxed(|co| async move {
-            debug!(slog_scope::logger(), "Start generator");
+        Ok(Box::pin(stream! {
             for record_result in iterator {
                 match (record_result, entry_path_option.clone()) {
                     (Ok(record), Some(entry_path)) => {
                         match record.clone().search(entry_path.as_ref()) {
                             Ok(Some(Value::Array(values))) => {
                                 for value in values {
-                                    co.yield_(DataResult::Ok(value)).await;
+                                    yield DataResult::Ok(value);
                                 }
                             }
-                            Ok(Some(record)) => co.yield_(DataResult::Ok(record)).await,
+                            Ok(Some(record)) => yield DataResult::Ok(record),
                             Ok(None) => {
-                                co.yield_(DataResult::Err((
+                                yield DataResult::Err((
                                     record,
                                     io::Error::new(
                                         io::ErrorKind::InvalidInput,
                                         format!("Entry path '{}' not found.", entry_path),
                                     ),
-                                )))
-                                .await
+                                ))
                             }
-                            Err(e) => co.yield_(DataResult::Err((record, e))).await,
+                            Err(e) => yield DataResult::Err((record, e)),
                         };
                     }
-                    (Ok(record), None) => co.yield_(DataResult::Ok(record)).await,
+                    (Ok(record), None) => yield DataResult::Ok(record),
                     (Err(e), _) => {
                         warn!(slog_scope::logger(), "Can't deserialize the record"; "error"=>format!("{:?}",e));
-                        co.yield_(DataResult::Err((Value::Null, e.into()))).await;
+                        yield DataResult::Err((Value::Null, e.into()));
                     }
                 };
             }
-            debug!(slog_scope::logger(), "End generator");
-        });
-
-        Ok(data)
+        }))
     }
     /// See [`Document::write_data`] for more details.
     ///
@@ -205,12 +200,12 @@ impl Document for Jsonl {
     /// async fn main() -> io::Result<()> {
     ///     let mut document = Jsonl::default();
     ///     let mut connector = InMemory::new(r#""#);
-    /// 
+    ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
     ///     document.write_data(&mut connector, value).await?;
     ///     assert_eq!(r#"{"column_1":"line_1"}
     /// "#, &format!("{}", connector));
-    /// 
+    ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
     ///     document.write_data(&mut connector, value).await?;
     ///     assert_eq!(r#"{"column_1":"line_1"}
@@ -234,7 +229,7 @@ impl Document for Jsonl {
         match str {
             "{}" => false,
             "" => false,
-            _ => true
+            _ => true,
         }
     }
 }
