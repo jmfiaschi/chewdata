@@ -106,7 +106,7 @@ impl Step for Writer {
                     match connector.send().await {
                         Ok(_) => (),
                         Err(e) => {
-                            warn!(slog_scope::logger(), "Can't send the data througth the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "batch" => String::from_utf8_lossy(connector.inner()).to_string())
+                            warn!(slog_scope::logger(), "Can't send the data througth the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
                         }
                     };
                     current_dataset_size = 0;
@@ -131,7 +131,7 @@ impl Step for Writer {
                 match connector.send().await {
                     Ok(_) => (),
                     Err(e) => {
-                        warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "batch" => String::from_utf8_lossy(connector.inner()).to_string())
+                        warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
                     }
                 };
                 current_dataset_size = 0;
@@ -148,7 +148,7 @@ impl Step for Writer {
             match connector.send().await {
                 Ok(_) => (),
                 Err(e) => {
-                    warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "batch" => String::from_utf8_lossy(connector.inner()).to_string())
+                    warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
                 }
             };
         }
