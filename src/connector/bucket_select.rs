@@ -572,15 +572,15 @@ impl Connector for BucketSelect {
     }
     /// See [`Connector::push_data`] for more details.
     async fn push_data(&mut self, _data: DataResult) -> Result<()> {
-        Err(Error::new(ErrorKind::Unsupported, "Can't push data to the remote document. Use the bucket connector instead of this connector"))
+        unimplemented!("Can't push data to the remote document. Use the bucket connector instead of this connector")
     }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
-        Err(Error::new(ErrorKind::Unsupported, "Can't erase the document. Use the bucket connector instead of this connector"))
+        unimplemented!("Can't erase the document. Use the bucket connector instead of this connector")
     }
     /// See [`Connector::send`] for more details.
     async fn send(&mut self) -> Result<()> {
-        Err(Error::new(ErrorKind::Unsupported, "Can't send data to the remote document. Use the bucket connector instead of this connector"))
+        unimplemented!("Can't send data to the remote document. Use the bucket connector instead of this connector")
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
