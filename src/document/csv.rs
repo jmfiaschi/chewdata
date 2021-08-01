@@ -292,7 +292,7 @@ impl Document for Csv {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut metadata = Metadata::default();
-    ///     metadata.delimiter = Some([b'|']);
+    ///     metadata.delimiter = Some("|".to_string());
     ///
     ///     let mut document = Csv::default();
     ///     document.metadata = metadata;
@@ -378,7 +378,7 @@ impl Document for Csv {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut metadata = Metadata::default();
-    ///     metadata.delimiter = Some([b'|']);
+    ///     metadata.delimiter = Some("|".to_string());
     ///
     ///     let mut document = Csv::default();
     ///     document.metadata = metadata;

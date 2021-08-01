@@ -32,11 +32,12 @@ example:
 release: ## Released the script in local
 	@cargo build --release --test-threads=1
 
-test: minio minio-install httpbin
+test: minio minio-install httpbin mongo
 test: ## Launch all tests in local
-	@cargo test --doc -- --test-threads=1 ${test} 
-	@cargo test --lib -- --test-threads=1 ${test} 
-	@cargo test --tests -- --test-threads=1 ${test} 
+	@default_thread=1
+	@cargo test --doc -- --test-threads=1 ${name} 
+	@cargo test --lib -- --test-threads=1 ${name} 
+	@cargo test --tests -- --test-threads=1 ${name}
 
 bench: httpbin | minio ## Launch benchmark in local
 	@cargo bench

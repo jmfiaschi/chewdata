@@ -28,7 +28,6 @@ futures = "0.3"
 async-std = "1.9"
 async-trait = "0.1"
 async-stream = { version = "0.3" }
-futures-core = { version = "0.3" }
 mime = "0.3"
 multiqueue2= "0.1"
 genawaiter = "0.99.1"
@@ -53,7 +52,7 @@ surf_bucket_select = { version = "0.1", optional = true }
 mongodb = { version = "1.2", default-features = false, features = ["async-std-runtime"], optional = true }
 
 [dev-dependencies]
-criterion = "0.3"
+# criterion = "0.3"
 chrono = "0.4"
 
 [features]
@@ -74,6 +73,6 @@ default = [
     'use_mongodb_connector',
 ]
 
-[[bench]]
-name = "reader_benchmark"
-harness = false
+# [[bench]]
+# name = "reader_benchmark"
+# harness = false

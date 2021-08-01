@@ -228,8 +228,8 @@ impl Connector for Bucket {
                 Err(e) => {
                     let error = format!("{:?}", e);
                     match e {
-                        RusotoError::Unknown(http_response) => match http_response.status.as_str() {
-                            "NOT_FOUND" => Ok(0),
+                        RusotoError::Unknown(http_response) => match http_response.status.as_u16() {
+                            404 => Ok(0),
                             _ => Err(Error::new(ErrorKind::Interrupted, error)),
                         },
                         _ => Err(Error::new(ErrorKind::Interrupted, e)),
@@ -525,6 +525,11 @@ impl Paginator for BucketPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.access_key_id = Some("minio_access_key".to_string());
+    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.path = "data/one_line.json".to_string();
     ///     let mut paginator = connector.paginator().await?;
     ///
     ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");

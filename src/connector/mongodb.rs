@@ -428,7 +428,7 @@ impl MongodbPaginator {
     pub async fn new(connector: Mongodb) -> Result<Self> {
         Ok(MongodbPaginator {
             connector: connector.clone(),
-            skip: 0,
+            skip: -1,
             len: connector.clone().len().await?,
         })
     }
@@ -449,7 +449,7 @@ impl Paginator for MongodbPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut find_options = FindOptions::default();
-    ///     find_options.limit = Some(5);
+    ///     find_options.limit = Some(1);
     ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();

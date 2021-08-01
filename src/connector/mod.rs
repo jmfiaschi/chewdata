@@ -28,7 +28,7 @@ use crate::{document::DocumentType, Metadata};
 use async_std::io::{Read, Write};
 use async_stream::stream;
 use async_trait::async_trait;
-use futures_core::stream::Stream;
+use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
