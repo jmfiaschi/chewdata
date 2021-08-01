@@ -89,7 +89,7 @@ impl Step for Writer {
                     current_retry = current_retry + 1;
                 }
             }
-            
+
             if !data_result.is_type(self.data_type.as_ref()) {
                 info!(slog_scope::logger(),
                     "This step handle only this data type";
@@ -103,12 +103,17 @@ impl Step for Writer {
             {
                 // If the path change, the writer flush and send the data in the buffer though the connector.
                 if connector.is_resource_will_change(data_result.to_json_value())? {
-                    connector.send().await?;
+                    match connector.send().await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            warn!(slog_scope::logger(), "Can't send the data througth the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "batch" => String::from_utf8_lossy(connector.inner()).to_string())
+                        }
+                    };
                     current_dataset_size = 0;
                     connector = self.connector_type.clone().connector_inner();
                 }
             }
-            
+
             connector.set_parameters(data_result.to_json_value());
             info!(slog_scope::logger(),
                 "Push data";
@@ -123,7 +128,12 @@ impl Step for Writer {
                     "Send data";
                     "step" => format!("{}", self.clone()),
                 );
-                connector.send().await?;
+                match connector.send().await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "batch" => String::from_utf8_lossy(connector.inner()).to_string())
+                    }
+                };
                 current_dataset_size = 0;
             } else {
                 current_dataset_size = current_dataset_size + 1;
@@ -135,7 +145,12 @@ impl Step for Writer {
                 "Send data before to end the step";
                 "step" => format!("{}", self.clone()),
             );
-            connector.send().await?;
+            match connector.send().await {
+                Ok(_) => (),
+                Err(e) => {
+                    warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "batch" => String::from_utf8_lossy(connector.inner()).to_string())
+                }
+            };
         }
 
         if let Some(ref pipe_inbound) = pipe_inbound_option {
