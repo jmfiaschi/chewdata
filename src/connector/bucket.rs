@@ -506,7 +506,7 @@ pub struct BucketPaginator {
 impl BucketPaginator {
     pub fn new(connector: Bucket) -> Result<Self> {
         Ok(BucketPaginator {
-            connector: connector,
+            connector,
             has_next: true,
         })
     }

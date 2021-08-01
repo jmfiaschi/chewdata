@@ -456,7 +456,7 @@ impl LocalPaginator {
         }
 
         Ok(LocalPaginator {
-            connector: connector,
+            connector,
             paths: paths.into_iter(),
         })
     }

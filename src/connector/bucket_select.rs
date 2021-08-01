@@ -633,7 +633,7 @@ pub struct BucketSelectPaginator {
 impl BucketSelectPaginator {
     pub fn new(connector: BucketSelect) -> Result<Self> {
         Ok(BucketSelectPaginator {
-            connector: connector,
+            connector,
             has_next: true,
         })
     }

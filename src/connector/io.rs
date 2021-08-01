@@ -166,7 +166,7 @@ pub struct IoPaginator {
 impl IoPaginator {
     pub fn new(connector: Io) -> Result<Self> {
         Ok(IoPaginator {
-            connector: connector,
+            connector,
             has_next: true,
         })
     }

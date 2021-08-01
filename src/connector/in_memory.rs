@@ -322,7 +322,7 @@ pub struct InMemoryPaginator {
 impl InMemoryPaginator {
     pub fn new(connector: InMemory) -> Result<Self> {
         Ok(InMemoryPaginator {
-            connector: connector,
+            connector,
             has_next: true,
         })
     }
