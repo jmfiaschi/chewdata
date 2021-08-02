@@ -71,7 +71,7 @@ jobs:
         uses: codecov/codecov-action@v2
         with:
           token: ${{secrets.CODECOV_TOKEN}}
-          flags: unittests
+          flags: integration
           verbose: true
 
       - name: Archive code coverage results
