@@ -8,6 +8,7 @@ use async_std::prelude::*;
 use async_trait::async_trait;
 use regex::Regex;
 use rusoto_core::{credential::StaticProvider, Region, RusotoError};
+use rusoto_s3::ListObjectsV2Request;
 use rusoto_s3::{GetObjectRequest, HeadObjectRequest, PutObjectRequest, S3Client, S3 as RusotoS3};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -19,6 +20,7 @@ use std::{
 };
 use tokio::io::AsyncReadExt;
 use tokio::runtime::Runtime;
+use std::vec::IntoIter;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -35,6 +37,8 @@ pub struct Bucket {
     pub bucket: String,
     pub path: String,
     pub parameters: Value,
+    pub limit: Option<usize>,
+    pub skip: usize,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
 }
@@ -51,7 +55,9 @@ impl Default for Bucket {
             bucket: String::default(),
             path: String::default(),
             parameters: Value::default(),
-            inner: Cursor::default()
+            inner: Cursor::default(),
+            limit: None,
+            skip: 0,
         }
     }
 }
@@ -211,6 +217,14 @@ impl Connector for Bucket {
     /// }
     /// ```
     async fn len(&mut self) -> Result<usize> {
+        let reg = Regex::new("[*]").unwrap();
+        if reg.is_match(self.path.as_ref()) {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "len() method not available for wildcard path.",
+            ));
+        }
+
         let s3_client = self.s3_client();
         let request = HeadObjectRequest {
             bucket: self.bucket.clone(),
@@ -500,14 +514,94 @@ impl async_std::io::Write for Bucket {
 #[derive(Debug)]
 pub struct BucketPaginator {
     connector: Bucket,
-    has_next: bool,
+    paths: IntoIter<String>,
+    skip: usize,
 }
 
 impl BucketPaginator {
     pub fn new(connector: Bucket) -> Result<Self> {
+        let mut paths = Vec::default();
+
+        let reg_path_contain_wildcard = Regex::new("[*]")
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+        let path = connector.path().clone();
+        
+        match reg_path_contain_wildcard.is_match(path.as_str()) {
+            true => {
+                let delimiter = "/";
+
+                let directories:Vec<&str> = path.split_terminator(delimiter).collect();
+                let prefix_keys: Vec<&str> = directories.clone().into_iter().take_while(|item| !item.contains("*") ).collect();
+                let postfix_keys: Vec<&str> = directories.clone().into_iter().filter(|item| !prefix_keys.contains(item)).collect();
+
+                let key_pattern = postfix_keys
+                    .join(delimiter)
+                    .replace(".","\\.")
+                    .replace("*",".*");
+                let reg_key = Regex::new(key_pattern.as_str())
+                    .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+                let mut is_truncated = true;
+                let mut next_token: Option<String> = None;
+                while is_truncated {
+                    let s3_client = connector.s3_client();
+                    let request = ListObjectsV2Request {
+                        bucket: connector.bucket.clone(),
+                        delimiter: Some(delimiter.to_string()),
+                        prefix: Some(format!("{}/",prefix_keys.join("/"))),
+                        continuation_token: next_token,
+                        ..Default::default()
+                    };
+                    //TODO: When rusoto will use last version of tokio we should remove the block_on.
+                    let (mut paths_tmp, is_truncated_tmp, next_token_tmp) = Runtime::new()?.block_on(async {
+                        match s3_client.list_objects_v2(request).await {
+                            Ok(response) => {
+                                (
+                                    response.contents.unwrap_or(Vec::default()).into_iter().filter(|object| match object.key {
+                                        Some(ref path) => reg_key.is_match(path.as_str()),
+                                        None => false
+                                    })
+                                    .map(|object| object.key.unwrap()).collect(), 
+                                    response.is_truncated.unwrap_or(false),
+                                    response.next_continuation_token
+                                )
+                            },
+                            Err(e) => {
+                                warn!(slog_scope::logger(), "Can't fetch the list of keys"; "error" => e.to_string());
+                                (Vec::default(), false, None)
+                            }
+                        }
+                    });
+
+                    is_truncated = is_truncated_tmp;
+                    next_token = next_token_tmp;
+                    paths.append(&mut paths_tmp);
+                }
+
+                if let Some(limit) = connector.limit {
+                    let paths_range_start= if paths.len() < connector.skip {
+                        paths.len()
+                    } else {
+                        connector.skip
+                    };
+                    let paths_range_end = if paths.len() < connector.skip + limit {
+                        paths.len()
+                    } else {
+                        connector.skip + limit
+                    };
+
+                    paths = paths[paths_range_start..paths_range_end].to_vec();
+                }
+            },
+            false => {
+                paths.append(&mut vec![path]);
+            }
+        }
+
         Ok(BucketPaginator {
+            skip: connector.skip,
+            paths: paths.into_iter(),
             connector,
-            has_next: true,
         })
     }
 }
@@ -538,15 +632,60 @@ impl Paginator for BucketPaginator {
     ///     Ok(())
     /// }
     /// ```
+    /// # Example: With wildcard
+    /// ```rust
+    /// use chewdata::connector::bucket::Bucket;
+    /// use chewdata::connector::Connector;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Bucket::default();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.access_key_id = Some("minio_access_key".to_string());
+    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.path = "data/*.json*".to_string();
+    ///     let mut paginator = connector.paginator().await?;
+    ///
+    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
+    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the second reader.");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    // # Example: With wildcard, limit and skip
+    /// ```rust
+    /// use chewdata::connector::bucket::Bucket;
+    /// use chewdata::connector::Connector;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Bucket::default();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.access_key_id = Some("minio_access_key".to_string());
+    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.path = "data/*.json*".to_string();
+    ///     connector.limit = Some(5);
+    ///     connector.skip = 2;
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert_eq!("data/multi_lines.jsonl".to_string(), paginator.next_page().await?.unwrap().path());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        Ok(match self.has_next {
-            true => {
-                let mut connector = self.connector.clone();
-                self.has_next = false;
+        let mut connector = self.connector.clone();
+
+        Ok(match self.paths.next() {
+            Some(path) => {
+                connector.path = path;
                 connector.fetch().await?;
                 Some(Box::new(connector))
             }
-            false => None,
+            None => None,
         })
     }
 }

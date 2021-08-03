@@ -421,7 +421,6 @@ impl async_std::io::Write for Mongodb {
 pub struct MongodbPaginator {
     connector: Mongodb,
     skip: i64,
-    len: usize,
 }
 
 impl MongodbPaginator {
@@ -429,7 +428,6 @@ impl MongodbPaginator {
         Ok(MongodbPaginator {
             connector: connector.clone(),
             skip: -1,
-            len: connector.clone().len().await?,
         })
     }
 }

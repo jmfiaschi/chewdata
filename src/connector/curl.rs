@@ -71,7 +71,7 @@ impl Default for Curl {
             method: Method::Get,
             headers: HashMap::default(),
             parameters: Value::Null,
-            limit: 1000,
+            limit: 100,
             skip: 0,
             paginator_parameters: None,
             inner: Cursor::default(),
