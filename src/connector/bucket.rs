@@ -67,7 +67,7 @@ impl fmt::Display for Bucket {
         write!(
             f,
             "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_else(|_| "".to_string())
         )
     }
 }
@@ -78,7 +78,7 @@ impl fmt::Debug for Bucket {
         let mut secret_access_key = self
             .secret_access_key
             .clone()
-            .unwrap_or("".to_string());
+            .unwrap_or_else(|| "".to_string());
         secret_access_key.replace_range(0..(secret_access_key.len()/2), (0..(secret_access_key.len()/2)).map(|_| "#").collect::<String>().as_str());
         f.debug_struct("Bucket")
             .field("metadata", &self.metadata)
@@ -123,7 +123,7 @@ impl Bucket {
 impl Connector for Bucket {
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters.clone();
+        self.parameters = parameters;
     }
     /// See [`Connector::is_variable_path`] for more details.
     ///
@@ -237,7 +237,7 @@ impl Connector for Bucket {
             match s3_client.head_object(request).await {
                 Ok(response) => match response.content_length {
                     Some(len) => Ok(len as usize),
-                    None => Ok(0 as usize),
+                    None => Ok(0_usize),
                 },
                 Err(e) => {
                     let error = format!("{:?}", e);
