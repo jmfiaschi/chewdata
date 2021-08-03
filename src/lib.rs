@@ -144,11 +144,7 @@ impl DataResult {
         }
     }
     pub fn is_type(&self, data_type: &str) -> bool {
-        match (self, data_type.as_ref()) {
-            (DataResult::Ok(_), DataResult::OK) => true,
-            (DataResult::Err(_), DataResult::ERR) => true,
-            _ => false
-        }
+        matches!((self, data_type), (DataResult::Ok(_), DataResult::OK) | (DataResult::Err(_), DataResult::ERR))
     }
 }
 

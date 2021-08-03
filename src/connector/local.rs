@@ -36,7 +36,7 @@ impl fmt::Display for Local {
         write!(
             f,
             "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
         )
     }
 }
@@ -150,7 +150,7 @@ impl Connector for Local {
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters.clone();
+        self.parameters = parameters;
     }
     /// See [`Connector::is_variable_path`] for more details.
     ///

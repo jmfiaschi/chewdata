@@ -70,7 +70,7 @@ impl fmt::Display for BucketSelect {
         write!(
             f,
             "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
         )
     }
 }
@@ -78,7 +78,7 @@ impl fmt::Display for BucketSelect {
 // Not display the inner for better performance with big data
 impl fmt::Debug for BucketSelect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut secret_access_key = self.secret_access_key.clone().unwrap_or("".to_string());
+        let mut secret_access_key = self.secret_access_key.clone().unwrap_or_default();
         secret_access_key.replace_range(
             0..(secret_access_key.len() / 2),
             (0..(secret_access_key.len() / 2))
@@ -108,7 +108,7 @@ impl BucketSelect {
     ) -> SelectObjectContentRequest {
         let connector = self.clone();
 
-        let input_serialization = match metadata.clone().mime_type.as_deref() {
+        let input_serialization = match metadata.mime_type.as_deref() {
             Some("text/csv; charset=utf-8") | Some("text/csv") => InputSerialization {
                 csv: Some(CSVInput {
                     field_delimiter: metadata.clone().delimiter,
@@ -124,44 +124,47 @@ impl BucketSelect {
                     quote_escape_character: metadata.clone().escape,
                     ..Default::default()
                 }),
-                compression_type: metadata.clone().compression.to_owned(),
+                compression_type: metadata.compression,
                 ..Default::default()
             },
             Some("application/octet-stream") => InputSerialization {
                 parquet: Some(ParquetInput {}),
-                compression_type: metadata.clone().compression.to_owned(),
+                compression_type: metadata.compression,
                 ..Default::default()
             },
             Some("application/json") => InputSerialization {
                 json: Some(JSONInput {
                     type_: Some("DOCUMENT".to_owned()),
                 }),
-                compression_type: metadata.clone().compression.to_owned(),
+                compression_type: metadata.compression,
                 ..Default::default()
             },
             Some("application/x-ndjson") => InputSerialization {
                 json: Some(JSONInput {
                     type_: Some("DOCUMENT".to_owned()),
                 }),
-                compression_type: metadata.clone().compression.to_owned(),
+                compression_type: metadata.compression,
                 ..Default::default()
             },
             _ => InputSerialization {
                 json: Some(JSONInput {
                     type_: Some("LINES".to_owned()),
                 }),
-                compression_type: metadata.clone().compression.to_owned(),
+                compression_type: metadata.compression,
                 ..Default::default()
             },
         };
 
-        let output_serialization = match metadata.clone().mime_type.as_deref() {
+        let output_serialization = match metadata.mime_type.as_deref() {
             Some("text/csv; charset=utf-8") | Some("text/csv") => OutputSerialization {
                 csv: Some(CSVOutput {
-                    field_delimiter: metadata.clone().delimiter,
-                    quote_character: metadata.clone().quote,
-                    quote_escape_character: metadata.clone().escape,
-                    record_delimiter: match metadata.clone().terminator.unwrap_or("\n".to_string()).as_str()
+                    field_delimiter: metadata.delimiter,
+                    quote_character: metadata.quote,
+                    quote_escape_character: metadata.escape,
+                    record_delimiter: match metadata
+                        .terminator
+                        .unwrap_or_else(|| "\n".to_string())
+                        .as_str()
                     {
                         "CRLF" => Some("\n\r".to_string()),
                         "CR" => Some("\n".to_string()),
@@ -174,7 +177,7 @@ impl BucketSelect {
             },
             _ => OutputSerialization {
                 json: Some(JSONOutput {
-                    record_delimiter: metadata.clone().delimiter,
+                    record_delimiter: metadata.delimiter,
                 }),
                 ..Default::default()
             },
@@ -336,7 +339,7 @@ impl BucketSelect {
             match item {
                 SelectObjectContentEventStreamItem::Stats(stats) => {
                     if let Some(stats) = stats.details {
-                        buffer = buffer + stats.bytes_scanned.unwrap_or(0) as usize;
+                        buffer += stats.bytes_scanned.unwrap_or(0) as usize
                     };
                 }
                 SelectObjectContentEventStreamItem::End(_) => break,
@@ -352,7 +355,7 @@ impl BucketSelect {
 impl Connector for BucketSelect {
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters.clone();
+        self.parameters = parameters;
     }
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
@@ -576,7 +579,9 @@ impl Connector for BucketSelect {
     }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
-        unimplemented!("Can't erase the document. Use the bucket connector instead of this connector")
+        unimplemented!(
+            "Can't erase the document. Use the bucket connector instead of this connector"
+        )
     }
     /// See [`Connector::send`] for more details.
     async fn send(&mut self) -> Result<()> {

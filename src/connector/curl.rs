@@ -84,7 +84,7 @@ impl fmt::Display for Curl {
         write!(
             f,
             "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
         )
     }
 }
@@ -454,9 +454,9 @@ impl Connector for Curl {
         }
 
         self.inner.flush()?;
-
         self.inner = Cursor::new(Vec::default());
-        if 0 < data.len() {
+
+        if !data.is_empty() {
             self.inner.write_all(&data)?;
             self.inner.set_position(0);
         }
@@ -647,7 +647,7 @@ impl Paginator for CurlPaginator {
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
         Ok(match self.has_next {
             true => {
-                self.skip = self.connector.limit + self.skip;
+                self.skip += self.connector.limit;
 
                 let mut new_connector = self.connector.clone();
                 let mut new_parameters = Value::default();
@@ -666,7 +666,7 @@ impl Paginator for CurlPaginator {
                     )?);
                 }
 
-                if let None = self.connector.paginator_parameters.clone() {
+                if self.connector.paginator_parameters.clone().is_none() {
                     self.has_next = false;
                 }
 

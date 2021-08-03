@@ -67,7 +67,7 @@ impl fmt::Display for Bucket {
         write!(
             f,
             "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_else(|_| "".to_string())
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
         )
     }
 }
@@ -78,7 +78,7 @@ impl fmt::Debug for Bucket {
         let mut secret_access_key = self
             .secret_access_key
             .clone()
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_default();
         secret_access_key.replace_range(0..(secret_access_key.len()/2), (0..(secret_access_key.len()/2)).map(|_| "#").collect::<String>().as_str());
         f.debug_struct("Bucket")
             .field("metadata", &self.metadata)
@@ -524,14 +524,14 @@ impl BucketPaginator {
 
         let reg_path_contain_wildcard = Regex::new("[*]")
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-        let path = connector.path().clone();
+        let path = connector.path();
         
         match reg_path_contain_wildcard.is_match(path.as_str()) {
             true => {
                 let delimiter = "/";
 
                 let directories:Vec<&str> = path.split_terminator(delimiter).collect();
-                let prefix_keys: Vec<&str> = directories.clone().into_iter().take_while(|item| !item.contains("*") ).collect();
+                let prefix_keys: Vec<&str> = directories.clone().into_iter().take_while(|item| !item.contains('*') ).collect();
                 let postfix_keys: Vec<&str> = directories.clone().into_iter().filter(|item| !prefix_keys.contains(item)).collect();
 
                 let key_pattern = postfix_keys
@@ -557,7 +557,7 @@ impl BucketPaginator {
                         match s3_client.list_objects_v2(request).await {
                             Ok(response) => {
                                 (
-                                    response.contents.unwrap_or(Vec::default()).into_iter().filter(|object| match object.key {
+                                    response.contents.unwrap_or_default().into_iter().filter(|object| match object.key {
                                         Some(ref path) => reg_key.is_match(path.as_str()),
                                         None => false
                                     })

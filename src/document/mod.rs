@@ -128,10 +128,7 @@ pub trait Document: Send + Sync + DocumentClone {
     }
     /// Check if the str in argument has an empty data
     fn has_data(&self, str: &str) -> bool {
-        match str {
-            "" => false,
-            _ => true
-        }
+        !matches!(str, "")
     }
     fn entry_point_path_start(&self) -> String {
         "".to_string()

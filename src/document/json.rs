@@ -361,10 +361,6 @@ impl Document for Json {
     }
     /// See [`Document::has_data`] for more details.
     fn has_data(&self, str: &str) -> bool {
-        match str {
-            "[]" => false,
-            "" => false,
-            _ => true,
-        }
+        !matches!(str, "[]" | "")
     }
 }

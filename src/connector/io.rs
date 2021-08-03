@@ -31,7 +31,7 @@ impl fmt::Display for Io {
         write!(
             f,
             "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
         )
     }
 }

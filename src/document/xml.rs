@@ -468,9 +468,6 @@ impl Document for Xml {
             return false;
         }
 
-        match str {
-            "" => false,
-            _ => true,
-        }
+        !matches!(str, "")
     }
 }

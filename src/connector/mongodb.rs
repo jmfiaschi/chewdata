@@ -39,7 +39,7 @@ impl fmt::Display for Mongodb {
         write!(
             f,
             "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or("".to_string())
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
         )
     }
 }
@@ -426,7 +426,7 @@ pub struct MongodbPaginator {
 impl MongodbPaginator {
     pub async fn new(connector: Mongodb) -> Result<Self> {
         Ok(MongodbPaginator {
-            connector: connector.clone(),
+            connector,
             skip: -1,
         })
     }
