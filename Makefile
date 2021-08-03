@@ -34,7 +34,6 @@ release: ## Released the script in local
 
 test: minio minio-install httpbin mongo
 test: ## Launch all tests in local
-	@default_thread=1
 	@cargo test --doc -- --test-threads=1 ${name} 
 	@cargo test --lib -- --test-threads=1 ${name} 
 	@cargo test --tests -- --test-threads=1 ${name}
