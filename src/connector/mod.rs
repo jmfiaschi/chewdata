@@ -68,7 +68,7 @@ impl Default for ConnectorType {
 }
 
 impl ConnectorType {
-    pub fn connector_inner(self) -> Box<dyn Connector> {
+    pub fn connector(self) -> Box<dyn Connector> {
         match self {
             ConnectorType::InMemory(connector) => Box::new(connector),
             ConnectorType::Io(connector) => Box::new(connector),
@@ -81,36 +81,6 @@ impl ConnectorType {
             ConnectorType::BucketSelect(connector) => Box::new(connector),
             #[cfg(feature = "use_mongodb_connector")]
             ConnectorType::Mongodb(connector) => Box::new(connector),
-        }
-    }
-    pub fn connector(&self) -> &dyn Connector {
-        match self {
-            ConnectorType::InMemory(connector) => connector,
-            ConnectorType::Io(connector) => connector,
-            ConnectorType::Local(connector) => connector,
-            #[cfg(feature = "use_curl_connector")]
-            ConnectorType::Curl(connector) => connector,
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::Bucket(connector) => connector,
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::BucketSelect(connector) => connector,
-            #[cfg(feature = "use_mongodb_connector")]
-            ConnectorType::Mongodb(connector) => connector,
-        }
-    }
-    pub fn connector_mut(&mut self) -> &mut dyn Connector {
-        match self {
-            ConnectorType::InMemory(connector) => connector,
-            ConnectorType::Io(connector) => connector,
-            ConnectorType::Local(connector) => connector,
-            #[cfg(feature = "use_curl_connector")]
-            ConnectorType::Curl(connector) => connector,
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::Bucket(connector) => connector,
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::BucketSelect(connector) => connector,
-            #[cfg(feature = "use_mongodb_connector")]
-            ConnectorType::Mongodb(connector) => connector,
         }
     }
 }

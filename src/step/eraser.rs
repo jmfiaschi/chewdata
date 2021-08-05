@@ -56,8 +56,8 @@ impl Step for Eraser {
     ) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
-        let mut connector_type = self.connector_type.clone();
-        let connector = connector_type.connector_mut();
+        let connector_type = self.connector_type.clone();
+        let mut connector = connector_type.connector();
         let mut exclude_paths = self.exclude_paths.clone();
 
         match (pipe_outbound_option, connector.is_variable()) {

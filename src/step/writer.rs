@@ -73,7 +73,7 @@ impl Step for Writer {
             }
         };
 
-        let mut connector = self.connector_type.clone().connector_inner();
+        let mut connector = self.connector_type.clone().connector();
 
         for data_result in pipe_outbound {
             if let Some(ref pipe_inbound) = pipe_inbound_option {
@@ -110,7 +110,7 @@ impl Step for Writer {
                         }
                     };
                     current_dataset_size = 0;
-                    connector = self.connector_type.clone().connector_inner();
+                    connector = self.connector_type.clone().connector();
                 }
             }
 

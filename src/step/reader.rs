@@ -66,7 +66,7 @@ impl Step for Reader {
             }
         };
 
-        let mut connector = self.connector_type.clone().connector_inner();
+        let mut connector = self.connector_type.clone().connector();
 
         match (pipe_outbound_option, connector.is_variable()) {
             (Some(pipe_outbound), true) => {

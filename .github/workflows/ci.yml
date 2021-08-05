@@ -21,10 +21,10 @@ jobs:
       - name: load env file
         uses: falti/dotenv-action@v0.2.6
 
-      - name: Run cargo-tarpaulin
+      - name: Run coverage
         run: make coverage-ut
 
-      - name: Upload to codecov.io
+      - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v2
         with:
           token: ${{secrets.CODECOV_TOKEN}}
@@ -55,10 +55,10 @@ jobs:
       - name: load env file
         uses: falti/dotenv-action@v0.2.6
 
-      - name: coverage
+      - name: Run coverage
         run: make coverage-it
 
-      - name: Upload to codecov.io
+      - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v2
         with:
           token: ${{secrets.CODECOV_TOKEN}}
