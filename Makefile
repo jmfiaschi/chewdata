@@ -32,7 +32,7 @@ example:
 release: ## Released the script in local
 	@cargo build --release --test-threads=1
 
-test: minio minio-install httpbin mongo
+test: start
 test: ## Launch all tests in local
 	@cargo test --doc -- --test-threads=1 ${name} 
 	@cargo test --lib -- --test-threads=1 ${name} 
@@ -41,16 +41,16 @@ test: ## Launch all tests in local
 lint:
 	@cargo clippy
 
-coverage-ut: minio minio-install httpbin mongo
+coverage-ut: start
 coverage-ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --verbose --lib --doc --workspace --out Xml -f -- --test-threads=1
+	@cargo +nightly tarpaulin --verbose --doc --lib --workspace --timeout 600 -- --test-threads=1
 
-coverage-it: minio minio-install httpbin mongo
+coverage-it: start
 coverage-it:
 	@cargo install cargo-tarpaulin
-	@cargo tarpaulin --verbose --tests --workspace --out Xml -f -- --test-threads=1
+	@cargo tarpaulin --verbose --tests --workspace --timeout 600 -- --test-threads=1
 
 bench: httpbin | minio ## Launch benchmark in local
 	@cargo bench
@@ -86,6 +86,8 @@ mongo:
 
 semantic-release:
 	@npx semantic-release
+
+start: minio minio-install httpbin mongo
 
 # Shell colors.
 RED=\033[0;31m
