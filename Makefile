@@ -45,12 +45,12 @@ coverage-ut: minio minio-install httpbin mongo
 coverage-ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --lib --doc --workspace --out Xml -- --test-threads=1
+	@cargo +nightly tarpaulin --verbose --lib --doc --workspace --out Xml -f -- --test-threads=1
 
 coverage-it: minio minio-install httpbin mongo
 coverage-it:
 	@cargo install cargo-tarpaulin
-	@cargo tarpaulin --tests --workspace --out Xml -- --test-threads=1
+	@cargo tarpaulin --verbose --tests --workspace --out Xml -f -- --test-threads=1
 
 bench: httpbin | minio ## Launch benchmark in local
 	@cargo bench
