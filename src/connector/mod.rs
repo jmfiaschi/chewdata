@@ -107,14 +107,14 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                 }
             } {
                 debug!(slog_scope::logger(), "Next page started"; "connector" => format!("{:?}", connector_reader));
-                let mut data = match document.read_data(connector_reader).await {
-                    Ok(data) => data,
+                let mut dataset = match document.read_data(connector_reader).await {
+                    Ok(dataset) => dataset,
                     Err(e) => {
                         error!(slog_scope::logger(), "Can't pull the data"; "connector" => format!("{:?}", connector_reader), "error" => e);
                         break;
                     }
                 };
-                while let Some(data_result) = data.next().await {
+                while let Some(data_result) = dataset.next().await {
                     yield data_result;
                 }
                 debug!(slog_scope::logger(), "Next page ended"; "connector" => format!("{:?}", connector_reader));

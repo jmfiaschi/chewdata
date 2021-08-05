@@ -51,8 +51,8 @@ surf_bucket_select = { version = "0.1", optional = true }
 mongodb = { version = "1.2", default-features = false, features = ["async-std-runtime"], optional = true }
 
 [dev-dependencies]
-# criterion = "0.3"
-chrono = "0.4"
+criterion = { version = "0.3", features = ["stable"] }
+chrono = { version = "0.4" }
 
 [features]
 use_xml_document = ["jxon"]
@@ -72,6 +72,6 @@ default = [
     'use_mongodb_connector',
 ]
 
-# [[bench]]
-# name = "reader_benchmark"
-# harness = false
+[[bench]]
+name = "reader_benchmark"
+harness = false
