@@ -38,6 +38,17 @@ test: ## Launch all tests in local
 	@cargo test --lib -- --test-threads=1 ${name} 
 	@cargo test --tests -- --test-threads=1 ${name}
 
+coverage-ut: minio minio-install httpbin mongo
+coverage-ut:
+	@rustup toolchain install nightly
+	@cargo install cargo-tarpaulin
+	@cargo +nightly tarpaulin --lib --doc --workspace --out Xml -- --test-threads=1
+
+coverage-it: minio minio-install httpbin mongo
+coverage-it:
+	@cargo install cargo-tarpaulin
+	@cargo tarpaulin --tests --workspace --out Xml -- --test-threads=1
+
 bench: httpbin | minio ## Launch benchmark in local
 	@cargo bench
 
