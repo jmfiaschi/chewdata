@@ -22,7 +22,11 @@ jobs:
         uses: falti/dotenv-action@v0.2.6
 
       - name: Run coverage
-        run: make coverage-ut
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: '0.18.0'
+          timeout: 600
+          args: '--verbose --doc --lib -- --test-threads 1'
 
       - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v2
@@ -46,7 +50,7 @@ jobs:
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           override: true
 
       - name: Rename .env.ci to .env
@@ -56,7 +60,11 @@ jobs:
         uses: falti/dotenv-action@v0.2.6
 
       - name: Run coverage
-        run: make coverage-it
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: '0.18.0'
+          timeout: 600
+          args: '--verbose --tests -- --test-threads 1'
 
       - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v2
