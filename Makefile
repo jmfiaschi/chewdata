@@ -45,12 +45,12 @@ coverage-ut: start
 coverage-ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --out Xml --verbose --doc --lib --workspace --timeout 600 -- --test-threads=1
+	@cargo +nightly tarpaulin --out Xml --verbose --doc --lib --workspace --timeout 1200 -- --test-threads=1
 
 coverage-it: start
 coverage-it:
 	@cargo install cargo-tarpaulin
-	@cargo tarpaulin --out Xml --verbose --tests --workspace --timeout 600 -- --test-threads=1
+	@cargo tarpaulin --out Xml --verbose --tests --workspace --timeout 1200 -- --test-threads=1
 
 bench: ## Launch benchmark in local
 	@cargo bench
