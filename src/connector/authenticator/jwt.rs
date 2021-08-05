@@ -117,7 +117,7 @@ impl Jwt {
                 payload = serde_json::from_str(payload.to_string().replace_mustache(parameters).as_str())?;
             }
 
-            let mut refresh_connector = refresh_connector_type.connector_inner();
+            let mut refresh_connector = refresh_connector_type.connector();
             refresh_connector.set_metadata(metadata);
             refresh_connector.push_data(DataResult::Ok(payload)).await?;
             refresh_connector.send().await?;
