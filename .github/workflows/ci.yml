@@ -6,11 +6,8 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
@@ -22,11 +19,7 @@ jobs:
         uses: falti/dotenv-action@v0.2.6
 
       - name: Run coverage
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: '0.18.0'
-          timeout: 600
-          args: '--verbose --doc --lib -- --test-threads 1'
+        run: make coverage-ut
 
       - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v2
@@ -44,11 +37,8 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
@@ -60,11 +50,7 @@ jobs:
         uses: falti/dotenv-action@v0.2.6
 
       - name: Run coverage
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: '0.18.0'
-          timeout: 600
-          args: '--verbose --tests -- --test-threads 1'
+        run: make coverage-it
 
       - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v2

@@ -1,0 +1,28 @@
+name: Benchmark
+# on:
+#   push:
+#     branches:
+#       - master
+on: [push]
+
+jobs:
+  benchmark:
+    name: Check performance regeression.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+      - name: Run benchmark
+        run: make bench
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          name: Benchmark.js Benchmark
+          tool: 'rust'
+          output-file-path: output.txt
+          github-token: ${{ secrets.BENCH_TOKEN }}
+          auto-push: true
+          alert-threshold: '130%'
+          comment-on-alert: true
+          fail-on-alert: true
+          alert-comment-cc-users: '@jmfiaschi'

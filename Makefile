@@ -45,14 +45,14 @@ coverage-ut: start
 coverage-ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --verbose --doc --lib --workspace --timeout 600 -- --test-threads=1
+	@cargo +nightly tarpaulin --out Xml --verbose --doc --lib --workspace --timeout 600 -- --test-threads=1
 
 coverage-it: start
 coverage-it:
 	@cargo install cargo-tarpaulin
-	@cargo tarpaulin --verbose --tests --workspace --timeout 600 -- --test-threads=1
+	@cargo tarpaulin --out Xml --verbose --tests --workspace --timeout 600 -- --test-threads=1
 
-bench: httpbin | minio ## Launch benchmark in local
+bench: ## Launch benchmark in local
 	@cargo bench
 
 clean: ## Clean the repo in local
