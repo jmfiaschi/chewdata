@@ -38,6 +38,9 @@ test: ## Launch all tests in local
 	@cargo test --lib -- --test-threads=1 ${name} 
 	@cargo test --tests -- --test-threads=1 ${name}
 
+lint:
+	@cargo clippy
+
 coverage-ut: minio minio-install httpbin mongo
 coverage-ut:
 	@rustup toolchain install nightly

@@ -150,22 +150,22 @@ impl Jwt {
     pub fn decode(&self, token: &str) -> jsonwebtoken::errors::Result<jsonwebtoken::TokenData<Value>> {
         match self.format.clone() {
             Format::Secret => decode::<Value>(
-                &token,
+                token,
                 &DecodingKey::from_secret(self.key.as_ref()),
                 &Validation::new(self.algorithm),
             ),
             Format::Base64Secret => decode::<Value>(
-                &token,
+                token,
                 &DecodingKey::from_base64_secret(self.key.as_ref())?,
                 &Validation::new(self.algorithm),
             ),
             Format::RsaPem => decode::<Value>(
-                &token,
+                token,
                 &DecodingKey::from_rsa_pem(self.key.as_ref())?,
                 &Validation::new(self.algorithm),
             ),
             Format::RsaDer => decode::<Value>(
-                &token,
+                token,
                 &DecodingKey::from_rsa_der(self.key.as_ref()),
                 &Validation::new(self.algorithm),
             ),
@@ -181,18 +181,18 @@ impl Jwt {
                     })
                 });
                 decode::<Value>(
-                    &token,
+                    token,
                     &DecodingKey::from_rsa_components(modulus.as_str(), exponent.as_str()),
                     &Validation::new(self.algorithm),
                 )
             }
             Format::EcDer => decode::<Value>(
-                &token,
+                token,
                 &DecodingKey::from_ec_der(self.key.as_ref()),
                 &Validation::new(self.algorithm),
             ),
             Format::EcPem => decode::<Value>(
-                &token,
+                token,
                 &DecodingKey::from_ec_pem(self.key.as_ref())?,
                 &Validation::new(self.algorithm),
             ),

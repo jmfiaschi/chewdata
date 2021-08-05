@@ -23,10 +23,10 @@ pub struct Curl {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    pub document_type: DocumentType,
+    pub document_type: Box<DocumentType>,
     #[serde(alias = "auth")]
     #[serde(alias = "authenticator")]
-    pub authenticator_type: Option<AuthenticatorType>,
+    pub authenticator_type: Option<Box<AuthenticatorType>>,
     // The FQDN endpoint.
     pub endpoint: String,
     // The http uri.
@@ -34,14 +34,14 @@ pub struct Curl {
     // The http method.
     pub method: Method,
     // Add complementaries headers. This headers override the default headers.
-    pub headers: HashMap<String, String>,
+    pub headers: Box<HashMap<String, String>>,
     pub parameters: Value,
     pub limit: usize,
     pub skip: usize,
     #[serde(alias = "paginator")]
     pub paginator_parameters: Option<PaginatorParameters>,
     #[serde(skip)]
-    pub inner: Cursor<Vec<u8>>,
+    pub inner: Box<Cursor<Vec<u8>>>,
 }
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
@@ -64,17 +64,17 @@ impl Default for Curl {
     fn default() -> Self {
         Curl {
             metadata: Metadata::default(),
-            document_type: DocumentType::default(),
+            document_type: Box::new(DocumentType::default()),
             authenticator_type: None,
             endpoint: "".into(),
             path: "".into(),
             method: Method::Get,
-            headers: HashMap::default(),
+            headers: Box::new(HashMap::default()),
             parameters: Value::Null,
             limit: 100,
             skip: 0,
             paginator_parameters: None,
-            inner: Cursor::default(),
+            inner: Box::new(Cursor::default()),
         }
     }
 }
@@ -159,7 +159,7 @@ impl Connector for Curl {
         Ok(true)
     }
     /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> DocumentType {
+    fn document_type(&self) -> Box<DocumentType> {
         self.document_type.clone()
     }
     /// See [`Connector::fetch`] for more details.
@@ -228,7 +228,7 @@ impl Connector for Curl {
             ));
         }
 
-        self.inner = Cursor::new(data);
+        self.inner = Box::new(Cursor::new(data));
         debug!(slog_scope::logger(), "Fetch ended");
 
         Ok(())
@@ -454,7 +454,7 @@ impl Connector for Curl {
         }
 
         self.inner.flush()?;
-        self.inner = Cursor::new(Vec::default());
+        self.inner = Box::new(Cursor::new(Vec::default()));
 
         if !data.is_empty() {
             self.inner.write_all(&data)?;

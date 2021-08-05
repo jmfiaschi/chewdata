@@ -24,7 +24,7 @@ pub struct Local {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    pub document_type: DocumentType,
+    pub document_type: Box<DocumentType>,
     pub path: String,
     pub parameters: Value,
     #[serde(skip)]
@@ -280,7 +280,7 @@ impl Connector for Local {
         Ok(true)
     }
     /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> DocumentType {
+    fn document_type(&self) -> Box<DocumentType> {
         self.document_type.clone()
     }
     /// See [`Connector::inner`] for more details.

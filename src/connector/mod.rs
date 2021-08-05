@@ -144,7 +144,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     fn path(&self) -> String;
     /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>>;
-    fn document_type(&self) -> DocumentType;
+    fn document_type(&self) -> Box<DocumentType>;
     /// Erase the content of the document.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::NotFound, "function not implemented"))
@@ -158,7 +158,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
         let document = self.document_type().document_inner();
         let inner = self.inner();
 
-        document.has_data(std::str::from_utf8(&inner).unwrap())
+        document.has_data(std::str::from_utf8(inner).unwrap())
     }
     /// Get the connector metadata
     fn metadata(&self) -> Metadata {

@@ -19,7 +19,7 @@ pub struct InMemory {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    pub document_type: DocumentType,
+    pub document_type: Box<DocumentType>,
     #[serde(alias = "value")]
     #[serde(alias = "doc")]
     #[serde(alias = "data")]
@@ -27,9 +27,9 @@ pub struct InMemory {
     #[serde(skip_serializing)]
     // The result value like if the document is in remote.
     // Read the content only with the method io::Read::read().
-    pub document: Arc<Mutex<Cursor<Vec<u8>>>>,
+    pub document: Arc<Mutex<Buffer>>,
     #[serde(skip)]
-    pub inner: Cursor<Vec<u8>>,
+    pub inner: Buffer,
 }
 
 impl fmt::Display for InMemory {
@@ -52,9 +52,11 @@ impl fmt::Debug for InMemory {
     }
 }
 
+type Buffer = Cursor<Vec<u8>>; 
+
 fn deserialize_inner<'de, D>(
     deserializer: D,
-) -> std::result::Result<Arc<Mutex<Cursor<Vec<u8>>>>, D::Error>
+) -> std::result::Result<Arc<Mutex<Buffer>>, D::Error>
 where
     D: de::Deserializer<'de>,
 {
@@ -75,7 +77,7 @@ impl InMemory {
 #[async_trait]
 impl Connector for InMemory {
     /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> DocumentType {
+    fn document_type(&self) -> Box<DocumentType> {
         self.document_type.clone()
     }
     /// See [`Connector::path`] for more details.

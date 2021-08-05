@@ -18,20 +18,20 @@ use std::{fmt, pin::Pin};
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct Mongodb {
-    document_type: DocumentType,
+    document_type: Box<DocumentType>,
     pub endpoint: String,
     #[serde(alias = "db")]
     pub database: String,
     #[serde(alias = "col")]
     pub collection: String,
-    pub filter: Option<Document>,
-    pub find_options: Option<FindOptions>,
+    pub filter: Box<Option<Document>>,
+    pub find_options: Box<Option<FindOptions>>,
     #[serde(skip_serializing)]
-    pub update_options: Option<UpdateOptions>,
+    pub update_options: Box<Option<UpdateOptions>>,
     #[serde(skip_serializing)]
-    pub insert_options: Option<InsertOneOptions>,
+    pub insert_options: Box<Option<InsertOneOptions>>,
     #[serde(skip)]
-    pub inner: Cursor<Vec<u8>>,
+    pub inner: Box<Cursor<Vec<u8>>>,
 }
 
 impl fmt::Display for Mongodb {
@@ -81,7 +81,7 @@ impl Connector for Mongodb {
         Ok(self.is_variable())
     }
     /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> DocumentType {
+    fn document_type(&self) -> Box<DocumentType> {
         self.document_type.clone()
     }
     /// See [`Connector::is_empty`] for more details.
@@ -157,8 +157,8 @@ impl Connector for Mongodb {
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
-        let options = self.find_options.clone();
-        let filter = self.filter.clone();
+        let options = *self.find_options.clone();
+        let filter = *self.filter.clone();
 
         let client = Client::with_uri_str(&hostname)
             .await
@@ -172,7 +172,7 @@ impl Connector for Mongodb {
         let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect().await;
         let data = serde_json::to_string(&docs)?;
 
-        self.inner = Cursor::new(data.as_bytes().to_vec());
+        self.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
 
         Ok(())
     }
@@ -352,7 +352,7 @@ impl Connector for Mongodb {
                     .update_one(
                         doc! { "_id": ObjectId::with_string(id.as_str().unwrap()).unwrap() },
                         doc! {"$set": doc_without_id},
-                        update_options.clone(),
+                        *update_options.clone(),
                     )
                     .await
                     .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
@@ -363,7 +363,7 @@ impl Connector for Mongodb {
                 );
             } else {
                 collection
-                    .insert_one(doc.clone(), insert_options.clone())
+                    .insert_one(doc.clone(), *insert_options.clone())
                     .await
                     .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -473,7 +473,7 @@ impl Paginator for MongodbPaginator {
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
         let mut connector = self.connector.clone();
 
-        let find_options = match connector.find_options {
+        let find_options = match *connector.find_options {
             Some(ref mut find_options) => find_options,
             None => return Ok(Some(Box::new(connector))),
         };
@@ -486,7 +486,7 @@ impl Paginator for MongodbPaginator {
         self.skip = limit + find_options.skip.unwrap_or(self.skip);
 
         find_options.skip = Some(self.skip);
-        connector.find_options = Some(find_options.clone());
+        connector.find_options = Box::new(Some(find_options.clone()));
         connector.fetch().await?;
 
         if !connector.inner_has_data() {

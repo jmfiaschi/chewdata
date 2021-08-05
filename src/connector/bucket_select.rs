@@ -32,7 +32,7 @@ pub struct BucketSelect {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    document_type: DocumentType,
+    document_type: Box<DocumentType>,
     pub endpoint: Option<String>,
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
@@ -51,7 +51,7 @@ impl Default for BucketSelect {
         BucketSelect {
             metadata: Metadata::default(),
             query: "select * from s3object".to_string(),
-            document_type: DocumentType::default(),
+            document_type: Box::new(DocumentType::default()),
             endpoint: None,
             access_key_id: None,
             secret_access_key: None,
@@ -435,7 +435,7 @@ impl Connector for BucketSelect {
         }
     }
     /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> DocumentType {
+    fn document_type(&self) -> Box<DocumentType> {
         self.document_type.clone()
     }
     /// See [`Connector::inner`] for more details.

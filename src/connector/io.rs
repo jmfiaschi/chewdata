@@ -21,7 +21,7 @@ pub struct Io {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    pub document_type: DocumentType,
+    pub document_type: Box<DocumentType>,
     #[serde(skip)]
     pub inner: Cursor<Vec<u8>>,
 }
@@ -75,7 +75,7 @@ impl Connector for Io {
         Ok(0)
     }
     /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> DocumentType {
+    fn document_type(&self) -> Box<DocumentType> {
         self.document_type.clone()
     }
     /// See [`Connector::is_resource_will_change`] for more details.
