@@ -231,7 +231,7 @@ impl Connector for Bucket {
         let request = HeadObjectRequest {
             bucket: self.bucket.clone(),
             key: self.path(),
-            version_id: self.version,
+            version_id: self.version.clone(),
             ..Default::default()
         };
 
