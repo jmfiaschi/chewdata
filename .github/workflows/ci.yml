@@ -56,7 +56,7 @@ jobs:
         uses: falti/dotenv-action@v0.2.6
 
       - name: coverage
-        run: make codecoverage-it
+        run: make coverage-it
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
