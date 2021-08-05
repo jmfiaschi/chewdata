@@ -39,6 +39,7 @@ pub struct Bucket {
     pub parameters: Value,
     pub limit: Option<usize>,
     pub skip: usize,
+    pub version: Option<String>,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
 }
@@ -58,6 +59,7 @@ impl Default for Bucket {
             inner: Cursor::default(),
             limit: None,
             skip: 0,
+            version: None,
         }
     }
 }
@@ -229,6 +231,7 @@ impl Connector for Bucket {
         let request = HeadObjectRequest {
             bucket: self.bucket.clone(),
             key: self.path(),
+            version_id: self.version,
             ..Default::default()
         };
 
@@ -320,6 +323,7 @@ impl Connector for Bucket {
         let request = GetObjectRequest {
             bucket: connector.bucket.clone(),
             key: connector.path(),
+            version_id: connector.version,
             ..Default::default()
         };
 
@@ -427,15 +431,15 @@ impl Connector for Bucket {
         cursor.write_all(self.inner.get_ref())?;
 
         let s3_client = self.s3_client();
+        let put_request = PutObjectRequest {
+            bucket: self.bucket.to_owned(),
+            key: path_resolved,
+            body: Some(cursor.into_inner().into()),
+            ..Default::default()
+        };
+
         //TODO: When rusoto will use last version of tokio we should remove the block_on.
         Runtime::new()?.block_on(async {
-            let put_request = PutObjectRequest {
-                bucket: self.bucket.to_owned(),
-                key: path_resolved,
-                body: Some(cursor.into_inner().into()),
-                ..Default::default()
-            };
-
             match s3_client.put_object(put_request).await {
                 Ok(_) => Ok(()),
                 Err(e) => Err(Error::new(ErrorKind::NotFound, e)),
