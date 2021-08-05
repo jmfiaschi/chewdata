@@ -24,8 +24,7 @@ jobs:
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
-          name: Benchmark.js Benchmark
-          tool: 'rust'
+          tool: 'cargo'
           output-file-path: output.txt
           github-token: ${{ secrets.BENCH_TOKEN }}
           auto-push: true
