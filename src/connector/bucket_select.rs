@@ -108,8 +108,8 @@ impl BucketSelect {
     ) -> SelectObjectContentRequest {
         let connector = self.clone();
 
-        let input_serialization = match metadata.mime_type.as_deref() {
-            Some("text/csv; charset=utf-8") | Some("text/csv") => InputSerialization {
+        let input_serialization = match metadata.mime_subtype.as_deref() {
+            Some("csv") => InputSerialization {
                 csv: Some(CSVInput {
                     field_delimiter: metadata.clone().delimiter,
                     file_header_info: Some(
@@ -127,21 +127,21 @@ impl BucketSelect {
                 compression_type: metadata.compression,
                 ..Default::default()
             },
-            Some("application/octet-stream") => InputSerialization {
+            Some("octet-stream") => InputSerialization {
                 parquet: Some(ParquetInput {}),
                 compression_type: metadata.compression,
                 ..Default::default()
             },
-            Some("application/json") => InputSerialization {
+            Some("json") => InputSerialization {
                 json: Some(JSONInput {
                     type_: Some("DOCUMENT".to_owned()),
                 }),
                 compression_type: metadata.compression,
                 ..Default::default()
             },
-            Some("application/x-ndjson") => InputSerialization {
+            Some("x-ndjson") => InputSerialization {
                 json: Some(JSONInput {
-                    type_: Some("DOCUMENT".to_owned()),
+                    type_: Some("LINES".to_owned()),
                 }),
                 compression_type: metadata.compression,
                 ..Default::default()
@@ -155,8 +155,8 @@ impl BucketSelect {
             },
         };
 
-        let output_serialization = match metadata.mime_type.as_deref() {
-            Some("text/csv; charset=utf-8") | Some("text/csv") => OutputSerialization {
+        let output_serialization = match metadata.mime_subtype.as_deref() {
+            Some("csv") => OutputSerialization {
                 csv: Some(CSVOutput {
                     field_delimiter: metadata.delimiter,
                     quote_character: metadata.quote,
