@@ -530,7 +530,10 @@ impl Connector for BucketSelect {
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
+    ///     println!("connector : {:?}", connector);
     ///     connector.fetch().await?;
+    ///     println!("inner len : {:?}", connector.inner().len());
+    ///     println!("inner  : {:?}", String::from_utf8(connector.inner().to_vec()).unwrap());
     ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
     ///
     ///     Ok(())
