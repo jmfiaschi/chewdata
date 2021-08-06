@@ -257,7 +257,7 @@ impl BucketSelect {
         }
         println!("failed 2 {:?}", res.status());
 
-        println!("payload.clone() 2 {:?}", payload.clone());
+        println!("payload.clone() 2 {:?}", String::from_utf8_lossy(payload.clone().to_vec().as_ref()).to_string());
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
