@@ -219,7 +219,7 @@ impl BucketSelect {
             };
 
         let select_object_content_request = self.select_object_content_request(query, metadata);
-
+        println!("select_object_content_request {:?}", select_object_content_request);
         let req = surf_bucket_select::select_object_content(
             endpoint,
             select_object_content_request,
@@ -230,6 +230,8 @@ impl BucketSelect {
         .await
         .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
         .build();
+
+        println!("req {:?}", req);
 
         let mut res = client
             .send(req)
@@ -257,7 +259,9 @@ impl BucketSelect {
             EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
         let mut buffer = String::default();
 
+        
         while let Some(Ok(item)) = event_stream.next().await {
+            println!("item {:?}", item);
             match item {
                 SelectObjectContentEventStreamItem::Records(records_event) => {
                     if let Some(bytes) = records_event.payload {
