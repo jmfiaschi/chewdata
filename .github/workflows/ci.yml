@@ -6,19 +6,19 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - uses: Swatinem/rust-cache@v1
-      - run: cargo clean
-      - run: cargo build --all-targets --all-features
+  # build:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: stable
+  #         override: true
+  #     - uses: Swatinem/rust-cache@v1
+  #     - run: cargo clean
+  #     - run: cargo build --all-targets --all-features
   tests:
-    needs: [build]
+    # needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -28,10 +28,10 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6 
-      # - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v1
       - run: make test
   benchmark:
-    needs: ["build"]
+    # needs: ["build"]
     name: Check performance regeression.
     runs-on: ubuntu-latest
     steps:
