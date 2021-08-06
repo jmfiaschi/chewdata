@@ -63,6 +63,7 @@ jobs:
       - name: Rename .env.ci to .env
         run: cp .env.ci .env 
 
+      - uses: Swatinem/rust-cache@v1
       - uses: falti/dotenv-action@v0.2.6
       - uses: actions-rs/tarpaulin@v0.1
         with:
@@ -92,7 +93,7 @@ jobs:
         with:
           toolchain: stable
           override: true
-
+      - uses: Swatinem/rust-cache@v1
       - name: Run benchmark
         run: |
           cargo install cargo-criterion
