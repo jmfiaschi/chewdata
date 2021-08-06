@@ -75,3 +75,6 @@ default = [
 [[bench]]
 name = "reader_benchmark"
 harness = false
+
+[profile.release]
+lto = true
