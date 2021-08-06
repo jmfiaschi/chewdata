@@ -2,39 +2,54 @@ name: CI
 
 on: [push]
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  unit-tests:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
-          override: true
+          toolchain: stable
+          profile: minimal
+      - uses: Swatinem/rust-cache@v1
+      - run: make build
+  # unit-tests:
+  #   needs: [build]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: nightly
+  #         override: true
 
-      - name: Rename .env.ci to .env
-        run: cp .env.ci .env 
+  #     - name: Rename .env.ci to .env
+  #       run: cp .env.ci .env 
 
-      - name: load env file
-        uses: falti/dotenv-action@v0.2.6
+  #     - name: load env file
+  #       uses: falti/dotenv-action@v0.2.6
 
-      - name: Run coverage
-        run: make coverage-ut
+  #     - name: Run coverage
+  #       run: make coverage-ut
 
-      - name: Upload coverage to codecov.io
-        uses: codecov/codecov-action@v2
-        with:
-          token: ${{secrets.CODECOV_TOKEN}}
-          flags: unitary
-          verbose: true
-          fail_ci_if_error: true
+      # - name: Upload coverage to codecov.io
+      #   uses: codecov/codecov-action@v2
+      #   with:
+      #     token: ${{secrets.CODECOV_TOKEN}}
+      #     flags: unitary
+      #     verbose: true
+      #     fail_ci_if_error: true
 
-      - name: Archive code coverage results
-        uses: actions/upload-artifact@v2
-        with:
-          name: code-coverage-report
-          path: cobertura.xml
+      # - name: Archive code coverage results
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: code-coverage-report
+      #     path: cobertura.xml
   integration-tests:
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -46,22 +61,23 @@ jobs:
       - name: Rename .env.ci to .env
         run: cp .env.ci .env 
 
-      - name: load env file
         uses: falti/dotenv-action@v0.2.6
 
-      - name: Run coverage
-        run: make coverage-it
-
-      - name: Upload coverage to codecov.io
-        uses: codecov/codecov-action@v2
+      - uses: actions-rs/tarpaulin@v0.1
         with:
-          token: ${{secrets.CODECOV_TOKEN}}
-          flags: integration
-          verbose: true
-          fail_ci_if_error: true
+          version: '0.18.0'
+          args: '--tests -- --test-threads 1'
 
-      - name: Archive code coverage results
-        uses: actions/upload-artifact@v2
-        with:
-          name: code-coverage-report
-          path: cobertura.xml
+      # - name: Upload coverage to codecov.io
+      #   uses: codecov/codecov-action@v2
+      #   with:
+      #     token: ${{secrets.CODECOV_TOKEN}}
+      #     flags: integration
+      #     verbose: true
+      #     fail_ci_if_error: true
+
+      # - name: Archive code coverage results
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: code-coverage-report
+      #     path: cobertura.xml
