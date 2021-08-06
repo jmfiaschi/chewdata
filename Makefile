@@ -80,6 +80,8 @@ semantic-release:
 
 start: minio minio-install httpbin mongo
 
+stop: docker-compose down
+
 # Shell colors.
 RED=\033[0;31m
 LIGHT_RED=\033[1;31m
