@@ -14,7 +14,6 @@ use rusoto_s3::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::convert::TryInto;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -135,7 +134,7 @@ impl BucketSelect {
             },
             Some("json") => InputSerialization {
                 json: Some(JSONInput {
-                    type_: Some("LINES".to_owned()),
+                    type_: Some("DOCUMENT".to_owned()),
                 }),
                 compression_type: metadata.compression,
                 ..Default::default()
@@ -252,8 +251,6 @@ impl BucketSelect {
                 ),
             ));
         }
-
-        println!("payload.clone() 2 {:?}", String::from_utf8_lossy(payload.clone().to_vec().as_ref()).to_string());
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
