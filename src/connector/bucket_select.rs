@@ -14,6 +14,7 @@ use rusoto_s3::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::convert::TryInto;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -134,7 +135,7 @@ impl BucketSelect {
             },
             Some("json") => InputSerialization {
                 json: Some(JSONInput {
-                    type_: Some("DOCUMENT".to_owned()),
+                    type_: Some("LINES".to_owned()),
                 }),
                 compression_type: metadata.compression,
                 ..Default::default()
@@ -219,7 +220,6 @@ impl BucketSelect {
             };
 
         let select_object_content_request = self.select_object_content_request(query, metadata);
-        println!("select_object_content_request {:?}", select_object_content_request);
         let req = surf_bucket_select::select_object_content(
             endpoint,
             select_object_content_request,
@@ -230,8 +230,6 @@ impl BucketSelect {
         .await
         .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
         .build();
-
-        println!("req {:?}", req);
 
         let mut res = client
             .send(req)
@@ -244,7 +242,6 @@ impl BucketSelect {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
         if !res.status().is_success() {
-            println!("failed {:?}", res.status());
             return Err(Error::new(
                 ErrorKind::Interrupted,
                 format!(
@@ -255,7 +252,6 @@ impl BucketSelect {
                 ),
             ));
         }
-        println!("failed 2 {:?}", res.status());
 
         println!("payload.clone() 2 {:?}", String::from_utf8_lossy(payload.clone().to_vec().as_ref()).to_string());
 
@@ -264,15 +260,17 @@ impl BucketSelect {
         let mut buffer = String::default();
 
         
-        while let Some(Ok(item)) = event_stream.next().await {
-            println!("item {:?}", item);
-            match item {
-                SelectObjectContentEventStreamItem::Records(records_event) => {
+        while let Some(item_result) = event_stream.next().await {
+            match item_result {
+                Ok(SelectObjectContentEventStreamItem::Records(records_event)) => {
                     if let Some(bytes) = records_event.payload {
                         buffer.push_str(&String::from_utf8(bytes.to_vec()).unwrap());
                     };
                 }
-                SelectObjectContentEventStreamItem::End(_) => break,
+                Ok(SelectObjectContentEventStreamItem::End(_)) => break,
+                Err(e) => {
+                    return Err(Error::new(ErrorKind::Interrupted, format!("{:?}", e)))
+                },
                 _ => {}
             }
         }
@@ -538,10 +536,7 @@ impl Connector for BucketSelect {
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
-    ///     println!("connector : {:?}", connector);
     ///     connector.fetch().await?;
-    ///     println!("inner len : {:?}", connector.inner().len());
-    ///     println!("inner  : {:?}", String::from_utf8(connector.inner().to_vec()).unwrap());
     ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
     ///
     ///     Ok(())
