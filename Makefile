@@ -8,7 +8,7 @@ help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 build: ## Build the script in local
-	@cargo build --all-targets --all-features
+	@cargo build
 
 run-file: ## Launch the script in local
 	@if [ -z $(file) ]; then\

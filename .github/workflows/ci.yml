@@ -13,9 +13,10 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
+          override: true
       - uses: Swatinem/rust-cache@v1
       - run: cargo clean
+      - run: cargo build --all-targets --all-features
   tests:
     needs: [build]
     runs-on: ubuntu-latest
@@ -27,6 +28,7 @@ jobs:
           override: true
       - name: Rename .env.ci to .env
         run: cp .env.ci .env 
+      - uses: Swatinem/rust-cache@v1
       - run: make test
   benchmark:
     needs: ["build"]
