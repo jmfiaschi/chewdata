@@ -255,7 +255,9 @@ impl BucketSelect {
                 ),
             ));
         }
-        println!("failed {:?}", res.status());
+        println!("failed 2 {:?}", res.status());
+
+        println!("payload.clone() 2 {:?}", payload.clone());
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
