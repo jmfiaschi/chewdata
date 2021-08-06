@@ -65,10 +65,12 @@ jobs:
 
       - uses: Swatinem/rust-cache@v1
       - uses: falti/dotenv-action@v0.2.6
+      - name: Init servicies
+        run: make start
       - uses: actions-rs/tarpaulin@v0.1
         with:
           version: '0.18.0'
-          args: '--tests -- --test-threads 1'
+          args: '--skip-clean --tests -- --test-threads 1'
 
       # - name: Upload coverage to codecov.io
       #   uses: codecov/codecov-action@v2
