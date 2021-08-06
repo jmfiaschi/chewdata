@@ -17,7 +17,8 @@ jobs:
       - uses: Swatinem/rust-cache@v1
       - uses: actions-rs/cargo@v1
         with:
-          command: build
+          command: build 
+          args: --all-targets --all-features
   # unit-tests:
   #   needs: [build]
   #   runs-on: ubuntu-latest
@@ -59,18 +60,10 @@ jobs:
         with:
           toolchain: stable
           override: true
-
       - name: Rename .env.ci to .env
         run: cp .env.ci .env 
-
       - uses: Swatinem/rust-cache@v1
-      - uses: falti/dotenv-action@v0.2.6
-      - name: Init servicies
-        run: make start
-      - uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: '0.18.0'
-          args: '--skip-clean --tests -- --test-threads 1'
+      - run: make coverage-it
 
       # - name: Upload coverage to codecov.io
       #   uses: codecov/codecov-action@v2
