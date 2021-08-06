@@ -453,7 +453,7 @@ impl Paginator for MongodbPaginator {
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     connector.find_options = Some(find_options);
+    ///     connector.find_options = Box::new(Some(find_options));
     ///     let mut paginator = connector.paginator().await?;
     ///
     ///     let mut connector = paginator.next_page().await?.unwrap();
