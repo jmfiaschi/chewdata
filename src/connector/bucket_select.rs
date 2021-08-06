@@ -244,6 +244,7 @@ impl BucketSelect {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
         if !res.status().is_success() {
+            println!("failed {:?}", res.status());
             return Err(Error::new(
                 ErrorKind::Interrupted,
                 format!(
@@ -254,6 +255,7 @@ impl BucketSelect {
                 ),
             ));
         }
+        println!("failed {:?}", res.status());
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
