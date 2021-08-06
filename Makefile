@@ -8,7 +8,7 @@ help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 build: ## Build the script in local
-	@cargo build --jobs 1
+	@cargo build --all-targets --all-features
 
 run-file: ## Launch the script in local
 	@if [ -z $(file) ]; then\
@@ -51,15 +51,6 @@ coverage-it: start
 coverage-it:
 	@cargo install cargo-tarpaulin
 	@cargo tarpaulin --out Xml --verbose --tests --skip-clean --timeout 1200
-
-bench: ## Launch benchmark in local
-	@cargo bench
-
-clean: ## Clean the repo in local
-	echo "${YELLOW}Run this command in sudo${NC}"
-	cargo clean
-	sudo rm -Rf target
-	sudo sh -c "truncate -s 0 /var/lib/docker/containers/*/*-json.log"
 
 minio:
 	echo "${BLUE}Run Minio server.${NC}"
