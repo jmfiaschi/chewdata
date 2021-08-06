@@ -34,9 +34,7 @@ release: ## Released the script in local
 
 test: start
 test: ## Launch all tests in local
-	@cargo test --doc connector::bucket_select::BucketSelect::fetch -- --test-threads=1 ${name} 
-	@cargo test --lib -- --test-threads=1 ${name} 
-	@cargo test --tests -- --test-threads=1 ${name}
+	@cargo test -- --test-threads=1 ${name}
 
 lint:
 	@cargo clippy
