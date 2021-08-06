@@ -89,7 +89,7 @@ impl Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = DocumentType::Jsonl(Jsonl::default());
+    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -219,7 +219,7 @@ impl Authenticator for Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = DocumentType::Jsonl(Jsonl::default());
+    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -229,7 +229,7 @@ impl Authenticator for Jwt {
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Jwt(auth));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Jwt(auth)));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
     ///     connector.fetch().await?;
@@ -255,7 +255,7 @@ impl Authenticator for Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = DocumentType::Jsonl(Jsonl::default());
+    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_bad_key".to_string();
@@ -265,7 +265,7 @@ impl Authenticator for Jwt {
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Jwt(auth));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Jwt(auth)));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
     ///     match connector.fetch().await {
@@ -294,7 +294,7 @@ impl Authenticator for Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = DocumentType::Jsonl(Jsonl::default());
+    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -304,7 +304,7 @@ impl Authenticator for Jwt {
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Jwt(auth));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Jwt(auth)));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
     ///     connector.parameters = parameters;
@@ -331,7 +331,7 @@ impl Authenticator for Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = DocumentType::Jsonl(Jsonl::default());
+    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -341,7 +341,7 @@ impl Authenticator for Jwt {
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Jwt(auth));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Jwt(auth)));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
     ///     connector.fetch().await?;

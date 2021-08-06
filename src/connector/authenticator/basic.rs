@@ -70,7 +70,7 @@ impl Authenticator for Basic {
     ///     let password = "my_password";
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new(username, password)));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Basic(Basic::new(username, password))));
     ///     connector.method = Method::Get;
     ///     connector.path = format!("/basic-auth/{}/{}", username, password);
     ///     connector.fetch().await?;
@@ -93,7 +93,7 @@ impl Authenticator for Basic {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new("bad_username", "bad_password")));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Basic(Basic::new("bad_username", "bad_password"))));
     ///     connector.method = Method::Get;
     ///     connector.path = "/basic-auth/true_username/true_password".to_string();
     ///     match connector.fetch().await {
@@ -122,7 +122,7 @@ impl Authenticator for Basic {
     /// 
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Basic(Basic::new(username, password)));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Basic(Basic::new(username, password))));
     ///     connector.method = Method::Get;
     ///     connector.path = format!("/basic-auth/{}/{}", "my_username", "my_password");
     ///     connector.parameters = parameters;

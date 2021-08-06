@@ -64,7 +64,7 @@ impl Authenticator for Bearer {
     ///     let token = "abcd1234";
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Bearer(Bearer::new(token)));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Bearer(Bearer::new(token))));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
     ///     connector.fetch().await?;
@@ -88,7 +88,7 @@ impl Authenticator for Bearer {
     ///     let bad_token = "";
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Bearer(Bearer::new(bad_token)));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Bearer(Bearer::new(bad_token))));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
     ///     match connector.fetch().await {
@@ -116,7 +116,7 @@ impl Authenticator for Bearer {
     /// 
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(AuthenticatorType::Bearer(Bearer::new(token)));
+    ///     connector.authenticator_type = Box::new(Some(AuthenticatorType::Bearer(Bearer::new(token))));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
     ///     connector.parameters = parameters;
