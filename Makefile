@@ -56,6 +56,7 @@ coverage-it:
 	@cargo tarpaulin --out Xml --verbose --tests --skip-clean --timeout 1200
 
 bench: 
+	@cargo install cargo-criterion
 	@cargo criterion --output-format bencher
 
 minio:
