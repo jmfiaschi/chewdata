@@ -27,6 +27,7 @@ impl Default for Jsonl {
         let metadata = Metadata {
             mime_type: Some(mime::APPLICATION.to_string()),
             mime_subtype: Some(DEFAULT_MIME_TYPE.to_string()),
+            charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
         Jsonl {
@@ -40,7 +41,7 @@ impl Default for Jsonl {
 #[async_trait]
 impl Document for Jsonl {
     fn metadata(&self) -> Metadata {
-        Jsonl::default().metadata
+        Jsonl::default().metadata.merge(self.metadata.clone())
     }
     /// See [`Document::read_data`] for more details.
     ///

@@ -58,7 +58,7 @@ impl Connector for Io {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        self.document_type.document().metadata().merge(self.metadata.clone())
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}

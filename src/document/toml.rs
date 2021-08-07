@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
 
-const DEFAULT_MIME: &str = "application/toml";
+const DEFAULT_SUBTYPE: &str = "toml";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default)]
@@ -23,7 +23,9 @@ pub struct Toml {
 impl Default for Toml {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some(DEFAULT_MIME.to_string()),
+            mime_type: Some(mime::APPLICATION.to_string()),
+            mime_subtype: Some(DEFAULT_SUBTYPE.to_string()),
+            charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
         Toml { metadata }
@@ -33,7 +35,7 @@ impl Default for Toml {
 #[async_trait]
 impl Document for Toml {
     fn metadata(&self) -> Metadata {
-        Toml::default().metadata
+        Toml::default().metadata.merge(self.metadata.clone())
     }
     /// See [`Document::read_data`] for more details.
     ///

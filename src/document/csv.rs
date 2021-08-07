@@ -40,7 +40,9 @@ impl Default for Csv {
             escape: Some(DEFAULT_ESCAPE.to_string()),
             comment: Some(DEFAULT_COMMENT.to_string()),
             terminator: Some(DEFAULT_TERMINATOR.to_string()),
-            mime_type: Some(mime::TEXT_CSV_UTF_8.to_string()),
+            mime_type: Some(mime::TEXT.to_string()),
+            mime_subtype: Some(mime::CSV.to_string()),
+            charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
         Csv {
@@ -248,7 +250,6 @@ impl Csv {
     /// ```
     fn read_without_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<Dataset> {
         Ok(Box::pin(stream! {
-            debug!(slog_scope::logger(), "Start generator");
             for record in reader.into_records() {
                 let data_result = match record {
                     Ok(record) => {
@@ -269,7 +270,6 @@ impl Csv {
                 };
                 yield data_result;
             }
-            debug!(slog_scope::logger(), "End generator");
         }))
     }
 }
@@ -277,7 +277,7 @@ impl Csv {
 #[async_trait]
 impl Document for Csv {
     fn metadata(&self) -> Metadata {
-        self.metadata.clone().merge(Csv::default().metadata)
+        Csv::default().metadata.merge(self.metadata.clone())
     }
     /// See [`Document::read_data`] for more details.
     ///
@@ -293,7 +293,7 @@ impl Document for Csv {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut metadata = Metadata::default();
+    ///     let mut metadata = Csv::default().metadata;
     ///     metadata.delimiter = Some("|".to_string());
     ///
     ///     let mut document = Csv::default();
@@ -326,9 +326,9 @@ impl Document for Csv {
         connector.read_to_end(&mut buf).await?;
 
         let cursor = io::Cursor::new(buf);
-
+        println!("self.metadata() : {:?}", self.metadata());
         let builder_reader = self.reader_builder().from_reader(cursor);
-        let data = match self.metadata.has_headers {
+        let data = match self.metadata().has_headers {
             Some(false) => Csv::read_without_header(builder_reader),
             _ => Csv::read_with_header(builder_reader),
         };

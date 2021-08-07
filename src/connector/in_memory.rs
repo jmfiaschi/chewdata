@@ -136,7 +136,7 @@ impl Connector for InMemory {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        self.document_type.document().metadata().merge(self.metadata.clone())
     }
     /// See [`Connector::is_resource_will_change`] for more details.
     fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {

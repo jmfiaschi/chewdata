@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fmt, io};
 
-const DEFAULT_MIME: &str = "application/x-yaml";
+const DEFAULT_SUBTYPE: &str = "x-yaml";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default)]
@@ -29,7 +29,9 @@ impl fmt::Display for Yaml {
 impl Default for Yaml {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some(DEFAULT_MIME.to_string()),
+            mime_type: Some(mime::APPLICATION.to_string()),
+            mime_subtype: Some(DEFAULT_SUBTYPE.to_string()),
+            charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
         Yaml { metadata }
@@ -39,7 +41,7 @@ impl Default for Yaml {
 #[async_trait]
 impl Document for Yaml {
     fn metadata(&self) -> Metadata {
-        Yaml::default().metadata
+        Yaml::default().metadata.merge(self.metadata.clone())
     }
     /// See [`Document::read_data`] for more details.
     ///

@@ -454,6 +454,10 @@ impl Connector for Bucket {
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
     }
+    /// See [`Connector::metadata`] for more details.
+    fn metadata(&self) -> Metadata {
+        self.document_type.document().metadata().merge(self.metadata.clone())
+    }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
         let path_resolved = self.path();

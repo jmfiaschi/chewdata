@@ -26,6 +26,7 @@ impl Default for Json {
         let metadata = Metadata {
             mime_type: Some(mime::APPLICATION.to_string()),
             mime_subtype: Some(mime::JSON.to_string()),
+            charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
         Json {
@@ -39,7 +40,7 @@ impl Default for Json {
 #[async_trait]
 impl Document for Json {
     fn metadata(&self) -> Metadata {
-        Json::default().metadata
+        Json::default().metadata.merge(self.metadata.clone())
     }
     /// See [`Document::read_data`] for more details.
     ///

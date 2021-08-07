@@ -31,7 +31,9 @@ pub struct Xml {
 impl Default for Xml {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some(mime::TEXT_XML.to_string()),
+            mime_type: Some(mime::TEXT.to_string()),
+            mime_subtype: Some(mime::XML.to_string()),
+            charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
         Xml {
@@ -127,7 +129,7 @@ impl Xml {
 #[async_trait]
 impl Document for Xml {
     fn metadata(&self) -> Metadata {
-        Xml::default().metadata
+        Xml::default().metadata.merge(self.metadata.clone())
     }
     /// See [`Document::read_data`] for more details.
     ///

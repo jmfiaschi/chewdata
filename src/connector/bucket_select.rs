@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use regex::Regex;
 use rusoto_core::credential::ProvideAwsCredentials;
 use rusoto_s3::{
-    CSVInput, CSVOutput, InputSerialization, JSONInput, JSONOutput, OutputSerialization,
+    CSVInput, InputSerialization, CSVOutput, JSONInput, JSONOutput, OutputSerialization,
     ParquetInput, SelectObjectContentRequest,
 };
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,7 @@ pub struct BucketSelect {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "document")]
-    document_type: Box<DocumentType>,
+    pub document_type: Box<DocumentType>,
     pub endpoint: Option<String>,
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
@@ -101,13 +101,170 @@ impl fmt::Debug for BucketSelect {
 }
 
 impl BucketSelect {
-    fn select_object_content_request(
-        &mut self,
-        query: String,
-        metadata: Metadata,
+    /// Get a Select object Content Request object with a BucketSelect connector.
+    ///
+    /// # Example: Get for json format
+    /// ```rust
+    /// use chewdata::connector::bucket_select::BucketSelect;
+    /// use chewdata::document::{DocumentType, json::Json};
+    /// use rusoto_s3::{SelectObjectContentRequest, InputSerialization, JSONInput, OutputSerialization, JSONOutput};
+    ///
+    /// let mut connector = BucketSelect::default();
+    /// connector.bucket = "my-bucket".to_string();
+    /// connector.path = "my-key".to_string();
+    /// connector.query = "my-query".to_string();
+    /// connector.document_type = Box::new(DocumentType::Json(Json::default()));
+    ///
+    /// let select_object_content_request_expected = SelectObjectContentRequest {
+    ///     bucket: "my-bucket".to_string(),
+    ///     key: "my-key".to_string(),
+    ///     expression: "my-query".to_string(),
+    ///     expression_type: "SQL".to_string(),
+    ///     input_serialization: InputSerialization {
+    ///         json: Some(JSONInput {
+    ///             type_: Some("DOCUMENT".to_string()),
+    ///         }),
+    ///         ..Default::default()
+    ///     },
+    ///     output_serialization: OutputSerialization {
+    ///         json: Some(JSONOutput {
+    ///             ..Default::default()
+    ///         }),
+    ///         ..Default::default()
+    ///     },
+    ///     ..Default::default()
+    /// };
+    /// assert_eq!(select_object_content_request_expected, connector.select_object_content_request());
+    /// ```
+    ///
+    /// # Example: Get for jsonl format
+    ///
+    /// ```rust
+    /// use chewdata::connector::bucket_select::BucketSelect;
+    /// use chewdata::document::{DocumentType, jsonl::Jsonl};
+    /// use rusoto_s3::{SelectObjectContentRequest, InputSerialization, JSONInput, OutputSerialization, JSONOutput};
+    ///
+    /// let mut connector = BucketSelect::default();
+    /// connector.bucket = "my-bucket".to_string();
+    /// connector.path = "my-key".to_string();
+    /// connector.query = "my-query".to_string();
+    /// connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
+    ///
+    /// let select_object_content_request_expected = SelectObjectContentRequest {
+    ///     bucket: "my-bucket".to_string(),
+    ///     key: "my-key".to_string(),
+    ///     expression: "my-query".to_string(),
+    ///     expression_type: "SQL".to_string(),
+    ///     input_serialization: InputSerialization {
+    ///         json: Some(JSONInput {
+    ///             type_: Some("LINES".to_string()),
+    ///         }),
+    ///         ..Default::default()
+    ///     },
+    ///     output_serialization: OutputSerialization {
+    ///         json: Some(JSONOutput {
+    ///             ..Default::default()
+    ///         }),
+    ///         ..Default::default()
+    ///     },
+    ///     ..Default::default()
+    /// };
+    /// assert_eq!(select_object_content_request_expected, connector.select_object_content_request());
+    /// ```
+    ///
+    /// # Example: Get for csv format with header
+    ///
+    /// ```rust
+    /// use chewdata::connector::bucket_select::BucketSelect;
+    /// use chewdata::document::{DocumentType, csv::Csv};
+    /// use rusoto_s3::{SelectObjectContentRequest, InputSerialization, CSVInput, CSVOutput, OutputSerialization};
+    ///
+    /// let mut connector = BucketSelect::default();
+    /// connector.bucket = "my-bucket".to_string();
+    /// connector.path = "my-key".to_string();
+    /// connector.query = "my-query".to_string();
+    /// connector.document_type = Box::new(DocumentType::Csv(Csv::default()));
+    ///
+    /// let select_object_content_request_expected = SelectObjectContentRequest {
+    ///     bucket: "my-bucket".to_string(),
+    ///     key: "my-key".to_string(),
+    ///     expression: "my-query".to_string(),
+    ///     expression_type: "SQL".to_string(),
+    ///     input_serialization: InputSerialization {
+    ///         csv: Some(CSVInput {
+    ///             field_delimiter: Some(",".to_string()),
+    ///             file_header_info: Some("USE".to_string()),
+    ///             quote_character: Some("\"".to_string()),
+    ///             quote_escape_character: Some("\"".to_string()),
+    ///             ..Default::default()
+    ///         }),
+    ///         ..Default::default()
+    ///     },
+    ///     output_serialization: OutputSerialization {
+    ///         csv: Some(CSVOutput {
+    ///             field_delimiter: Some(",".to_string()),
+    ///             quote_character: Some("\"".to_string()),
+    ///             quote_escape_character: Some("\"".to_string()),
+    ///             record_delimiter: Some("\n".to_string()),
+    ///             ..Default::default()
+    ///         }),
+    ///         ..Default::default()
+    ///     },
+    ///     ..Default::default()
+    /// };
+    /// assert_eq!(select_object_content_request_expected, connector.select_object_content_request());
+    /// ```
+    /// # Example: Get for csv format without header
+    ///
+    /// ```rust
+    /// use chewdata::connector::bucket_select::BucketSelect;
+    /// use chewdata::document::{DocumentType, csv::Csv};
+    /// use chewdata::Metadata;
+    /// use rusoto_s3::{SelectObjectContentRequest, InputSerialization, CSVInput, OutputSerialization, CSVOutput};
+    ///
+    /// let mut connector = BucketSelect::default();
+    /// connector.bucket = "my-bucket".to_string();
+    /// connector.path = "my-key".to_string();
+    /// connector.query = "my-query".to_string();
+    /// connector.document_type = Box::new(DocumentType::Csv(Csv::default()));
+    /// connector.metadata = Metadata {
+    ///     has_headers: Some(false),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// let select_object_content_request_expected = SelectObjectContentRequest {
+    ///     bucket: "my-bucket".to_string(),
+    ///     key: "my-key".to_string(),
+    ///     expression: "my-query".to_string(),
+    ///     expression_type: "SQL".to_string(),
+    ///     input_serialization: InputSerialization {
+    ///         csv: Some(CSVInput {
+    ///             field_delimiter: Some(",".to_string()),
+    ///             file_header_info: Some("NONE".to_string()),
+    ///             quote_character: Some("\"".to_string()),
+    ///             quote_escape_character: Some("\"".to_string()),
+    ///             ..Default::default()
+    ///         }),
+    ///         ..Default::default()
+    ///     },
+    ///     output_serialization: OutputSerialization {
+    ///         csv: Some(CSVOutput {
+    ///             field_delimiter: Some(",".to_string()),
+    ///             quote_character: Some("\"".to_string()),
+    ///             quote_escape_character: Some("\"".to_string()),
+    ///             record_delimiter: Some("\n".to_string()),
+    ///             ..Default::default()
+    ///         }),
+    ///         ..Default::default()
+    ///     },
+    ///     ..Default::default()
+    /// };
+    /// assert_eq!(select_object_content_request_expected, connector.select_object_content_request());
+    /// ```
+    pub fn select_object_content_request(
+        &self,
     ) -> SelectObjectContentRequest {
-        let connector = self.clone();
-
+        let metadata = self.metadata();
         let input_serialization = match metadata.mime_subtype.as_deref() {
             Some("csv") => InputSerialization {
                 csv: Some(CSVInput {
@@ -184,20 +341,16 @@ impl BucketSelect {
         };
 
         SelectObjectContentRequest {
-            bucket: connector.bucket.to_owned(),
-            key: connector.path(),
-            expression: query,
+            bucket: self.bucket.clone(),
+            key: self.path(),
+            expression: self.query.clone(),
             expression_type: "SQL".to_owned(),
             input_serialization,
             output_serialization,
             ..Default::default()
         }
     }
-    async fn fetch_data_by_query_and_metadata(
-        &mut self,
-        query: String,
-        metadata: Metadata,
-    ) -> Result<String> {
+    async fn fetch_data(&mut self) -> Result<String> {
         let client = surf::client();
         let endpoint = match self.endpoint.to_owned() {
             Some(endpoint) => endpoint,
@@ -218,7 +371,7 @@ impl BucketSelect {
                 ),
             };
 
-        let select_object_content_request = self.select_object_content_request(query, metadata);
+        let select_object_content_request = self.select_object_content_request();
         let req = surf_bucket_select::select_object_content(
             endpoint,
             select_object_content_request,
@@ -274,11 +427,7 @@ impl BucketSelect {
 
         Ok(buffer)
     }
-    async fn fetch_length_by_query_and_metadata(
-        &mut self,
-        query: String,
-        metadata: Metadata,
-    ) -> Result<usize> {
+    async fn fetch_length(&mut self) -> Result<usize> {
         let client = surf::client();
         let endpoint = match self.endpoint.to_owned() {
             Some(endpoint) => endpoint,
@@ -299,7 +448,7 @@ impl BucketSelect {
                 ),
             };
 
-        let select_object_content_request = self.select_object_content_request(query, metadata);
+        let select_object_content_request = self.select_object_content_request();
 
         let req = surf_bucket_select::select_object_content(
             endpoint,
@@ -365,9 +514,7 @@ impl Connector for BucketSelect {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata
-            .clone()
-            .merge(self.document_type.document().metadata())
+        self.document_type.document().metadata().merge(self.metadata.clone())
     }
     /// See [`Connector::is_variable`] for more details.
     ///
@@ -470,7 +617,8 @@ impl Connector for BucketSelect {
     /// }
     /// ```
     async fn len(&mut self) -> Result<usize> {
-        let query = format!(
+        let mut connector = self.clone();
+        connector.query = format!(
             "{} {}",
             self.query
                 .clone()
@@ -481,10 +629,7 @@ impl Connector for BucketSelect {
             "limit 1"
         );
 
-        Ok(self
-            .fetch_length_by_query_and_metadata(query.clone(), self.metadata())
-            .await
-            .unwrap_or(0))
+        Ok(connector.fetch_length().await.unwrap_or_default())
     }
     /// See [`Connector::is_empty`] for more details.
     ///
@@ -540,35 +685,23 @@ impl Connector for BucketSelect {
     /// }
     /// ```
     async fn fetch(&mut self) -> Result<()> {
-        let metadata = self.metadata();
+        match (self.metadata().has_headers, self.metadata().mime_subtype.as_deref()) {
+            ( Some(true), Some("csv") ) => {
+                let mut connector = self.clone();
 
-        match (metadata.has_headers, metadata.mime_type.as_deref()) {
-            (Some(true), Some("text/csv")) | (Some(true), Some("text/csv; charset=utf-8")) => {
-                let mut metadata_header = metadata.clone();
-                metadata_header.has_headers = Some(false);
-                let headers = self
-                    .fetch_data_by_query_and_metadata(
-                        format!(
-                            "{} {}",
-                            self.query
-                                .clone()
-                                .to_lowercase()
-                                .split("where")
-                                .next()
-                                .unwrap(),
-                            "limit 1"
-                        ),
-                        metadata_header,
-                    )
-                    .await?;
+                let mut metadata = connector.metadata();
+                metadata.has_headers = Some(false);
+                
+                connector.set_metadata(metadata);
+                connector.query = format!("{} {}", self.query.clone().to_lowercase().split("where").next().unwrap(), "limit 1");
+
+                let headers = connector.fetch_data().await?;
                 self.inner.write_all(headers.as_bytes())?;
             }
             _ => (),
         };
 
-        let body = self
-            .fetch_data_by_query_and_metadata(self.query.clone(), metadata)
-            .await?;
+        let body = self.fetch_data().await?;
         self.inner.write_all(body.as_bytes())?;
 
         // initialize the position of the cursors

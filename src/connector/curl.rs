@@ -292,7 +292,7 @@ impl Connector for Curl {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        self.document_type.document().metadata().merge(self.metadata.clone())
     }
     /// See [`Connector::len`] for more details.
     ///

@@ -175,7 +175,7 @@ impl Connector for Local {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        self.document_type.document().metadata().merge(self.metadata.clone())
     }
     /// See [`Connector::send`] for more details.
     ///

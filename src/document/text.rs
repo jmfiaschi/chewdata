@@ -21,7 +21,7 @@ pub struct Text {
 impl Default for Text {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some(mime::APPLICATION.to_string()),
+            mime_type: Some(mime::TEXT.to_string()),
             mime_subtype: Some(mime::PLAIN.to_string()),
             charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
@@ -33,7 +33,7 @@ impl Default for Text {
 #[async_trait]
 impl Document for Text {
     fn metadata(&self) -> Metadata {
-        Text::default().metadata
+        Text::default().metadata.merge(self.metadata.clone())
     }
     /// See [`Document::read_data`] for more details.
     ///

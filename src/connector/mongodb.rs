@@ -1,5 +1,5 @@
 use super::{Connector, Paginator};
-use crate::document::DocumentType;
+use crate::{Metadata, document::DocumentType};
 use crate::DataResult;
 use async_std::prelude::*;
 use async_trait::async_trait;
@@ -18,6 +18,9 @@ use std::{fmt, pin::Pin};
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
 pub struct Mongodb {
+    #[serde(rename = "metadata")]
+    #[serde(alias = "meta")]
+    pub metadata: Metadata,
     document_type: Box<DocumentType>,
     pub endpoint: String,
     #[serde(alias = "db")]
@@ -62,6 +65,14 @@ impl fmt::Debug for Mongodb {
 
 #[async_trait]
 impl Connector for Mongodb {
+    /// See [`Connector::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
+    }
+    /// See [`Connector::metadata`] for more details.
+    fn metadata(&self) -> Metadata {
+        self.document_type.document().metadata().merge(self.metadata.clone())
+    }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
         format!("{}/{}/{}", self.endpoint, self.database, self.collection)

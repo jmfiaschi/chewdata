@@ -94,16 +94,16 @@ impl Default for Metadata {
 impl Metadata {
     fn merge(self, metadata: Metadata) -> Metadata {
         Metadata {
-            has_headers: self.has_headers.or(metadata.has_headers),
-            delimiter: self.delimiter.or(metadata.delimiter),
-            quote: self.quote.or(metadata.quote),
-            escape: self.escape.or(metadata.escape),
-            comment: self.comment.or(metadata.comment),
-            terminator: self.terminator.or(metadata.terminator),
-            mime_type: self.mime_type.or(metadata.mime_type),
-            mime_subtype: self.mime_subtype.or(metadata.mime_subtype),
-            charset: self.charset.or(metadata.charset),
-            compression: self.compression.or(metadata.compression),
+            has_headers: metadata.has_headers.or(self.has_headers),
+            delimiter: metadata.delimiter.or(self.delimiter),
+            quote: metadata.quote.or(self.quote),
+            escape: metadata.escape.or(self.escape),
+            comment: metadata.comment.or(self.comment),
+            terminator: metadata.terminator.or(self.terminator),
+            mime_type: metadata.mime_type.or(self.mime_type),
+            mime_subtype: metadata.mime_subtype.or(self.mime_subtype),
+            charset: metadata.charset.or(self.charset),
+            compression: metadata.compression.or(self.compression),
         }
     }
 }
