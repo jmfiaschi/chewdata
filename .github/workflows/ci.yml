@@ -19,7 +19,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
       - run: cargo clean
       - run: make build
-  tests:
+  unit-tests:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
@@ -31,7 +31,20 @@ jobs:
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
-      - run: make test
+      - run: make unit-tests
+  integration-tests:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v0.2.6 
+      - uses: Swatinem/rust-cache@v1
+      - run: make integration-tests
   benchmark:
     needs: ["build"]
     runs-on: ubuntu-latest
