@@ -339,7 +339,7 @@ impl Document for Csv {
     /// # Example: Add header if connector data empty.
     /// ```
     /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::csv::Csv;
+    /// use chewdata::document::{DocumentType, csv::Csv};
     /// use chewdata::document::Document;
     /// use serde_json::Value;
     /// use async_std::prelude::*;
@@ -349,6 +349,7 @@ impl Document for Csv {
     /// async fn main() -> io::Result<()> {
     ///     let mut document = Csv::default();
     ///     let mut connector = InMemory::new(r#""#);
+    ///     connector.document_type = Box::new(DocumentType::Csv(document.clone()));
     ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
     ///     document.write_data(&mut connector, value).await?;
@@ -369,7 +370,7 @@ impl Document for Csv {
     /// # Example: handle complex csv
     /// ```
     /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::csv::Csv;
+    /// use chewdata::document::{DocumentType, csv::Csv};
     /// use chewdata::document::Document;
     /// use chewdata::Metadata;
     /// use serde_json::Value;
@@ -385,6 +386,7 @@ impl Document for Csv {
     ///     document.metadata = metadata;
     ///
     ///     let mut connector = InMemory::new(r#""#);
+    ///     connector.document_type = Box::new(DocumentType::Csv(document.clone()));
     ///
     ///     let complex_value: Value = serde_json::from_str(r#"{
     ///     "string":"My text",
@@ -406,15 +408,7 @@ impl Document for Csv {
     /// }
     /// ```
     async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        let write_header = match (
-            self.metadata().has_headers,
-            connector.metadata().has_headers,
-        ) {
-            (None, _) => false,
-            (Some(false), _) => false,
-            (_, Some(true)) => false,
-            (_, _) => true,
-        };
+        let write_header = connector.metadata().has_headers.unwrap_or(false);
         // Use a buffer here because the csv builder flush everytime it write something.
         let mut builder_writer = self.writer_builder().from_writer(vec![]);
 
@@ -444,7 +438,7 @@ impl Document for Csv {
                 if write_header {
                     builder_writer.write_record(keys)?;
                     let mut metadata = connector.metadata();
-                    metadata.has_headers = Some(true);
+                    metadata.has_headers = Some(false);
                     connector.set_metadata(metadata);
                 }
                 builder_writer.serialize(values)?;
