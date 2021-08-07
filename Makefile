@@ -55,6 +55,9 @@ coverage-it:
 	@cargo install cargo-tarpaulin
 	@cargo tarpaulin --out Xml --verbose --tests --skip-clean --timeout 1200
 
+bench: 
+	@cargo criterion --output-format bencher
+
 minio:
 	echo "${BLUE}Run Minio server.${NC}"
 	echo "${YELLOW}Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY} ${NC}"

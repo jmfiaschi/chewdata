@@ -14,6 +14,8 @@ jobs:
         with:
           toolchain: stable
           override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
       - run: cargo clean
       - run: make build
@@ -39,9 +41,11 @@ jobs:
         with:
           toolchain: stable
           override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
       - name: Generate benchmark
-        run: cargo criterion --output-format bencher | tee output.txt
+        run: make bench | tee output.txt
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
