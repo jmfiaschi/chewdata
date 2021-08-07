@@ -387,7 +387,6 @@ impl Authenticator for Jwt {
                         jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
                             self.refresh().await?;
                             token_option = self.token.clone();
-                            println!("token_option {:?}", token_option);
                         }
                         _ => {
                             self.token = None;

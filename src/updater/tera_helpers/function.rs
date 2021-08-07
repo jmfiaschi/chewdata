@@ -184,7 +184,6 @@ pub fn base64_encode(args: &HashMap<String, Value>) -> Result<Value> {
         },
         None => base64::STANDARD,
     };
-    println!("qzdz {}", decode_string);
     let encode_string = base64::encode_config(decode_string, config);
 
     Ok(Value::String(encode_string))

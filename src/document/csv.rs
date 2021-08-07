@@ -326,7 +326,6 @@ impl Document for Csv {
         connector.read_to_end(&mut buf).await?;
 
         let cursor = io::Cursor::new(buf);
-        println!("self.metadata() : {:?}", self.metadata());
         let builder_reader = self.reader_builder().from_reader(cursor);
         let data = match self.metadata().has_headers {
             Some(false) => Csv::read_without_header(builder_reader),
