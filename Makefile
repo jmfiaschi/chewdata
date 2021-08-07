@@ -8,7 +8,7 @@ help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 build: ## Build the script in local
-	@cargo build
+	@cargo build --all-targets --all-features
 
 run-file: ## Launch the script in local
 	@if [ -z $(file) ]; then\
@@ -32,9 +32,14 @@ example:
 release: ## Released the script in local
 	@cargo build --release --test-threads=1
 
-test: start
-test: ## Launch all tests in local
-	@cargo test -- --test-threads=1 ${name}
+unit-tests: start
+unit-tests: ## Launch all tests in local
+	@cargo test --doc -- --test-threads=1 ${name}
+	@cargo test --lib -- --test-threads=1 ${name}
+
+integration-tests: start
+integration-tests: 
+	@cargo test --tests -- --test-threads=1 ${name}
 
 lint:
 	@cargo clippy

@@ -16,7 +16,7 @@ jobs:
           override: true
       - uses: Swatinem/rust-cache@v1
       - run: cargo clean
-      - run: cargo build --all-targets --all-features
+      - run: make build
   tests:
     needs: [build]
     runs-on: ubuntu-latest
@@ -32,7 +32,6 @@ jobs:
       - run: make test
   benchmark:
     needs: ["build"]
-    name: Check performance regeression.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -41,4 +40,16 @@ jobs:
           toolchain: stable
           override: true
       - uses: Swatinem/rust-cache@v1
-      - run: cargo bench
+      - name: Generate benchmark
+        run: cargo criterion --output-format bencher | tee output.txt
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.BENCH_TOKEN }}
+          auto-push: true
+          alert-threshold: '130%'
+          comment-on-alert: true
+          fail-on-alert: true
+          alert-comment-cc-users: '@jmfiaschi'
