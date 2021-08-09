@@ -57,8 +57,9 @@ jobs:
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
+      - run: cargo install cargo-criterion
       - name: Generate benchmark
-        run: make bench | tee output.txt
+        run: cargo criterion --output-format bencher | tee output.txt
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
