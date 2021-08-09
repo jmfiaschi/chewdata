@@ -50,6 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: nelonoel/branch-name@v1.0.1
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -70,4 +71,4 @@ jobs:
           comment-on-alert: true
           fail-on-alert: true
           alert-comment-cc-users: '@jmfiaschi'
-          benchmark-data-dir-path: docs/bench/${GITHUB_REF##*/}
+          benchmark-data-dir-path: docs/bench/${BRANCH_NAME}
