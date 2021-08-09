@@ -12,7 +12,7 @@ const JSON_DATA: &str = r#"[{"array1":[{"field":"value1"},{"field":"value2"}]},{
 fn read_json_benchmark(c: &mut Criterion) {
     let connector = InMemory::new(JSON_DATA);
     let document = Json::default();
-    c.bench_function("Read json", move |b| {
+    c.bench_function("read_json/", move |b| {
         b.to_async(FuturesExecutor).iter(|| async {
             let mut connector: Box<dyn Connector> = Box::new(connector.clone());
             let mut dataset = document.read_data(&mut connector).await.unwrap();
@@ -24,7 +24,7 @@ fn read_json_benchmark(c: &mut Criterion) {
 fn read_jsonl_benchmark(c: &mut Criterion) {
     let connector = InMemory::new(JSON_DATA);
     let document = Jsonl::default();
-    c.bench_function("Read jsonl", move |b| {
+    c.bench_function("read_jsonl/", move |b| {
         b.to_async(FuturesExecutor).iter(|| async {
             let mut connector: Box<dyn Connector> = Box::new(connector.clone());
             let mut dataset = document.read_data(&mut connector).await.unwrap();
