@@ -18,7 +18,7 @@ This application is an simple ETL in rust that can be use as a connector between
 * Multi platforms
 
 the target of this project is to simplify the work of developers and simplify the connection between system. 
-It's a short version, but I hope it will be useful for you.
+The work is not finished but I hope it will be useful for you.
 
 ## Getting started
 
