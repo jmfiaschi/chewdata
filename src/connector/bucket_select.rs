@@ -195,7 +195,7 @@ impl BucketSelect {
     ///             field_delimiter: Some(",".to_string()),
     ///             file_header_info: Some("USE".to_string()),
     ///             quote_character: Some("\"".to_string()),
-    ///             quote_escape_character: Some("\"".to_string()),
+    ///             quote_escape_character: Some("\\".to_string()),
     ///             ..Default::default()
     ///         }),
     ///         ..Default::default()
@@ -204,7 +204,7 @@ impl BucketSelect {
     ///         csv: Some(CSVOutput {
     ///             field_delimiter: Some(",".to_string()),
     ///             quote_character: Some("\"".to_string()),
-    ///             quote_escape_character: Some("\"".to_string()),
+    ///             quote_escape_character: Some("\\".to_string()),
     ///             record_delimiter: Some("\n".to_string()),
     ///             ..Default::default()
     ///         }),
@@ -242,7 +242,7 @@ impl BucketSelect {
     ///             field_delimiter: Some(",".to_string()),
     ///             file_header_info: Some("NONE".to_string()),
     ///             quote_character: Some("\"".to_string()),
-    ///             quote_escape_character: Some("\"".to_string()),
+    ///             quote_escape_character: Some("\\".to_string()),
     ///             ..Default::default()
     ///         }),
     ///         ..Default::default()
@@ -251,7 +251,7 @@ impl BucketSelect {
     ///         csv: Some(CSVOutput {
     ///             field_delimiter: Some(",".to_string()),
     ///             quote_character: Some("\"".to_string()),
-    ///             quote_escape_character: Some("\"".to_string()),
+    ///             quote_escape_character: Some("\\".to_string()),
     ///             record_delimiter: Some("\n".to_string()),
     ///             ..Default::default()
     ///         }),

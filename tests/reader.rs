@@ -44,7 +44,7 @@ mod reader {
                 !json_result.is_empty(),
                 "stdout should not be empty."
             );
-            println!("json_result {:?}", json_result);
+
             let object_result: Value =
                 serde_json::from_str(&json_result).expect("Parse json result failed.");
 
