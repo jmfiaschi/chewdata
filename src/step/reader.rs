@@ -18,7 +18,6 @@ pub struct Reader {
     pub data_type: String,
     #[serde(alias = "wait")]
     pub wait_in_milisec: u64,
-    pub thread_number: i32,
 }
 
 impl Default for Reader {
@@ -28,8 +27,7 @@ impl Default for Reader {
             alias: None,
             description: None,
             data_type: DataResult::OK.to_string(),
-            wait_in_milisec: 10,
-            thread_number: 1,
+            wait_in_milisec: 10
         }
     }
 }
