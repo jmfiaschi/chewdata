@@ -2,6 +2,7 @@ use super::{Connector, Paginator};
 use crate::document::DocumentType;
 use crate::DataResult;
 use crate::Metadata;
+use async_std::io::BufReader;
 use async_std::io::{stdin, stdout};
 use async_std::prelude::*;
 use async_trait::async_trait;
@@ -58,7 +59,10 @@ impl Connector for Io {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.document_type.document().metadata().merge(self.metadata.clone())
+        self.document_type
+            .document()
+            .metadata()
+            .merge(self.metadata.clone())
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
@@ -95,7 +99,19 @@ impl Connector for Io {
     }
     /// See [`Connector::fetch`] for more details.
     async fn fetch(&mut self) -> Result<()> {
-        self.inner = Cursor::new(Vec::default());
+        let stdin = BufReader::new(stdin());
+        let mut lines = stdin.lines();
+        let mut buf = String::default();
+
+        while let Some(line) = lines.next().await {
+            let current_line = line?;
+            match current_line.as_str() {
+                "exit" | "quit" | "\\q" => break,
+                _ => (),
+            };
+            buf = format!("{}{}\n", buf, current_line);
+        }
+        self.inner = Cursor::new(buf.into_bytes());
 
         Ok(())
     }
@@ -106,7 +122,7 @@ impl Connector for Io {
         stdout().write_all(self.inner.get_ref()).await?;
 
         self.flush().await?;
-        
+
         self.clear();
 
         Ok(())
@@ -129,11 +145,11 @@ impl Connector for Io {
 impl async_std::io::Read for Io {
     /// See [`async_std::io::Read::poll_read`] for more details.
     fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        Pin::new(&mut stdin()).poll_read(cx, buf)
+        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
     }
 }
 

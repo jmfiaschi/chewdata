@@ -7,6 +7,7 @@ use crate::Metadata;
 use async_std::io::prelude::WriteExt;
 use async_stream::stream;
 use async_trait::async_trait;
+use csv::Trim;
 use futures::AsyncReadExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -15,11 +16,12 @@ use std::io;
 const DEFAULT_QUOTE: &str = "\"";
 const DEFAULT_DELIMITER: &str = ",";
 const DEFAULT_HAS_HEADERS: bool = true;
-const DEFAULT_ESCAPE: &str = "\"";
+const DEFAULT_ESCAPE: &str = "\\";
 const DEFAULT_COMMENT: &str = "#";
 const DEFAULT_TERMINATOR: &str = "\n";
 const DEFAULT_QUOTE_STYLE: &str = "NOT_NUMERIC";
 const DEFAULT_IS_FLEXIBLE: bool = true;
+const DEFAULT_TRIM: &str = "ALL";
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(default)]
@@ -29,6 +31,7 @@ pub struct Csv {
     pub metadata: Metadata,
     pub is_flexible: bool,
     pub quote_style: String,
+    pub trim: String,
 }
 
 impl Default for Csv {
@@ -48,6 +51,7 @@ impl Default for Csv {
         Csv {
             metadata,
             is_flexible: DEFAULT_IS_FLEXIBLE,
+            trim: DEFAULT_TRIM.to_string(),
             quote_style: DEFAULT_QUOTE_STYLE.to_string(),
         }
     }
@@ -59,6 +63,12 @@ impl Csv {
         let metadata = self.metadata();
 
         builder.flexible(self.is_flexible);
+        builder.trim(match self.trim.to_uppercase().as_str() {
+            "ALL" => Trim::All,
+            "FIELDS" | "FIELD" => Trim::Fields,
+            "HEADERS" | "HEADER" => Trim::Headers,
+            _ => Trim::None,
+        });
 
         metadata.has_headers.map(|value| builder.has_headers(value));
         metadata.clone().quote.map(|value| match value.as_str() {

@@ -37,7 +37,7 @@ async fn main() -> io::Result<()> {
             "type": "r",
             "connector":{
                 "type": "local",
-                "path": "./data/multi_lines_tmp.json"
+                "path": "./data/multi_lines.json"
             }
         },{
             "type": "t",
@@ -72,5 +72,9 @@ async fn main() -> io::Result<()> {
     "#;
 
     let config_resolved = env::Vars::apply(config.to_string());
-    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None).await
+    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None).await?;
+
+    info!(slog_scope::logger(), "Check the collection: http://localhost:8081/db/tests/read_write");
+
+    Ok(())
 }

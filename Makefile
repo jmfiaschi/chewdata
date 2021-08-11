@@ -18,10 +18,11 @@ run-file: ## Launch the script in local
 
 run: ## Launch the script in local
 	@if [ -z "$(json)" ]; then\
-		echo "$(RED)USAGE: make run json=[JSON]${NC}";\
+		echo "$(YELLOW)USAGE: make run json=[JSON]${NC}";\
 	fi
-	@cargo run '$(json)'
+	@cargo run ${json}
 
+example: start
 example:
 	@if [ -z $(name) ]; then\
 		echo "$(RED)USAGE: example name=[EXAMPLE_NAME]${NC}";\
@@ -31,6 +32,8 @@ example:
 
 release: ## Released the script in local
 	@cargo build --release --test-threads=1
+
+test: start unit-tests integration-tests	
 
 unit-tests: start
 unit-tests: ## Launch all tests in local

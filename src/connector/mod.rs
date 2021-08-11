@@ -94,7 +94,6 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     async fn pull_data(
         &mut self,
     ) -> std::io::Result<Dataset> {
-        debug!(slog_scope::logger(), "pull data");
         let mut paginator = self.paginator().await?;
         let document = self.document_type().document_inner();
 

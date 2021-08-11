@@ -28,12 +28,16 @@ async fn main() -> io::Result<()> {
         {"type":"e","connector":{"type":"local","path":"./data/out/cascade_file1.json"}}
         ,{"type":"e","connector":{"type":"local","path":"./data/out/cascade_file2.json"}}
         ,{"type":"r","connector":{"type":"local","path":"./data/multi_lines.json"}}
-        ,{"type":"t","updater":{"type":"tera","actions":[{"field":"/","pattern":"{% if input.number == 10 %}{{ throw(message='data go to writer.cascade_file2.json') }}{% else %}{{ input | json_encode() }}{% endif %}"}]}}
+        ,{"type":"t","updater":{"type":"tera","actions":[{"field":"/","pattern":"{% if input.number == 10 %}{{ throw(message='data write in the file cascade_file2.json') }}{% else %}{{ input | json_encode() }}{% endif %}"}]}}
         ,{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file1.json"},"data_type":"ok"}
         ,{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file2.json"},"data_type":"err"}
     ]
     "#;
 
     let config_resolved = env::Vars::apply(config.to_string());
-    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None).await
+    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None).await?;
+
+    info!(slog_scope::logger(), "Check the files `./data/out/cascade_file1.json` and `./data/out/cascade_file2.json`");
+
+    Ok(())
 }

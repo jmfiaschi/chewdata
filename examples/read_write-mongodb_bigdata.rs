@@ -24,8 +24,7 @@ async fn main() -> io::Result<()> {
     let _scope_guard = slog_scope::set_global_logger(logger);
 
     let config = r#"
-    [
-        {
+    [{
             "type": "e",
             "connector":{
                 "type": "mongo",
@@ -35,11 +34,13 @@ async fn main() -> io::Result<()> {
             }
         },{
             "type": "r",
-            "connector":{
-                "type": "local",
-                "path": "./data/out/bigdata.csv",
-                "document":{
-                    "type":"csv"
+            "connector": {
+                "type": "curl",
+                "endpoint": "http://index.commoncrawl.org",
+                "path": "/CC-MAIN-2017-04-index?url=https%3A%2F%2Fnews.ycombinator.com%2F*&output=json",
+                "method": "get",
+                "document": {
+                    "type":"jsonl"
                 }
             }
         },{
@@ -48,24 +49,12 @@ async fn main() -> io::Result<()> {
                 "type": "tera",
                 "actions": [
                     {
-                        "field":"region",
-                        "pattern": "{{ input.Region }}"
+                        "field":"",
+                        "pattern": "{{ input | json_encode() }}"
                     },
                     {
-                        "field":"country",
-                        "pattern": "{{ input.Country }}"
-                    },
-                    {
-                        "field":"item_type",
-                        "pattern": "{{ input['Item Type'] }}"
-                    },
-                    {
-                        "field":"sales_channel",
-                        "pattern": "{{ input['Sales Channel'] }}"
-                    },
-                    {
-                        "field":"order_priority",
-                        "pattern": "{{ input['Order Priority'] }}"
+                        "field":"new_column",
+                        "pattern": "{{ now() | date(format='%Y-%m-%d %H:%M') }}"
                     }
                 ]
             },
@@ -84,5 +73,9 @@ async fn main() -> io::Result<()> {
     "#;
 
     let config_resolved = env::Vars::apply(config.to_string());
-    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None).await
+    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None).await?;
+
+    info!(slog_scope::logger(), "Check the collection: http://localhost:8081/db/tests/bigdata");
+
+    Ok(())
 }

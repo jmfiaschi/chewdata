@@ -437,6 +437,15 @@ impl LocalPaginator {
     /// }
     /// ```
     pub fn new(connector: Local) -> Result<Self> {
+        if connector.path().is_empty() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!(
+                    "The field 'path' for a local connector can't be an empty string"
+                ),
+            ));
+        }
+
         let paths: Vec<String> = match glob(connector.path().as_str()) {
             Ok(paths) => Ok(paths
                 .filter(|p| p.is_ok())
