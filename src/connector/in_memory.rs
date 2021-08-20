@@ -215,16 +215,16 @@ impl Connector for InMemory {
     /// ```
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
         let inner = self.inner().clone();
+        let resource_len = self.len().await?;
         self.clear();
         
         let mut memory = self.memory.lock().await;
 
         match position {
-            Some(pos) => match pos {
-                pos if pos < 0 => memory.seek(SeekFrom::End(pos as i64)),
-                _ => memory.seek(SeekFrom::Start(pos as u64)),
-                
-            }
+            Some(pos) => match resource_len as isize + pos {
+                start if start > 0 => memory.seek(SeekFrom::Start(start as u64)),
+                _ => memory.seek(SeekFrom::Start(0))
+            },
             None => memory.seek(SeekFrom::End(0)),
         }?;
         

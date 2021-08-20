@@ -416,7 +416,7 @@ impl Document for Csv {
     /// }
     /// ```
     async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        let write_header = connector.metadata().has_headers.unwrap_or(self.metadata().has_headers.unwrap_or(false));
+        let write_header = connector.metadata().has_headers.unwrap_or_else(|| self.metadata().has_headers.unwrap_or(false));
         // Use a buffer here because the csv builder flush everytime it write something.
         let mut builder_writer = self.writer_builder().from_writer(vec![]);
 

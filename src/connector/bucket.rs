@@ -340,7 +340,6 @@ impl Connector for Bucket {
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
-    /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -395,11 +394,10 @@ impl Connector for Bucket {
         let mut cursor = Cursor::new(content_file.clone());
 
         match position {
-            Some(pos) => match pos {
-                pos if pos < 0 => cursor.seek(SeekFrom::End(pos as i64)),
-                _ => cursor.seek(SeekFrom::Start(pos as u64)),
-                
-            }
+            Some(pos) => match content_file.len() as isize + pos {
+                start if start > 0 => cursor.seek(SeekFrom::Start(start as u64)),
+                _ => cursor.seek(SeekFrom::Start(0))
+            },
             None => cursor.seek(SeekFrom::End(0)),
         }?;
         

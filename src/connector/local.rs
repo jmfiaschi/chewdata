@@ -224,12 +224,13 @@ impl Connector for Local {
             .truncate(false)
             .open(self.path().as_str())?;
 
+        let resource_len = self.len().await?;
+
         match position {
-            Some(pos) => match pos {
-                pos if pos < 0 => file.seek(SeekFrom::End(pos as i64)),
-                _ => file.seek(SeekFrom::Start(pos as u64)),
-                
-            }
+            Some(pos) => match resource_len as isize + pos {
+                start if start > 0 => file.seek(SeekFrom::Start(start as u64)),
+                _ => file.seek(SeekFrom::Start(0))
+            },
             None => file.seek(SeekFrom::End(0)),
         }?;
 
@@ -414,7 +415,7 @@ impl LocalPaginator {
         if connector.path().is_empty() {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
-                format!("The field 'path' for a local connector can't be an empty string"),
+                "The field 'path' for a local connector can't be an empty string".to_string(),
             ));
         }
 

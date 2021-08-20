@@ -686,33 +686,30 @@ impl Connector for BucketSelect {
     /// }
     /// ```
     async fn fetch(&mut self) -> Result<()> {
-        match (
+        if let (Some(true), Some("csv")) = (
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),
         ) {
-            (Some(true), Some("csv")) => {
-                let mut connector = self.clone();
+            let mut connector = self.clone();
 
-                let mut metadata = connector.metadata();
-                metadata.has_headers = Some(false);
+            let mut metadata = connector.metadata();
+            metadata.has_headers = Some(false);
 
-                connector.set_metadata(metadata);
-                connector.query = format!(
-                    "{} {}",
-                    self.query
-                        .clone()
-                        .to_lowercase()
-                        .split("where")
-                        .next()
-                        .unwrap(),
-                    "limit 1"
-                );
+            connector.set_metadata(metadata);
+            connector.query = format!(
+                "{} {}",
+                self.query
+                    .clone()
+                    .to_lowercase()
+                    .split("where")
+                    .next()
+                    .unwrap(),
+                "limit 1"
+            );
 
-                let headers = connector.fetch_data().await?;
-                self.inner.write_all(headers.as_bytes())?;
-            }
-            _ => (),
-        };
+            let headers = connector.fetch_data().await?;
+            self.inner.write_all(headers.as_bytes())?;
+        }
 
         let body = self.fetch_data().await?;
         self.inner.write_all(body.as_bytes())?;

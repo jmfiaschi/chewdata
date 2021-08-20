@@ -80,6 +80,7 @@ impl Step for Writer {
 
         let mut connector = self.connector_type.clone().connector();
         let document = self.document_type.document();
+        let position = -(document.entry_point_path_end().len() as isize);
 
         connector.set_metadata(connector.metadata().merge(document.metadata()));
 
@@ -121,9 +122,7 @@ impl Step for Writer {
                 // If the path change, the writer flush and send the data in the buffer though the connector.
                 if connector.is_resource_will_change(data_result.to_json_value())? {
                     document.close(&mut *connector).await?;
-                    let postion_to_send = connector.len().await? as isize
-                        - document.entry_point_path_end().len() as isize;
-                    match connector.send(Some(postion_to_send)).await {
+                    match connector.send(Some(position)).await {
                         Ok(_) => (),
                         Err(e) => {
                             warn!(slog_scope::logger(), "Can't send the data througth the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
@@ -155,9 +154,7 @@ impl Step for Writer {
                     "step" => format!("{}", self.clone()),
                 );
                 document.close(&mut *connector).await?;
-                let postion_to_send = connector.len().await? as isize
-                    - document.entry_point_path_end().len() as isize;
-                match connector.send(Some(postion_to_send)).await {
+                match connector.send(Some(position)).await {
                     Ok(_) => (),
                     Err(e) => {
                         warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
@@ -175,9 +172,7 @@ impl Step for Writer {
                 "step" => format!("{}", self.clone()),
             );
             document.close(&mut *connector).await?;
-            let postion_to_send =
-                connector.len().await? as isize - document.entry_point_path_end().len() as isize;
-            match connector.send(Some(postion_to_send)).await {
+            match connector.send(Some(position)).await {
                 Ok(_) => (),
                 Err(e) => {
                     warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())

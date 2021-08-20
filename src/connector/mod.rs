@@ -88,7 +88,7 @@ impl ConnectorType {
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
 #[async_trait]
 pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Read + Write {
-    // Fetch data from the remote resource and set the inner of the connector.
+    // Fetch data from the resource and set the inner of the connector.
     async fn fetch(&mut self) -> Result<()>;
     // Pull the data from the inner connector, transform the data with the document type and return data as a stream.
     async fn pull_data(&mut self, document: Box<dyn Document>) -> std::io::Result<Dataset> {
@@ -144,11 +144,11 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     }
     /// Test if the connector is variable and if the context change, the resource will change.
     fn is_variable(&self) -> bool;
-    /// Check if remote document is empty.
+    /// Check if the resource is empty.
     async fn is_empty(&mut self) -> Result<bool> {
         Err(Error::new(ErrorKind::NotFound, "function not implemented"))
     }
-    /// Get the remote document size of the current path.
+    /// Get the resource size of the current path.
     async fn len(&mut self) -> Result<usize> {
         Err(Error::new(ErrorKind::NotFound, "function not implemented"))
     }
@@ -156,7 +156,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     fn path(&self) -> String;
     /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>>;
-    /// Erase the content of the document.
+    /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::NotFound, "function not implemented"))
     }
@@ -164,10 +164,6 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     fn clear(&mut self);
     /// Get the connect buffer inner reference.
     fn inner(&self) -> &Vec<u8>;
-    // Get the current position in the remote document that can be used by a cursor
-    async fn current_position(&self) -> Result<usize> {
-        Ok(0)
-    }
 }
 
 impl fmt::Display for dyn Connector {

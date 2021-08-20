@@ -16,13 +16,13 @@ pub struct Jwt {
     #[serde(alias = "algo")]
     pub algorithm: Algorithm,
     pub refresh_connector: Option<Box<ConnectorType>>,
-    refresh_document: Jsonl,
+    refresh_document: Box<Jsonl>,
     pub refresh_token: String,
     pub jwk: Option<Value>,
     pub format: Format,
     pub key: String,
-    pub payload: Value,
-    pub parameters: Value,
+    pub payload: Box<Value>,
+    pub parameters: Box<Value>,
     pub token: Option<String>,
 }
 
@@ -42,13 +42,13 @@ impl Default for Jwt {
         Jwt {
             algorithm: Algorithm::HS256,
             refresh_connector: None,
-            refresh_document: Jsonl::default(),
+            refresh_document: Box::new(Jsonl::default()),
             refresh_token: "token".to_string(),
             jwk: None,
             format: Format::Secret,
             key: "".to_string(),
-            payload: Value::Null,
-            parameters: Value::Null,
+            payload: Box::new(Value::Null),
+            parameters: Box::new(Value::Null),
             token: None,
         }
     }
@@ -115,13 +115,13 @@ impl Jwt {
 
             if payload.to_string().has_mustache() {
                 payload = serde_json::from_str(
-                    payload.to_string().replace_mustache(parameters).as_str(),
+                    payload.to_string().replace_mustache(*parameters).as_str(),
                 )?;
             }
 
             let mut refresh_connector = refresh_connector_type.connector();
             refresh_connector.set_metadata(metadata);
-            self.refresh_document.write_data(&mut *refresh_connector, payload).await?;
+            self.refresh_document.write_data(&mut *refresh_connector, *payload).await?;
             
             refresh_connector.send(None).await?;
 
@@ -360,7 +360,7 @@ impl Authenticator for Jwt {
 
         if let Some(token) = token_option.clone() {
             if token.has_mustache() {
-                token_option = Some(token.replace_mustache(parameters.clone()));
+                token_option = Some(token.replace_mustache(*parameters.clone()));
             }
         }
 
@@ -374,7 +374,7 @@ impl Authenticator for Jwt {
                             .unwrap_or(&Value::Null)
                             .clone()
                             .to_string()
-                            .replace_mustache(parameters.clone())
+                            .replace_mustache(*parameters.clone())
                             .eq(&jwt_payload.claims)
                     {
                         token_option = self.token.clone();
@@ -412,6 +412,6 @@ impl Authenticator for Jwt {
     }
     /// See [`Authenticator::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters;
+        self.parameters = Box::new(parameters);
     }
 }
