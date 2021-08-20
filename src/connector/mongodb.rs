@@ -1,6 +1,5 @@
 use super::{Connector, Paginator};
 use crate::Metadata;
-use async_std::prelude::*;
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
