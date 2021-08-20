@@ -30,10 +30,10 @@ async fn main() -> io::Result<()> {
             "type": "curl",
             "endpoint": "http://index.commoncrawl.org",
             "path": "/CC-MAIN-2017-04-index?url=https%3A%2F%2Fnews.ycombinator.com%2F*&output=json",
-            "method": "get",
-            "document": {
-                "type":"jsonl"
-            }
+            "method": "get"
+        },
+        "document": {
+            "type":"jsonl"
         }
     },{
         "type": "w",
@@ -44,10 +44,10 @@ async fn main() -> io::Result<()> {
             "endpoint": "{{ BUCKET_ENDPOINT }}",
             "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
             "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
-            "region": "{{ BUCKET_REGION }}",
-            "document": {
-                "type":"jsonl"
-            }
+            "region": "{{ BUCKET_REGION }}"
+        },
+        "document": {
+            "type":"jsonl"
         }
     },{
         "type": "r",
@@ -59,10 +59,10 @@ async fn main() -> io::Result<()> {
             "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
             "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
             "region": "{{ BUCKET_REGION }}",
-            "query": "select * from s3object where url = 'http://news.ycombinator.com/item?id=4955772'",
-            "document" : {
-                "type": "json"
-            }
+            "query": "select * from s3object where url = 'http://news.ycombinator.com/item?id=4955772'"
+        },
+        "document" : {
+            "type": "json"
         }
     },
     {

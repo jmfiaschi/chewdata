@@ -30,19 +30,13 @@ async fn main() -> io::Result<()> {
             "type": "curl",
             "endpoint": "http://index.commoncrawl.org",
             "path": "/CC-MAIN-2017-04-index?url=https%3A%2F%2Fnews.ycombinator.com%2F*&output=json",
-            "method": "get",
-            "document": {
-                "type":"jsonl"
-            }
+            "method": "get"
+        },
+        "document": {
+            "type":"jsonl"
         }
     },{
-        "type": "w",
-        "connector": {
-            "type": "io",
-            "document" :{
-                "type":"json"
-            }
-        }
+        "type": "w"
     }]
     "#;
 

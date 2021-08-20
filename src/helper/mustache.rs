@@ -60,6 +60,11 @@ impl Mustache for String {
     /// ```
     fn replace_mustache(&self, object: Value) -> String {
         let mut resolved_path = self.to_owned();
+
+        if let Value::Null = object {
+            return resolved_path;
+        }
+
         let regex = Regex::new("\\{{2}([^}]*)\\}{2}").unwrap();
         for captured in regex.captures_iter(self.as_ref()) {
             let pattern_captured = captured[0].to_string();
@@ -73,7 +78,9 @@ impl Mustache for String {
                 None => {
                     warn!(slog_scope::logger(),
                         "replace_mustache: Can't resolve";
-                        "value" => value_captured
+                        "value" => value_captured,
+                        "json_pointer" => json_pointer,
+                        "object" => format!("{:?}", object),
                     );
                     continue;
                 }
@@ -89,7 +96,6 @@ impl Mustache for String {
             resolved_path = resolved_path.replace(pattern_captured.as_str(), var.as_str());
         }
 
-        debug!(slog_scope::logger(), "Resolve path ended"; "path" => resolved_path.to_owned());
         resolved_path
     }
 }

@@ -10,7 +10,7 @@ mod writer {
     const APP_NAME: &str = "chewdata";
     #[test]
     fn it_should_write_file_in_local_with_one_line() {
-        let config = r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}", "document" :{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}}]"#;
+        let config = r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#;
         let mut formats = vec!["json", "jsonl"];
         if cfg!(feature = "use_csv_document") {
             formats.push("csv");

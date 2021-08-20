@@ -1,8 +1,8 @@
 use super::Authenticator;
-use crate::{connector::ConnectorType};
+use crate::{connector::ConnectorType, document::jsonl::Jsonl};
+use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
-use crate::DataResult;
 use async_trait::async_trait;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,7 @@ pub struct Jwt {
     #[serde(alias = "algo")]
     pub algorithm: Algorithm,
     pub refresh_connector: Option<Box<ConnectorType>>,
+    refresh_document: Jsonl,
     pub refresh_token: String,
     pub jwk: Option<Value>,
     pub format: Format,
@@ -41,6 +42,7 @@ impl Default for Jwt {
         Jwt {
             algorithm: Algorithm::HS256,
             refresh_connector: None,
+            refresh_document: Jsonl::default(),
             refresh_token: "token".to_string(),
             jwk: None,
             format: Format::Secret,
@@ -76,7 +78,6 @@ impl Jwt {
     /// # Example
     /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
-    /// use chewdata::document::{DocumentType, jsonl::Jsonl};
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use serde_json::Value;
@@ -89,7 +90,6 @@ impl Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -114,13 +114,16 @@ impl Jwt {
             let parameters = self.parameters.clone();
 
             if payload.to_string().has_mustache() {
-                payload = serde_json::from_str(payload.to_string().replace_mustache(parameters).as_str())?;
+                payload = serde_json::from_str(
+                    payload.to_string().replace_mustache(parameters).as_str(),
+                )?;
             }
 
             let mut refresh_connector = refresh_connector_type.connector();
             refresh_connector.set_metadata(metadata);
-            refresh_connector.push_data(DataResult::Ok(payload)).await?;
-            refresh_connector.send().await?;
+            self.refresh_document.write_data(&mut *refresh_connector, payload).await?;
+            
+            refresh_connector.send(None).await?;
 
             if refresh_connector.inner().is_empty() {
                 return Err(Error::new(
@@ -147,7 +150,10 @@ impl Jwt {
         debug!(slog_scope::logger(), "Refresh the jwt token ended");
         Ok(())
     }
-    pub fn decode(&self, token: &str) -> jsonwebtoken::errors::Result<jsonwebtoken::TokenData<Value>> {
+    pub fn decode(
+        &self,
+        token: &str,
+    ) -> jsonwebtoken::errors::Result<jsonwebtoken::TokenData<Value>> {
         match self.format.clone() {
             Format::Secret => decode::<Value>(
                 token,
@@ -207,7 +213,6 @@ impl Authenticator for Jwt {
     /// # Example: Should authenticate the http call
     /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
-    /// use chewdata::document::{Document, DocumentType, jsonl::Jsonl};
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use async_std::prelude::*;
@@ -219,7 +224,6 @@ impl Authenticator for Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -243,7 +247,6 @@ impl Authenticator for Jwt {
     /// # Example: failed the authentification
     /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
-    /// use chewdata::document::{Document, DocumentType, jsonl::Jsonl};
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use async_std::prelude::*;
@@ -255,7 +258,6 @@ impl Authenticator for Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_bad_key".to_string();
@@ -279,7 +281,6 @@ impl Authenticator for Jwt {
     /// # Example: Set token with parameters
     /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
-    /// use chewdata::document::{Document, DocumentType, jsonl::Jsonl};
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use serde_json::Value;
@@ -289,12 +290,11 @@ impl Authenticator for Jwt {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut parameters: Value = serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#)?;
-    /// 
+    ///
     ///     let mut refresh_connector = Curl::default();
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -319,7 +319,6 @@ impl Authenticator for Jwt {
     /// # Example: Refresh the expired token without failing
     /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
-    /// use chewdata::document::{Document, DocumentType, jsonl::Jsonl};
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use async_std::prelude::*;
@@ -331,7 +330,6 @@ impl Authenticator for Jwt {
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    ///     refresh_connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -404,9 +402,12 @@ impl Authenticator for Jwt {
                 request_builder.header(headers::AUTHORIZATION, format!("Bearer {}", bearer))
             }
             None => {
-                warn!(slog_scope::logger(), "No Java Web Token found for the authentication");
+                warn!(
+                    slog_scope::logger(),
+                    "No Java Web Token found for the authentication"
+                );
                 request_builder
-            },
+            }
         })
     }
     /// See [`Authenticator::set_parameters`] for more details.

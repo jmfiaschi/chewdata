@@ -1,8 +1,10 @@
 use crate::connector::ConnectorType;
+use crate::document::DocumentType;
 use crate::step::{DataResult, Step};
 use async_trait::async_trait;
 use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::{Deserialize, Serialize};
+use slog::Drain;
 use std::{fmt, io};
 use std::{thread, time};
 
@@ -11,6 +13,8 @@ use std::{thread, time};
 pub struct Writer {
     #[serde(alias = "connector")]
     connector_type: ConnectorType,
+    #[serde(alias = "document")]
+    document_type: DocumentType,
     pub alias: Option<String>,
     pub description: Option<String>,
     pub data_type: String,
@@ -27,6 +31,7 @@ impl Default for Writer {
     fn default() -> Self {
         Writer {
             connector_type: ConnectorType::default(),
+            document_type: DocumentType::default(),
             alias: None,
             description: None,
             data_type: DataResult::OK.to_string(),
@@ -74,12 +79,21 @@ impl Step for Writer {
         };
 
         let mut connector = self.connector_type.clone().connector();
+        let document = self.document_type.document();
+
+        connector.set_metadata(connector.metadata().merge(document.metadata()));
+
+        // Use to init the connector during the loop
+        let default_connector = connector.clone();
 
         for data_result in pipe_outbound {
             if let Some(ref pipe_inbound) = pipe_inbound_option {
                 info!(slog_scope::logger(),
                     "Data send to the queue";
-                    "data" => format!("{:?}", data_result),
+                    "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                        true => format!("{:?}", data_result),
+                        false => "truncated, available only in debug mode".to_string(),
+                    },
                     "step" => format!("{}", self.clone())
                 );
                 let mut current_retry = 0;
@@ -94,7 +108,10 @@ impl Step for Writer {
                 info!(slog_scope::logger(),
                     "This step handle only this data type";
                     "data_type" => self.data_type.to_string(),
-                    "data" => format!("{:?}", data_result),
+                    "data" =>  match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                        true => format!("{:?}", data_result),
+                        false => "truncated, available only in debug mode".to_string(),
+                    },
                     "step" => format!("{}", self.clone())
                 );
                 continue;
@@ -103,14 +120,17 @@ impl Step for Writer {
             {
                 // If the path change, the writer flush and send the data in the buffer though the connector.
                 if connector.is_resource_will_change(data_result.to_json_value())? {
-                    match connector.send().await {
+                    document.close(&mut *connector).await?;
+                    let postion_to_send = connector.len().await? as isize
+                        - document.entry_point_path_end().len() as isize;
+                    match connector.send(Some(postion_to_send)).await {
                         Ok(_) => (),
                         Err(e) => {
                             warn!(slog_scope::logger(), "Can't send the data througth the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
                         }
                     };
                     current_dataset_size = 0;
-                    connector = self.connector_type.clone().connector();
+                    connector = default_connector.clone();
                 }
             }
 
@@ -118,17 +138,26 @@ impl Step for Writer {
             info!(slog_scope::logger(),
                 "Push data";
                 "connector" => format!("{:?}", &connector),
-                "data" => format!("{:?}", data_result),
+                "document" => format!("{:?}", &document),
+                "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                    true => format!("{:?}", data_result),
+                    false => "truncated, available only in debug mode".to_string(),
+                },
                 "step" => format!("{}", self.clone()),
             );
-            connector.push_data(data_result).await?;
+            document
+                .write_data(&mut *connector, data_result.to_json_value())
+                .await?;
 
             if self.dataset_size <= current_dataset_size {
                 info!(slog_scope::logger(),
                     "Send data";
                     "step" => format!("{}", self.clone()),
                 );
-                match connector.send().await {
+                document.close(&mut *connector).await?;
+                let postion_to_send = connector.len().await? as isize
+                    - document.entry_point_path_end().len() as isize;
+                match connector.send(Some(postion_to_send)).await {
                     Ok(_) => (),
                     Err(e) => {
                         warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
@@ -145,7 +174,10 @@ impl Step for Writer {
                 "Send data before to end the step";
                 "step" => format!("{}", self.clone()),
             );
-            match connector.send().await {
+            document.close(&mut *connector).await?;
+            let postion_to_send =
+                connector.len().await? as isize - document.entry_point_path_end().len() as isize;
+            match connector.send(Some(postion_to_send)).await {
                 Ok(_) => (),
                 Err(e) => {
                     warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())

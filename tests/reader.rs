@@ -10,7 +10,7 @@ mod reader {
     const APP_NAME: &str = "chewdata";
     #[test]
     fn it_should_read_file_in_local_with_one_line() {
-        let config = r#"[{"type":"r","connector":{"type":"local","path":"{{ APP_FILE_PATH_INPUT }}","document":{"type":"{{ APP_FORMAT_INPUT }}"}}},{"type":"w"}]"#;
+        let config = r#"[{"type":"r","connector":{"type":"local","path":"{{ APP_FILE_PATH_INPUT }}"},"document":{"type":"{{ APP_FORMAT_INPUT }}"}},{"type":"w"}]"#;
         let mut formats = vec!["json", "jsonl"];
         if cfg!(feature = "use_csv_document") {
             formats.push("csv");

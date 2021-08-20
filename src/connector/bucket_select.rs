@@ -1,15 +1,13 @@
 use super::Paginator;
 use crate::connector::Connector;
-use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
-use crate::DataResult;
 use crate::Metadata;
 use async_std::prelude::*;
 use async_trait::async_trait;
 use regex::Regex;
 use rusoto_core::credential::ProvideAwsCredentials;
 use rusoto_s3::{
-    CSVInput, InputSerialization, CSVOutput, JSONInput, JSONOutput, OutputSerialization,
+    CSVInput, CSVOutput, InputSerialization, JSONInput, JSONOutput, OutputSerialization,
     ParquetInput, SelectObjectContentRequest,
 };
 use serde::{Deserialize, Serialize};
@@ -31,8 +29,6 @@ pub struct BucketSelect {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    #[serde(alias = "document")]
-    pub document_type: Box<DocumentType>,
     pub endpoint: Option<String>,
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
@@ -51,7 +47,6 @@ impl Default for BucketSelect {
         BucketSelect {
             metadata: Metadata::default(),
             query: "select * from s3object".to_string(),
-            document_type: Box::new(DocumentType::default()),
             endpoint: None,
             access_key_id: None,
             secret_access_key: None,
@@ -88,7 +83,6 @@ impl fmt::Debug for BucketSelect {
         );
         f.debug_struct("BucketSelect")
             .field("metadata", &self.metadata)
-            .field("document_type", &self.document_type)
             .field("endpoint", &self.endpoint)
             .field("access_key_id", &self.access_key_id)
             .field("secret_access_key", &secret_access_key)
@@ -106,14 +100,19 @@ impl BucketSelect {
     /// # Example: Get for json format
     /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::document::{DocumentType, json::Json};
+    /// use chewdata::document::json::Json;
+    /// use chewdata::Metadata;
     /// use rusoto_s3::{SelectObjectContentRequest, InputSerialization, JSONInput, OutputSerialization, JSONOutput};
     ///
     /// let mut connector = BucketSelect::default();
     /// connector.bucket = "my-bucket".to_string();
     /// connector.path = "my-key".to_string();
     /// connector.query = "my-query".to_string();
-    /// connector.document_type = Box::new(DocumentType::Json(Json::default()));
+    /// connector.metadata = Metadata {
+    ///     mime_type: Some("application".to_string()),
+    ///     mime_subtype: Some("json".to_string()),
+    ///     ..Default::default()
+    /// };
     ///
     /// let select_object_content_request_expected = SelectObjectContentRequest {
     ///     bucket: "my-bucket".to_string(),
@@ -141,14 +140,19 @@ impl BucketSelect {
     ///
     /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::document::{DocumentType, jsonl::Jsonl};
+    /// use chewdata::document::jsonl::Jsonl;
+    /// use chewdata::Metadata;
     /// use rusoto_s3::{SelectObjectContentRequest, InputSerialization, JSONInput, OutputSerialization, JSONOutput};
     ///
     /// let mut connector = BucketSelect::default();
     /// connector.bucket = "my-bucket".to_string();
     /// connector.path = "my-key".to_string();
     /// connector.query = "my-query".to_string();
-    /// connector.document_type = Box::new(DocumentType::Jsonl(Jsonl::default()));
+    /// connector.metadata = Metadata {
+    ///     mime_type: Some("application".to_string()),
+    ///     mime_subtype: Some("x-ndjson".to_string()),
+    ///     ..Default::default()
+    /// };
     ///
     /// let select_object_content_request_expected = SelectObjectContentRequest {
     ///     bucket: "my-bucket".to_string(),
@@ -176,14 +180,20 @@ impl BucketSelect {
     ///
     /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::document::{DocumentType, csv::Csv};
+    /// use chewdata::document::csv::Csv;
+    /// use chewdata::Metadata;
     /// use rusoto_s3::{SelectObjectContentRequest, InputSerialization, CSVInput, CSVOutput, OutputSerialization};
     ///
     /// let mut connector = BucketSelect::default();
     /// connector.bucket = "my-bucket".to_string();
     /// connector.path = "my-key".to_string();
     /// connector.query = "my-query".to_string();
-    /// connector.document_type = Box::new(DocumentType::Csv(Csv::default()));
+    /// connector.metadata = Metadata {
+    ///     mime_type: Some("text".to_string()),
+    ///     mime_subtype: Some("csv".to_string()),
+    ///     has_headers: Some(true),
+    ///     ..Csv::default().metadata
+    /// };
     ///
     /// let select_object_content_request_expected = SelectObjectContentRequest {
     ///     bucket: "my-bucket".to_string(),
@@ -218,7 +228,7 @@ impl BucketSelect {
     ///
     /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::document::{DocumentType, csv::Csv};
+    /// use chewdata::document::csv::Csv;
     /// use chewdata::Metadata;
     /// use rusoto_s3::{SelectObjectContentRequest, InputSerialization, CSVInput, OutputSerialization, CSVOutput};
     ///
@@ -226,10 +236,11 @@ impl BucketSelect {
     /// connector.bucket = "my-bucket".to_string();
     /// connector.path = "my-key".to_string();
     /// connector.query = "my-query".to_string();
-    /// connector.document_type = Box::new(DocumentType::Csv(Csv::default()));
     /// connector.metadata = Metadata {
+    ///     mime_type: Some("text".to_string()),
+    ///     mime_subtype: Some("csv".to_string()),
     ///     has_headers: Some(false),
-    ///     ..Default::default()
+    ///     ..Csv::default().metadata
     /// };
     ///
     /// let select_object_content_request_expected = SelectObjectContentRequest {
@@ -261,9 +272,7 @@ impl BucketSelect {
     /// };
     /// assert_eq!(select_object_content_request_expected, connector.select_object_content_request());
     /// ```
-    pub fn select_object_content_request(
-        &self,
-    ) -> SelectObjectContentRequest {
+    pub fn select_object_content_request(&self) -> SelectObjectContentRequest {
         let metadata = self.metadata();
         let input_serialization = match metadata.mime_subtype.as_deref() {
             Some("csv") => InputSerialization {
@@ -409,7 +418,6 @@ impl BucketSelect {
             EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
         let mut buffer = String::default();
 
-        
         while let Some(item_result) = event_stream.next().await {
             match item_result {
                 Ok(SelectObjectContentEventStreamItem::Records(records_event)) => {
@@ -418,9 +426,7 @@ impl BucketSelect {
                     };
                 }
                 Ok(SelectObjectContentEventStreamItem::End(_)) => break,
-                Err(e) => {
-                    return Err(Error::new(ErrorKind::Interrupted, format!("{:?}", e)))
-                },
+                Err(e) => return Err(Error::new(ErrorKind::Interrupted, format!("{:?}", e))),
                 _ => {}
             }
         }
@@ -514,7 +520,7 @@ impl Connector for BucketSelect {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.document_type.document().metadata().merge(self.metadata.clone())
+        self.metadata.clone()
     }
     /// See [`Connector::is_variable`] for more details.
     ///
@@ -583,10 +589,6 @@ impl Connector for BucketSelect {
             (true, params) => self.path.clone().replace_mustache(params),
             _ => self.path.clone(),
         }
-    }
-    /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> Box<DocumentType> {
-        self.document_type.clone()
     }
     /// See [`Connector::inner`] for more details.
     fn inner(&self) -> &Vec<u8> {
@@ -663,7 +665,6 @@ impl Connector for BucketSelect {
     /// # Example
     /// ```rust
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
-    /// use chewdata::document::DocumentType;
     /// use surf::http::Method;
     /// use chewdata::Metadata;
     /// use std::io;
@@ -685,15 +686,27 @@ impl Connector for BucketSelect {
     /// }
     /// ```
     async fn fetch(&mut self) -> Result<()> {
-        match (self.metadata().has_headers, self.metadata().mime_subtype.as_deref()) {
-            ( Some(true), Some("csv") ) => {
+        match (
+            self.metadata().has_headers,
+            self.metadata().mime_subtype.as_deref(),
+        ) {
+            (Some(true), Some("csv")) => {
                 let mut connector = self.clone();
 
                 let mut metadata = connector.metadata();
                 metadata.has_headers = Some(false);
-                
+
                 connector.set_metadata(metadata);
-                connector.query = format!("{} {}", self.query.clone().to_lowercase().split("where").next().unwrap(), "limit 1");
+                connector.query = format!(
+                    "{} {}",
+                    self.query
+                        .clone()
+                        .to_lowercase()
+                        .split("where")
+                        .next()
+                        .unwrap(),
+                    "limit 1"
+                );
 
                 let headers = connector.fetch_data().await?;
                 self.inner.write_all(headers.as_bytes())?;
@@ -709,10 +722,6 @@ impl Connector for BucketSelect {
 
         Ok(())
     }
-    /// See [`Connector::push_data`] for more details.
-    async fn push_data(&mut self, _data: DataResult) -> Result<()> {
-        unimplemented!("Can't push data to the remote document. Use the bucket connector instead of this connector")
-    }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
         unimplemented!(
@@ -720,7 +729,7 @@ impl Connector for BucketSelect {
         )
     }
     /// See [`Connector::send`] for more details.
-    async fn send(&mut self) -> Result<()> {
+    async fn send(&mut self, _position: Option<isize>) -> Result<()> {
         unimplemented!("Can't send data to the remote document. Use the bucket connector instead of this connector")
     }
     /// See [`Connector::paginator`] for more details.
@@ -807,7 +816,9 @@ impl Paginator for BucketSelectPaginator {
     ///     Ok(())
     /// }
     /// ```
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+    async fn next_page(
+        &mut self
+    ) -> Result<Option<Box<dyn Connector>>> {
         Ok(match self.has_next {
             true => {
                 let mut connector = self.connector.clone();

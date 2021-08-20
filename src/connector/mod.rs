@@ -23,8 +23,9 @@ use self::io::Io;
 use self::local::Local;
 #[cfg(feature = "use_mongodb_connector")]
 use self::mongodb::Mongodb;
-use crate::DataResult;
-use crate::{document::DocumentType, Metadata};
+use crate::document::Document;
+use crate::Dataset;
+use crate::Metadata;
 use async_std::io::{Read, Write};
 use async_stream::stream;
 use async_trait::async_trait;
@@ -34,7 +35,6 @@ use serde_json::Value;
 use std::fmt;
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
-use crate::Dataset;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
@@ -91,44 +91,57 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     // Fetch data from the remote resource and set the inner of the connector.
     async fn fetch(&mut self) -> Result<()>;
     // Pull the data from the inner connector, transform the data with the document type and return data as a stream.
-    async fn pull_data(
-        &mut self,
-    ) -> std::io::Result<Dataset> {
+    async fn pull_data(&mut self, document: Box<dyn Document>) -> std::io::Result<Dataset> {
         let mut paginator = self.paginator().await?;
-        let document = self.document_type().document_inner();
 
         Ok(Box::pin(stream! {
             while let Some(ref mut connector_reader) = match paginator.next_page().await {
                 Ok(connector_option) => connector_option,
                 Err(e) => {
-                    error!(slog_scope::logger(), "Can't get the next paginator"; "error" => e);
+                    error!(slog_scope::logger(), "Can't get the next paginator"; "error" => e, "document" => format!("{:?}", document));
                     None
                 }
             } {
-                debug!(slog_scope::logger(), "Next page started"; "connector" => format!("{:?}", connector_reader));
+                debug!(slog_scope::logger(), "Next page started"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
+
+                // If the data in the connector contain empty data like "{}" or "<entry_path></entry_path>" stop the loop.
+                let inner = match std::str::from_utf8(connector_reader.inner()) {
+                    Ok(inner) => inner,
+                    Err(e) => {
+                        error!(slog_scope::logger(), "Can't decode the connector inner"; "connector" => format!("{:?}", connector_reader), "error" => e.to_string(), "document" => format!("{:?}", document));
+                        break;
+                    }
+                };
+                if !document.has_data(inner) {
+                    info!(slog_scope::logger(), "The connector contain empty data. The pagination stop"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
+                    break;
+                }
+
                 let mut dataset = match document.read_data(connector_reader).await {
                     Ok(dataset) => dataset,
                     Err(e) => {
-                        error!(slog_scope::logger(), "Can't pull the data"; "connector" => format!("{:?}", connector_reader), "error" => e);
+                        error!(slog_scope::logger(), "Can't pull the data"; "connector" => format!("{:?}", connector_reader), "error" => e, "document" => format!("{:?}", document));
                         break;
                     }
                 };
                 while let Some(data_result) = dataset.next().await {
                     yield data_result;
                 }
-                debug!(slog_scope::logger(), "Next page ended"; "connector" => format!("{:?}", connector_reader));
+                debug!(slog_scope::logger(), "Next page ended"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
             }
         }))
     }
-    // Push the data into the inner connector and format it with the document type link to the connector.
-    async fn push_data(&mut self, data: DataResult) -> Result<()>;
     // Send the data from the inner connector to the remote resource.
-    async fn send(&mut self) -> Result<()>;
+    async fn send(&mut self, position: Option<isize>) -> Result<()>;
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool>;
     /// Set parameters.
     fn set_parameters(&mut self, parameters: Value);
-    /// Set metadata
+    /// Set the connector metadata that can change with the document metadata.
     fn set_metadata(&mut self, _metadata: Metadata) {}
+    /// Get the connector metadata
+    fn metadata(&self) -> Metadata {
+        Metadata::default()
+    }
     /// Test if the connector is variable and if the context change, the resource will change.
     fn is_variable(&self) -> bool;
     /// Check if remote document is empty.
@@ -143,7 +156,6 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     fn path(&self) -> String;
     /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>>;
-    fn document_type(&self) -> Box<DocumentType>;
     /// Erase the content of the document.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::NotFound, "function not implemented"))
@@ -152,17 +164,6 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     fn clear(&mut self);
     /// Get the connect buffer inner reference.
     fn inner(&self) -> &Vec<u8>;
-    /// Check if the inner contain data
-    fn inner_has_data(&self) -> bool {
-        let document = self.document_type().document_inner();
-        let inner = self.inner();
-
-        document.has_data(std::str::from_utf8(inner).unwrap())
-    }
-    /// Get the connector metadata
-    fn metadata(&self) -> Metadata {
-        Metadata::default()
-    }
     // Get the current position in the remote document that can be used by a cursor
     async fn current_position(&self) -> Result<usize> {
         Ok(0)

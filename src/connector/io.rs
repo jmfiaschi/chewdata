@@ -1,6 +1,4 @@
 use super::{Connector, Paginator};
-use crate::document::DocumentType;
-use crate::DataResult;
 use crate::Metadata;
 use async_std::io::BufReader;
 use async_std::io::{stdin, stdout};
@@ -21,8 +19,6 @@ pub struct Io {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    #[serde(alias = "document")]
-    pub document_type: Box<DocumentType>,
     #[serde(skip)]
     pub inner: Cursor<Vec<u8>>,
 }
@@ -42,7 +38,6 @@ impl fmt::Debug for Io {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Io")
             .field("metadata", &self.metadata)
-            .field("document_type", &self.document_type)
             .finish()
     }
 }
@@ -59,10 +54,7 @@ impl Connector for Io {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.document_type
-            .document()
-            .metadata()
-            .merge(self.metadata.clone())
+        self.metadata.clone()
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
@@ -78,10 +70,6 @@ impl Connector for Io {
     async fn len(&mut self) -> Result<usize> {
         Ok(0)
     }
-    /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> Box<DocumentType> {
-        self.document_type.clone()
-    }
     /// See [`Connector::is_resource_will_change`] for more details.
     fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
         Ok(false)
@@ -89,13 +77,6 @@ impl Connector for Io {
     /// See [`Connector::inner`] for more details.
     fn inner(&self) -> &Vec<u8> {
         self.inner.get_ref()
-    }
-    /// See [`Connector::push_data`] for more details.
-    async fn push_data(&mut self, data: DataResult) -> Result<()> {
-        let connector = self;
-        let document = connector.document_type().document_inner();
-
-        document.write_data(connector, data.to_json_value()).await
     }
     /// See [`Connector::fetch`] for more details.
     async fn fetch(&mut self) -> Result<()> {
@@ -116,13 +97,8 @@ impl Connector for Io {
         Ok(())
     }
     /// See [`Connector::send`] for more details.
-    async fn send(&mut self) -> Result<()> {
-        self.document_type().document_inner().close(self).await?;
-
+    async fn send(&mut self, _position: Option<isize>) -> Result<()> {
         stdout().write_all(self.inner.get_ref()).await?;
-
-        self.flush().await?;
-
         self.clear();
 
         Ok(())

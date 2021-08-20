@@ -110,7 +110,7 @@ impl DocumentType {
 
 /// Every document_builder that implement this trait can get/write json_value through a connector.
 #[async_trait]
-pub trait Document: Send + Sync + DocumentClone {
+pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     /// Apply some actions and read the data though the Connector.
     async fn read_data(&self, reader: &mut Box<dyn Connector>) -> io::Result<Dataset>;
     /// Format the data result into the document format, apply some action and write into the connector.

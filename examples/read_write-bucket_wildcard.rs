@@ -41,11 +41,8 @@ async fn main() -> io::Result<()> {
         },
         {
             "type": "w",
-            "connector": {
-                "type": "io",
-                "document":{
-                    "type": "jsonl"
-                }
+            "document":{
+                "type": "jsonl"
             }
         }
     ]

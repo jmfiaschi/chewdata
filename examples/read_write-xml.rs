@@ -23,22 +23,19 @@ async fn main() -> io::Result<()> {
 
     let config = r#"
     [{
-        "type": "r",
+        "type": "reader",
         "connector":{
             "type": "local",
-            "path": "./data/multi_lines.xml",
-            "document" :{
-                "type":"xml"
-            }
+            "path": "./data/multi_lines.xml"
+        },
+        "document" :{
+            "type":"xml"
         }
     },
     {
-        "type": "w",
-        "connector":{
-            "type":"io",
-            "document": {
-                "type": "xml"
-            }
+        "type": "writer",
+        "document": {
+            "type": "xml"
         }
     }]
     "#;

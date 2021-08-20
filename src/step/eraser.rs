@@ -1,4 +1,5 @@
 use crate::connector::ConnectorType;
+use crate::document::DocumentType;
 use crate::step::Step;
 use crate::DataResult;
 use async_trait::async_trait;
@@ -6,12 +7,15 @@ use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;
 use std::{fmt, io};
 use std::{thread, time};
+use slog::Drain;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct Eraser {
     #[serde(alias = "connector")]
     connector_type: ConnectorType,
+    #[serde(alias = "document")]
+    document_type: DocumentType,
     pub alias: Option<String>,
     pub description: Option<String>,
     #[serde(alias = "wait")]
@@ -24,6 +28,7 @@ impl Default for Eraser {
     fn default() -> Self {
         Eraser {
             connector_type: ConnectorType::default(),
+            document_type: DocumentType::default(),
             alias: None,
             description: None,
             wait_in_milisec: 10,
@@ -77,7 +82,10 @@ impl Step for Eraser {
                     if let Some(ref pipe_inbound) = pipe_inbound_option {
                         info!(slog_scope::logger(),
                             "Data send to the queue";
-                            "data" => format!("{:?}", data_result),
+                            "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                                true => format!("{:?}", data_result),
+                                false => "truncated, available only in debug mode".to_string(),
+                            },
                             "step" => format!("{}", self.clone()),
                             "pipe_outbound" => false
                         );

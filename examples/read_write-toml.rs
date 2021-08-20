@@ -23,22 +23,19 @@ async fn main() -> io::Result<()> {
 
     let config = r#"
     [{
-        "type": "r",
+        "type": "reader",
         "connector":{
             "type": "local",
-            "path": "./data/multi_lines.toml",
-            "document" :{
-                "type":"toml"
-            }
+            "path": "./data/multi_lines.toml"
+        },
+        "document" :{
+            "type":"toml"
         }
     },
     {
-        "type": "w",
-        "connector":{
-            "type":"io",
-            "document" : {
-                "type": "toml"
-            }
+        "type": "writer",
+        "document" : {
+            "type": "toml"
         }
     }]
     "#;

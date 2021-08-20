@@ -8,6 +8,7 @@ use std::{collections::HashMap, fmt, io};
 use multiqueue::{MPMCReceiver, MPMCSender};
 use std::{thread, time};
 use async_trait::async_trait;
+use slog::Drain;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -123,7 +124,10 @@ impl Step for Transformer {
                 info!(slog_scope::logger(),
                     "This step handle only this data type";
                     "data_type" => self.data_type.to_string(),
-                    "data" => format!("{:?}", data_result),
+                    "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                        true => format!("{:?}", data_result),
+                        false => "truncated, available only in debug mode".to_string(),
+                    },
                     "step" => format!("{}", self.clone())
                 );
                 continue;
@@ -155,7 +159,10 @@ impl Step for Transformer {
             
             info!(slog_scope::logger(),
                 "Data send to the queue";
-                "data" => format!("{:?}", new_data_results),
+                "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                    true => format!("{:?}", new_data_results),
+                    false => "truncated, available only in debug mode".to_string(),
+                },
                 "step" => format!("{}", self.clone())
             );
             let mut current_retry = 0;

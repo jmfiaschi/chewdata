@@ -1,10 +1,12 @@
 use crate::connector::ConnectorType;
+use crate::document::DocumentType;
 use crate::step::Step;
 use crate::DataResult;
 use async_trait::async_trait;
 use futures::StreamExt;
 use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;
+use slog::Drain;
 use std::{fmt, io};
 use std::{thread, time};
 
@@ -13,6 +15,8 @@ use std::{thread, time};
 pub struct Reader {
     #[serde(alias = "connector")]
     connector_type: ConnectorType,
+    #[serde(alias = "document")]
+    document_type: DocumentType,
     pub alias: Option<String>,
     pub description: Option<String>,
     pub data_type: String,
@@ -24,10 +28,11 @@ impl Default for Reader {
     fn default() -> Self {
         Reader {
             connector_type: ConnectorType::default(),
+            document_type: DocumentType::default(),
             alias: None,
             description: None,
             data_type: DataResult::OK.to_string(),
-            wait_in_milisec: 10
+            wait_in_milisec: 10,
         }
     }
 }
@@ -65,6 +70,8 @@ impl Step for Reader {
         };
 
         let mut connector = self.connector_type.clone().connector();
+        let document = self.document_type.clone().document_inner();
+        connector.set_metadata(connector.metadata().merge(document.metadata()));
 
         match (pipe_outbound_option, connector.is_variable()) {
             (Some(pipe_outbound), true) => {
@@ -73,18 +80,24 @@ impl Step for Reader {
                         info!(slog_scope::logger(),
                             "This step handle only this data type";
                             "data_type" => self.data_type.to_string(),
-                            "data" => format!("{:?}", data_result),
+                            "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                                true => format!("{:?}", data_result),
+                                false => "truncated, available only in debug mode".to_string(),
+                            },
                             "step" => format!("{}", self.clone())
                         );
                         continue;
                     }
 
                     connector.set_parameters(data_result.to_json_value());
-                    let mut data = connector.pull_data().await?;
+                    let mut data = connector.pull_data(document.clone()).await?;
                     while let Some(data_result) = data.next().await {
                         info!(slog_scope::logger(),
                             "Data send to the queue";
-                            "data" => format!("{:?}", data_result),
+                            "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                                true => format!("{:?}", data_result),
+                                false => "truncated, available only in debug mode".to_string(),
+                            },
                             "step" => format!("{}", self.clone()),
                             "pipe_outbound" => true
                         );
@@ -99,11 +112,14 @@ impl Step for Reader {
             }
             (Some(pipe_outbound), false) => {
                 for _data_result in pipe_outbound {}
-                let mut data = connector.pull_data().await?;
+                let mut data = connector.pull_data(document.clone()).await?;
                 while let Some(data_result) = data.next().await {
                     info!(slog_scope::logger(),
                         "Data send to the queue";
-                        "data" => format!("{:?}", data_result),
+                        "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                            true => format!("{:?}", data_result),
+                            false => "truncated, available only in debug mode".to_string(),
+                        },
                         "step" => format!("{}", self.clone()),
                         "pipe_outbound" => true
                     );
@@ -116,11 +132,14 @@ impl Step for Reader {
                 }
             }
             (None, _) => {
-                let mut data = connector.pull_data().await?;
+                let mut data = connector.pull_data(document.clone()).await?;
                 while let Some(data_result) = data.next().await {
                     info!(slog_scope::logger(),
                         "Data send to the queue";
-                        "data" => format!("{:?}", data_result),
+                        "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                            true => format!("{:?}", data_result),
+                            false => "truncated, available only in debug mode".to_string(),
+                        },
                         "step" => format!("{}", self.clone()),
                         "pipe_outbound" => false
                     );

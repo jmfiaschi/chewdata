@@ -1,10 +1,7 @@
 use super::authenticator::AuthenticatorType;
 use super::{Connector, Paginator};
-use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
-use crate::DataResult;
 use crate::Metadata;
-use async_std::io::prelude::WriteExt;
 use async_trait::async_trait;
 use json_value_merge::Merge;
 use regex::Regex;
@@ -22,8 +19,6 @@ pub struct Curl {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    #[serde(alias = "document")]
-    pub document_type: Box<DocumentType>,
     #[serde(alias = "auth")]
     #[serde(alias = "authenticator")]
     pub authenticator_type: Option<Box<AuthenticatorType>>,
@@ -64,7 +59,6 @@ impl Default for Curl {
     fn default() -> Self {
         Curl {
             metadata: Metadata::default(),
-            document_type: Box::new(DocumentType::default()),
             authenticator_type: None,
             endpoint: "".into(),
             path: "".into(),
@@ -94,7 +88,6 @@ impl fmt::Debug for Curl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Curl")
             .field("metadata", &self.metadata)
-            .field("document_type", &self.document_type)
             .field("authenticator_type", &self.authenticator_type)
             .field("endpoint", &self.endpoint)
             .field("path", &self.path)
@@ -157,10 +150,6 @@ impl Connector for Curl {
         }
 
         Ok(true)
-    }
-    /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> Box<DocumentType> {
-        self.document_type.clone()
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -233,11 +222,6 @@ impl Connector for Curl {
 
         Ok(())
     }
-    /// See [`Connector::push_data`] for more details.
-    async fn push_data(&mut self, data: DataResult) -> Result<()> {
-        let document = self.document_type().document_inner();
-        document.write_data(self, data.to_json_value()).await
-    }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
         Ok(Box::pin(CurlPaginator::new(self.clone())))
@@ -292,7 +276,7 @@ impl Connector for Curl {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.document_type.document().metadata().merge(self.metadata.clone())
+        self.metadata.clone()
     }
     /// See [`Connector::len`] for more details.
     ///
@@ -363,26 +347,21 @@ impl Connector for Curl {
     /// ```rust
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use surf::http::Method;
-    /// use chewdata::DataResult;
-    /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let value: Value = from_str(r#"{"column1":"value2"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Post;
     ///     connector.path = "/post".to_string();
     ///     
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///     assert_eq!(r#"{
     ///   "args": {}, 
-    ///   "data": "[{\"column1\":\"value2\"}]", 
+    ///   "data": "[{\"column1\":\"value1\"}]", 
     ///   "files": {}, 
     ///   "form": {}, 
     ///   "headers": {
@@ -393,7 +372,7 @@ impl Connector for Curl {
     ///   }, 
     ///   "json": [
     ///     {
-    ///       "column1": "value2"
+    ///       "column1": "value1"
     ///     }
     ///   ], 
     ///   "origin": "172.18.0.1", 
@@ -404,9 +383,7 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    async fn send(&mut self) -> Result<()> {
-        self.document_type().document_inner().close(self).await?;
-
+    async fn send(&mut self, _position: Option<isize>) -> Result<()> {
         let client = surf::client();
         // initialize the position of the cursor
         self.inner.set_position(0);
@@ -453,15 +430,14 @@ impl Connector for Curl {
             ));
         }
 
-        self.inner.flush()?;
-        self.inner = Box::new(Cursor::new(Vec::default()));
+        self.clear();
 
         if !data.is_empty() {
             self.inner.write_all(&data)?;
             self.inner.set_position(0);
         }
 
-        self.flush().await
+        Ok(())
     }
     /// See [`Connector::erase`] for more details.
     ///
@@ -644,7 +620,9 @@ impl Paginator for CurlPaginator {
     ///     Ok(())
     /// }
     /// ```
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+    async fn next_page(
+        &mut self
+    ) -> Result<Option<Box<dyn Connector>>> {
         Ok(match self.has_next {
             true => {
                 self.skip += self.connector.limit;
@@ -673,17 +651,7 @@ impl Paginator for CurlPaginator {
                 new_connector.set_parameters(new_parameters);
                 new_connector.fetch().await?;
 
-                match (
-                    new_connector.is_empty().await?,
-                    new_connector.inner_has_data(),
-                ) {
-                    (false, true) => Some(Box::new(new_connector)),
-                    (true, true) => Some(Box::new(new_connector)),
-                    (empty, has_data) => {
-                        debug!(slog_scope::logger(), "No data found"; "inner has data" => has_data, "remote document is empty" => empty);
-                        None
-                    }
-                }
+                Some(Box::new(new_connector))
             }
             false => None,
         })

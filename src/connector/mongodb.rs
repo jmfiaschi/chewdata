@@ -1,6 +1,5 @@
 use super::{Connector, Paginator};
-use crate::{Metadata, document::DocumentType};
-use crate::DataResult;
+use crate::Metadata;
 use async_std::prelude::*;
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -21,7 +20,6 @@ pub struct Mongodb {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    document_type: Box<DocumentType>,
     pub endpoint: String,
     #[serde(alias = "db")]
     pub database: String,
@@ -51,7 +49,6 @@ impl fmt::Display for Mongodb {
 impl fmt::Debug for Mongodb {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Mongodb")
-            .field("document_type", &self.document_type)
             .field("endpoint", &self.endpoint)
             .field("collection", &self.collection)
             .field("database", &self.database)
@@ -71,7 +68,7 @@ impl Connector for Mongodb {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.document_type.document().metadata().merge(self.metadata.clone())
+        self.metadata.clone()
     }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
@@ -90,10 +87,6 @@ impl Connector for Mongodb {
     /// See [`Connector::is_resource_will_change`] for more details.
     fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
         Ok(self.is_variable())
-    }
-    /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> Box<DocumentType> {
-        self.document_type.clone()
     }
     /// See [`Connector::is_empty`] for more details.
     ///
@@ -187,19 +180,12 @@ impl Connector for Mongodb {
 
         Ok(())
     }
-    /// See [`Connector::push_data`] for more details.
-    async fn push_data(&mut self, data: DataResult) -> Result<()> {
-        let document = self.document_type().document_inner();
-        document.write_data(self, data.to_json_value()).await
-    }
     /// See [`Connector::erase`] for more details.
     ///
     /// # Example
     /// ```rust
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use chewdata::DataResult;
-    /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -210,14 +196,11 @@ impl Connector for Mongodb {
     ///     connector.database = "tests".into();
     ///     connector.collection = "erase".into();
     ///
-    ///     let value: Value = from_str(r#"{"column1":"value1"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///     connector.erase().await?;
     ///     connector.fetch().await?;
-    ///     assert_eq!(false, connector.inner_has_data());
+    ///     assert_eq!("[]".to_string(), String::from_utf8(connector.inner().clone()).unwrap());
     ///
     ///     Ok(())
     /// }
@@ -246,8 +229,7 @@ impl Connector for Mongodb {
     /// ```rust
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use chewdata::DataResult;
-    /// use serde_json::{from_str, Value};
+    /// use serde_json::from_str;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -259,11 +241,8 @@ impl Connector for Mongodb {
     ///     connector.collection = "send".into();
     ///     connector.erase().await?;
     ///
-    ///     let value: Value = from_str(r#"{"column1":"value1"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///
     ///     let mut buffer = String::default();
     ///     let mut connector_reader = connector.clone();
@@ -272,11 +251,8 @@ impl Connector for Mongodb {
     ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
     ///     assert_eq!("value1", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
     ///
-    ///     let value: Value = from_str(r#"{"column1":"value2"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(r#"[{"column1":"value2"}]"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///
     ///     let mut buffer = String::default();
     ///     let mut connector_reader = connector.clone();
@@ -293,8 +269,7 @@ impl Connector for Mongodb {
     /// ```rust
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use chewdata::DataResult;
-    /// use serde_json::{from_str, Value};
+    /// use serde_json::from_str;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -306,11 +281,8 @@ impl Connector for Mongodb {
     ///     connector.collection = "send".into();
     ///     connector.erase().await?;
     ///
-    ///     let value: Value = from_str(r#"{"column1":"value1"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///
     ///     let mut buffer = String::default();
     ///     let mut connector_reader = connector.clone();
@@ -319,12 +291,8 @@ impl Connector for Mongodb {
     ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
     ///     assert_eq!("value1", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
     ///
-    ///
-    ///     let value: Value = from_str(format!(r#"{{"_id":"{}", "column1":"value3"}}"#, docs[0].as_document().unwrap().get("_id").unwrap().as_object_id().unwrap().to_string()).as_str())?;
-    ///     let data = DataResult::Ok(value);
-    ///
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(format!(r#"[{{"_id":"{}", "column1":"value3"}}]"#, docs[0].as_document().unwrap().get("_id").unwrap().as_object_id().unwrap().to_string()).as_str().as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///
     ///     let mut buffer = String::default();
     ///     let mut connector_reader = connector.clone();
@@ -336,9 +304,7 @@ impl Connector for Mongodb {
     ///     Ok(())
     /// }
     /// ```
-    async fn send(&mut self) -> Result<()> {
-        self.document_type().document_inner().close(self).await?;
-
+    async fn send(&mut self, _position: Option<isize>) -> Result<()> {
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
@@ -385,7 +351,6 @@ impl Connector for Mongodb {
             }
         }
 
-        self.flush().await?;
         self.clear();
 
         Ok(())
@@ -499,10 +464,6 @@ impl Paginator for MongodbPaginator {
         find_options.skip = Some(self.skip);
         connector.find_options = Box::new(Some(find_options.clone()));
         connector.fetch().await?;
-
-        if !connector.inner_has_data() {
-            return Ok(None);
-        }
 
         Ok(Some(Box::new(connector)))
     }

@@ -1,6 +1,4 @@
 use super::{Connector, Paginator};
-use crate::document::DocumentType;
-use crate::DataResult;
 use crate::Metadata;
 use async_std::sync::Mutex;
 use async_trait::async_trait;
@@ -18,16 +16,14 @@ pub struct InMemory {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    #[serde(alias = "document")]
-    pub document_type: Box<DocumentType>,
     #[serde(alias = "value")]
     #[serde(alias = "doc")]
     #[serde(alias = "data")]
     #[serde(deserialize_with = "deserialize_inner")]
     #[serde(skip_serializing)]
-    // The result value like if the document is in remote.
+    // The result value in memory.
     // Read the content only with the method io::Read::read().
-    pub document: Arc<Mutex<Buffer>>,
+    pub memory: Arc<Mutex<Buffer>>,
     #[serde(skip)]
     pub inner: Buffer,
 }
@@ -47,16 +43,13 @@ impl fmt::Debug for InMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InMemory")
             .field("metadata", &self.metadata)
-            .field("document_type", &self.document_type)
             .finish()
     }
 }
 
-type Buffer = Cursor<Vec<u8>>; 
+type Buffer = Cursor<Vec<u8>>;
 
-fn deserialize_inner<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Arc<Mutex<Buffer>>, D::Error>
+fn deserialize_inner<'de, D>(deserializer: D) -> std::result::Result<Arc<Mutex<Buffer>>, D::Error>
 where
     D: de::Deserializer<'de>,
 {
@@ -68,7 +61,7 @@ impl InMemory {
     /// Creates a new document type `InMemory`.
     pub fn new(str: &str) -> InMemory {
         InMemory {
-            document: Arc::new(Mutex::new(Cursor::new(str.to_string().into_bytes()))),
+            memory: Arc::new(Mutex::new(Cursor::new(str.to_string().into_bytes()))),
             ..Default::default()
         }
     }
@@ -76,10 +69,6 @@ impl InMemory {
 
 #[async_trait]
 impl Connector for InMemory {
-    /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> Box<DocumentType> {
-        self.document_type.clone()
-    }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
         "in_memory".to_string()
@@ -107,7 +96,7 @@ impl Connector for InMemory {
     /// }
     /// ```
     async fn is_empty(&mut self) -> io::Result<bool> {
-        Ok(self.document.lock().await.get_ref().is_empty())
+        Ok(self.memory.lock().await.get_ref().is_empty())
     }
     /// See [`Connector::len`] for more details.
     ///
@@ -126,7 +115,7 @@ impl Connector for InMemory {
     /// }
     /// ```
     async fn len(&mut self) -> io::Result<usize> {
-        Ok(self.document.lock().await.get_ref().len())
+        Ok(self.memory.lock().await.get_ref().len())
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
@@ -136,17 +125,11 @@ impl Connector for InMemory {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.document_type.document().metadata().merge(self.metadata.clone())
+        self.metadata.clone()
     }
     /// See [`Connector::is_resource_will_change`] for more details.
     fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
         Ok(false)
-    }
-    /// See [`Connector::push_data`] for more details.
-    async fn push_data(&mut self, data: DataResult) -> Result<()> {
-        debug!(slog_scope::logger(), "push data"; "data" => format!("{}", data.to_json_value()));
-        let document = self.document_type().document_inner();
-        document.write_data(self, data.to_json_value()).await
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -169,8 +152,8 @@ impl Connector for InMemory {
     /// }
     /// ```
     async fn fetch(&mut self) -> Result<()> {
-        let document = self.document.lock().await;
-        self.inner = io::Cursor::new(document.get_ref().clone());
+        let resource = self.memory.lock().await;
+        self.inner = io::Cursor::new(resource.get_ref().clone());
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -187,14 +170,14 @@ impl Connector for InMemory {
     ///     let mut connector = InMemory::new("My text");
     ///     connector.erase().await?;
     ///     connector.fetch().await?;
-    ///     assert_eq!(false, connector.inner_has_data());
+    ///     assert_eq!(true, connector.inner().is_empty());
     ///
     ///     Ok(())
     /// }
     /// ```
     async fn erase(&mut self) -> io::Result<()> {
-        let mut document = self.document.lock().await;
-        *document = Cursor::default();
+        let mut memory = self.memory.lock().await;
+        *memory = Cursor::default();
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -203,69 +186,50 @@ impl Connector for InMemory {
     /// ```rust
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
-    /// use chewdata::DataResult;
-    /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let value: Value = from_str(r#"{"column1":"value2"}"#)?;
-    ///     let data = DataResult::Ok(value);
+    ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+    ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///
-    ///     let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
-    ///
+    ///     let mut connector_read = connector.clone();
+    ///     connector_read.fetch().await?;
     ///     let mut buffer = String::default();
-    ///     connector.fetch().await?;
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
+    ///
+    ///     connector.write(r#"{"column1":"value3"}"#.as_bytes()).await?;
+    ///     connector.send(Some(-20)).await?;
+    ///
+    ///     let mut connector_read = connector.clone();
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"{"column1":"value1"}{"column1":"value3"}"#, buffer);
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn send(&mut self) -> Result<()> {
-        self.document_type().document_inner().close(self).await?;
-
-        let entry_point_path_start_len = self
-            .document_type()
-            .document_inner()
-            .entry_point_path_start()
-            .len();
-        let entry_point_path_end_len = self
-            .document_type()
-            .document_inner()
-            .entry_point_path_end()
-            .len();
-
+    async fn send(&mut self, position: Option<isize>) -> Result<()> {
         let inner = self.inner().clone();
         self.clear();
-        let remote_len = self.len().await?;
+        
+        let mut memory = self.memory.lock().await;
 
-        let mut position: i64 = remote_len as i64 - entry_point_path_end_len as i64;
-
-        if 0 > position {
-            position = 0;
-        }
-
-        let mut document = self.document.lock().await;
-        if remote_len == 0 {
-            document.seek(SeekFrom::Start(0))?;
-        }
-
-        if remote_len == entry_point_path_start_len + entry_point_path_end_len {
-            document.seek(SeekFrom::Start(0))?;
-        }
-
-        if remote_len > entry_point_path_start_len + entry_point_path_end_len {
-            document.seek(SeekFrom::Start(position as u64))?;
-        }
-
-        document.seek(SeekFrom::Start(position as u64))?;
-
-        document.write_all(&inner)?;
-        document.set_position(0);
+        match position {
+            Some(pos) => match pos {
+                pos if pos < 0 => memory.seek(SeekFrom::End(pos as i64)),
+                _ => memory.seek(SeekFrom::Start(pos as u64)),
+                
+            }
+            None => memory.seek(SeekFrom::End(0)),
+        }?;
+        
+        memory.write_all(&inner)?;
+        memory.set_position(0);
 
         Ok(())
     }

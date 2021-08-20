@@ -23,22 +23,19 @@ async fn main() -> io::Result<()> {
 
     let config = r#"
     [{
-        "type": "r",
+        "type": "reader",
         "connector":{
             "type": "local",
-            "path": "./data/multi_lines.jsonl",
-            "document" :{
-                "type":"jsonl"
-            }
+            "path": "./data/multi_lines.jsonl"
+        },
+        "document" :{
+            "type":"jsonl"
         }
     },
     {
-        "type": "w",
-        "connector":{
-            "type":"io",
-            "document" : {
-                "type": "jsonl"
-            }
+        "type": "writer",
+        "document" : {
+            "type": "jsonl"
         }
     }]
     "#;

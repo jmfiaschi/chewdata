@@ -1,7 +1,5 @@
 use super::{Connector, Paginator};
-use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
-use crate::DataResult;
 use crate::Metadata;
 use async_trait::async_trait;
 use glob::glob;
@@ -23,8 +21,6 @@ pub struct Local {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    #[serde(alias = "document")]
-    pub document_type: Box<DocumentType>,
     pub path: String,
     pub parameters: Value,
     #[serde(skip)]
@@ -46,7 +42,6 @@ impl fmt::Debug for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Local")
             .field("metadata", &self.metadata)
-            .field("document_type", &self.document_type)
             .field("path", &self.path)
             .field("parameters", &self.parameters)
             .finish()
@@ -175,7 +170,7 @@ impl Connector for Local {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.document_type.document().metadata().merge(self.metadata.clone())
+        self.metadata.clone()
     }
     /// See [`Connector::send`] for more details.
     ///
@@ -183,51 +178,45 @@ impl Connector for Local {
     /// ```rust
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
-    /// use chewdata::DataResult;
-    /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let value: Value = from_str(r#"{"column1":"value1"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
-    ///     let mut connector_write = Local::default();
-    ///     connector_write.path = "./data/out/test_local_send".to_string();
-    ///     connector_write.erase().await?;
-    ///     connector_write.push_data(data).await?;
-    ///     connector_write.send().await?;
+    ///     let mut connector = Local::default();
+    ///     connector.path = "./data/out/test_local_send".to_string();
+    ///     connector.erase().await?;
+    ///     connector.write(r#"{"column1":"value1"}"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///     
-    ///     let mut connector_read = connector_write.clone();
+    ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;
     ///     let mut buffer = String::default();
     ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
+    ///     assert_eq!(r#"{"column1":"value1"}"#, buffer);
     ///
-    ///     let value: Value = from_str(r#"{"column1":"value2"}"#)?;
-    ///     let data = DataResult::Ok(value);
+    ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///
-    ///     connector_write.push_data(data).await?;
-    ///     connector_write.send().await?;
-    ///
+    ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;
     ///     let mut buffer = String::default();
     ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
+    ///     assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
+    ///
+    ///     connector.write(r#"{"column1":"value3"}"#.as_bytes()).await?;
+    ///     connector.send(Some(-20)).await?;
+    ///
+    ///     let mut connector_read = connector.clone();
+    ///     connector_read.fetch().await?;
+    ///     let mut buffer = String::default();
+    ///     connector_read.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(r#"{"column1":"value1"}{"column1":"value3"}"#, buffer);
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn send(&mut self) -> Result<()> {
-        self.document_type().document_inner().close(self).await?;
-
-        let entry_point_path_end_len = self
-            .document_type()
-            .document_inner()
-            .entry_point_path_end()
-            .len();
-
+    async fn send(&mut self, position: Option<isize>) -> Result<()> {
         let mut file = OpenOptions::new()
             .read(true)
             .create(true)
@@ -235,14 +224,15 @@ impl Connector for Local {
             .truncate(false)
             .open(self.path().as_str())?;
 
-        let file_len = file.metadata()?.len();
-        let mut position = file_len as i64 - (entry_point_path_end_len as i64);
+        match position {
+            Some(pos) => match pos {
+                pos if pos < 0 => file.seek(SeekFrom::End(pos as i64)),
+                _ => file.seek(SeekFrom::Start(pos as u64)),
+                
+            }
+            None => file.seek(SeekFrom::End(0)),
+        }?;
 
-        if 0 >= position {
-            position = 0;
-        }
-
-        file.seek(SeekFrom::Start(position as u64))?;
         file.write_all(self.inner.get_ref())?;
 
         self.clear();
@@ -278,10 +268,6 @@ impl Connector for Local {
         }
 
         Ok(true)
-    }
-    /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> Box<DocumentType> {
-        self.document_type.clone()
     }
     /// See [`Connector::inner`] for more details.
     fn inner(&self) -> &Vec<u8> {
@@ -322,36 +308,24 @@ impl Connector for Local {
 
         Ok(())
     }
-    /// See [`Connector::push_data`] for more details.
-    async fn push_data(&mut self, data: DataResult) -> Result<()> {
-        let connector = self;
-        let document = connector.document_type().document_inner();
-
-        document.write_data(connector, data.to_json_value()).await
-    }
     /// See [`Connector::erase`] for more details.
     ///
     /// # Example
     /// ```rust
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
-    /// use chewdata::DataResult;
-    /// use serde_json::{from_str, Value};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let value: Value = from_str(r#"{"column1":"value1"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/out/test_local_erase".to_string();
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(r#"{"column1":"value1"}"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///     connector.erase().await?;
     ///     connector.fetch().await?;
-    ///     assert_eq!(false, connector.inner_has_data());
+    ///     assert_eq!(true, connector.inner().is_empty());
     ///
     ///     Ok(())
     /// }
@@ -440,9 +414,7 @@ impl LocalPaginator {
         if connector.path().is_empty() {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
-                format!(
-                    "The field 'path' for a local connector can't be an empty string"
-                ),
+                format!("The field 'path' for a local connector can't be an empty string"),
             ));
         }
 

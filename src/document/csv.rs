@@ -359,7 +359,6 @@ impl Document for Csv {
     /// async fn main() -> io::Result<()> {
     ///     let mut document = Csv::default();
     ///     let mut connector = InMemory::new(r#""#);
-    ///     connector.document_type = Box::new(DocumentType::Csv(document.clone()));
     ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
     ///     document.write_data(&mut connector, value).await?;
@@ -396,7 +395,6 @@ impl Document for Csv {
     ///     document.metadata = metadata;
     ///
     ///     let mut connector = InMemory::new(r#""#);
-    ///     connector.document_type = Box::new(DocumentType::Csv(document.clone()));
     ///
     ///     let complex_value: Value = serde_json::from_str(r#"{
     ///     "string":"My text",
@@ -418,7 +416,7 @@ impl Document for Csv {
     /// }
     /// ```
     async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        let write_header = connector.metadata().has_headers.unwrap_or(false);
+        let write_header = connector.metadata().has_headers.unwrap_or(self.metadata().has_headers.unwrap_or(false));
         // Use a buffer here because the csv builder flush everytime it write something.
         let mut builder_writer = self.writer_builder().from_writer(vec![]);
 

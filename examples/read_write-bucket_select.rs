@@ -35,19 +35,16 @@ async fn main() -> io::Result<()> {
                 "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
                 "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
                 "region": "{{ BUCKET_REGION }}",
-                "query": "select * from s3object",
-                "document" : {
-                    "type": "jsonl"
-                }
+                "query": "select * from s3object"
+            },
+            "document" : {
+                "type": "jsonl"
             }
         },
         {
             "type": "w",
-            "connector": {
-                "type": "io",
-                "document" : {
-                    "type": "jsonl"
-                }
+            "document" : {
+                "type": "jsonl"
             }
         }
     ]

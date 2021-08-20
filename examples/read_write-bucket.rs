@@ -69,11 +69,11 @@ async fn main() -> io::Result<()> {
                 "endpoint":"{{ BUCKET_ENDPOINT }}",
                 "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
                 "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
-                "region": "{{ BUCKET_REGION }}",
-                "document" : {
-                    "type": "jsonl",
-                    "pretty": true
-                }
+                "region": "{{ BUCKET_REGION }}"
+            },
+            "document" : {
+                "type": "jsonl",
+                "pretty": true
             }
         }
     ]

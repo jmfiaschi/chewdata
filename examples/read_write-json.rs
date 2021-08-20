@@ -24,13 +24,13 @@ async fn main() -> io::Result<()> {
     let config = r#"
     [
         {
-            "type": "r",
+            "type": "reader",
             "connector":{
                 "type": "local",
                 "path": "./data/multi_lines.json"
             }
         },
-        { "type": "w" }
+        { "type": "writer" }
     ]
     "#;
 

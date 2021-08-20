@@ -23,22 +23,19 @@ async fn main() -> io::Result<()> {
 
     let config = r#"
     [{
-        "type": "r",
+        "type": "reader",
         "connector":{
             "type": "local",
-            "path": "./data/multi_lines.yml",
-            "document" :{
-                "type":"yaml"
-            }
+            "path": "./data/multi_lines.yml"
+        },
+        "document" :{
+            "type":"yaml"
         }
     },
     {
-        "type": "w",
-        "connector":{
-            "type":"io",
-            "document" : {
-                "type": "yaml"
-            }
+        "type": "writer",
+        "document" : {
+            "type": "yaml"
         }
     }]
     "#;

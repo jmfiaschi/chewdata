@@ -23,22 +23,19 @@ async fn main() -> io::Result<()> {
 
     let config = r#"
     [{
-        "type": "r",
+        "type": "read",
         "connector":{
             "type": "local",
-            "path": "./data/multi_lines.csv",
-            "document":{
-                "type":"csv"
-            }
+            "path": "./data/multi_lines.csv"
+        },
+        "document":{
+            "type":"csv"
         }
     },
     {
-        "type": "w",
-        "connector":{
-            "type":"io",
-            "document": {
-                "type": "csv"
-            }
+        "type": "write",
+        "document": {
+            "type": "csv"
         }
     }]
     "#;

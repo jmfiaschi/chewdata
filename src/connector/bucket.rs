@@ -1,8 +1,6 @@
 use super::Paginator;
 use crate::connector::Connector;
-use crate::document::DocumentType;
 use crate::helper::mustache::Mustache;
-use crate::DataResult;
 use crate::Metadata;
 use async_std::prelude::*;
 use async_trait::async_trait;
@@ -28,8 +26,6 @@ pub struct Bucket {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    #[serde(alias = "document")]
-    document_type: Box<DocumentType>,
     pub endpoint: Option<String>,
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
@@ -48,7 +44,6 @@ impl Default for Bucket {
     fn default() -> Self {
         Bucket {
             metadata: Metadata::default(),
-            document_type: Box::new(DocumentType::default()),
             endpoint: None,
             access_key_id: None,
             secret_access_key: None,
@@ -84,7 +79,6 @@ impl fmt::Debug for Bucket {
         secret_access_key.replace_range(0..(secret_access_key.len()/2), (0..(secret_access_key.len()/2)).map(|_| "#").collect::<String>().as_str());
         f.debug_struct("Bucket")
             .field("metadata", &self.metadata)
-            .field("document_type", &self.document_type)
             .field("endpoint", &self.endpoint)
             .field("access_key_id", &self.access_key_id)
             .field("secret_access_key", &secret_access_key)
@@ -281,18 +275,9 @@ impl Connector for Bucket {
     async fn is_empty(&mut self) -> Result<bool> {
         Ok(0 == self.len().await?)
     }
-    /// See [`Connector::document_type`] for more details.
-    fn document_type(&self) -> Box<DocumentType> {
-        self.document_type.clone()
-    }
     /// See [`Connector::inner`] for more details.
     fn inner(&self) -> &Vec<u8> {
         self.inner.get_ref()
-    }
-    /// See [`Connector::push_data`] for more details.
-    async fn push_data(&mut self, data: DataResult) -> Result<()> {
-        let document = self.document_type().document_inner();
-        document.write_data(self, data.to_json_value()).await
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -362,9 +347,6 @@ impl Connector for Bucket {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let value: Value = from_str(r#"{"column1":"value1"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.access_key_id = Some("minio_access_key".to_string());
@@ -373,8 +355,8 @@ impl Connector for Bucket {
     ///     connector.path = "data/out/test_bucket_send".to_string();
     ///     connector.erase().await?;
     ///
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
     ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;
@@ -382,11 +364,8 @@ impl Connector for Bucket {
     ///     connector_read.read_to_string(&mut buffer).await?;
     ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
     ///
-    ///     let value: Value = from_str(r#"{"column1":"value2"}"#)?;
-    ///     let data = DataResult::Ok(value);
-    ///
-    ///     connector.push_data(data).await?;
-    ///     connector.send().await?;
+    ///     connector.write(r#",{"column1":"value2"}]"#.as_bytes()).await?;
+    ///     connector.send(Some(-1)).await?;
     ///     connector_read.fetch().await?;
     ///     let mut buffer = String::default();
     ///     connector_read.read_to_string(&mut buffer).await?;
@@ -395,21 +374,14 @@ impl Connector for Bucket {
     ///     Ok(())
     /// }
     /// ```
-    async fn send(&mut self) -> Result<()> {
+    async fn send(&mut self, position: Option<isize>) -> Result<()> {
         if self.is_variable() && self.parameters == Value::Null && self.inner.get_ref().is_empty() {
             warn!(slog_scope::logger(), "Can't flush with variable path and without parameters";"path"=>self.path.clone(),"parameters"=>self.parameters.to_string());
             return Ok(());
         }
 
-        self.document_type().document_inner().close(self).await?;
-
         let mut content_file = Vec::default();
         let path_resolved = self.path();
-        let entry_point_path_end_len = self
-            .document_type()
-            .document_inner()
-            .entry_point_path_end()
-            .len();
 
         if !self.is_empty().await? {
             info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => path_resolved.to_string());
@@ -420,14 +392,17 @@ impl Connector for Bucket {
             }
         }
 
-        let mut position = content_file.len() as i64 - (entry_point_path_end_len as i64);
-
-        if 0 >= position {
-            position = 0;
-        }
-
         let mut cursor = Cursor::new(content_file.clone());
-        cursor.seek(SeekFrom::Start(position as u64))?;
+
+        match position {
+            Some(pos) => match pos {
+                pos if pos < 0 => cursor.seek(SeekFrom::End(pos as i64)),
+                _ => cursor.seek(SeekFrom::Start(pos as u64)),
+                
+            }
+            None => cursor.seek(SeekFrom::End(0)),
+        }?;
+        
         cursor.write_all(self.inner.get_ref())?;
 
         let s3_client = self.s3_client();
@@ -446,7 +421,6 @@ impl Connector for Bucket {
             }
         })?;
 
-        self.inner.flush()?;
         self.clear();
 
         Ok(())
@@ -456,7 +430,7 @@ impl Connector for Bucket {
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.document_type.document().metadata().merge(self.metadata.clone())
+        self.metadata.clone()
     }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
@@ -679,6 +653,7 @@ impl Paginator for BucketPaginator {
     ///     connector.limit = Some(5);
     ///     connector.skip = 2;
     ///     let mut paginator = connector.paginator().await?;
+    ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///     assert_eq!("data/multi_lines.jsonl".to_string(), paginator.next_page().await?.unwrap().path());
     ///
     ///     Ok(())

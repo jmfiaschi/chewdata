@@ -18,17 +18,21 @@ use std::io;
 #[serde(tag = "type")]
 pub enum StepType {
     #[serde(rename = "reader")]
+    #[serde(alias = "read")]
     #[serde(alias = "r")]
     Reader(Reader),
     #[serde(rename = "writer")]
+    #[serde(alias = "write")]
     #[serde(alias = "w")]
     Writer(Writer),
     #[serde(rename = "transformer")]
+    #[serde(alias = "transform")]
     #[serde(alias = "t")]
     Transformer(Transformer),
-    #[serde(rename = "erase")]
-    #[serde(alias = "e")]
+    #[serde(rename = "eraser")]
+    #[serde(alias = "erase")]
     #[serde(alias = "truncate")]
+    #[serde(alias = "e")]
     Eraser(Eraser),
 }
 
