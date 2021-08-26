@@ -612,7 +612,7 @@ impl Paginator for BucketPaginator {
     ///     Ok(())
     /// }
     /// ```
-    /// # Example: With wildcard
+    /// # Example: With wildcard. List results are always returned in UTF-8 binary order
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
@@ -634,7 +634,7 @@ impl Paginator for BucketPaginator {
     ///     Ok(())
     /// }
     /// ```
-    // # Example: With wildcard, limit and skip
+    // # Example: With wildcard, limit and skip. List results are always returned in UTF-8 binary order
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
@@ -651,8 +651,8 @@ impl Paginator for BucketPaginator {
     ///     connector.limit = Some(5);
     ///     connector.skip = 2;
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///     assert_eq!("data/multi_lines.jsonl".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///
     ///     Ok(())
     /// }

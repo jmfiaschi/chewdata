@@ -397,7 +397,7 @@ impl BucketSelect {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        let payload = res
+        let body_bytes = res
             .body_bytes()
             .await
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
@@ -408,15 +408,22 @@ impl BucketSelect {
                 format!(
                     "Curl failed with status code '{}' and response body: {}",
                     res.status(),
-                    String::from_utf8(payload)
+                    String::from_utf8(body_bytes)
                         .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                 ),
             ));
         }
 
-        let mut event_stream =
-            EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
         let mut buffer = String::default();
+
+        if body_bytes.is_empty() {
+            // Issue with surf : payload empty if the response is not chunked
+            error!(slog_scope::logger(), "The response body is empty or the client can't read the body");
+            return Ok(buffer)
+        }
+
+        let mut event_stream =
+            EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
 
         while let Some(item_result) = event_stream.next().await {
             match item_result {
