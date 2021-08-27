@@ -40,6 +40,8 @@ pub struct Bucket {
     pub skip: usize,
     pub version: Option<String>,
     pub tags: HashMap<String, String>,
+    pub cache_control: Option<String>,
+    pub expires: Option<String>,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
 }
@@ -62,7 +64,9 @@ impl Default for Bucket {
             limit: None,
             skip: 0,
             version: None,
-            tags
+            tags,
+            cache_control: None,
+            expires: None,
         }
     }
 }
@@ -432,6 +436,12 @@ impl Connector for Bucket {
             tagging: Some(self.tagging()),
             content_type: Some(self.metadata().content_type()),
             metadata: Some(self.metadata().to_hashmap()),
+            cache_control: self.cache_control.to_owned(),
+            content_language: match self.metadata().content_language().is_empty() {
+                true => None,
+                false => Some(self.metadata().content_language()) 
+            },
+            expires: self.expires.to_owned(),
             ..Default::default()
         };
 

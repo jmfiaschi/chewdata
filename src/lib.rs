@@ -72,6 +72,7 @@ pub struct Metadata {
     pub mime_subtype: Option<String>,
     pub charset: Option<String>,
     pub compression: Option<String>,
+    pub language: Option<String>,
 }
 
 impl Default for Metadata {
@@ -87,6 +88,7 @@ impl Default for Metadata {
             mime_subtype: None,
             charset: None,
             compression: None,
+            language: None,
         }
     }
 }
@@ -104,6 +106,7 @@ impl Metadata {
             mime_subtype: metadata.mime_subtype.or(self.mime_subtype),
             charset: metadata.charset.or(self.charset),
             compression: metadata.compression.or(self.compression),
+            language: metadata.language.or(self.language),
         }
     }
     fn content_type(&self) -> String {
@@ -117,6 +120,9 @@ impl Metadata {
             content_type += &format!("; charset={}", charset);
         }
         content_type
+    }
+    fn content_language(&self) -> String {
+        self.language.clone().unwrap_or_default()
     }
     fn to_hashmap(&self) -> HashMap<String, String> {
         let mut hashmap: HashMap<String, String> = HashMap::default();
@@ -143,6 +149,9 @@ impl Metadata {
         }
         if let Some(compression) = self.compression.clone() {
             hashmap.insert("compression".to_string(), compression);
+        }
+        if let Some(language) = self.language.clone() {
+            hashmap.insert("Content-Language".to_string(), language);
         }
         hashmap
     }
