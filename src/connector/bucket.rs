@@ -10,6 +10,7 @@ use rusoto_s3::ListObjectsV2Request;
 use rusoto_s3::{GetObjectRequest, HeadObjectRequest, PutObjectRequest, S3Client, S3 as RusotoS3};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{
@@ -19,6 +20,8 @@ use std::{
 use tokio::io::AsyncReadExt;
 use tokio::runtime::Runtime;
 use std::vec::IntoIter;
+
+const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -36,12 +39,16 @@ pub struct Bucket {
     pub limit: Option<usize>,
     pub skip: usize,
     pub version: Option<String>,
+    pub tags: HashMap<String, String>,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
 }
 
 impl Default for Bucket {
     fn default() -> Self {
+        let mut tags = HashMap::default();
+        tags.insert(DEFAULT_TAG_SERVICE_WRITER_NAME.0.to_string(), DEFAULT_TAG_SERVICE_WRITER_NAME.1.to_string());
+
         Bucket {
             metadata: Metadata::default(),
             endpoint: None,
@@ -55,6 +62,7 @@ impl Default for Bucket {
             limit: None,
             skip: 0,
             version: None,
+            tags
         }
     }
 }
@@ -112,6 +120,19 @@ impl Bucket {
                 },
             }),
         }
+    }
+    fn tagging(&self) -> String {
+        let mut tagging = String::default();
+        let mut tags = Bucket::default().tags;
+        tags.extend(self.tags.clone());
+
+        for (k, v) in tags {
+            if !tagging.is_empty() {
+                tagging += &"&".to_string();
+            }
+            tagging += &format!("{}={}", k, v).to_string();
+        }
+        tagging
     }
 }
 
@@ -408,6 +429,9 @@ impl Connector for Bucket {
             bucket: self.bucket.to_owned(),
             key: path_resolved,
             body: Some(cursor.into_inner().into()),
+            tagging: Some(self.tagging()),
+            content_type: Some(self.metadata().content_type()),
+            metadata: Some(self.metadata().to_hashmap()),
             ..Default::default()
         };
 

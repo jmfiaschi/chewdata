@@ -69,7 +69,12 @@ async fn main() -> io::Result<()> {
                 "endpoint":"{{ BUCKET_ENDPOINT }}",
                 "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
                 "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
-                "region": "{{ BUCKET_REGION }}"
+                "region": "{{ BUCKET_REGION }}",
+                "tags": {
+                    "service:writer:owner": "my_team_name",
+                    "service:writer:env": "dev",
+                    "service:writer:context": "example"
+                }
             },
             "document" : {
                 "type": "jsonl",

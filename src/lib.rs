@@ -17,7 +17,7 @@ pub mod updater;
 
 use self::step::StepType;
 use serde::{Deserialize, Serialize};
-use std::io;
+use std::{collections::HashMap, io};
 use multiqueue::MPMCReceiver;
 use async_std::task;
 use std::pin::Pin;
@@ -105,6 +105,46 @@ impl Metadata {
             charset: metadata.charset.or(self.charset),
             compression: metadata.compression.or(self.compression),
         }
+    }
+    fn content_type(&self) -> String {
+        let mut content_type = String::default();
+        
+        if let (Some(mime_type), Some(mime_subtype)) = (&self.mime_type, &self.mime_subtype) {
+            content_type = format!("{}/{}", mime_type, mime_subtype);
+        }
+        
+        if let Some(charset) = &self.charset {
+            content_type += &format!("; charset={}", charset);
+        }
+        content_type
+    }
+    fn to_hashmap(&self) -> HashMap<String, String> {
+        let mut hashmap: HashMap<String, String> = HashMap::default();
+        if let Some(has_headers) = self.has_headers.clone() {
+            hashmap.insert("has_headers".to_string(), has_headers.to_string());
+        }
+        if let Some(delimiter) = self.delimiter.clone() {
+            hashmap.insert("delimiter".to_string(), delimiter);
+        }
+        if let Some(quote) = self.quote.clone() {
+            hashmap.insert("quote".to_string(), quote);
+        }
+        if let Some(escape) = self.escape.clone() {
+            hashmap.insert("escape".to_string(), escape);
+        }
+        if let Some(comment) = self.comment.clone() {
+            hashmap.insert("comment".to_string(), comment);
+        }
+        if let Some(terminator) = self.terminator.clone() {
+            hashmap.insert("terminator".to_string(), terminator);
+        }
+        if let (Some(_), Some(_)) = (self.mime_type.clone(), self.mime_subtype.clone()) {
+            hashmap.insert("content_type".to_string(), self.content_type());
+        }
+        if let Some(compression) = self.compression.clone() {
+            hashmap.insert("compression".to_string(), compression);
+        }
+        hashmap
     }
 }
 
