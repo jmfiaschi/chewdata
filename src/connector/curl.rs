@@ -348,6 +348,8 @@ impl Connector for Curl {
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use surf::http::Method;
     /// use async_std::prelude::*;
+    /// use json_value_search::Search;
+    /// use serde_json::Value;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -359,26 +361,9 @@ impl Connector for Curl {
     ///     
     ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
     ///     connector.send(None).await?;
-    ///     assert_eq!(r#"{
-    ///   "args": {}, 
-    ///   "data": "[{\"column1\":\"value1\"}]", 
-    ///   "files": {}, 
-    ///   "form": {}, 
-    ///   "headers": {
-    ///     "Connection": "keep-alive", 
-    ///     "Content-Length": "22", 
-    ///     "Content-Type": "application/octet-stream", 
-    ///     "Host": "localhost:8080"
-    ///   }, 
-    ///   "json": [
-    ///     {
-    ///       "column1": "value1"
-    ///     }
-    ///   ], 
-    ///   "origin": "172.18.0.1", 
-    ///   "url": "http://localhost:8080/post"
-    /// }
-    /// "#, std::str::from_utf8(connector.inner()).unwrap());
+    ///
+    ///     let payload: Value = serde_json::from_str(std::str::from_utf8(connector.inner()).unwrap())?;
+    ///     assert_eq!(r#"[{"column1":"value1"}]"#, payload.search("/data")?.unwrap());
     ///
     ///     Ok(())
     /// }
