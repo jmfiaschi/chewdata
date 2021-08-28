@@ -12,8 +12,10 @@ use std::{thread, time};
 #[serde(default)]
 pub struct Writer {
     #[serde(alias = "connector")]
+    #[serde(alias = "conn")]
     connector_type: ConnectorType,
     #[serde(alias = "document")]
+    #[serde(alias = "doc")]
     document_type: DocumentType,
     pub alias: Option<String>,
     pub description: Option<String>,

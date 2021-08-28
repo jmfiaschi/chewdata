@@ -14,6 +14,7 @@ use slog::Drain;
 #[serde(default)]
 pub struct Transformer {
     #[serde(alias = "updater")]
+    #[serde(alias = "u")]
     updater_type: UpdaterType,
     #[serde(alias = "refs")]
     referentials: Option<Vec<Reader>>,

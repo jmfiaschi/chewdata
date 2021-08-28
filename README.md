@@ -11,7 +11,8 @@ This application is an simple ETL in rust that can be use as a connector between
   * S3/Minio with versionning & select
   * Http(s) APIs with with some authenicators: Basic, Bearer, Jwt
   * Local
-  * PSQL (`Not Yet`)
+  * Relational DB like PSQL (`Not Yet`)
+  * Message broker (`Not Yet`)
 * It need only rustup
 * No garbage collector
 * Parallel work
@@ -66,25 +67,32 @@ $ cat ./data/multi_lines.json | make run
 
 Another example, With a json etl configuration in argument
 ```Bash
-$ cat ./data/multi_lines.csv | cargo run '[{"type":"reader","connector":{"type":"io","document":{"type":"csv"}}},{"type":"writer"}]'
+$ cat ./data/multi_lines.csv | cargo run '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
 [{...}] // Will transform the csv data into json format
 ```
 or
 ```Bash
-$ cat ./data/multi_lines.csv | make run json='[{\"type\":\"reader\",\"connector\":{\"type\":\"io\",\"document\":{\"type\":\"csv\"}}},{\"type\":\"writer\"}]'
+$ cat ./data/multi_lines.csv | make run json='[{\"type\":\"reader\",\"document\":{\"type\":\"csv\"}},{\"type\":\"writer\"}]'
 [{...}] // Will transform the csv data into json format
 ```
 
 Another example, With etl file configuration in argument
 ```Bash
-$ echo '[{"type":"reader","connector":{"type":"io","document":{"type":"csv"}}},{"type":"writer"}]' > my_etl.conf.json
+$ echo '[{"type":"reader","connector":{"type":"io"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
 $ cat ./data/multi_lines.csv | cargo run -- --file my_etl.conf.json
 [{...}]
 ```
 or
 ```Bash
-$ echo '[{"type":"reader","connector":{"type":"io","document":{"type":"csv"}}},{"type":"writer"}]' > my_etl.conf.json
-$ cat ./data/multi_lines.csv | make run-file file=my_etl.conf.json
+$ echo '[{"type":"reader","connector":{"type":"io"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
+$ cat ./data/multi_lines.csv | make run file=my_etl.conf.json
+[{...}]
+```
+
+It is possible to use alias and default value to decrease the configuration length
+```Bash
+$ echo '[{"type":"r","doc":{"type":"csv"}},{"type":"w"}]' > my_etl.conf.json
+$ cat ./data/multi_lines.csv | make run file=my_etl.conf.json
 [{...}]
 ```
 

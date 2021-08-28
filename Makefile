@@ -10,17 +10,18 @@ help: ## Display all commands.
 build: ## Build the script in local
 	@cargo build --all-targets --all-features
 
-run-file: ## Launch the script in local
-	@if [ -z $(file) ]; then\
-		echo "$(RED)USAGE: make run file=[FILE_PATH]${NC}";exit 1;\
-	fi
-	@cargo run -- --file $(file)
-
 run: ## Launch the script in local
-	@if [ -z "$(json)" ]; then\
-		echo "$(YELLOW)USAGE: make run json=[JSON]${NC}";\
+	@if [ "$(json)" ]; then\
+		cargo run ${json};\
 	fi
-	@cargo run ${json}
+	@if [ "$(file)" ]; then\
+		cargo run -- --file $(file);\
+	fi
+	@if [ -z "$(file)" ] && [ -z "$(json)" ]; then\
+		echo "$(RED)USAGE:${NC}";\
+		echo "$(RED)make run json=[JSON]${NC}";\
+		echo "$(RED)make run file=[FILE_PATH]${NC}";exit 1;\
+	fi
 
 example: start
 example:

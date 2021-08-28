@@ -1,5 +1,4 @@
 use crate::connector::ConnectorType;
-use crate::document::DocumentType;
 use crate::step::Step;
 use crate::DataResult;
 use async_trait::async_trait;
@@ -13,9 +12,8 @@ use slog::Drain;
 #[serde(default)]
 pub struct Eraser {
     #[serde(alias = "connector")]
+    #[serde(alias = "conn")]
     connector_type: ConnectorType,
-    #[serde(alias = "document")]
-    document_type: DocumentType,
     pub alias: Option<String>,
     pub description: Option<String>,
     #[serde(alias = "wait")]
@@ -28,7 +26,6 @@ impl Default for Eraser {
     fn default() -> Self {
         Eraser {
             connector_type: ConnectorType::default(),
-            document_type: DocumentType::default(),
             alias: None,
             description: None,
             wait_in_milisec: 10,
