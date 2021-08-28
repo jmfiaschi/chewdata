@@ -422,7 +422,7 @@ impl BucketSelect {
             return Ok(buffer)
         }
 
-        println!("body_bytes {:?}", body_bytes.clone());
+        println!("body_bytes {:?}", String::from_utf8(body_bytes.clone()).unwrap());
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
@@ -505,6 +505,8 @@ impl BucketSelect {
             error!(slog_scope::logger(), "The response body is empty or the client can't read the body");
             return Ok(buffer)
         }
+
+        println!("body_bytes {:?}", String::from_utf8(body_bytes.clone()).unwrap());
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
