@@ -422,6 +422,8 @@ impl BucketSelect {
             return Ok(buffer)
         }
 
+        println!("body_bytes {:?}", body_bytes.clone());
+
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
 
@@ -479,7 +481,7 @@ impl BucketSelect {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        let payload = res
+        let body_bytes = res
             .body_bytes()
             .await
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
@@ -490,24 +492,32 @@ impl BucketSelect {
                 format!(
                     "Curl failed with status code '{}' and response body: {}",
                     res.status(),
-                    String::from_utf8(payload)
+                    String::from_utf8(body_bytes)
                         .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                 ),
             ));
         }
 
-        let mut event_stream =
-            EventStream::<SelectObjectContentEventStreamItem>::new(payload.clone());
         let mut buffer: usize = 0;
 
-        while let Some(Ok(item)) = event_stream.next().await {
-            match item {
-                SelectObjectContentEventStreamItem::Stats(stats) => {
+        if body_bytes.is_empty() {
+            // Issue with surf : payload empty if the response is not chunked
+            error!(slog_scope::logger(), "The response body is empty or the client can't read the body");
+            return Ok(buffer)
+        }
+
+        let mut event_stream =
+            EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
+
+        while let Some(item_result) = event_stream.next().await {
+            match item_result {
+                Ok(SelectObjectContentEventStreamItem::Stats(stats)) => {
                     if let Some(stats) = stats.details {
                         buffer += stats.bytes_scanned.unwrap_or(0) as usize
                     };
                 }
-                SelectObjectContentEventStreamItem::End(_) => break,
+                Ok(SelectObjectContentEventStreamItem::End(_)) => break,
+                Err(e) => return Err(Error::new(ErrorKind::Interrupted, format!("{:?}", e))),
                 _ => {}
             }
         }
