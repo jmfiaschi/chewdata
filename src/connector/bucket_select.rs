@@ -361,6 +361,7 @@ impl BucketSelect {
     }
     async fn fetch_data(&mut self) -> Result<String> {
         let client = surf::client();
+
         let endpoint = match self.endpoint.to_owned() {
             Some(endpoint) => endpoint,
             None => format!("https://s3-{}.amazonaws.com", self.region),
@@ -408,8 +409,7 @@ impl BucketSelect {
                 format!(
                     "Curl failed with status code '{}' and response body: {}",
                     res.status(),
-                    String::from_utf8(body_bytes)
-                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                    String::from_utf8_lossy(&body_bytes)
                 ),
             ));
         }
@@ -417,12 +417,14 @@ impl BucketSelect {
         let mut buffer = String::default();
 
         if body_bytes.is_empty() {
-            // Issue with surf : payload empty if the response is not chunked
-            error!(slog_scope::logger(), "The response body is empty or the client can't read the body");
+            warn!(slog_scope::logger(), "The response body of the bucket select is empty");
             return Ok(buffer)
         }
 
-        println!("body_bytes {:?}", String::from_utf8_lossy(&body_bytes.clone()));
+        debug!(slog_scope::logger(),
+            "Data fetch from the bucket";
+            "data" => String::from_utf8_lossy(&body_bytes).to_string(),
+        );
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
@@ -492,8 +494,7 @@ impl BucketSelect {
                 format!(
                     "Curl failed with status code '{}' and response body: {}",
                     res.status(),
-                    String::from_utf8(body_bytes)
-                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                    String::from_utf8_lossy(&body_bytes)
                 ),
             ));
         }
@@ -501,12 +502,14 @@ impl BucketSelect {
         let mut buffer: usize = 0;
 
         if body_bytes.is_empty() {
-            // Issue with surf : payload empty if the response is not chunked
-            error!(slog_scope::logger(), "The response body is empty or the client can't read the body");
+            warn!(slog_scope::logger(), "The response body of the bucket select is empty");
             return Ok(buffer)
         }
 
-        println!("body_bytes {:?}", String::from_utf8_lossy(&body_bytes.clone()));
+        debug!(slog_scope::logger(),
+            "Data fetch from the bucket";
+            "data" => String::from_utf8_lossy(&body_bytes).to_string(),
+        );
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
@@ -630,6 +633,7 @@ impl Connector for BucketSelect {
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
+    ///     connector.region = "us-east-1".to_string();
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0");
     ///     connector.path = "data/not-found-file".to_string();
     ///     assert_eq!(0, connector.len().await?);
@@ -691,11 +695,14 @@ impl Connector for BucketSelect {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
+    ///
     ///     assert_eq!(0, connector.inner().len());
+    ///
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.access_key_id = Some("minio_access_key".to_string());
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.region = "us-east-1".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.fetch().await?;
