@@ -35,7 +35,7 @@ pub struct Bucket {
     pub region: String,
     pub bucket: String,
     pub path: String,
-    pub parameters: Value,
+    pub parameters: Box<Value>,
     pub limit: Option<usize>,
     pub skip: usize,
     pub version: Option<String>,
@@ -59,7 +59,7 @@ impl Default for Bucket {
             region: rusoto_core::Region::default().name().to_string(),
             bucket: String::default(),
             path: String::default(),
-            parameters: Value::default(),
+            parameters: Box::new(Value::default()),
             inner: Cursor::default(),
             limit: None,
             skip: 0,
@@ -144,7 +144,7 @@ impl Bucket {
 impl Connector for Bucket {
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters;
+        self.parameters = Box::new(parameters);
     }
     /// See [`Connector::is_variable_path`] for more details.
     ///
@@ -185,7 +185,7 @@ impl Connector for Bucket {
             return Ok(false);
         }
 
-        let actuel_path = self.path.clone().replace_mustache(self.parameters.clone());
+        let actuel_path = self.path.clone().replace_mustache(*self.parameters.clone());
         let new_path = self.path.clone().replace_mustache(new_parameters);
 
         if actuel_path == new_path {
@@ -209,7 +209,7 @@ impl Connector for Bucket {
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
-        match (self.is_variable(), self.parameters.clone()) {
+        match (self.is_variable(), *self.parameters.clone()) {
             (true, params) => self.path.clone().replace_mustache(params),
             _ => self.path.clone(),
         }
@@ -399,7 +399,7 @@ impl Connector for Bucket {
     /// }
     /// ```
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        if self.is_variable() && self.parameters == Value::Null && self.inner.get_ref().is_empty() {
+        if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty() {
             warn!(slog_scope::logger(), "Can't flush with variable path and without parameters";"path"=>self.path.clone(),"parameters"=>self.parameters.to_string());
             return Ok(());
         }

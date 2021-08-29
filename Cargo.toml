@@ -46,8 +46,8 @@ rusoto_core = { version = "0.47", optional = true }
 rusoto_s3 = { version = "0.47", optional = true }
 tokio = { version = "1.10", optional = true }
 jsonwebtoken = { version = "7.2", optional = true }
-surf = { version = "2.3", default-features = false, features = ["h1-client-rustls"], optional = true }
-surf_bucket_select = { version = "0.2", optional = true }
+surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "middleware-logger", "encoding"], optional = true }
+surf_bucket_select = { version = "0.2.2", optional = true }
 mongodb = { version = "1.2", default-features = false, features = ["async-std-runtime"], optional = true }
 
 [dev-dependencies]

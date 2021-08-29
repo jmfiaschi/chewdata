@@ -114,11 +114,12 @@ impl Metadata {
         
         if let (Some(mime_type), Some(mime_subtype)) = (&self.mime_type, &self.mime_subtype) {
             content_type = format!("{}/{}", mime_type, mime_subtype);
+            
+            if let Some(charset) = &self.charset {
+                content_type += &format!("; charset={}", charset);
+            }
         }
-        
-        if let Some(charset) = &self.charset {
-            content_type += &format!("; charset={}", charset);
-        }
+
         content_type
     }
     fn content_language(&self) -> String {
@@ -126,7 +127,7 @@ impl Metadata {
     }
     fn to_hashmap(&self) -> HashMap<String, String> {
         let mut hashmap: HashMap<String, String> = HashMap::default();
-        if let Some(has_headers) = self.has_headers.clone() {
+        if let Some(has_headers) = self.has_headers {
             hashmap.insert("has_headers".to_string(), has_headers.to_string());
         }
         if let Some(delimiter) = self.delimiter.clone() {

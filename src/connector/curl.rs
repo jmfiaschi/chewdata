@@ -185,8 +185,8 @@ impl Connector for Curl {
             request_builder = authenticator.authenticate(request_builder).await?;
         }
 
-        if let Some(mine_type) = self.metadata().mime_type {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, mine_type);
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -300,7 +300,7 @@ impl Connector for Curl {
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        let mut request_builder = surf::RequestBuilder::new(Method::Head, url);
+        let mut request_builder = surf::head(url);
 
         if let Some(ref mut authenticator_type) = self.authenticator_type {
             let authenticator = authenticator_type.authenticator_mut();
@@ -308,8 +308,8 @@ impl Connector for Curl {
             request_builder = authenticator.authenticate(request_builder).await?;
         }
 
-        if let Some(mine_type) = self.metadata().mime_type {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, mine_type.as_str());
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -319,6 +319,7 @@ impl Connector for Curl {
         }
 
         let req = request_builder.build();
+        
         let res = client
             .send(req)
             .await
@@ -383,8 +384,8 @@ impl Connector for Curl {
             request_builder = authenticator.authenticate(request_builder).await?;
         }
 
-        if let Some(mine_type) = self.metadata.clone().mime_type {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, mine_type);
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -454,8 +455,8 @@ impl Connector for Curl {
             request_builder = authenticator.authenticate(request_builder).await?;
         }
 
-        if let Some(ref mine_type) = self.metadata.mime_type {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, mine_type);
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {

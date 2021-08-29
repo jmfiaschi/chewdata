@@ -1,8 +1,7 @@
 use super::Authenticator;
-use crate::{connector::ConnectorType, document::jsonl::Jsonl};
+use crate::{connector::ConnectorType, document::json::Json};
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
-use crate::Metadata;
 use async_trait::async_trait;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
@@ -16,7 +15,7 @@ pub struct Jwt {
     #[serde(alias = "algo")]
     pub algorithm: Algorithm,
     pub refresh_connector: Option<Box<ConnectorType>>,
-    refresh_document: Box<Jsonl>,
+    refresh_document: Box<Json>,
     pub refresh_token: String,
     pub jwk: Option<Value>,
     pub format: Format,
@@ -42,7 +41,7 @@ impl Default for Jwt {
         Jwt {
             algorithm: Algorithm::HS256,
             refresh_connector: None,
-            refresh_document: Box::new(Jsonl::default()),
+            refresh_document: Box::new(Json::default()),
             refresh_token: "token".to_string(),
             jwk: None,
             format: Format::Secret,
@@ -105,11 +104,6 @@ impl Jwt {
     pub async fn refresh(&mut self) -> Result<()> {
         debug!(slog_scope::logger(), "Refresh the jwt token started");
         if let Some(refresh_connector_type) = self.refresh_connector.clone() {
-            let metadata = Metadata {
-                mime_type: Some(mime::APPLICATION_JSON.to_string()),
-                ..Default::default()
-            };
-
             let mut payload = self.payload.clone();
             let parameters = self.parameters.clone();
 
@@ -120,9 +114,8 @@ impl Jwt {
             }
 
             let mut refresh_connector = refresh_connector_type.connector();
-            refresh_connector.set_metadata(metadata);
             self.refresh_document.write_data(&mut *refresh_connector, *payload).await?;
-            
+            refresh_connector.set_metadata(refresh_connector.metadata().merge(self.refresh_document.metadata()));
             refresh_connector.send(None).await?;
 
             if refresh_connector.inner().is_empty() {

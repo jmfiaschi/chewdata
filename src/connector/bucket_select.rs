@@ -372,8 +372,6 @@ impl BucketSelect {
                 ),
             };
 
-        println!("select_object_content_request {:?}", self.select_object_content_request());
-            
         let select_object_content_request = self.select_object_content_request();
         let req = surf_bucket_select::select_object_content(
             endpoint,
@@ -385,8 +383,6 @@ impl BucketSelect {
         .await
         .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
         .build();
-
-        println!("req {:?}", req);
 
         let mut res = client
             .send(req)
@@ -412,8 +408,11 @@ impl BucketSelect {
         let mut buffer = String::default();
 
         if body_bytes.is_empty() {
-            warn!(slog_scope::logger(), "The response body of the bucket select is empty");
-            return Ok(buffer)
+            warn!(
+                slog_scope::logger(),
+                "The response body of the bucket select is empty"
+            );
+            return Ok(buffer);
         }
 
         debug!(slog_scope::logger(),
@@ -497,8 +496,11 @@ impl BucketSelect {
         let mut buffer: usize = 0;
 
         if body_bytes.is_empty() {
-            warn!(slog_scope::logger(), "The response body of the bucket select is empty");
-            return Ok(buffer)
+            warn!(
+                slog_scope::logger(),
+                "The response body of the bucket select is empty"
+            );
+            return Ok(buffer);
         }
 
         debug!(slog_scope::logger(),
@@ -617,6 +619,8 @@ impl Connector for BucketSelect {
     /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
+    /// use chewdata::Metadata;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -629,6 +633,9 @@ impl Connector for BucketSelect {
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.region = "us-east-1".to_string();
+    ///     connector.metadata = Metadata {
+    ///         ..Json::default().metadata
+    ///     };
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0");
     ///     connector.path = "data/not-found-file".to_string();
     ///     assert_eq!(0, connector.len().await?);
@@ -657,6 +664,8 @@ impl Connector for BucketSelect {
     /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
+    /// use chewdata::Metadata;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -668,6 +677,10 @@ impl Connector for BucketSelect {
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
+    ///     connector.region = "us-east-1".to_string();
+    ///     connector.metadata = Metadata {
+    ///         ..Json::default().metadata
+    ///     };
     ///     assert_eq!(false, connector.is_empty().await?);
     ///     connector.path = "data/not_found.json".to_string();
     ///     assert_eq!(true, connector.is_empty().await?);
@@ -684,7 +697,6 @@ impl Connector for BucketSelect {
     /// ```rust
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use chewdata::document::json::Json;
-    /// use surf::http::Method;
     /// use chewdata::Metadata;
     /// use std::io;
     ///
@@ -819,6 +831,8 @@ impl Paginator for BucketSelectPaginator {
     /// ```rust
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
+    /// use chewdata::Metadata;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -830,6 +844,10 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
+    ///     connector.region = "us-east-1".to_string();
+    ///     connector.metadata = Metadata {
+    ///         ..Json::default().metadata
+    ///     };
     ///     let mut paginator = connector.paginator().await?;
     ///
     ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
@@ -838,9 +856,7 @@ impl Paginator for BucketSelectPaginator {
     ///     Ok(())
     /// }
     /// ```
-    async fn next_page(
-        &mut self
-    ) -> Result<Option<Box<dyn Connector>>> {
+    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
         Ok(match self.has_next {
             true => {
                 let mut connector = self.connector.clone();
