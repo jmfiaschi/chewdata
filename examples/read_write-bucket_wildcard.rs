@@ -11,7 +11,7 @@ use slog::{Drain, FnValue};
 use std::env;
 use std::io;
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> io::Result<()> {
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
@@ -24,24 +24,28 @@ async fn main() -> io::Result<()> {
     let _scope_guard = slog_scope::set_global_logger(logger);
 
     let config = r#"
-    [{
-        "type": "r",
-        "connector": {
-            "type": "mem",
-            "data": "[{\"my_field\":\"my_value_1\"},{\"my_field\":\"my_value_2\"}]"
+    [
+        {
+            "type": "r",
+            "connector": {
+                "type": "bucket",
+                "bucket": "my-bucket",
+                "path": "data/*.json*",
+                "endpoint":"{{ BUCKET_ENDPOINT }}",
+                "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
+                "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
+                "region": "{{ BUCKET_REGION }}",
+                "limit": 10,
+                "skip": 0
+            }
+        },
+        {
+            "type": "w",
+            "document":{
+                "type": "jsonl"
+            }
         }
-    },{
-        "type": "w",
-        "connector": {
-            "type": "curl",
-            "endpoint": "{{ CURL_ENDPOINT }}",
-            "path": "/post",
-            "method": "post"
-        }
-    },
-    { 
-        "type": "w" 
-    }]
+    ]
     "#;
 
     let config_resolved = env::Vars::apply(config.to_string());

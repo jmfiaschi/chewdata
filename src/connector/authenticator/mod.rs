@@ -4,11 +4,12 @@ pub mod jwt;
 
 use basic::Basic;
 use bearer::Bearer;
-use curl::easy::{Easy, List};
 use jwt::Jwt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Result;
+use async_trait::async_trait;
+use surf::RequestBuilder;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
@@ -38,7 +39,10 @@ impl AuthenticatorType {
     }
 }
 
-pub trait Authenticator {
-    fn add_authentication(&mut self, client: &mut Easy, headers: &mut List) -> Result<()>;
+#[async_trait]
+pub trait Authenticator: Sync + Send {
+    /// Authenticate the request
+    async fn authenticate(&mut self, request_builder: RequestBuilder) -> Result<RequestBuilder>;
+    /// Set the parameters used to authenticate the request
     fn set_parameters(&mut self, parameters: Value);
 }

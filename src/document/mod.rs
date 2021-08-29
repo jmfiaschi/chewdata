@@ -22,9 +22,12 @@ use self::xml::Xml;
 #[cfg(feature = "use_yaml_document")]
 use self::yaml::Yaml;
 use crate::connector::Connector;
-use crate::step::{Data, DataResult};
+use crate::Dataset;
 use serde::{Deserialize, Serialize};
 use std::io;
+use super::Metadata;
+use async_trait::async_trait;
+use serde_json::Value;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(tag = "type")]
@@ -106,17 +109,52 @@ impl DocumentType {
 }
 
 /// Every document_builder that implement this trait can get/write json_value through a connector.
-pub trait Document: Send + Sync {
+#[async_trait]
+pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     /// Apply some actions and read the data though the Connector.
-    fn read_data(&self, reader: Box<dyn Connector>) -> io::Result<Data>;
+    async fn read_data(&self, reader: &mut Box<dyn Connector>) -> io::Result<Dataset>;
     /// Format the data result into the document format, apply some action and write into the connector.
-    fn write_data_result(
-        &mut self,
-        connector: &mut dyn Connector,
-        data_result: DataResult,
+    async fn write_data(
+        &self,
+        writer: &mut dyn Connector,
+        value: Value,
     ) -> io::Result<()>;
-    /// Apply actions and flush the connector.
-    fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()>;
+    /// Apply actions to close the document.
+    async fn close(&self, _writer: &mut dyn Connector) -> io::Result<()> {
+        Ok(())
+    }
+    fn metadata(&self) -> Metadata {
+        Metadata::default()
+    }
+    /// Check if the str in argument has an empty data
+    fn has_data(&self, str: &str) -> bool {
+        !matches!(str, "")
+    }
+    fn entry_point_path_start(&self) -> String {
+        "".to_string()
+    }
+    fn entry_point_path_end(&self) -> String {
+        "".to_string()
+    }
+}
+
+pub trait DocumentClone {
+    fn clone_box(&self) -> Box<dyn Document>;
+}
+
+impl<T> DocumentClone for T
+where
+    T: 'static + Document + Clone,
+{
+    fn clone_box(&self) -> Box<dyn Document> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Document> {
+    fn clone(&self) -> Box<dyn Document> {
+        self.clone_box()
+    }
 }
 
 #[cfg(test)]

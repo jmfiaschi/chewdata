@@ -11,6 +11,7 @@ extern crate slog_term;
 use chewdata::step::StepType;
 use clap::{App, Arg};
 use env_applier::EnvApply;
+use serde::Deserialize;
 use slog::{Drain, FnValue};
 use std::env;
 use std::fs::File;
@@ -21,7 +22,8 @@ const ARG_JSON: &str = "json";
 const ARG_FILE: &str = "file";
 const DEFAULT_PROCESSORS: &str = r#"[{"type": "r"},{"type": "w"}]"#;
 
-fn main() -> Result<()> {
+#[async_std::main]
+async fn main() -> Result<()> {
     // Init logger.
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
@@ -32,7 +34,6 @@ fn main() -> Result<()> {
         o!("file" => FnValue(move |info| {format!("{}:{}",info.file(),info.line())})),
     );
     let _scope_guard = slog_scope::set_global_logger(logger);
-    let _log_guard = slog_stdlog::init().unwrap();
 
     trace!(slog_scope::logger(), "Chewdata start...");
     let args = application().get_matches();
@@ -59,8 +60,16 @@ fn main() -> Result<()> {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        serde_yaml::from_str_multidoc(env::Vars::apply(buf).as_str())
-                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+                        let config = env::Vars::apply(buf);
+                        let documents = serde_yaml::Deserializer::from_str(config.as_str());
+                        let mut steps = Vec::<StepType>::default();
+
+                        for document in documents {
+                            let step: StepType = StepType::deserialize(document)
+                                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+                            steps.push(step);
+                        }
+                        Ok(steps)
                     },
                     format => Err(Error::new(
                         ErrorKind::NotFound,
@@ -82,9 +91,7 @@ fn main() -> Result<()> {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(steps, None)?;
-
-    Ok(())
+    chewdata::exec(steps, None).await
 }
 
 fn application() -> App<'static, 'static> {

@@ -1,37 +1,46 @@
-use super::Dataset;
 use crate::connector::ConnectorType;
 use crate::document::DocumentType;
 use crate::step::{DataResult, Step};
-use genawaiter::sync::GenBoxed;
-use rayon::prelude::*;
+use async_trait::async_trait;
+use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
-use std::{fmt, io::Result};
+use slog::Drain;
+use std::{fmt, io};
+use std::{thread, time};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Writer {
-    #[serde(alias = "document")]
-    document_type: DocumentType,
     #[serde(alias = "connector")]
+    #[serde(alias = "conn")]
     connector_type: ConnectorType,
+    #[serde(alias = "document")]
+    #[serde(alias = "doc")]
+    document_type: DocumentType,
     pub alias: Option<String>,
     pub description: Option<String>,
     pub data_type: String,
     // Write in parallel mode. The data order write into the document is not respected.
     // By default, set to true in order to parallize the writting.
     pub is_parallel: bool,
+    pub dataset_size: usize,
+    #[serde(alias = "wait")]
+    pub wait_in_milisec: u64,
+    pub thread_number: i32,
 }
 
 impl Default for Writer {
     fn default() -> Self {
         Writer {
-            document_type: DocumentType::default(),
             connector_type: ConnectorType::default(),
+            document_type: DocumentType::default(),
             alias: None,
             description: None,
             data_type: DataResult::OK.to_string(),
             is_parallel: true,
+            dataset_size: 1000,
+            wait_in_milisec: 10,
+            thread_number: 1,
         }
     }
 }
@@ -52,213 +61,135 @@ impl fmt::Display for Writer {
 }
 
 // This Step write data from somewhere into another stream.
+#[async_trait]
 impl Step for Writer {
-    fn exec(&self, dataset_opt: Option<Dataset>) -> Result<Option<Dataset>> {
+    async fn exec(
+        &self,
+        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
+        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+    ) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
-        let dataset = match dataset_opt {
-            Some(data) => data,
+        let mut current_dataset_size = 0;
+
+        let pipe_outbound = match pipe_outbound_option {
+            Some(pipe_outbound) => pipe_outbound,
             None => {
-                info!(slog_scope::logger(), "No data to write"; "step" => format!("{}", self));
-                return Ok(None);
+                info!(slog_scope::logger(), "This step is skipped. No outbound pipe found"; "step" => format!("{}", self.clone()));
+                return Ok(());
             }
         };
 
-        let writer = self.clone();
-        let document_type = self.document_type.clone();
-        let connector_type = self.connector_type.clone();
-        let document_type_arc = Arc::new(Mutex::new(document_type));
-        let connector_type_arc = Arc::new(Mutex::new(connector_type));
-        let data_type = self.data_type.to_owned();
-        let is_parallel = self.is_parallel;
+        let mut connector = self.connector_type.clone().connector();
+        let document = self.document_type.document();
+        let position = -(document.entry_point_path_end().len() as isize);
 
-        let dataset = GenBoxed::new_boxed(|co| async move {
-            debug!(slog_scope::logger(), "Start generator"; "step" => format!("{}", &writer));
-            for data_results in dataset {
-                info!(slog_scope::logger(), "Write a new dataset"; "dataset_size" => data_results.len(), "step" => format!("{}", writer));
-                let data_results_clone = data_results.clone();
+        connector.set_metadata(connector.metadata().merge(document.metadata()));
 
-                match is_parallel {
-                    true => write_with_parallelism(
-                        &writer,
-                        &document_type_arc,
-                        &connector_type_arc,
-                        data_results,
-                        &data_type,
-                    ),
-                    false => write_without_parallelism(
-                        &writer,
-                        &document_type_arc,
-                        &connector_type_arc,
-                        data_results,
-                        &data_type,
-                    ),
-                };
+        // Use to init the connector during the loop
+        let default_connector = connector.clone();
 
-                let data_results = match document_type_arc.lock() {
-                    Ok(ref mut document_type) => {
-                        let mut connector_type = match connector_type_arc.lock() {
-                            Ok(mutext) => mutext,
-                            Err(e) => {
-                                warn!(slog_scope::logger(),"Impossible to unlock the connector into the thread"; "error" => e.to_string(), "step" => format!("{}", &writer));
-                                return;
-                            }
-                        };
-
-                        match document_type
-                            .document_mut()
-                            .flush(connector_type.connector_mut())
-                        {
-                            Ok(_) => (),
-                            Err(e) => {
-                                warn!(slog_scope::logger(), "Can't flush data"; "error" => format!("{}",e))
-                            }
-                        };
-
-                        match connector_type.connector().inner().is_empty() {
-                            true => data_results_clone,
-                            false => {
-                                let mut new_data_results: Vec<DataResult> = Vec::default();
-                                let data_results = match document_type
-                                    .document()
-                                    .read_data(connector_type.clone().connector_inner())
-                                {
-                                    Ok(data_results) => data_results,
-                                    Err(e) => {
-                                        warn!(slog_scope::logger(), "Can't read the document"; "error" => format!("{}",e));
-                                        GenBoxed::new_boxed(|_| async move {})
-                                    }
-                                };
-                                for data_result in data_results {
-                                    new_data_results.push(data_result.clone());
-                                }
-                                new_data_results
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        warn!(slog_scope::logger(), "Can't acquire the mutex"; "error" => format!("{}",e));
-                        Vec::default()
-                    }
-                };
-
-                co.yield_(data_results).await;
+        for data_result in pipe_outbound {
+            if let Some(ref pipe_inbound) = pipe_inbound_option {
+                info!(slog_scope::logger(),
+                    "Data send to the queue";
+                    "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                        true => format!("{:?}", data_result),
+                        false => "truncated, available only in debug mode".to_string(),
+                    },
+                    "step" => format!("{}", self.clone())
+                );
+                let mut current_retry = 0;
+                while pipe_inbound.try_send(data_result.clone()).is_err() {
+                    warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                    thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                    current_retry += 1;
+                }
             }
 
-            debug!(slog_scope::logger(), "End generator"; "step" => format!("{}", writer));
-        });
+            if !data_result.is_type(self.data_type.as_ref()) {
+                info!(slog_scope::logger(),
+                    "This step handle only this data type";
+                    "data_type" => self.data_type.to_string(),
+                    "data" =>  match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                        true => format!("{:?}", data_result),
+                        false => "truncated, available only in debug mode".to_string(),
+                    },
+                    "step" => format!("{}", self.clone())
+                );
+                continue;
+            }
 
-        debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
-        Ok(Some(dataset))
-    }
-}
-// Write data_results with parallel mode.
-pub fn write_with_parallelism(
-    writer: &Writer,
-    document_type_arc: &Arc<Mutex<DocumentType>>,
-    connector_type_arc: &Arc<Mutex<ConnectorType>>,
-    data_results: Vec<DataResult>,
-    data_type: &str,
-) {
-    data_results.into_par_iter().for_each(|data_result| {
-        write_data_result(
-            &writer,
-            &document_type_arc,
-            &connector_type_arc,
-            data_result,
-            data_type,
-        )
-    });
-}
-// Write data_results without parallel mode.
-pub fn write_without_parallelism(
-    writer: &Writer,
-    document_type_arc: &Arc<Mutex<DocumentType>>,
-    connector_type_arc: &Arc<Mutex<ConnectorType>>,
-    data_results: Vec<DataResult>,
-    data_type: &str,
-) {
-    data_results.into_iter().for_each(|data_result| {
-        write_data_result(
-            &writer,
-            &document_type_arc,
-            &connector_type_arc,
-            data_result,
-            data_type,
-        )
-    });
-}
-
-// Write a data_result type into the document though the connector.
-fn write_data_result(
-    writer: &Writer,
-    document_type_arc: &Arc<Mutex<DocumentType>>,
-    connector_type_arc: &Arc<Mutex<ConnectorType>>,
-    data_result: DataResult,
-    data_type: &str,
-) {
-    let json_value = match (data_result.clone(), data_type) {
-        (DataResult::Ok(_), DataResult::OK) => data_result.to_json_value(),
-        (DataResult::Err(_), DataResult::ERR) => data_result.to_json_value(),
-        _ => {
-            info!(slog_scope::logger(),
-                "This step handle only this data type";
-                "data_type" => data_type,
-                "data" => format!("{:?}", data_result),
-                "step" => format!("{}", &writer)
-            );
-            return;
-        }
-    };
-
-    let mut document_type = match document_type_arc.lock() {
-        Ok(mutext) => mutext,
-        Err(e) => {
-            warn!(slog_scope::logger(),"Impossible to unlock the document into the thread"; "error" => e.to_string(), "step" => format!("{}", &writer));
-            return;
-        }
-    };
-    let mut connector_type = match connector_type_arc.lock() {
-        Ok(mutext) => mutext,
-        Err(e) => {
-            warn!(slog_scope::logger(),"Impossible to unlock the connector into the thread"; "error" => e.to_string(), "step" => format!("{}", &writer));
-            return;
-        }
-    };
-
-    {
-        let mut connector_tmp = connector_type.clone().connector_inner();
-        connector_tmp.set_parameters(json_value.clone());
-        let new_path = connector_tmp.path();
-        let current_path = connector_type.connector().path();
-        if current_path != new_path && !connector_type.connector().inner().is_empty() {
-            info!(slog_scope::logger(), "Document will change"; "step" => format!("{}", writer), "current_path"=>current_path,"new_path"=>new_path);
-            match document_type
-                .document_mut()
-                .flush(connector_type.connector_mut())
             {
+                // If the path change, the writer flush and send the data in the buffer though the connector.
+                if connector.is_resource_will_change(data_result.to_json_value())? {
+                    document.close(&mut *connector).await?;
+                    match connector.send(Some(position)).await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            warn!(slog_scope::logger(), "Can't send the data througth the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
+                        }
+                    };
+                    current_dataset_size = 0;
+                    connector = default_connector.clone();
+                }
+            }
+
+            connector.set_parameters(data_result.to_json_value());
+            info!(slog_scope::logger(),
+                "Push data";
+                "connector" => format!("{:?}", &connector),
+                "document" => format!("{:?}", &document),
+                "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                    true => format!("{:?}", data_result),
+                    false => "truncated, available only in debug mode".to_string(),
+                },
+                "step" => format!("{}", self.clone()),
+            );
+            document
+                .write_data(&mut *connector, data_result.to_json_value())
+                .await?;
+
+            if self.dataset_size <= current_dataset_size {
+                info!(slog_scope::logger(),
+                    "Send data";
+                    "step" => format!("{}", self.clone()),
+                );
+                document.close(&mut *connector).await?;
+                match connector.send(Some(position)).await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
+                    }
+                };
+                current_dataset_size = 0;
+            } else {
+                current_dataset_size += 1;
+            }
+        }
+
+        if 0 < current_dataset_size {
+            info!(slog_scope::logger(),
+                "Send data before to end the step";
+                "step" => format!("{}", self.clone()),
+            );
+            document.close(&mut *connector).await?;
+            match connector.send(Some(position)).await {
                 Ok(_) => (),
-                Err(e) => error!(slog_scope::logger(), "Can't flush data. {}", e),
+                Err(e) => {
+                    warn!(slog_scope::logger(), "Can't send the data through the connector"; "error" => e.to_string(), "step" => format!("{}", self.clone()), "data" => String::from_utf8_lossy(connector.inner()).to_string())
+                }
             };
         }
-    }
 
-    debug!(slog_scope::logger(), "Write data result"; "step" => format!("{}", writer), "data_result" => format!("{:?}", data_result));
-    match document_type
-        .document_mut()
-        .write_data_result(connector_type.connector_mut(), data_result.clone())
-    {
-        Ok(_) => (),
-        Err(e) => {
-            let new_data_result = DataResult::Err((json_value.clone(), e));
-            error!(slog_scope::logger(),
-                "Can't write into the document. Yield data result";
-                "data" => format!("{}", &json_value),
-                "data_result" => format!("{:?}", new_data_result)
-            );
-            return;
+        if let Some(pipe_inbound) = pipe_inbound_option {
+            drop(pipe_inbound);
         }
-    };
 
-    debug!(slog_scope::logger(), "Yield data result"; "step" => format!("{}", writer), "data_result" => format!("{:?}", data_result));
+        debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
+        Ok(())
+    }
+    fn thread_number(&self) -> i32 {
+        self.thread_number
+    }
 }

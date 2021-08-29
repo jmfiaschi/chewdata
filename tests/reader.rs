@@ -10,7 +10,7 @@ mod reader {
     const APP_NAME: &str = "chewdata";
     #[test]
     fn it_should_read_file_in_local_with_one_line() {
-        let config = r#"[{"type":"r","document":{"type":"{{ APP_FORMAT_INPUT }}"},"connector":{"type":"local","path":"{{ APP_FILE_PATH_INPUT }}"}},{"type":"w"}]"#;
+        let config = r#"[{"type":"r","connector":{"type":"local","path":"{{ APP_FILE_PATH_INPUT }}"},"document":{"type":"{{ APP_FORMAT_INPUT }}"}},{"type":"w"}]"#;
         let mut formats = vec!["json", "jsonl"];
         if cfg!(feature = "use_csv_document") {
             formats.push("csv");
@@ -37,13 +37,14 @@ mod reader {
             let error_result = String::from_utf8_lossy(output.stderr.as_slice());
             assert!(
                 error_result.is_empty(),
-                format!("stderr is not empty with this value {}.", error_result)
+                "stderr is not empty with this value {}.",
+                error_result
             );
             assert!(
                 !json_result.is_empty(),
-                "stdout should not be empty.".to_string()
+                "stdout should not be empty."
             );
-            println!("json_result {:?}", json_result);
+
             let object_result: Value =
                 serde_json::from_str(&json_result).expect("Parse json result failed.");
 
@@ -76,11 +77,12 @@ mod reader {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             !json_result.is_empty(),
-            "stdout should not be empty.".to_string()
+            "stdout should not be empty."
         );
         let object_result: Value =
             serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -104,11 +106,12 @@ mod reader {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             !json_result.is_empty(),
-            "stdout should not be empty.".to_string()
+            "stdout should not be empty."
         );
         let object_result: Value =
             serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -135,11 +138,12 @@ mod reader {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             !json_result.is_empty(),
-            "stdout should not be empty.".to_string()
+            "stdout should not be empty."
         );
         let object_result: Value =
             serde_json::from_str(&json_result).expect("Parse json result failed.");
@@ -166,17 +170,18 @@ mod reader {
         let error_result = String::from_utf8_lossy(output.stderr.as_slice());
         assert!(
             error_result.is_empty(),
-            format!("stderr is not empty with this value {}.", error_result)
+            "stderr is not empty with this value {}.",
+            error_result
         );
         assert!(
             !json_result.is_empty(),
-            "stdout should not be empty.".to_string()
+            "stdout should not be empty."
         );
         let object_result: Value =
             serde_json::from_str(&json_result).expect("Parse json result failed.");
 
         assert_eq!(
-            r#"[{"authenticated":true,"token":"abcd1234"}]"#,
+            r#"[{"authenticated":true,"token":"YWJjZDEyMzQ="}]"#,
             object_result.to_string()
         );
     }

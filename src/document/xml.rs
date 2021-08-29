@@ -3,9 +3,12 @@ extern crate jxon;
 use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::json_pointer::JsonPointer;
-use crate::step::{Data, DataResult};
+use crate::{Dataset, DataResult};
 use crate::Metadata;
-use genawaiter::sync::GenBoxed;
+use async_std::io::prelude::WriteExt;
+use async_stream::stream;
+use async_trait::async_trait;
+use futures::AsyncReadExt;
 use json_value_merge::Merge;
 use json_value_search::Search;
 use regex::Regex;
@@ -28,7 +31,9 @@ pub struct Xml {
 impl Default for Xml {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some(mime::TEXT_XML.to_string()),
+            mime_type: Some(mime::TEXT.to_string()),
+            mime_subtype: Some(mime::XML.to_string()),
+            charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
         Xml {
@@ -121,39 +126,47 @@ impl Xml {
     }
 }
 
+#[async_trait]
 impl Document for Xml {
-    /// Read toml data.
+    fn metadata(&self) -> Metadata {
+        Xml::default().metadata.merge(self.metadata.clone())
+    }
+    /// See [`Document::read_data`] for more details.
     ///
-    /// # Example: Should read toml data.
+    /// # Example: Should read xml data.
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Xml::default();
-    /// document.entry_path = "/root/*/item/*".to_string();
-    /// let connector = InMemory::new(r#"<root>
-    /// <item key_1="value_1" />
-    /// <item key_1="value_2" />
-    /// </root>"#);
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     document.entry_path = "/root/*/item/*".to_string();
+    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"<root>
+    ///     <item key_1="value_1" />
+    ///     <item key_1="value_2" />
+    ///     </root>"#));
+    ///     connector.fetch().await?;
     ///
-    /// let mut data_iter = document.read_data(Box::new(connector)).unwrap().into_iter();
-    /// let line_1 = data_iter.next().unwrap().to_json_value();
-    /// let expected_line_1: Value = serde_json::from_str(r#"{"key_1":"value_1"}"#).unwrap();
-    /// assert_eq!(expected_line_1, line_1);
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data_1: Value = serde_json::from_str(r#"{"key_1":"value_1"}"#)?;
+    ///     assert_eq!(expected_data_1, data_1);
     ///
-    /// let line_2 = data_iter.next().unwrap().to_json_value();
-    /// let expected_line_2: Value = serde_json::from_str(r#"{"key_1":"value_2"}"#).unwrap();
-    /// assert_eq!(expected_line_2, line_2);
+    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data_2: Value = serde_json::from_str(r#"{"key_1":"value_2"}"#)?;
+    ///     assert_eq!(expected_data_2, data_2);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn read_data(&self, connector: Box<dyn Connector>) -> io::Result<Data> {
-        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self));
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut string = String::new();
-        let mut connector = connector;
-
-        connector.set_metadata(self.metadata.clone());
-        connector.read_to_string(&mut string)?;
+        connector.read_to_string(&mut string).await?;
 
         let mut root_element: Value = jxon::xml_to_json(string.as_ref()).map_err(|e| {
             io::Error::new(
@@ -168,28 +181,27 @@ impl Document for Xml {
             records_option = Some(Xml::trim_array(&records));
         } else {
             warn!(slog_scope::logger(), "Entry path not found"; "entry_path" => &self.entry_path);
-            return Ok(GenBoxed::new_boxed(|_| async move {}));
+            return Ok(Box::pin(stream! { yield DataResult::Ok(serde_json::Value::Null); }));
         }
 
         let entry_path = self.entry_path.clone();
-        let data = GenBoxed::new_boxed(|co| async move {
-            debug!(slog_scope::logger(), "Start generator");
+        Ok(Box::pin(stream! {
             match records_option {
                 Some(record) => match record {
                     Value::Array(vec) => {
                         for json_value in vec {
                             debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",json_value));
-                            co.yield_(DataResult::Ok(json_value.clone())).await;
+                            yield DataResult::Ok(json_value.clone());
                         }
                     }
                     _ => {
                         debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
-                        co.yield_(DataResult::Ok(record.clone())).await;
+                        yield DataResult::Ok(record.clone());
                     }
                 },
                 None => {
                     warn!(slog_scope::logger(), "This path not found into the document."; "path"=>entry_path.clone(), "xml"=>string.clone());
-                    co.yield_(DataResult::Err((
+                    yield DataResult::Err((
                         Value::Null,
                         io::Error::new(
                             io::ErrorKind::NotFound,
@@ -198,17 +210,12 @@ impl Document for Xml {
                                 entry_path.clone()
                             ),
                         ),
-                    )))
-                    .await;
+                    ));
                 }
             };
-            debug!(slog_scope::logger(), "End generator");
-        });
-
-        debug!(slog_scope::logger(), "Read data ended"; "documents" => format!("{:?}", self));
-        Ok(data)
+        }))
     }
-    /// Write complex xml data.
+    /// See [`Document::write_data`] for more details.
     ///
     /// # Example: Write multi data into empty inner document.
     /// ```
@@ -216,88 +223,29 @@ impl Document for Xml {
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Xml::default();
-    /// let mut connector = InMemory::new(r#""#);
-    /// document.entry_path = "/root/0/item".to_string();
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     let mut connector = InMemory::new(r#""#);
+    ///     document.entry_path = "/root/0/item".to_string();
     ///
-    /// let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<root><item><object column_1="line_1"/></item>"#, &format!("{}", connector));
+    ///     let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     assert_eq!(r#"<item><object column_1="line_1"/></item>"#, &format!("{}", connector));
     ///
-    /// let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_2"}]}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<root><item><object column_1="line_1"/></item><item><object column_1="line_2"/></item>"#, &format!("{}", connector));
+    ///     let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_2"}]}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     assert_eq!(r#"<item><object column_1="line_1"/></item><item><object column_1="line_2"/></item>"#, &format!("{}", connector));
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    /// # Example: Write multi data into truncate inner document and document init with '[]'.
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    ///
-    /// let mut document = Xml::default();
-    /// let mut connector = InMemory::new(r#"<root></root>"#);
-    /// document.entry_path = "/root/0/item".to_string();
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<item column_1="line_1"/>"#, &format!("{}", connector));
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<item column_1="line_1"/><item column_1="line_2"/>"#, &format!("{}", connector));
-    /// ```
-    /// # Example: Truncate and write into the document.
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    ///
-    /// let mut document = Xml::default();
-    /// let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
-    /// connector.can_truncate = true;
-    /// document.entry_path = "/root/0/item".to_string();
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<root><item column_1="line_2"/>"#, &format!("{}", connector));
-    ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_3"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// assert_eq!(r#"<root><item column_1="line_2"/><item column_1="line_3"/>"#, &format!("{}", connector));
-    /// ```
-    fn write_data_result(
-        &mut self,
-        connector: &mut dyn Connector,
-        data_result: DataResult,
-    ) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Write data"; "data" => format!("{:?}", data_result));
-        let value = data_result.to_json_value();
-        connector.set_parameters(value.clone());
-
-        let xml_entry_path = match self.xml_entry_path() {
-            Ok(xml) => xml,
-            Err(e) => {
-                warn!(slog_scope::logger(), "Entry path not valid in order to write data."; "entry_path" => self.entry_path.clone(), "error" => e.to_string());
-                "".to_string()
-            }
-        };
-
-        let xml_entry_path_begin: String = xml_entry_path
-            .split('<')
-            .filter(|node| !node.contains('/') && !node.is_empty())
-            .map(|node| format!("<{}", node))
-            .collect();
-        let xml_entry_path_end: String = xml_entry_path
-            .split('<')
-            .filter(|node| node.contains('/') && !node.is_empty())
-            .map(|node| format!("<{}", node))
-            .collect();
+    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+        let xml_entry_path_begin: String = self.entry_point_path_start();
+        let xml_entry_path_end: String = self.entry_point_path_end();
 
         let mut new_value: Value = Value::Null;
         new_value.merge_in(
@@ -311,63 +259,126 @@ impl Document for Xml {
         xml_new_value = xml_new_value.replace(xml_entry_path_begin.as_str(), "");
         xml_new_value = xml_new_value.replace(xml_entry_path_end.as_str(), "");
 
-        if connector.is_empty()? && connector.inner().is_empty()
-            || connector.will_be_truncated() && connector.inner().is_empty()
-        {
-            connector.write_all(xml_entry_path_begin.as_bytes())?;
-        }
-
-        connector.write_all(xml_new_value.as_bytes())?;
-
-        debug!(slog_scope::logger(), "Write data ended."; "data" => format!("{:?}", data_result));
-        Ok(())
+        connector.write_all(xml_new_value.as_bytes()).await
     }
-    /// flush xml data.
+    /// See [`Document::close`] for more details.
     ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// # Example: Remote document don't have data.
+    /// ```rust
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    /// use std::io::Read;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Xml::default();
-    /// let mut connector = InMemory::new(r#"<root></root>"#);
-    /// document.entry_path = "/root/0/item".to_string();
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     let mut connector = InMemory::new(r#""#);
     ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// document.flush(&mut connector).unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"<root><item column_1="line_1"/></root>"#, buffer);
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
     ///
-    /// let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    /// document.write_data_result(&mut connector,DataResult::Ok(value)).unwrap();
-    /// document.flush(&mut connector).unwrap();
-    /// let mut buffer = String::default();
-    /// connector.read_to_string(&mut buffer).unwrap();
-    /// assert_eq!(r#"<root><item column_1="line_1"/><item column_1="line_2"/></root>"#, buffer);
+    ///     document.write_data(&mut connector, value).await?;
+    ///     document.close(&mut connector).await?;
+    ///     assert_eq!(r#"<root><item column_1="line_1"/></root>"#, format!("{}", connector));
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called.");
-        connector.set_metadata(self.metadata.clone());
+    /// # Example: Remote document has empty data.
+    /// ```rust
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
+    /// use chewdata::document::xml::Xml;
+    /// use chewdata::document::Document;
+    /// use serde_json::Value;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     let mut connector = InMemory::new(r#"<root></root>"#);
+    ///
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
+    ///
+    ///     document.write_data(&mut connector, value).await?;
+    ///     document.close(&mut connector).await?;
+    ///     assert_eq!(r#"<root><item column_1="line_1"/></root>"#, format!("{}", connector));
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Remote document has data.
+    /// ```rust
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
+    /// use chewdata::document::xml::Xml;
+    /// use chewdata::document::Document;
+    /// use serde_json::Value;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
+    ///
+    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
+    ///
+    ///     document.write_data(&mut connector, value).await?;
+    ///     document.close(&mut connector).await?;
+    ///     assert_eq!(r#"<item column_1="line_2"/></root>"#, format!("{}", connector));
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn close(&self, connector: &mut dyn Connector) -> io::Result<()> {
+        let remote_len = connector.len().await?;
+        let buff = String::from_utf8(connector.inner().to_vec())
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        connector.clear();
 
-        let indent = match self.is_pretty {
-            true => Some((self.indent_char, self.indent_size)),
-            false => None,
+        let entry_point_path_start = self.entry_point_path_start();
+        let entry_point_path_end = self.entry_point_path_end();
+
+        if remote_len == 0
+            || remote_len == entry_point_path_start.len() + entry_point_path_end.len()
+        {
+            connector
+                .write_all(entry_point_path_start.as_bytes())
+                .await?;
+            connector.write_all(buff.as_bytes()).await?;
+            connector.write_all(entry_point_path_end.as_bytes()).await?;
+        }
+
+        if remote_len > entry_point_path_start.len() + entry_point_path_end.len() {
+            connector.write_all(buff.as_bytes()).await?;
+            connector.write_all(entry_point_path_end.as_bytes()).await?;
+        }
+
+        Ok(())
+    }
+    /// See [`Document::entry_point_path_start`] for more details.
+    fn entry_point_path_start(&self) -> String {
+        let xml_entry_path = match self.xml_entry_path() {
+            Ok(xml) => xml,
+            Err(e) => {
+                warn!(slog_scope::logger(), "Entry path not valid in order to write data."; "entry_path" => self.entry_path.clone(), "error" => e.to_string());
+                "".to_string()
+            }
         };
 
-        let mut entry_path_value: Value = Value::Null;
-        entry_path_value.merge_in(
-            &self.entry_path.to_string().to_json_pointer(),
-            Value::Array(Vec::default()),
-        );
+        let xml_entry_path_begin: String = xml_entry_path
+            .split('<')
+            .filter(|node| !node.contains('/') && !node.is_empty())
+            .map(|node| format!("<{}", node))
+            .collect();
 
-        let xml_entry_path = match jxon::json_to_xml(entry_path_value.to_string().as_ref(), indent)
-        {
+        xml_entry_path_begin
+    }
+    /// See [`Document::entry_point_path_end`] for more details.
+    fn entry_point_path_end(&self) -> String {
+        let xml_entry_path = match self.xml_entry_path() {
             Ok(xml) => xml,
             Err(e) => {
                 warn!(slog_scope::logger(), "Entry path not valid in order to write data."; "entry_path" => self.entry_path.clone(), "error" => e.to_string());
@@ -381,10 +392,84 @@ impl Document for Xml {
             .map(|node| format!("<{}", node))
             .collect();
 
-        connector.write_all(xml_entry_path_end.as_bytes())?;
-        connector.seek_and_flush(-1 as i64 * xml_entry_path_end.len() as i64)?;
+        xml_entry_path_end
+    }
+    /// See [`Document::has_data`] for more details.
+    ///
+    /// # Example: Empty data
+    /// ```
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
+    /// use chewdata::document::xml::Xml;
+    /// use chewdata::document::Document;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     let mut connector = InMemory::new(r#"<root></root>"#);
+    ///     connector.fetch().await?;
+    ///     document.entry_path = "/root/0/item".to_string();
+    ///
+    ///     let mut buffer = String::default();
+    ///     connector.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(buffer.as_str()));
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Empty remote document
+    /// ```
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
+    /// use chewdata::document::xml::Xml;
+    /// use chewdata::document::Document;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     let mut connector = InMemory::new(r#""#);
+    ///     connector.fetch().await?;
+    ///     document.entry_path = "/root/0/item".to_string();
+    ///
+    ///     let mut buffer = String::default();
+    ///     connector.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(buffer.as_str()));
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Not empty remote document
+    /// ```
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
+    /// use chewdata::document::xml::Xml;
+    /// use chewdata::document::Document;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
+    ///     connector.fetch().await?;
+    ///     document.entry_path = "/root/0/item".to_string();
+    ///
+    ///     let mut buffer = String::default();
+    ///     connector.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(true, document.has_data(buffer.as_str()));
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    fn has_data(&self, str: &str) -> bool {
+        let xml_entry_path_begin: String = self.entry_point_path_start();
+        let xml_entry_path_end: String = self.entry_point_path_end();
 
-        debug!(slog_scope::logger(), "Flush with success.");
-        Ok(())
+        if format!("{}{}", xml_entry_path_begin, xml_entry_path_end) == str {
+            return false;
+        }
+
+        !matches!(str, "")
     }
 }

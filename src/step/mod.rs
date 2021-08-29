@@ -1,28 +1,39 @@
+mod eraser;
 mod reader;
 mod transformer;
 mod writer;
 
+use super::step::eraser::Eraser;
 use super::step::reader::Reader;
 use super::step::transformer::Transformer;
 use super::step::writer::Writer;
-use genawaiter::sync::GenBoxed;
-use json_value_merge::Merge;
+use crate::DataResult;
 use serde::Deserialize;
-use serde_json::Value;
+
+use async_trait::async_trait;
+use multiqueue::{MPMCReceiver, MPMCSender};
 use std::io;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum StepType {
     #[serde(rename = "reader")]
+    #[serde(alias = "read")]
     #[serde(alias = "r")]
     Reader(Reader),
     #[serde(rename = "writer")]
+    #[serde(alias = "write")]
     #[serde(alias = "w")]
     Writer(Writer),
     #[serde(rename = "transformer")]
+    #[serde(alias = "transform")]
     #[serde(alias = "t")]
     Transformer(Transformer),
+    #[serde(rename = "eraser")]
+    #[serde(alias = "erase")]
+    #[serde(alias = "truncate")]
+    #[serde(alias = "e")]
+    Eraser(Eraser),
 }
 
 impl StepType {
@@ -31,6 +42,7 @@ impl StepType {
             StepType::Reader(step) => Box::new(step),
             StepType::Writer(step) => Box::new(step),
             StepType::Transformer(step) => Box::new(step),
+            StepType::Eraser(step) => Box::new(step),
         }
     }
     pub fn step(&self) -> &dyn Step {
@@ -38,6 +50,7 @@ impl StepType {
             StepType::Reader(ref step) => step,
             StepType::Writer(ref step) => step,
             StepType::Transformer(ref step) => step,
+            StepType::Eraser(ref step) => step,
         }
     }
     pub fn step_mut(&mut self) -> &mut dyn Step {
@@ -45,51 +58,38 @@ impl StepType {
             StepType::Reader(ref mut step) => step,
             StepType::Writer(ref mut step) => step,
             StepType::Transformer(ref mut step) => step,
+            StepType::Eraser(ref mut step) => step,
         }
     }
 }
 
-#[derive(Debug)]
-pub enum DataResult {
-    Ok(Value),
-    Err((Value, io::Error)),
-}
-
-impl Clone for DataResult {
-    fn clone(&self) -> Self {
-        match self {
-            DataResult::Ok(value) => DataResult::Ok(value.clone()),
-            DataResult::Err((value, e)) => {
-                DataResult::Err((value.clone(), io::Error::new(e.kind(), e.to_string())))
-            }
-        }
+#[async_trait]
+pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
+    async fn exec(
+        &self,
+        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
+        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+    ) -> io::Result<()>;
+    fn thread_number(&self) -> i32 {
+        1
     }
 }
 
-impl DataResult {
-    pub const OK: &'static str = "ok";
-    pub const ERR: &'static str = "err";
-    const FIELD_ERROR: &'static str = "_error";
+pub trait StepClone {
+    fn clone_box(&self) -> Box<dyn Step>;
+}
 
-    pub fn to_json_value(&self) -> Value {
-        match self {
-            DataResult::Ok(value) => value.to_owned(),
-            DataResult::Err((value, error)) => {
-                let mut json_value = value.to_owned();
-                json_value.merge_in(
-                    format!("/{}", DataResult::FIELD_ERROR).as_ref(),
-                    Value::String(format!("{}", error)),
-                );
-                json_value
-            }
-        }
+impl<T> StepClone for T
+where
+    T: 'static + Step + Clone,
+{
+    fn clone_box(&self) -> Box<dyn Step> {
+        Box::new(self.clone())
     }
 }
 
-pub type Data = GenBoxed<DataResult>;
-pub type Dataset = GenBoxed<Vec<DataResult>>;
-
-pub trait Step {
-    /// Exec the step that implement this trait.
-    fn exec(&self, dataset_opt: Option<Dataset>) -> io::Result<Option<Dataset>>;
+impl Clone for Box<dyn Step> {
+    fn clone(&self) -> Box<dyn Step> {
+        self.clone_box()
+    }
 }

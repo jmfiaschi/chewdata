@@ -1,17 +1,20 @@
-use super::{DataResult, Dataset};
+use super::{DataResult};
 use crate::step::reader::Reader;
 use crate::step::Step;
 use crate::updater::UpdaterType;
-use genawaiter::sync::GenBoxed;
-use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, fmt, io::Result};
+use std::{collections::HashMap, fmt, io};
+use multiqueue::{MPMCReceiver, MPMCSender};
+use std::{thread, time};
+use async_trait::async_trait;
+use slog::Drain;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct Transformer {
     #[serde(alias = "updater")]
+    #[serde(alias = "u")]
     updater_type: UpdaterType,
     #[serde(alias = "refs")]
     referentials: Option<Vec<Reader>>,
@@ -19,9 +22,13 @@ pub struct Transformer {
     pub can_refreshed_referentials: bool,
     pub alias: Option<String>,
     pub description: Option<String>,
+    pub data_type: String,
     // transform in parallel mode. The data order write into the document is not respected.
     // By default, set to true in order to parallize the writting.
     pub is_parallel: bool,
+    #[serde(alias = "wait")]
+    pub wait_in_milisec: u64,
+    pub thread_number: i32,
 }
 
 impl Default for Transformer {
@@ -33,6 +40,9 @@ impl Default for Transformer {
             description: None,
             is_parallel: true,
             can_refreshed_referentials: true,
+            data_type: DataResult::OK.to_string(),
+            wait_in_milisec: 10,
+            thread_number: 1
         }
     }
 }
@@ -52,7 +62,7 @@ impl fmt::Display for Transformer {
     }
 }
 /// Return a referentials hashmap indexed by the alias of the referential.
-fn referentials_hashmap(referentials: &[Reader]) -> Option<HashMap<String, Vec<Value>>> {
+async fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec<Value>>> {
     let mut referentials_hashmap = HashMap::new();
 
     // For each reader, try to build the referential.
@@ -65,7 +75,8 @@ fn referentials_hashmap(referentials: &[Reader]) -> Option<HashMap<String, Vec<V
             }
         };
 
-        let dataset_option = match referential.exec(None) {
+        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
+        match referential.exec(None, Some(pipe_inbound)).await {
             Ok(dataset_option) => dataset_option,
             Err(e) => {
                 warn!(slog_scope::logger(), "Can't read the referentiel"; "error" => format!("{}", e), "referential" => format!("{}", referential));
@@ -74,16 +85,8 @@ fn referentials_hashmap(referentials: &[Reader]) -> Option<HashMap<String, Vec<V
         };
 
         let mut referential_dataset: Vec<Value> = Vec::new();
-        if let Some(dataset) = dataset_option {
-            for data_results in dataset {
-                for data_result in data_results {
-                    let record = match data_result {
-                        DataResult::Ok(record) => record,
-                        DataResult::Err(_) => continue,
-                    };
-                    referential_dataset.push(record);
-                }
-            }
+        for data_result in pipe_outbound {
+            referential_dataset.push(data_result.to_json_value());
         }
         referentials_hashmap.insert(alias, referential_dataset);
     }
@@ -91,110 +94,92 @@ fn referentials_hashmap(referentials: &[Reader]) -> Option<HashMap<String, Vec<V
     Some(referentials_hashmap)
 }
 /// This Step transform a dataset.
+#[async_trait]
 impl Step for Transformer {
-    fn exec(&self, dataset_opt: Option<Dataset>) -> Result<Option<Dataset>> {
+    async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
 
-        let dataset = match dataset_opt {
-            Some(dataset) => dataset,
+        let pipe_inbound = match pipe_inbound_option {
+            Some(pipe_inbound) => pipe_inbound,
             None => {
-                info!(slog_scope::logger(), "No data to transform"; "step" => format!("{}", self));
-                return Ok(None);
+                info!(slog_scope::logger(), "This step is skipped. No inbound pipe found"; "step" => format!("{}", self.clone()));
+                return Ok(())
             }
         };
 
-        let transformer = self.to_owned();
-        let updater_type = self.updater_type.clone();
-        let is_parallel = self.is_parallel;
-
-        let dataset = GenBoxed::new_boxed(|co| async move {
-            debug!(slog_scope::logger(), "Start generator"; "step" => format!("{}", transformer));
-            let mut mapping = None;
-            for data_results in dataset {
-                mapping = match (
-                    mapping,
-                    &transformer.referentials,
-                    transformer.can_refreshed_referentials,
-                ) {
-                    (None, Some(referentials), _) => {
-                        info!(slog_scope::logger(), "Refresh the referentials"; "step" => format!("{}", transformer));
-                        referentials_hashmap(referentials)
-                    }
-                    (_, Some(referentials), true) => {
-                        info!(slog_scope::logger(), "Refresh the referentials"; "step" => format!("{}", transformer));
-                        referentials_hashmap(referentials)
-                    }
-                    (Some(mapping), Some(_), false) => Some(mapping),
-                    (_, None, _) => None,
-                };
-
-                info!(slog_scope::logger(), "Transform a new dataset"; "dataset_size" => data_results.len(), "step" => format!("{}", transformer));
-                let new_data_results = match is_parallel {
-                    true => data_results
-                        .into_par_iter()
-                        .filter_map(|data_result| {
-                            transform_data_result(
-                                &transformer,
-                                &updater_type,
-                                &mapping,
-                                data_result,
-                            )
-                        })
-                        .collect(),
-                    false => data_results
-                        .into_iter()
-                        .filter_map(|data_result| {
-                            transform_data_result(
-                                &transformer,
-                                &updater_type,
-                                &mapping,
-                                data_result,
-                            )
-                        })
-                        .collect(),
-                };
-
-                co.yield_(new_data_results).await;
+        let pipe_outbound = match pipe_outbound_option {
+            Some(pipe_outbound) => pipe_outbound,
+            None => {
+                info!(slog_scope::logger(), "This step is skipped. No outbound pipe found"; "step" => format!("{}", self.clone()));
+                return Ok(())
             }
-            debug!(slog_scope::logger(), "End generator"; "step" => format!("{}", transformer));
-        });
+        };
 
-        Ok(Some(dataset))
+        let mapping = match self.referentials.clone() {
+            Some(referentials) => referentials_hashmap(referentials).await,
+            None => None
+        };
+
+        for data_result in pipe_outbound {
+            if !data_result.is_type(self.data_type.as_ref()) {
+                info!(slog_scope::logger(),
+                    "This step handle only this data type";
+                    "data_type" => self.data_type.to_string(),
+                    "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                        true => format!("{:?}", data_result),
+                        false => "truncated, available only in debug mode".to_string(),
+                    },
+                    "step" => format!("{}", self.clone())
+                );
+                continue;
+            }
+
+            let record = data_result.to_json_value();
+
+            let new_data_results = match self.updater_type
+                .updater()
+                .update(record.clone(), mapping.clone()) {
+                    Ok(new_record) => {
+                        debug!(slog_scope::logger(), "Record transformation success"; "step" => format!("{}", self), "record" => format!("{}", new_record));
+
+                        if Value::Null == new_record {
+                            debug!(slog_scope::logger(), "Record skip because the value si null"; "step" => format!("{}", self), "record" => format!("{}", new_record));
+                            continue;
+                        }
+
+                        let new_data_result = DataResult::Ok(new_record);
+                        debug!(slog_scope::logger(), "Yield data result"; "step" => format!("{}", self), "data_result" => format!("{:?}", new_data_result));
+                        new_data_result
+                    }
+                    Err(e) => {
+                        let new_data_result = DataResult::Err((record, e));
+                        warn!(slog_scope::logger(), "Record transformation alert. Yield data result";"step" => format!("{}", self), "data_result" => format!("{:?}", new_data_result));
+                        new_data_result
+                    }
+                };
+            
+            info!(slog_scope::logger(),
+                "Data send to the queue";
+                "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
+                    true => format!("{:?}", new_data_results),
+                    false => "truncated, available only in debug mode".to_string(),
+                },
+                "step" => format!("{}", self.clone())
+            );
+            let mut current_retry = 0;
+            while pipe_inbound.try_send(new_data_results.clone()).is_err() {
+                warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
+                thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                current_retry += 1;
+            }
+        }
+
+        drop(pipe_inbound);
+
+        debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
+        Ok(())
     }
-}
-
-// Transform a data_result.
-fn transform_data_result(
-    transformer: &Transformer,
-    updater_type: &UpdaterType,
-    mapping: &Option<HashMap<String, Vec<Value>>>,
-    data_result: DataResult,
-) -> Option<DataResult> {
-    let record = match data_result {
-        DataResult::Ok(record) => record,
-        DataResult::Err(_) => return None,
-    };
-
-    match updater_type
-        .updater()
-        .update(record.clone(), mapping.clone())
-    {
-        Ok(new_record) => {
-            debug!(slog_scope::logger(), "Record transformation success"; "step" => format!("{}", transformer), "record" => format!("{}", new_record));
-
-            if Value::Null == new_record {
-                debug!(slog_scope::logger(), "Record skip because the value si null"; "step" => format!("{}", transformer), "record" => format!("{}", new_record));
-                return None;
-            }
-
-            let new_data_result = DataResult::Ok(new_record);
-            debug!(slog_scope::logger(), "Yield data result"; "step" => format!("{}", transformer), "data_result" => format!("{:?}", new_data_result));
-            Some(new_data_result)
-        }
-        Err(e) => {
-            let new_data_result = DataResult::Err((record, e));
-            warn!(slog_scope::logger(), "Record transformation alert. Yield data result";"step" => format!("{}", transformer), "data_result" => format!("{:?}", new_data_result));
-            Some(new_data_result)
-        }
+    fn thread_number(&self) -> i32 {
+        self.thread_number
     }
 }

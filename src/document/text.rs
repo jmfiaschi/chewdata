@@ -1,10 +1,11 @@
-extern crate csv;
-
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::step::{Data, DataResult};
+use crate::{Dataset, DataResult};
 use crate::Metadata;
-use genawaiter::sync::GenBoxed;
+use async_std::io::prelude::WriteExt;
+use async_stream::stream;
+use async_trait::async_trait;
+use futures::AsyncReadExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
@@ -20,74 +21,53 @@ pub struct Text {
 impl Default for Text {
     fn default() -> Self {
         let metadata = Metadata {
-            mime_type: Some(mime::TEXT_PLAIN_UTF_8.to_string()),
+            mime_type: Some(mime::TEXT.to_string()),
+            mime_subtype: Some(mime::PLAIN.to_string()),
+            charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
         Text { metadata }
     }
 }
 
+#[async_trait]
 impl Document for Text {
-    /// Read complex csv data.
+    fn metadata(&self) -> Metadata {
+        Text::default().metadata.merge(self.metadata.clone())
+    }
+    /// See [`Document::read_data`] for more details.
     ///
     /// # Example
     /// ```
-    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::text::Text;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Text::default();
-    /// let connector = InMemory::new(r#"My text1 \n My text 2"#);
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Text::default();
+    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"My text1 \n My text 2"#));
+    ///     connector.fetch().await?;
     ///
-    /// let mut data_iter = document.read_data(Box::new(connector)).unwrap().into_iter();
-    /// let line = data_iter.next().unwrap().to_json_value();
-    /// assert_eq!(r#"My text1 \n My text 2"#, line);
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     assert_eq!(r#"My text1 \n My text 2"#, data);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn read_data(&self, connector: Box<dyn Connector>) -> io::Result<Data> {
-        debug!(slog_scope::logger(), "Read data"; "documents" => format!("{:?}", self));
+    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut text = String::default();
-        let mut connector = connector;
+        connector.read_to_string(&mut text).await?;
 
-        connector.set_metadata(self.metadata.clone());
-        connector.read_to_string(&mut text)?;
-
-        let data = GenBoxed::new_boxed(|co| async move {
-            co.yield_(DataResult::Ok(Value::String(text))).await;
-        });
-
-        debug!(slog_scope::logger(), "Read data ended"; "documents" => format!("{:?}", self));
-        Ok(data)
+        Ok(Box::pin(stream! {
+            yield DataResult::Ok(Value::String(text));
+        }))
     }
-    /// Write complex csv data.
-    ///
-    /// # Example: Add header if connector data empty or if the connector will truncate the previous data.
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::text::Text;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
-    ///
-    /// let mut document = Text::default();
-    /// let mut connector = InMemory::new(r#""#);
-    ///
-    /// document.write_data_result(&mut connector, DataResult::Ok(Value::String("My text".to_string()))).unwrap();
-    /// assert_eq!(r#"My text"#, &format!("{}", connector));
-    /// ```
-    fn write_data_result(
-        &mut self,
-        connector: &mut dyn Connector,
-        data_result: DataResult,
-    ) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Write data"; "data" => format!("{:?}", data_result));
-        let value = data_result.to_json_value();
-        connector.write_all(value.as_str().unwrap_or("").as_bytes())?;
-
-        debug!(slog_scope::logger(), "Write data ended."; "data" => format!("{:?}", data_result));
-        Ok(())
-    }
-    /// Push data from the inner buffer into the document and flush the connector.
+    /// See [`Document::write_data`] for more details.
     ///
     /// # Example
     /// ```
@@ -95,19 +75,23 @@ impl Document for Text {
     /// use chewdata::document::text::Text;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::step::DataResult;
+    /// use async_std::prelude::*;
+    /// use std::io;
     ///
-    /// let mut document = Text::default();
-    /// let mut connector = InMemory::new(r#"My Text"#);
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Text::default();
+    ///     let mut connector = InMemory::new(r#""#);
     ///
-    /// document.flush(&mut connector).unwrap();
-    /// assert_eq!(r#""#, &format!("{}", connector));
+    ///     document.write_data(&mut connector, Value::String("My text".to_string())).await?;
+    ///     assert_eq!(r#"My text"#, &format!("{}", connector));
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    fn flush(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Flush called.");
-        connector.set_metadata(self.metadata.clone());
-        connector.flush()?;
-        debug!(slog_scope::logger(), "Flush with success.");
-        Ok(())
+    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+        connector
+            .write_all(value.as_str().unwrap_or("").as_bytes())
+            .await
     }
 }

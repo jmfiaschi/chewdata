@@ -1,16 +1,19 @@
 use super::authenticator::AuthenticatorType;
-use super::Connector;
+use super::{Connector, Paginator};
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
-use curl::easy::{Easy, List};
+use async_trait::async_trait;
+use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::fmt;
-use std::io::{Cursor, Error, ErrorKind, Read, Result, Write};
+use std::io::{Cursor, Error, ErrorKind, Result, Write};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::{collections::HashMap, fmt};
+use surf::http::{headers, Method, Url};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Curl {
     #[serde(rename = "metadata")]
@@ -18,7 +21,7 @@ pub struct Curl {
     pub metadata: Metadata,
     #[serde(alias = "auth")]
     #[serde(alias = "authenticator")]
-    pub authenticator_type: Option<AuthenticatorType>,
+    pub authenticator_type: Option<Box<AuthenticatorType>>,
     // The FQDN endpoint.
     pub endpoint: String,
     // The http uri.
@@ -26,52 +29,30 @@ pub struct Curl {
     // The http method.
     pub method: Method,
     // Add complementaries headers. This headers override the default headers.
-    pub headers: HashMap<String, String>,
+    pub headers: Box<HashMap<String, String>>,
     pub parameters: Value,
-    // Fush data to an API, read the response and add it into the inner buffer.
-    pub can_flush_and_read: bool,
+    pub limit: usize,
+    pub skip: usize,
+    #[serde(alias = "paginator")]
+    pub paginator_parameters: Option<PaginatorParameters>,
     #[serde(skip)]
-    inner: Cursor<Vec<u8>>,
+    pub inner: Box<Cursor<Vec<u8>>>,
+}
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[serde(default)]
+pub struct PaginatorParameters {
+    #[serde(default = "default_limit")]
+    pub limit: String,
+    #[serde(default = "default_skip")]
+    pub skip: String,
 }
 
-impl fmt::Display for Curl {
-    /// Display the content.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::curl::Curl;
-    ///
-    /// let connector = Curl::default();
-    /// assert_eq!("", format!("{}", connector));
-    /// ```
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", &String::from_utf8_lossy(self.inner.get_ref()))
-    }
+fn default_limit() -> String {
+    "limit".to_string()
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum Method {
-    #[serde(alias = "get")]
-    #[serde(alias = "GET")]
-    Get,
-    #[serde(alias = "post")]
-    #[serde(alias = "POST")]
-    Post,
-    #[serde(alias = "put")]
-    #[serde(alias = "PUT")]
-    Put,
-    #[serde(alias = "delete")]
-    #[serde(alias = "DELETE")]
-    Delete,
-    #[serde(alias = "patch")]
-    #[serde(alias = "PATCH")]
-    Patch,
-    #[serde(alias = "head")]
-    #[serde(alias = "HEAD")]
-    Head,
-    #[serde(alias = "options")]
-    #[serde(alias = "OPTIONS")]
-    Options,
+fn default_skip() -> String {
+    "skip".to_string()
 }
 
 impl Default for Curl {
@@ -79,116 +60,54 @@ impl Default for Curl {
         Curl {
             metadata: Metadata::default(),
             authenticator_type: None,
-            endpoint: "".to_owned(),
-            path: "".to_string(),
+            endpoint: "".into(),
+            path: "".into(),
             method: Method::Get,
-            inner: Cursor::new(Vec::default()),
+            headers: Box::new(HashMap::default()),
             parameters: Value::Null,
-            can_flush_and_read: false,
-            headers: HashMap::new(),
+            limit: 100,
+            skip: 0,
+            paginator_parameters: None,
+            inner: Box::new(Cursor::default()),
         }
     }
 }
 
-impl Curl {
-    /// Test if the path is variable.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::curl::{Curl, Method};
-    /// use chewdata::connector::Connector;
-    /// use serde_json::Value;
-    ///
-    /// let mut connector = Curl::default();
-    /// assert_eq!(false, connector.is_variable_path());
-    /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
-    /// connector.set_parameters(params);
-    /// connector.path = "/get/{{ field }}".to_string();
-    /// assert_eq!(true, connector.is_variable_path());
-    /// ```
-    pub fn is_variable_path(&self) -> bool {
-        let reg = Regex::new("\\{\\{[^}]*\\}\\}").unwrap();
-        reg.is_match(self.path.as_ref())
-    }
-    fn init_inner(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Init inner");
-        let mut client = Easy::new();
-        let mut headers = List::new();
-        let curl = self.clone();
-        let resolved_path = curl.path();
-        let content_type_field = http::header::CONTENT_TYPE;
-        client.url(format!("{}{}", curl.endpoint, resolved_path).as_ref())?;
-        client.get(true)?;
-
-        if let Some(mut authenticator_type) = self.authenticator_type.clone() {
-            let authenticator = authenticator_type.authenticator_mut();
-            authenticator.set_parameters(self.parameters.clone());
-            authenticator.add_authentication(&mut client, &mut headers)?;
-        }
-
-        if let Some(mine_type) = self.metadata.clone().mime_type {
-            headers.append(format!("{}:{}", content_type_field, mine_type).as_ref())?;
-        }
-
-        if !self.headers.is_empty() {
-            for (key, value) in self.headers.iter() {
-                headers.append(format!("{}:{}", key, value).as_ref())?;
-            }
-        }
-
-        client.http_headers(headers)?;
-
-        info!(slog_scope::logger(), "Request"; "method" => format!("{:?}",curl.method), "endpoint" => curl.endpoint, "uri" => resolved_path);
-        debug!(slog_scope::logger(), "Body"; "payload" => String::from_utf8_lossy(self.inner.get_ref()).to_string());
-        client.header_function(|header| {
-            debug!(
-                slog_scope::logger(),
-                "{:?}",
-                std::str::from_utf8(header).unwrap()
-            );
-            true
-        })?;
-        client.follow_location(true)?;
-
-        {
-            let mut transfer = client.transfer();
-            transfer.write_function(|record| Ok(self.inner.write(record).unwrap()))?;
-            transfer.perform()?;
-        }
-
-        info!(slog_scope::logger(), "Response"; "code" => client.response_code()?);
-        let response_code = client.response_code()?;
-        match response_code {
-            200..=299 => {
-                trace!(slog_scope::logger(), "Body"; "payload" => String::from_utf8_lossy(self.inner.get_ref()).to_string());
-            }
-            _ => {
-                warn!(slog_scope::logger(), "Call in error"; "code" => response_code);
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "Http response code '{}', with message '{}'",
-                        response_code,
-                        String::from_utf8_lossy(self.inner.get_ref())
-                    ),
-                ));
-            }
-        }
-
-        // initialize the position of the cursor
-        self.inner.set_position(0);
-        debug!(slog_scope::logger(), "Init inner ended");
-        Ok(())
+impl fmt::Display for Curl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
+        )
     }
 }
 
+// Not display the inner for better performance with big data
+impl fmt::Debug for Curl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Curl")
+            .field("metadata", &self.metadata)
+            .field("authenticator_type", &self.authenticator_type)
+            .field("endpoint", &self.endpoint)
+            .field("path", &self.path)
+            .field("method", &self.method)
+            .field("headers", &self.headers)
+            .field("parameters", &self.parameters)
+            .field("limit", &self.limit)
+            .field("skip", &self.skip)
+            .field("paginator_parameters", &self.paginator_parameters)
+            .finish()
+    }
+}
+
+#[async_trait]
 impl Connector for Curl {
-    /// Get the resolved path.
+    /// See [`Connector::path`] for more details.
     ///
     /// # Example
     /// ```
-    /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connector;
+    /// use chewdata::connector::{curl::Curl, Connector};
     /// use serde_json::Value;
     ///
     /// let mut connector = Curl::default();
@@ -198,233 +117,529 @@ impl Connector for Curl {
     /// assert_eq!("/resource/value", connector.path());
     /// ```
     fn path(&self) -> String {
-        match (self.is_variable_path(), self.parameters.clone()) {
+        match (self.is_variable(), self.parameters.clone()) {
             (true, params) => self.path.clone().replace_mustache(params),
             _ => self.path.clone(),
         }
     }
-    /// Return true because the curl truncate the inner when it write the data everytime.
+    /// See [`Connector::is_resource_will_change`] for more details.
     ///
     /// # Example
-    /// ```
-    /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connector;
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use serde_json::Value;
     ///
     /// let mut connector = Curl::default();
-    /// assert_eq!(true, connector.will_be_truncated());
+    /// let params = serde_json::from_str(r#"{"field":"test"}"#).unwrap();
+    /// assert_eq!(false, connector.is_resource_will_change(Value::Null).unwrap());
+    /// connector.path = "/dir/static.ext".to_string();
+    /// assert_eq!(false, connector.is_resource_will_change(Value::Null).unwrap());
+    /// connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
+    /// assert_eq!(true, connector.is_resource_will_change(params).unwrap());
     /// ```
-    fn will_be_truncated(&self) -> bool {
-        true
-    }
-    /// Get the inner buffer reference.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let connector = Curl::default();
-    /// let vec: Vec<u8> = Vec::default();
-    /// assert_eq!(&vec, connector.inner());
-    fn inner(&self) -> &Vec<u8> {
-        self.inner.get_ref()
-    }
-    fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters;
-    }
-    /// Check only if the current inner buffer is empty.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::curl::Curl;
-    /// use chewdata::connector::Connector;
-    ///
-    /// let connector = Curl::default();
-    /// assert_eq!(true, connector.is_empty().unwrap());
-    /// ```
-    fn is_empty(&self) -> Result<bool> {
-        if 0 < self.inner().len() {
+    fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
+        if !self.is_variable() {
+            return Ok(false);
+        }
+
+        let actuel_path = self.path.clone().replace_mustache(self.parameters.clone());
+        let new_path = self.path.clone().replace_mustache(new_parameters);
+
+        if actuel_path == new_path {
             return Ok(false);
         }
 
         Ok(true)
     }
-    fn set_flush_and_read(&mut self, flush_and_read: bool) {
-        self.can_flush_and_read = flush_and_read;
-    }
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
-}
-
-impl Read for Curl {
-    /// Fetch the document from the bucket and push it into the inner memory and read it.
-    ///
-    /// # Example:
-    /// ```
-    /// use chewdata::connector::curl::{Curl, Method};
-    /// use chewdata::connector::Connector;
-    /// use std::io::Read;
-    /// use serde_json::Value;
-    ///
-    /// let mut connector_get = Curl::default();
-    /// connector_get.endpoint = "http://localhost:8080".to_string();
-    /// connector_get.method = Method::Get;
-    /// connector_get.path = "/get".to_string();
-    /// let mut buffer = String::default();
-    /// let len = connector_get.read_to_string(&mut buffer).unwrap();
-    /// assert!(0 < len, "Should read one some bytes.");
-    /// ```
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if self.inner.get_ref().is_empty() {
-            self.init_inner()?;
-        }
-        self.inner.read(buf)
-    }
-}
-
-impl Write for Curl {
-    /// Write the data into the inner buffer before to flush it.
+    /// See [`Connector::fetch`] for more details.
     ///
     /// # Example
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use surf::http::Method;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     assert_eq!(0, connector.inner().len());
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/json".to_string();
+    ///     connector.fetch().await?;
+    ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    /// use chewdata::connector::curl::Curl;
-    /// use std::io::Write;
-    ///
-    /// let mut connector = Curl::default();
-    /// let buffer = "My text";
-    /// let len = connector.write(buffer.to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!(7, len);
-    /// assert_eq!("My text", format!("{}", connector));
-    /// ```
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.inner.write(buf)
-    }
-    /// Write all into the document and flush the inner buffer.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::curl::{Curl, Method};
-    /// use chewdata::connector::Connector;
-    /// use std::io::{Read, Write};
-    ///
-    /// let mut connector_write = Curl::default();
-    /// connector_write.endpoint = "http://localhost:8080".to_string();
-    /// connector_write.method = Method::Post;
-    /// connector_write.path = "/post".to_string();
-    ///
-    /// connector_write.write(r#"{"column1":"value1"}"#.to_string().into_bytes().as_slice()).unwrap();
-    /// connector_write.flush().unwrap();
-    /// assert_eq!(r#""#, format!("{}",connector_write));
-    fn flush(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Flush ended");
+    async fn fetch(&mut self) -> Result<()> {
+        debug!(slog_scope::logger(), "Fetch started");
+        let client = surf::client();
+        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let mut request_builder = surf::RequestBuilder::new(self.method, url);
 
-        if self.is_variable_path()
-            && self.parameters == Value::Null
-            && self.inner.get_ref().is_empty()
-        {
-            warn!(slog_scope::logger(), "Can't flush with variable path and without parameters";"path"=>self.path.clone(),"parameters"=>self.parameters.to_string());
-            return Ok(());
+        if let Some(ref mut authenticator_type) = self.authenticator_type {
+            let authenticator = authenticator_type.authenticator_mut();
+            authenticator.set_parameters(self.parameters.clone());
+            request_builder = authenticator.authenticate(request_builder).await?;
         }
 
-        let path_resolved = self.path();
-        let mut client = Easy::new();
-        let mut headers = List::new();
-        let list = List::new();
-        let content_type_field = http::header::CONTENT_TYPE;
-
-        // initialize the position of the cursor
-        self.inner.set_position(0);
-
-        if let Some(mine_type) = self.metadata.clone().mime_type {
-            headers.append(format!("{}:{}", content_type_field, mine_type).as_ref())?;
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
             for (key, value) in self.headers.iter() {
-                headers.append(format!("{}:{}", key, value).as_ref())?;
+                request_builder = request_builder.header(key.as_str(), value.as_str());
             }
         }
 
-        client.http_headers(list)?;
-        client.url(format!("{}{}", self.endpoint, path_resolved).as_ref())?;
+        let req = request_builder.build();
+        let mut res = client
+            .send(req.clone())
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        match self.method {
-            Method::Post => {
-                client.post(true)?;
-                client.post_field_size(self.inner.clone().into_inner().len() as u64)?;
-            }
-            Method::Put => {
-                client.put(true)?;
-                client.upload(true)?;
-                client.in_filesize(self.inner.clone().into_inner().len() as u64)?;
-            }
-            Method::Patch => client.custom_request("PATCH")?,
-            Method::Delete => client.custom_request("DELETE")?,
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    format!(
-                        "This method '{:?}' is not used to update data into a document.",
-                        self.method
-                    ),
-                ))
-            }
-        };
+        let data = res
+            .body_bytes()
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
-        if let Some(mut authenticator_type) = self.authenticator_type.clone() {
+        if !res.status().is_success() {
+            return Err(Error::new(
+                ErrorKind::Interrupted,
+                format!(
+                    "Curl failed with status code '{}' and response body: {}",
+                    res.status(),
+                    String::from_utf8(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                ),
+            ));
+        }
+
+        self.inner = Box::new(Cursor::new(data));
+        debug!(slog_scope::logger(), "Fetch ended");
+
+        Ok(())
+    }
+    /// See [`Connector::paginator`] for more details.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+        Ok(Box::pin(CurlPaginator::new(self.clone())))
+    }
+    /// See [`Connector::is_variable_path`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use surf::http::Method;
+    /// use serde_json::Value;
+    ///
+    /// let mut connector = Curl::default();
+    /// assert_eq!(false, connector.is_variable());
+    /// let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
+    /// connector.set_parameters(params);
+    /// connector.path = "/get/{{ field }}".to_string();
+    /// assert_eq!(true, connector.is_variable());
+    /// ```
+    fn is_variable(&self) -> bool {
+        let reg = Regex::new("\\{\\{[^}]*\\}\\}").unwrap();
+        reg.is_match(self.path.as_ref())
+    }
+    /// See [`Connector::set_parameters`] for more details.
+    fn set_parameters(&mut self, parameters: Value) {
+        self.parameters = parameters;
+    }
+    /// See [`Connector::is_empty`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.path = "/status/200".to_string();
+    ///     assert_eq!(true, connector.is_empty().await?);
+    ///     connector.path = "/get".to_string();
+    ///     assert_eq!(false, connector.is_empty().await?);
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn is_empty(&mut self) -> Result<bool> {
+        Ok(0 == self.len().await?)
+    }
+    /// See [`Connector::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata;
+    }
+    /// See [`Connector::metadata`] for more details.
+    fn metadata(&self) -> Metadata {
+        self.metadata.clone()
+    }
+    /// See [`Connector::len`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.path = "/status/200".to_string();
+    ///     assert!(0 == connector.len().await?, "The remote document should have a length equal to zero");
+    ///     connector.path = "/get".to_string();
+    ///     assert!(0 != connector.len().await?, "The remote document should have a length different than zero");
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn len(&mut self) -> Result<usize> {
+        let client = surf::client();
+        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let mut request_builder = surf::head(url);
+
+        if let Some(ref mut authenticator_type) = self.authenticator_type {
             let authenticator = authenticator_type.authenticator_mut();
             authenticator.set_parameters(self.parameters.clone());
-            authenticator.add_authentication(&mut client, &mut headers)?;
+            request_builder = authenticator.authenticate(request_builder).await?;
         }
 
-        client.http_headers(headers)?;
-
-        info!(slog_scope::logger(), "Request"; "method" => format!("{:?}",self.method), "endpoint" => self.endpoint.to_owned(), "uri" => path_resolved);
-        debug!(slog_scope::logger(), "Body"; "payload" => String::from_utf8_lossy(self.inner.get_ref()).to_string());
-        client.header_function(|header| {
-            debug!(
-                slog_scope::logger(),
-                "{:?}",
-                std::str::from_utf8(header).unwrap()
-            );
-            true
-        })?;
-
-        let mut received_data = Cursor::new(Vec::default());
-        {
-            let mut transfer = client.transfer();
-            transfer.read_function(|buf| Ok(self.inner.read(buf).unwrap()))?;
-            transfer.write_function(|record| Ok(received_data.write(record).unwrap()))?;
-            transfer.perform()?;
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
-        let response_code = client.response_code()?;
-        info!(slog_scope::logger(), "Response"; "code" => response_code);
-        match response_code {
-            200..=299 => {
-                trace!(slog_scope::logger(), "Body"; "payload" => String::from_utf8_lossy(received_data.get_ref()).to_string());
-                Ok(())
+        if !self.headers.is_empty() {
+            for (key, value) in self.headers.iter() {
+                request_builder = request_builder.header(key.as_str(), value.as_str());
             }
-            _ => Err(Error::new(
-                ErrorKind::InvalidData,
+        }
+
+        let req = request_builder.build();
+        
+        let res = client
+            .send(req)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        if !res.status().is_success() {
+            warn!(slog_scope::logger(), "Can't get the len of the remote document with method HEAD"; "connector" => format!("{:?}", self), "status" => res.status().to_string());
+
+            return Ok(0);
+        }
+
+        let header_value = res
+            .header(headers::CONTENT_LENGTH)
+            .map(|ct_len| ct_len.as_str())
+            .unwrap_or("0");
+
+        let content_length = header_value
+            .parse::<usize>()
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        Ok(content_length)
+    }
+    /// See [`Connector::send`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use json_value_search::Search;
+    /// use serde_json::Value;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Post;
+    ///     connector.path = "/post".to_string();
+    ///     
+    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
+    ///
+    ///     let payload: Value = serde_json::from_str(std::str::from_utf8(connector.inner()).unwrap())?;
+    ///     assert_eq!(r#"[{"column1":"value1"}]"#, payload.search("/data")?.unwrap());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn send(&mut self, _position: Option<isize>) -> Result<()> {
+        let client = surf::client();
+        // initialize the position of the cursor
+        self.inner.set_position(0);
+
+        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let mut request_builder = surf::RequestBuilder::new(self.method, url);
+
+        if let Some(ref mut authenticator_type) = self.authenticator_type {
+            let authenticator = authenticator_type.authenticator_mut();
+            authenticator.set_parameters(self.parameters.clone());
+            request_builder = authenticator.authenticate(request_builder).await?;
+        }
+
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+        }
+
+        if !self.headers.is_empty() {
+            for (key, value) in self.headers.iter() {
+                request_builder = request_builder.header(key.as_str(), value.as_str());
+            }
+        }
+
+        let req = request_builder.body(self.inner.get_ref().to_vec()).build();
+        let mut res = client
+            .send(req)
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        let data = res
+            .body_bytes()
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+        if !res.status().is_success() {
+            return Err(Error::new(
+                ErrorKind::Interrupted,
                 format!(
-                    "Http response code '{}', with message '{}'",
-                    response_code,
-                    String::from_utf8_lossy(received_data.get_ref())
+                    "Curl failed with status code '{}' and response body: {}",
+                    res.status(),
+                    String::from_utf8(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                 ),
-            )),
-        }?;
+            ));
+        }
 
-        self.inner.flush()?;
-        self.inner = Cursor::new(Vec::default());
+        self.clear();
 
-        if self.can_flush_and_read {
-            self.inner.write_all(received_data.get_ref())?;
+        if !data.is_empty() {
+            self.inner.write_all(&data)?;
             self.inner.set_position(0);
         }
 
-        debug!(slog_scope::logger(), "Flush ended");
         Ok(())
+    }
+    /// See [`Connector::erase`] for more details.
+    ///
+    /// # Example
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.path = "/status/200".to_string();
+    ///     connector.erase().await?;
+    ///     assert_eq!(true, connector.is_empty().await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn erase(&mut self) -> Result<()> {
+        let client = surf::client();
+        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let mut request_builder = surf::RequestBuilder::new(Method::Delete, url);
+
+        if let Some(ref mut authenticator_type) = self.authenticator_type {
+            let authenticator = authenticator_type.authenticator_mut();
+            authenticator.set_parameters(self.parameters.clone());
+            request_builder = authenticator.authenticate(request_builder).await?;
+        }
+
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+        }
+
+        if !self.headers.is_empty() {
+            for (key, value) in self.headers.iter() {
+                request_builder = request_builder.header(key.as_str(), value.as_str());
+            }
+        }
+
+        let req = request_builder.build();
+        let mut res = client
+            .send(req)
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if !res.status().is_success() {
+            return Err(Error::new(
+                ErrorKind::Interrupted,
+                format!(
+                    "Curl failed with status code '{}' and response body: {}",
+                    res.status(),
+                    res.body_string()
+                        .await
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                ),
+            ));
+        }
+
+        Ok(())
+    }
+    /// See [`Writer::inner`] for more details.
+    fn inner(&self) -> &Vec<u8> {
+        self.inner.get_ref()
+    }
+    /// See [`Connector::clear`] for more details.
+    fn clear(&mut self) {
+        self.inner = Default::default();
+    }
+}
+
+#[async_trait]
+impl async_std::io::Read for Curl {
+    /// See [`async_std::io::Read::poll_read`] for more details.
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
+    }
+}
+
+#[async_trait]
+impl async_std::io::Write for Curl {
+    /// See [`async_std::io::Write::poll_write`] for more details.
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
+    }
+    /// See [`async_std::io::Write::poll_flush`] for more details.
+    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(std::io::Write::flush(&mut self.inner))
+    }
+    /// See [`async_std::io::Write::poll_close`] for more details.
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.poll_flush(cx)
+    }
+}
+
+#[derive(Debug)]
+pub struct CurlPaginator {
+    connector: Curl,
+    skip: usize,
+    has_next: bool,
+}
+
+impl CurlPaginator {
+    pub fn new(connector: Curl) -> Self {
+        CurlPaginator {
+            connector: connector.clone(),
+            skip: connector.skip,
+            has_next: true,
+        }
+    }
+}
+
+#[async_trait]
+impl Paginator for CurlPaginator {
+    /// See [`Paginator::next_page`] for more details.
+    ///
+    /// # Example: Paginate through the remove document.
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, curl::PaginatorParameters, Connector};
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/links/{{n}}/{{offset}}".to_string();
+    ///     connector.limit = 1;
+    ///     connector.skip = 0;
+    ///     let paginator_parameters = PaginatorParameters { skip: "n".to_string(), limit: "offset".to_string() };
+    ///     connector.paginator_parameters = Some(paginator_parameters);
+    ///     let mut paginator = connector.paginator().await?;
+    ///
+    ///     let mut reader = paginator.next_page().await?.unwrap();     
+    ///     let mut buffer1 = String::default();
+    ///     let len1 = reader.read_to_string(&mut buffer1).await?;
+    ///     assert!(0 < len1, "Can't read the content of the file.");
+    ///
+    ///     let mut reader = paginator.next_page().await?.unwrap();     
+    ///     let mut buffer2 = String::default();
+    ///     let len2 = reader.read_to_string(&mut buffer2).await?;
+    ///     assert!(0 < len2, "Can't read the content of the file.");
+    ///     assert!(buffer1 != buffer2, "The content of this two files is not different.");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Paginate one time on a remove document.
+    /// ```rust
+    /// use chewdata::connector::{curl::Curl, curl::PaginatorParameters, Connector};
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/get".to_string();
+    ///     let mut paginator = connector.paginator().await?;
+    ///
+    ///     let mut reader = paginator.next_page().await?;     
+    ///     assert!(reader.is_some());
+    ///
+    ///     let mut reader = paginator.next_page().await?;
+    ///     assert!(reader.is_none());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn next_page(
+        &mut self
+    ) -> Result<Option<Box<dyn Connector>>> {
+        Ok(match self.has_next {
+            true => {
+                self.skip += self.connector.limit;
+
+                let mut new_connector = self.connector.clone();
+                let mut new_parameters = Value::default();
+                new_parameters.merge(self.connector.parameters.clone());
+
+                if let Some(paginator_parameters) = self.connector.paginator_parameters.clone() {
+                    new_parameters.merge(serde_json::from_str(
+                        format!(
+                            r#"{{"{}":"{}"}}"#,
+                            paginator_parameters.limit, self.connector.limit
+                        )
+                        .as_str(),
+                    )?);
+                    new_parameters.merge(serde_json::from_str(
+                        format!(r#"{{"{}":"{}"}}"#, paginator_parameters.skip, self.skip).as_str(),
+                    )?);
+                }
+
+                if self.connector.paginator_parameters.clone().is_none() {
+                    self.has_next = false;
+                }
+
+                new_connector.set_parameters(new_parameters);
+                new_connector.fetch().await?;
+
+                Some(Box::new(new_connector))
+            }
+            false => None,
+        })
     }
 }

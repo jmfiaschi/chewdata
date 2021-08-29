@@ -9,6 +9,8 @@ pub mod curl;
 pub mod in_memory;
 pub mod io;
 pub mod local;
+#[cfg(feature = "use_mongodb_connector")]
+pub mod mongodb;
 
 #[cfg(feature = "use_bucket_connector")]
 use self::bucket::Bucket;
@@ -19,37 +21,44 @@ use self::curl::Curl;
 use self::in_memory::InMemory;
 use self::io::Io;
 use self::local::Local;
+#[cfg(feature = "use_mongodb_connector")]
+use self::mongodb::Mongodb;
+use crate::document::Document;
+use crate::Dataset;
 use crate::Metadata;
+use async_std::io::{Read, Write};
+use async_stream::stream;
+use async_trait::async_trait;
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
-use std::io::{Error, ErrorKind, Read, Result, Write};
+use std::io::{Error, ErrorKind, Result};
+use std::pin::Pin;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum ConnectorType {
     #[serde(rename = "in_memory")]
     #[serde(alias = "mem")]
-    #[serde(alias = "m")]
     InMemory(InMemory),
     #[serde(rename = "io")]
-    #[serde(alias = "i")]
     Io(Io),
     #[serde(rename = "local")]
-    #[serde(alias = "l")]
     Local(Local),
     #[cfg(feature = "use_bucket_connector")]
     #[serde(rename = "bucket")]
-    #[serde(alias = "b")]
     Bucket(Bucket),
     #[cfg(feature = "use_bucket_connector")]
     #[serde(rename = "bucket_select")]
-    #[serde(alias = "bs")]
     BucketSelect(BucketSelect),
     #[cfg(feature = "use_curl_connector")]
     #[serde(rename = "curl")]
-    #[serde(alias = "c")]
     Curl(Curl),
+    #[cfg(feature = "use_mongodb_connector")]
+    #[serde(rename = "mongodb")]
+    #[serde(alias = "mongo")]
+    Mongodb(Mongodb),
 }
 
 impl Default for ConnectorType {
@@ -58,35 +67,8 @@ impl Default for ConnectorType {
     }
 }
 
-impl std::fmt::Display for ConnectorType {
-    /// Display a inner buffer into `Connector`.
-    ///
-    /// # Example
-    /// ```
-    /// use chewdata::connector::{ConnectorType, in_memory::InMemory};
-    /// use std::io::Write;
-    ///
-    /// let mut connector_type = ConnectorType::InMemory(InMemory::new(""));
-    /// connector_type.connector_mut().write_all("My text".to_string().into_bytes().as_slice()).unwrap();
-    /// assert_eq!("My text", format!("{}", connector_type));
-    /// ```
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConnectorType::InMemory(connector) => write!(f, "{}", connector),
-            ConnectorType::Io(connector) => write!(f, "{}", connector),
-            ConnectorType::Local(connector) => write!(f, "{}", connector),
-            #[cfg(feature = "use_curl_connector")]
-            ConnectorType::Curl(connector) => write!(f, "{}", connector),
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::Bucket(connector) => write!(f, "{}", connector),
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::BucketSelect(connector) => write!(f, "{}", connector),
-        }
-    }
-}
-
 impl ConnectorType {
-    pub fn connector_inner(self) -> Box<dyn Connector> {
+    pub fn connector(self) -> Box<dyn Connector> {
         match self {
             ConnectorType::InMemory(connector) => Box::new(connector),
             ConnectorType::Io(connector) => Box::new(connector),
@@ -97,58 +79,118 @@ impl ConnectorType {
             ConnectorType::Bucket(connector) => Box::new(connector),
             #[cfg(feature = "use_bucket_connector")]
             ConnectorType::BucketSelect(connector) => Box::new(connector),
-        }
-    }
-    pub fn connector(&self) -> &dyn Connector {
-        match self {
-            ConnectorType::InMemory(connector) => connector,
-            ConnectorType::Io(connector) => connector,
-            ConnectorType::Local(connector) => connector,
-            #[cfg(feature = "use_curl_connector")]
-            ConnectorType::Curl(connector) => connector,
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::Bucket(connector) => connector,
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::BucketSelect(connector) => connector,
-        }
-    }
-    pub fn connector_mut(&mut self) -> &mut dyn Connector {
-        match self {
-            ConnectorType::InMemory(connector) => connector,
-            ConnectorType::Io(connector) => connector,
-            ConnectorType::Local(connector) => connector,
-            #[cfg(feature = "use_curl_connector")]
-            ConnectorType::Curl(connector) => connector,
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::Bucket(connector) => connector,
-            #[cfg(feature = "use_bucket_connector")]
-            ConnectorType::BucketSelect(connector) => connector,
+            #[cfg(feature = "use_mongodb_connector")]
+            ConnectorType::Mongodb(connector) => Box::new(connector),
         }
     }
 }
 
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
-pub trait Connector: Read + Write + Send {
+#[async_trait]
+pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Read + Write {
+    // Fetch data from the resource and set the inner of the connector.
+    async fn fetch(&mut self) -> Result<()>;
+    // Pull the data from the inner connector, transform the data with the document type and return data as a stream.
+    async fn pull_data(&mut self, document: Box<dyn Document>) -> std::io::Result<Dataset> {
+        let mut paginator = self.paginator().await?;
+
+        Ok(Box::pin(stream! {
+            while let Some(ref mut connector_reader) = match paginator.next_page().await {
+                Ok(connector_option) => connector_option,
+                Err(e) => {
+                    error!(slog_scope::logger(), "Can't get the next paginator"; "error" => e, "document" => format!("{:?}", document));
+                    None
+                }
+            } {
+                debug!(slog_scope::logger(), "Next page started"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
+
+                // If the data in the connector contain empty data like "{}" or "<entry_path></entry_path>" stop the loop.
+                let inner = match std::str::from_utf8(connector_reader.inner()) {
+                    Ok(inner) => inner,
+                    Err(e) => {
+                        error!(slog_scope::logger(), "Can't decode the connector inner"; "connector" => format!("{:?}", connector_reader), "error" => e.to_string(), "document" => format!("{:?}", document));
+                        break;
+                    }
+                };
+                if !document.has_data(inner) {
+                    info!(slog_scope::logger(), "The connector contain empty data. The pagination stop"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
+                    break;
+                }
+
+                let mut dataset = match document.read_data(connector_reader).await {
+                    Ok(dataset) => dataset,
+                    Err(e) => {
+                        error!(slog_scope::logger(), "Can't pull the data"; "connector" => format!("{:?}", connector_reader), "error" => e, "document" => format!("{:?}", document));
+                        break;
+                    }
+                };
+                while let Some(data_result) = dataset.next().await {
+                    yield data_result;
+                }
+                debug!(slog_scope::logger(), "Next page ended"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
+            }
+        }))
+    }
+    // Send the data from the inner connector to the remote resource.
+    async fn send(&mut self, position: Option<isize>) -> Result<()>;
+    fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool>;
     /// Set parameters.
     fn set_parameters(&mut self, parameters: Value);
-    /// Get the resolved path.
-    fn path(&self) -> String;
-    /// Get the connect buffer inner reference.
-    fn inner(&self) -> &Vec<u8>;
-    /// Check if the connector and the document have data.
-    fn is_empty(&self) -> Result<bool>;
-    /// Get the truncate value.
-    fn will_be_truncated(&self) -> bool;
-    /// Append the inner buffer into the end of the document and flush the inner buffer.
-    fn seek_and_flush(&mut self, _position: i64) -> Result<()> {
-        self.flush()
+    /// Set the connector metadata that can change with the document metadata.
+    fn set_metadata(&mut self, _metadata: Metadata) {}
+    /// Get the connector metadata
+    fn metadata(&self) -> Metadata {
+        Metadata::default()
     }
-    /// Get the total document size.
-    fn len(&self) -> Result<usize> {
+    /// Test if the connector is variable and if the context change, the resource will change.
+    fn is_variable(&self) -> bool;
+    /// Check if the resource is empty.
+    async fn is_empty(&mut self) -> Result<bool> {
         Err(Error::new(ErrorKind::NotFound, "function not implemented"))
     }
-    /// Set the metadata of the connection.
-    fn set_metadata(&mut self, _metadata: Metadata) {}
-    /// Change the value of the flush_and_read parameter. Used to update the inner with the document content after flush.
-    fn set_flush_and_read(&mut self, _flush_and_read: bool) {}
+    /// Get the resource size of the current path.
+    async fn len(&mut self) -> Result<usize> {
+        Err(Error::new(ErrorKind::NotFound, "function not implemented"))
+    }
+    /// Path of the document
+    fn path(&self) -> String;
+    /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>>;
+    /// Erase the content of the resource.
+    async fn erase(&mut self) -> Result<()> {
+        Err(Error::new(ErrorKind::NotFound, "function not implemented"))
+    }
+    /// clear the inner
+    fn clear(&mut self);
+    /// Get the connect buffer inner reference.
+    fn inner(&self) -> &Vec<u8>;
+}
+
+impl fmt::Display for dyn Connector {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.path())
+    }
+}
+pub trait ConnectorClone {
+    fn clone_box(&self) -> Box<dyn Connector>;
+}
+
+impl<T> ConnectorClone for T
+where
+    T: 'static + Connector + Clone,
+{
+    fn clone_box(&self) -> Box<dyn Connector> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Connector> {
+    fn clone(&self) -> Box<dyn Connector> {
+        self.clone_box()
+    }
+}
+
+#[async_trait]
+pub trait Paginator: std::fmt::Debug + Unpin {
+    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>>;
 }
