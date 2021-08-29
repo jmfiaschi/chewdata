@@ -393,6 +393,8 @@ impl BucketSelect {
         .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
         .build();
 
+        println!("req {:?}", req);
+
         let mut res = client
             .send(req)
             .await
