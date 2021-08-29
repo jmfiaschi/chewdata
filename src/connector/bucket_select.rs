@@ -109,9 +109,7 @@ impl BucketSelect {
     /// connector.path = "my-key".to_string();
     /// connector.query = "my-query".to_string();
     /// connector.metadata = Metadata {
-    ///     mime_type: Some("application".to_string()),
-    ///     mime_subtype: Some("json".to_string()),
-    ///     ..Default::default()
+    ///     ..Json::default().metadata
     /// };
     ///
     /// let select_object_content_request_expected = SelectObjectContentRequest {
@@ -149,9 +147,7 @@ impl BucketSelect {
     /// connector.path = "my-key".to_string();
     /// connector.query = "my-query".to_string();
     /// connector.metadata = Metadata {
-    ///     mime_type: Some("application".to_string()),
-    ///     mime_subtype: Some("x-ndjson".to_string()),
-    ///     ..Default::default()
+    ///     ..Jsonl::default().metadata
     /// };
     ///
     /// let select_object_content_request_expected = SelectObjectContentRequest {
@@ -189,9 +185,6 @@ impl BucketSelect {
     /// connector.path = "my-key".to_string();
     /// connector.query = "my-query".to_string();
     /// connector.metadata = Metadata {
-    ///     mime_type: Some("text".to_string()),
-    ///     mime_subtype: Some("csv".to_string()),
-    ///     has_headers: Some(true),
     ///     ..Csv::default().metadata
     /// };
     ///
@@ -237,8 +230,6 @@ impl BucketSelect {
     /// connector.path = "my-key".to_string();
     /// connector.query = "my-query".to_string();
     /// connector.metadata = Metadata {
-    ///     mime_type: Some("text".to_string()),
-    ///     mime_subtype: Some("csv".to_string()),
     ///     has_headers: Some(false),
     ///     ..Csv::default().metadata
     /// };
@@ -381,6 +372,8 @@ impl BucketSelect {
                 ),
             };
 
+        println!("select_object_content_request {:?}", self.select_object_content_request());
+            
         let select_object_content_request = self.select_object_content_request();
         let req = surf_bucket_select::select_object_content(
             endpoint,
@@ -690,6 +683,7 @@ impl Connector for BucketSelect {
     /// # Example
     /// ```rust
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
+    /// use chewdata::document::json::Json;
     /// use surf::http::Method;
     /// use chewdata::Metadata;
     /// use std::io;
@@ -700,6 +694,9 @@ impl Connector for BucketSelect {
     ///
     ///     assert_eq!(0, connector.inner().len());
     ///
+    ///     connector.metadata = Metadata {
+    ///         ..Json::default().metadata
+    ///     };
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.access_key_id = Some("minio_access_key".to_string());
