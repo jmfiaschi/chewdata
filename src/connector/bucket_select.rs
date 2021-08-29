@@ -422,6 +422,8 @@ impl BucketSelect {
             return Ok(buffer)
         }
 
+        println!("body_bytes {:?}", String::from_utf8_lossy(&body_bytes.clone()));
+
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
 
@@ -504,7 +506,7 @@ impl BucketSelect {
             return Ok(buffer)
         }
 
-        println!("body_bytes {:?}", String::from_utf8(body_bytes.clone()).unwrap());
+        println!("body_bytes {:?}", String::from_utf8_lossy(&body_bytes.clone()));
 
         let mut event_stream =
             EventStream::<SelectObjectContentEventStreamItem>::new(body_bytes.clone());
