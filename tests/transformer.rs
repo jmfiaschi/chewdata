@@ -70,7 +70,7 @@ mod transformer {
         ];
         let configs = [(
             "tera",
-            r#"[{"type":"r", "connector":{"type":"local","path":"./data/one_line.json"}},{"type": "t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type": "w"}]"#,
+            r#"[{"type":"r", "connector":{"type":"local","path":"./data/one_line.json"}},{"type": "t","updater": {"type":"{{ TEMPLATE_ENGINE }}"},"actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]},{"type": "w"}]"#,
         )];
         patterns
             .iter()
@@ -128,7 +128,7 @@ mod transformer {
         )];
         let configs = [(
             "tera",
-            r#"[{"type":"r","connector":{"type":"local","path":"{{ INPUT_FILE_PATH }}"}},{"type":"t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w"}]"#,
+            r#"[{"type":"r","connector":{"type":"local","path":"{{ INPUT_FILE_PATH }}"}},{"type":"t","updater": {"type":"{{ TEMPLATE_ENGINE }}"},"actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]},{"type":"w"}]"#,
         )];
         patterns
             .iter()
@@ -193,7 +193,7 @@ mod transformer {
         ];
         let configs = [(
             "tera",
-            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater": {"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"object1","pattern":"{\"field1\":\"value1\"}"},{"field":"object2","pattern":"{\"field2\":\"value2\"}"},{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w"}]"#,
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater": {"type":"{{ TEMPLATE_ENGINE }}"},"actions":[{"field":"object1","pattern":"{\"field1\":\"value1\"}"},{"field":"object2","pattern":"{\"field2\":\"value2\"}"},{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]},{"type":"w"}]"#,
         )];
         patterns
             .iter()
@@ -250,7 +250,7 @@ mod transformer {
         )];
         let configs = [(
             "tera",
-            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]},"refs":[{"type":"reader","alias":"alias_mapping","document":{"type":"json"},"connector":{"type":"local","path":"./data/mapping.json"}}]},{"type": "w"}]"#,
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"{{ TEMPLATE_ENGINE }}"},"actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}],"refs":{"alias_mapping":{"connector":{"type":"local","path":"./data/mapping.json"}}}},{"type": "w"}]"#,
         )];
         patterns
             .iter()
@@ -307,7 +307,7 @@ mod transformer {
         )];
         let configs = [(
             "tera",
-            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"{{ TEMPLATE_ENGINE }}","actions":[{"field":"/my_field","pattern":"{{ FIELD_PATTERN_TERA }}"}]}},{"type":"w","data_type": "err"}]"#,
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","updater":{"type":"{{ TEMPLATE_ENGINE }}"},"actions":[{"field":"/my_field","pattern":"{{ FIELD_PATTERN_TERA }}"}]},{"type":"w","data_type": "err"}]"#,
         )];
         patterns
             .iter()

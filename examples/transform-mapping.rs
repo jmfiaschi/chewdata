@@ -33,14 +33,25 @@ async fn main() -> io::Result<()> {
         "type": "t",
         "actions": [
             {
-                "field":"test",
-                "pattern": "{{ throw(message='I throw an error!') }}"
+                "field":"/",
+                "pattern": "{{ input | json_encode() }}"
+            },
+            {
+                "field":"new_id",
+                "pattern": "{{ alias_mapping[1].number * input.number }}"
             }
-        ]
+        ],
+        "referentials":{
+            "alias_mapping": {
+                "connector": {
+                    "type": "local",
+                    "path": "./data/multi_lines.json"
+                }
+            }
+        }
     },
     {
-        "type": "w",
-        "data_type": "err"
+        "type": "w"
     }]
     "#;
 
