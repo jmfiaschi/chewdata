@@ -7,7 +7,6 @@ pub mod text;
 pub mod toml;
 #[cfg(feature = "use_xml_document")]
 pub mod xml;
-#[cfg(feature = "use_yaml_document")]
 pub mod yaml;
 
 #[cfg(feature = "use_csv_document")]
@@ -19,7 +18,6 @@ use self::text::Text;
 use self::toml::Toml;
 #[cfg(feature = "use_xml_document")]
 use self::xml::Xml;
-#[cfg(feature = "use_yaml_document")]
 use self::yaml::Yaml;
 use crate::connector::Connector;
 use crate::Dataset;
@@ -42,7 +40,6 @@ pub enum DocumentType {
     #[cfg(feature = "use_xml_document")]
     #[serde(rename = "xml")]
     Xml(Xml),
-    #[cfg(feature = "use_yaml_document")]
     #[serde(rename = "yaml")]
     #[serde(alias = "yml")]
     Yaml(Yaml),
@@ -69,7 +66,6 @@ impl DocumentType {
             DocumentType::Jsonl(document) => Box::new(document),
             #[cfg(feature = "use_xml_document")]
             DocumentType::Xml(document) => Box::new(document),
-            #[cfg(feature = "use_yaml_document")]
             DocumentType::Yaml(document) => Box::new(document),
             #[cfg(feature = "use_toml_document")]
             DocumentType::Toml(document) => Box::new(document),
@@ -84,7 +80,6 @@ impl DocumentType {
             DocumentType::Jsonl(document) => document,
             #[cfg(feature = "use_xml_document")]
             DocumentType::Xml(document) => document,
-            #[cfg(feature = "use_yaml_document")]
             DocumentType::Yaml(document) => document,
             #[cfg(feature = "use_toml_document")]
             DocumentType::Toml(document) => document,
@@ -99,7 +94,6 @@ impl DocumentType {
             DocumentType::Jsonl(document) => document,
             #[cfg(feature = "use_xml_document")]
             DocumentType::Xml(document) => document,
-            #[cfg(feature = "use_yaml_document")]
             DocumentType::Yaml(document) => document,
             #[cfg(feature = "use_toml_document")]
             DocumentType::Toml(document) => document,
@@ -185,7 +179,6 @@ mod test {
             serde_json::from_str(config).expect("Can't deserialize the config");
         assert_eq!(document_builder_expected, document_builder_result);
     }
-    #[cfg(feature = "use_yaml_document")]
     #[test]
     fn it_should_deserialize_in_yaml_type() {
         let config = r#"{"type":"yaml"}"#;

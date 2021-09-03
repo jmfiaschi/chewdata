@@ -20,9 +20,6 @@ pub struct Writer {
     pub alias: Option<String>,
     pub description: Option<String>,
     pub data_type: String,
-    // Write in parallel mode. The data order write into the document is not respected.
-    // By default, set to true in order to parallize the writting.
-    pub is_parallel: bool,
     pub dataset_size: usize,
     #[serde(alias = "wait")]
     pub wait_in_milisec: u64,
@@ -37,7 +34,6 @@ impl Default for Writer {
             alias: None,
             description: None,
             data_type: DataResult::OK.to_string(),
-            is_parallel: true,
             dataset_size: 1000,
             wait_in_milisec: 10,
             thread_number: 1,

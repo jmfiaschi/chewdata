@@ -3,8 +3,6 @@ extern crate slog;
 extern crate glob;
 extern crate json_value_merge;
 extern crate json_value_resolve;
-extern crate rusoto_core;
-extern crate rusoto_s3;
 extern crate serde;
 extern crate serde_json;
 extern crate multiqueue2 as multiqueue;
