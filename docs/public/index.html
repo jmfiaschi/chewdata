@@ -4,18 +4,18 @@
         <meta charset="UTF-8">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="{% block description %}{{ config.description }}{% endblock description %}">
-        <meta name="author" content="{{ config.extra.author }}">
-        <title>{% block title %}{{ config.title }}{% endblock title %}</title>
-        <link rel="stylesheet" href="{{ get_url(path="site.css") }}"/>
-        <link rel="icon" href="{{ get_url(path="favicon.ico") }}">
+        <meta name="description" content="ChewData is a light ETL in Rust">
+        <meta name="author" content="Jean-Marc Fiaschi">
+        <title>ChewData</title>
+        <link rel="stylesheet" href="https://chewdata.github.io/site.css"/>
+        <link rel="icon" href="https://chewdata.github.io/favicon.ico">
     </head>
     <body>
 
         <header>
-            <nav class="{% block extra_nav_class %}container{% endblock extra_nav_class %}">
-                <a class="header__logo white" href="{{ config.base_url }}">Chew...Data</a>
-                <a class="white" href="{{ get_url(path="@/documentation/_index.md") }}" class="nav-link">Docs</a>
+            <nav class="container">
+                <a class="header__logo white" href="https:&#x2F;&#x2F;chewdata.github.io&#x2F;">Chew...Data</a>
+                <a class="white" href="https://chewdata.github.io/documentation/" class="nav-link">Docs</a>
                 <a class="white" href="https://github.com/jmfiaschi/chewdata" class="nav-link" target="_blank">GitHub</a>
 
                 <div class="search-container">
@@ -28,14 +28,14 @@
             </nav>
         </header>
 
-        <div class="content {% block extra_content_class %}{% endblock extra_content_class %}">
-            {% block content %}
+        <div class="content ">
+            
                 <div class="hero">
                     <h1>Extract Transform and Load data everywhere with a simple Command Line Interface</h1>
                     <p class="hero__tagline">
                         Try together to simplify our life
                     </p>
-                    <a href="{{ get_url(path="@/documentation/_index.md") }}" class="button">Get started</a>
+                    <a href="https://chewdata.github.io/documentation/" class="button">Get started</a>
                 </div>
 
                 <div class="inverted-colours selling-points">
@@ -57,7 +57,7 @@
                         <div class="selling-point">
                             <h2>Scalable and Parallelizable</h2>
                             <p>
-                                The application is a simple job that can be executed a multiple time in different context. It possible to chain command for complex flows.
+                                The application is a simple job that can be executed a multiple time in different context.
                             </p>
                         </div>
 
@@ -71,29 +71,32 @@
                         <div class="selling-point">
                             <h2>Customize your package</h2>
                             <p>
-                                With rust's feature flags, enable only required componants.<br/>
-                                See the <a href="{{ get_url(path="@/documentation/componants/features.md") }}" title="features documentation">features documentation</a>
+                                With rust's feature flags, enable only required componants.
+                                <p style="overflow-x: auto;padding: 0.5em;background: #002b36;color: #839496;">
+                                    cargo install chewdata --no-default-features --features "use_bucket_connector use_curl_connector"<br/>
+                                </p>
                             </p>
                         </div>
                         <div class="selling-point">
                             <h2>Easy to install</h2>
-                            <p>
-                                Install the project with only one command.<br>
-                                See the <a href="{{ get_url(path="@/documentation/getting-started/installation.md") }}" title="installation documentation">installation documentation</a> page
+                            <p style="overflow-x: auto;padding: 0.5em;background: #002b36;color: #839496;">
+                                cargo install chewdata<br/>
+                                echo '{"field":"value"}' | chewdata<br/>
+                                >> [{"field":"value"}]
                             </p>
                         </div>
                     </div>
                 </div>
 
-            {% endblock content %}
+            
         </div>
         <footer>
             <div>©2020 — <a class="white">Jean-Marc Fiaschi</a></div><br/>
             <div>Powered by <a href="https://www.getzola.org/" target="_blank">Zola</a></div>
         </footer>
 
-        <script type="text/javascript" src="{{ get_url(path="elasticlunr.min.js") }}"></script>
-        <script type="text/javascript" src="{{ get_url(path="search_index.en.js") }}"></script>
-        <script type="text/javascript" src="{{ get_url(path="search.js") }}"></script>
+        <script type="text/javascript" src="https://chewdata.github.io/elasticlunr.min.js"></script>
+        <script type="text/javascript" src="https://chewdata.github.io/search_index.en.js"></script>
+        <script type="text/javascript" src="https://chewdata.github.io/search.js"></script>
     </body>
 </html>

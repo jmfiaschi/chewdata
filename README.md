@@ -17,6 +17,7 @@ This application is an simple ETL in rust that can be use as a connector between
 * No garbage collector
 * Parallel work
 * Multi platforms
+* Use [tera template](https://tera.netlify.app/docs) in order to configure the actions for the data transformation
 
 the target of this project is to simplify the work of developers and simplify the connection between system. 
 The work is not finished but I hope it will be useful for you.
