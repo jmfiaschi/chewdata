@@ -97,6 +97,10 @@ stop:
 clean:
 	@sudo rm -Rf cache
 
+docs:
+	@cd docs
+	@zola build
+
 # Shell colors.
 RED=\033[0;31m
 LIGHT_RED=\033[1;31m
