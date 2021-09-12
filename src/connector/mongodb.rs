@@ -365,7 +365,7 @@ impl Connector for Mongodb {
             };
 
             let mut doc_without_id = doc.clone();
-            if let Some(_) = doc_without_id.get("_id") {
+            if doc_without_id.get("_id").is_some() {
                 doc_without_id.remove("_id");
             }
 
@@ -394,7 +394,7 @@ impl Connector for Mongodb {
                     "connector" => format!("{}", self),
                 );
             }
-            if let Some(_) = result.upserted_id {
+            if result.upserted_id.is_some() {
                 debug!(
                     slog_scope::logger(),
                     "Document(s) inserted into the connection";

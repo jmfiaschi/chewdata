@@ -35,7 +35,7 @@ impl Updater for Tera {
         debug!(slog_scope::logger(), "Update"; "input" => format!("{}", object), "updater" => format!("{}", self));
         let mut engine = Tera::engine();
         let mut context = tera::Context::new();
-        context.insert(input_name.clone(), &object);
+        context.insert(input_name, &object);
 
         if let Some(mapping) = mapping {
             for (field_path, object) in mapping {

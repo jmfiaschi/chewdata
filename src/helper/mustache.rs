@@ -67,7 +67,7 @@ impl Mustache for String {
         let mut resolved_path = self.to_owned();
 
         if let Value::Null = object {
-            return ();
+            return;
         }
 
         let regex = Regex::new("\\{{2}([^}]*)\\}{2}").unwrap();
@@ -180,25 +180,25 @@ fn value_has_mustache(value: &Value) -> bool {
             false
         }
         Value::String(a) => {
-            return a.has_mustache();
+            a.has_mustache()
         }
         _ => false
     }
 }
 
 fn value_replace_mustache(value: &mut Value, object: &Value) {
-    match value {
-        &mut Value::Object(ref mut a) => {
+    match *value {
+        Value::Object(ref mut a) => {
             for (_k, v) in a {
                 value_replace_mustache(v, object);
             }
         }
-        &mut Value::Array(ref mut a) => {
+        Value::Array(ref mut a) => {
             for i in a {
                 value_replace_mustache(i, object);
             }
         }
-        &mut Value::String(ref mut a) => {
+        Value::String(ref mut a) => {
             if a.has_mustache() {
                 a.replace_mustache(object.clone());
                 *value = Value::resolve(a.clone());

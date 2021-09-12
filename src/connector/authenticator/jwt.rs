@@ -359,7 +359,7 @@ impl Authenticator for Jwt {
 
         if let Some(token) = token_option.clone() {
             if token.has_mustache() {
-                let mut token = token.clone();
+                let mut token = token;
                 token.replace_mustache(*parameters.clone());
                 token_option = Some(token);
             }
