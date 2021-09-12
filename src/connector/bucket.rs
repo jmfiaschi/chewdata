@@ -34,7 +34,9 @@ pub struct Bucket {
     pub secret_access_key: Option<String>,
     pub region: String,
     pub bucket: String,
+    #[serde(alias = "key")]
     pub path: String,
+    #[serde(alias = "params")]
     pub parameters: Box<Value>,
     pub limit: Option<usize>,
     pub skip: usize,
@@ -185,8 +187,11 @@ impl Connector for Bucket {
             return Ok(false);
         }
 
-        let actuel_path = self.path.clone().replace_mustache(*self.parameters.clone());
-        let new_path = self.path.clone().replace_mustache(new_parameters);
+        let mut actuel_path = self.path.clone();
+        actuel_path.replace_mustache(*self.parameters.clone());
+        
+        let mut new_path = self.path.clone();
+        new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
             return Ok(false);
@@ -210,7 +215,11 @@ impl Connector for Bucket {
     /// ```
     fn path(&self) -> String {
         match (self.is_variable(), *self.parameters.clone()) {
-            (true, params) => self.path.clone().replace_mustache(params),
+            (true, params) => {
+                let mut path = self.path.clone();
+                path.replace_mustache(params);
+                path
+            },
             _ => self.path.clone(),
         }
     }

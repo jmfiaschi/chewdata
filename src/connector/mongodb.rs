@@ -1,10 +1,10 @@
 use super::{Connector, Paginator};
-use crate::Metadata;
+use crate::helper::mustache::Mustache;
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
-    bson::{doc, oid::ObjectId, Document},
-    options::{FindOptions, InsertOneOptions, UpdateOptions},
+    bson::{doc, Document},
+    options::{FindOptions, UpdateOptions},
     Client,
 };
 use serde::{Deserialize, Serialize};
@@ -13,25 +13,38 @@ use std::io::{Cursor, Error, ErrorKind, Result};
 use std::task::{Context, Poll};
 use std::{fmt, pin::Pin};
 
-#[derive(Deserialize, Serialize, Clone, Default)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Mongodb {
-    #[serde(rename = "metadata")]
-    #[serde(alias = "meta")]
-    pub metadata: Metadata,
     pub endpoint: String,
     #[serde(alias = "db")]
     pub database: String,
     #[serde(alias = "col")]
     pub collection: String,
-    pub filter: Box<Option<Document>>,
+    pub query: Box<Option<Value>>,
+    #[serde(alias = "projection")]
     pub find_options: Box<Option<FindOptions>>,
     #[serde(skip_serializing)]
     pub update_options: Box<Option<UpdateOptions>>,
-    #[serde(skip_serializing)]
-    pub insert_options: Box<Option<InsertOneOptions>>,
     #[serde(skip)]
     pub inner: Box<Cursor<Vec<u8>>>,
+}
+
+impl Default for Mongodb {
+    fn default() -> Self {
+        let mut update_option = UpdateOptions::default();
+        update_option.upsert = Some(true);
+
+        Mongodb {
+            endpoint: Default::default(),
+            database: Default::default(),
+            collection: Default::default(),
+            query: Default::default(),
+            find_options: Default::default(),
+            update_options: Box::new(Some(update_option)),
+            inner: Default::default(),
+        }
+    }
 }
 
 impl fmt::Display for Mongodb {
@@ -51,24 +64,15 @@ impl fmt::Debug for Mongodb {
             .field("endpoint", &self.endpoint)
             .field("collection", &self.collection)
             .field("database", &self.database)
-            .field("filter", &self.filter)
+            .field("query", &self.query)
             .field("find_options", &self.find_options)
             .field("update_options", &self.update_options)
-            .field("insert_options", &self.insert_options)
             .finish()
     }
 }
 
 #[async_trait]
 impl Connector for Mongodb {
-    /// See [`Connector::set_metadata`] for more details.
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
-    /// See [`Connector::metadata`] for more details.
-    fn metadata(&self) -> Metadata {
-        self.metadata.clone()
-    }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
         format!("{}/{}/{}", self.endpoint, self.database, self.collection)
@@ -161,7 +165,14 @@ impl Connector for Mongodb {
         let database = self.database.clone();
         let collection = self.collection.clone();
         let options = *self.find_options.clone();
-        let filter = *self.filter.clone();
+        let query: Option<Document> = match *self.query {
+            Some(ref query) => serde_json::from_str(
+                query
+                .to_string()
+                .as_str(),
+            )?,
+            None => None
+        };
 
         let client = Client::with_uri_str(&hostname)
             .await
@@ -169,7 +180,7 @@ impl Connector for Mongodb {
         let db = client.database(&database);
         let collection = db.collection(&collection);
         let cursor: mongodb::Cursor = collection
-            .find(filter, options)
+            .find(query, options)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
         let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect().await;
@@ -237,7 +248,9 @@ impl Connector for Mongodb {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
-    ///     connector.collection = "send".into();
+    ///     connector.collection = "send_1".into();
+    ///     connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#)?;
+    ///     connector.update_options = serde_json::from_str(r#"{"upsert":true}"#)?;
     ///     connector.erase().await?;
     ///
     ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
@@ -245,6 +258,7 @@ impl Connector for Mongodb {
     ///
     ///     let mut buffer = String::default();
     ///     let mut connector_reader = connector.clone();
+    ///     connector_reader.query = Default::default();
     ///     connector_reader.fetch().await?;
     ///     connector_reader.read_to_string(&mut buffer).await?;
     ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
@@ -255,12 +269,14 @@ impl Connector for Mongodb {
     ///
     ///     let mut buffer = String::default();
     ///     let mut connector_reader = connector.clone();
+    ///     connector_reader.query = Default::default();
     ///     connector_reader.fetch().await?;
     ///     connector_reader.read_to_string(&mut buffer).await?;
     ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
+    ///
     ///     assert_eq!("value1", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
     ///     assert_eq!("value2", docs[1].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
-    ///
+    ///    
     ///     Ok(())
     /// }
     /// ```
@@ -277,7 +293,9 @@ impl Connector for Mongodb {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
-    ///     connector.collection = "send".into();
+    ///     connector.collection = "send_2".into();
+    ///     connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#)?;
+    ///     connector.update_options = serde_json::from_str(r#"{"upsert":true}"#)?;
     ///     connector.erase().await?;
     ///
     ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
@@ -285,16 +303,32 @@ impl Connector for Mongodb {
     ///
     ///     let mut buffer = String::default();
     ///     let mut connector_reader = connector.clone();
+    ///     connector_reader.query = Default::default();
     ///     connector_reader.fetch().await?;
     ///     connector_reader.read_to_string(&mut buffer).await?;
     ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
     ///     assert_eq!("value1", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
     ///
-    ///     connector.write(format!(r#"[{{"_id":"{}", "column1":"value3"}}]"#, docs[0].as_document().unwrap().get("_id").unwrap().as_object_id().unwrap().to_string()).as_str().as_bytes()).await?;
+    ///     connector.query = serde_json::from_str(r#"{"column1":"value1"}"#)?;
+    ///     connector.write(r#"[{"column1":"value2"}]"#.as_bytes()).await?;
     ///     connector.send(None).await?;
     ///
     ///     let mut buffer = String::default();
     ///     let mut connector_reader = connector.clone();
+    ///     connector_reader.query = Default::default();
+    ///     connector_reader.fetch().await?;
+    ///     connector_reader.read_to_string(&mut buffer).await?;
+    ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
+    ///     assert_eq!("value2", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
+    ///     let id = docs[0].as_document().unwrap().get_object_id("_id").unwrap().to_string();
+    ///
+    ///     connector.query = serde_json::from_str(format!(r#"{{"_id": {{"$oid":"{}"}}}}"#, id).as_str())?;
+    ///     connector.write(r#"[{"column1":"value3"}]"#.as_bytes()).await?;
+    ///     connector.send(None).await?;
+    ///
+    ///     let mut buffer = String::default();
+    ///     let mut connector_reader = connector.clone();
+    ///     connector_reader.query = Default::default();
     ///     connector_reader.fetch().await?;
     ///     connector_reader.read_to_string(&mut buffer).await?;
     ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
@@ -310,7 +344,6 @@ impl Connector for Mongodb {
 
         let docs: Vec<Document> = serde_json::from_slice(self.inner.get_ref())?;
         let update_options = self.update_options.clone();
-        let insert_options = self.insert_options.clone();
 
         let client = Client::with_uri_str(&hostname)
             .await
@@ -320,32 +353,53 @@ impl Connector for Mongodb {
         let collection = db.collection(&collection);
 
         for doc in docs {
-            if let Some(id) = doc.get("_id") {
-                let mut doc_without_id = doc.clone();
-                doc_without_id.remove("_id").unwrap();
+            let query_update = match *self.query.clone() {
+                Some(ref mut query_tmp) => {
+                    let json_doc: Value = serde_json::to_value(doc.clone())?;
+                    query_tmp.replace_mustache(json_doc.clone());
+                    serde_json::from_str(query_tmp.to_string().as_str())?
+                },
+                None => {
+                    doc.clone()
+                }
+            };
 
-                collection
-                    .update_one(
-                        doc! { "_id": ObjectId::with_string(id.as_str().unwrap()).unwrap() },
-                        doc! {"$set": doc_without_id},
-                        *update_options.clone(),
-                    )
-                    .await
-                    .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            let mut doc_without_id = doc.clone();
+            if let Some(_) = doc_without_id.get("_id") {
+                doc_without_id.remove("_id");
+            }
 
-                trace!(
+            trace!(
+                slog_scope::logger(),
+                "update_many";
+                "query" => format!("{:?}", &query_update),
+                "update" => format!("{:?}", doc! {"$set": &doc_without_id}),
+                "options" => format!("{:?}", &update_options),
+            );
+
+            let result = collection
+                .update_many(
+                    query_update,
+                    doc! {"$set": doc_without_id},
+                    *update_options.clone(),
+                )
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+            if 0 < result.matched_count {
+                debug!(
                     slog_scope::logger(),
-                    "Update the document in the collection"
+                    "Document(s) updated into the connection";
+                    "result" => format!("{:?}", result),
+                    "connector" => format!("{}", self),
                 );
-            } else {
-                collection
-                    .insert_one(doc.clone(), *insert_options.clone())
-                    .await
-                    .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-
-                trace!(
+            }
+            if let Some(_) = result.upserted_id {
+                debug!(
                     slog_scope::logger(),
-                    "Insert the document in the collection"
+                    "Document(s) inserted into the connection";
+                    "result" => format!("{:?}", result),
+                    "connector" => format!("{}", self),
                 );
             }
         }

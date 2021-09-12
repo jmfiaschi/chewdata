@@ -13,7 +13,7 @@ use slog::Drain;
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct Transformer {
-    #[serde(alias = "updater")]
+    #[serde(rename = "updater")]
     #[serde(alias = "u")]
     pub updater_type: UpdaterType,
     #[serde(alias = "refs")]
@@ -22,10 +22,15 @@ pub struct Transformer {
     pub description: Option<String>,
     pub data_type: String,
     #[serde(alias = "wait")]
-    pub wait_in_milisec: u64,
-    pub thread_number: i32,
+    pub wait_in_millisecond: usize,
+    #[serde(alias = "threads")]
+    pub thread_number: usize,
     // Use Vec in order to keep the order FIFO.
     pub actions: Vec<Action>,
+    #[serde(alias = "input")]
+    input_name: String,
+    #[serde(alias = "output")]
+    output_name: String,
 }
 
 impl Default for Transformer {
@@ -36,9 +41,11 @@ impl Default for Transformer {
             alias: None,
             description: None,
             data_type: DataResult::OK.to_string(),
-            wait_in_milisec: 10,
+            wait_in_millisecond: 10,
             thread_number: 1,
             actions: Vec::default(),
+            input_name: "input".to_string(),
+            output_name: "output".to_string(),
         }
     }
 }
@@ -121,7 +128,7 @@ impl Step for Transformer {
 
             let new_data_results = match self.updater_type
                 .updater()
-                .update(record.clone(), mapping.clone(), self.actions.clone()) {
+                .update(record.clone(), mapping.clone(), self.actions.clone(), self.input_name.clone(), self.output_name.clone()) {
                     Ok(new_record) => {
                         debug!(slog_scope::logger(), "Record transformation success"; "step" => format!("{}", self), "record" => format!("{}", new_record));
 
@@ -151,8 +158,8 @@ impl Step for Transformer {
             );
             let mut current_retry = 0;
             while pipe_inbound.try_send(new_data_results.clone()).is_err() {
-                warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
-                thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                 current_retry += 1;
             }
         }
@@ -162,7 +169,7 @@ impl Step for Transformer {
         debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
         Ok(())
     }
-    fn thread_number(&self) -> i32 {
+    fn thread_number(&self) -> usize {
         self.thread_number
     }
 }

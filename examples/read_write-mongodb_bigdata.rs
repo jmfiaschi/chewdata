@@ -45,19 +45,16 @@ async fn main() -> io::Result<()> {
             }
         },{
             "type": "t",
-            "updater": {
-                "type": "tera",
-                "actions": [
-                    {
-                        "field":"",
-                        "pattern": "{{ input | json_encode() }}"
-                    },
-                    {
-                        "field":"new_column",
-                        "pattern": "{{ now() | date(format='%Y-%m-%d %H:%M') }}"
-                    }
-                ]
-            },
+            "actions": [
+                {
+                    "field":"/",
+                    "pattern": "{{ input | json_encode() }}"
+                },
+                {
+                    "field":"new_column",
+                    "pattern": "{{ now() | date(format='%Y-%m-%d %H:%M') }}"
+                }
+            ],
             "thread_number":3
         },{
             "type": "w",

@@ -140,7 +140,7 @@ impl Authenticator for Bearer {
         let parameters = self.parameters.clone();
 
         if token.has_mustache() {
-            token = token.replace_mustache(parameters);
+            token.replace_mustache(parameters);
         }
 
         if self.is_base64 {

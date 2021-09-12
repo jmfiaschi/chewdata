@@ -147,10 +147,10 @@ impl Authenticator for Basic {
         let parameters = self.parameters.clone();
 
         if username.has_mustache() {
-            username = username.replace_mustache(parameters.clone());
+            username.replace_mustache(parameters.clone());
         }
         if password.has_mustache() {
-            password = password.replace_mustache(parameters);
+            password.replace_mustache(parameters);
         }
 
         let basic = base64::encode(format!("{}:{}", username, password));

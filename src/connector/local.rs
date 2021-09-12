@@ -22,6 +22,7 @@ pub struct Local {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     pub path: String,
+    #[serde(alias = "params")]
     pub parameters: Value,
     #[serde(skip)]
     pub inner: Cursor<Vec<u8>>,
@@ -66,7 +67,11 @@ impl Connector for Local {
     /// ```
     fn path(&self) -> String {
         match (self.is_variable(), self.parameters.clone()) {
-            (true, params) => self.path.clone().replace_mustache(params),
+            (true, params) => {
+                let mut path = self.path.clone();
+                path.replace_mustache(params);
+                path
+            },
             _ => self.path.clone(),
         }
     }
@@ -261,8 +266,11 @@ impl Connector for Local {
             return Ok(false);
         }
 
-        let actuel_path = self.path.clone().replace_mustache(self.parameters.clone());
-        let new_path = self.path.clone().replace_mustache(new_parameters);
+        let mut actuel_path = self.path.clone();
+        actuel_path.replace_mustache(self.parameters.clone());
+        
+        let mut new_path = self.path.clone();
+        new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
             return Ok(false);

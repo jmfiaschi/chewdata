@@ -27,12 +27,20 @@ pub struct Jwt {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Format {
+    #[serde(rename = "secret")]
     Secret,
+    #[serde(rename = "base64secret")]
     Base64Secret,
+    #[serde(rename = "rsa_pem")]
     RsaPem,
+    #[serde(rename = "rsa_components")]
+    #[serde(alias = "rsa_component")]
     RsaComponents,
+    #[serde(rename = "ec_pem")]
     EcPem,
+    #[serde(rename = "rsa_der")]
     RsaDer,
+    #[serde(rename = "ec_der")]
     EcDer,
 }
 
@@ -107,10 +115,8 @@ impl Jwt {
             let mut payload = self.payload.clone();
             let parameters = self.parameters.clone();
 
-            if payload.to_string().has_mustache() {
-                payload = serde_json::from_str(
-                    payload.to_string().replace_mustache(*parameters).as_str(),
-                )?;
+            if payload.has_mustache() {
+                payload.replace_mustache(*parameters);
             }
 
             let mut refresh_connector = refresh_connector_type.connector();
@@ -353,23 +359,26 @@ impl Authenticator for Jwt {
 
         if let Some(token) = token_option.clone() {
             if token.has_mustache() {
-                token_option = Some(token.replace_mustache(*parameters.clone()));
+                let mut token = token.clone();
+                token.replace_mustache(*parameters.clone());
+                token_option = Some(token);
             }
         }
 
         if let (Some(token), Some(_)) = (token_option.clone(), self.refresh_connector.clone()) {
             match self.decode(token.as_ref()) {
                 Ok(jwt_payload) => {
-                    if self.payload.to_string().has_mustache()
-                        && !self
-                            .payload
-                            .get("claims")
-                            .unwrap_or(&Value::Null)
-                            .clone()
-                            .to_string()
-                            .replace_mustache(*parameters.clone())
-                            .eq(&jwt_payload.claims)
-                    {
+                    let mut claim_payload = self
+                        .payload
+                        .get("claims")
+                        .unwrap_or(&Value::Null)
+                        .clone();
+
+                    if claim_payload.has_mustache() {
+                        claim_payload.replace_mustache(*parameters.clone());
+                    }
+
+                    if !claim_payload.eq(&jwt_payload.claims){
                         token_option = self.token.clone();
                     }
                 }
