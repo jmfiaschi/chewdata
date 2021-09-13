@@ -100,6 +100,12 @@ impl fmt::Debug for Bucket {
             .field("bucket", &self.bucket)
             .field("path", &self.path)
             .field("parameters", &self.parameters)
+            .field("limit", &self.limit)
+            .field("skip", &self.skip)
+            .field("version", &self.version)
+            .field("tags", &self.tags)
+            .field("cache_control", &self.cache_control)
+            .field("expires", &self.expires)
             .finish()
     }
 }
@@ -536,9 +542,9 @@ impl async_std::io::Write for Bucket {
 
 #[derive(Debug)]
 pub struct BucketPaginator {
-    connector: Bucket,
-    paths: IntoIter<String>,
-    skip: usize,
+    pub connector: Bucket,
+    pub paths: IntoIter<String>,
+    pub skip: usize,
 }
 
 impl BucketPaginator {
@@ -677,7 +683,7 @@ impl Paginator for BucketPaginator {
     ///     Ok(())
     /// }
     /// ```
-    // # Example: With wildcard, limit and skip. List results are always returned in UTF-8 binary order
+    /// # Example: With wildcard, limit and skip. List results are always returned in UTF-8 binary order
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;

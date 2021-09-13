@@ -1,3 +1,4 @@
+use super::bucket::{Bucket, BucketPaginator};
 use super::Paginator;
 use crate::connector::Connector;
 use crate::helper::mustache::Mustache;
@@ -15,6 +16,7 @@ use serde_json::Value;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
+use std::vec::IntoIter;
 use std::{
     fmt,
     io::{Cursor, Error, ErrorKind, Result, Write},
@@ -38,7 +40,9 @@ pub struct BucketSelect {
     pub path: String,
     pub query: String,
     #[serde(alias = "params")]
-    pub parameters: Value,
+    pub parameters: Box<Value>,
+    pub limit: Option<usize>,
+    pub skip: usize,
     pub timeout: Option<Duration>,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
@@ -55,8 +59,10 @@ impl Default for BucketSelect {
             region: rusoto_core::Region::default().name().to_string(),
             bucket: String::default(),
             path: String::default(),
-            parameters: Value::default(),
+            parameters: Box::new(Value::default()),
             timeout: None,
+            limit: None,
+            skip: 0,
             inner: Cursor::default(),
         }
     }
@@ -92,6 +98,8 @@ impl fmt::Debug for BucketSelect {
             .field("bucket", &self.bucket)
             .field("path", &self.path)
             .field("parameters", &self.parameters)
+            .field("limit", &self.limit)
+            .field("skip", &self.skip)
             .finish()
     }
 }
@@ -534,7 +542,7 @@ impl BucketSelect {
 impl Connector for BucketSelect {
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters;
+        self.parameters = Box::new(parameters);
     }
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
@@ -583,8 +591,8 @@ impl Connector for BucketSelect {
         }
 
         let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(self.parameters.clone());
-        
+        actuel_path.replace_mustache(*self.parameters.clone());
+
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
@@ -609,12 +617,12 @@ impl Connector for BucketSelect {
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
-        match (self.is_variable(), self.parameters.clone()) {
+        match (self.is_variable(), *self.parameters.clone()) {
             (true, params) => {
                 let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
-            },
+            }
             _ => self.path.clone(),
         }
     }
@@ -820,14 +828,27 @@ impl async_std::io::Write for BucketSelect {
 #[derive(Debug)]
 pub struct BucketSelectPaginator {
     connector: BucketSelect,
-    has_next: bool,
+    paths: IntoIter<String>,
 }
 
 impl BucketSelectPaginator {
     pub fn new(connector: BucketSelect) -> Result<Self> {
+        let mut bucket = Bucket::default();
+        bucket.endpoint = connector.endpoint.clone();
+        bucket.access_key_id = connector.access_key_id.clone();
+        bucket.secret_access_key = connector.secret_access_key.clone();
+        bucket.region = connector.region.clone();
+        bucket.bucket = connector.bucket.clone();
+        bucket.path = connector.path.clone();
+        bucket.parameters = connector.parameters.clone();
+        bucket.limit = connector.limit;
+        bucket.skip = connector.skip;
+
+        let bucket_paginator = BucketPaginator::new(bucket)?;
+
         Ok(BucketSelectPaginator {
+            paths: bucket_paginator.paths,
             connector,
-            has_next: true,
         })
     }
 }
@@ -865,15 +886,50 @@ impl Paginator for BucketSelectPaginator {
     ///     Ok(())
     /// }
     /// ```
+    /// # Example: With wildcard, limit and skip. List results are always returned in UTF-8 binary order
+    /// ```rust
+    /// use chewdata::connector::bucket_select::BucketSelect;
+    /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
+    /// use chewdata::Metadata;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = BucketSelect::default();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.access_key_id = Some("minio_access_key".to_string());
+    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.path = "data/*.json".to_string();
+    ///     connector.query = "select * from s3object".to_string();
+    ///     connector.limit = Some(5);
+    ///     connector.skip = 2;
+    ///     connector.metadata = Metadata {
+    ///         ..Json::default().metadata
+    ///     };
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert_eq!("data/multi_lines.jsonl".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        Ok(match self.has_next {
-            true => {
-                let mut connector = self.connector.clone();
-                self.has_next = false;
-                connector.fetch().await?;
-                Some(Box::new(connector))
-            }
-            false => None,
-        })
+        let mut connector = self.connector.clone();
+
+        for path in &mut self.paths {
+            connector.path = path;
+            match connector.fetch().await {
+                Ok(_) => (),
+                Err(e) => {
+                    warn!(slog_scope::logger(), "The paginator skip the resource due to an error"; "error" => e, "connector" => format!("{:?}", connector));
+                    continue;
+                }
+            };
+            return Ok(Some(Box::new(connector)));
+        }
+
+        Ok(None)
     }
 }

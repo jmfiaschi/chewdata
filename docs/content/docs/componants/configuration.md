@@ -17,6 +17,7 @@ top = false
 ## The structure
 
 The configuration is composed by a list of steps :
+
 * List of steps
   * Step 1
   * Step 2
@@ -24,6 +25,7 @@ The configuration is composed by a list of steps :
   * Step N
 
 Example in json:
+
 ```json
 [
     { 
