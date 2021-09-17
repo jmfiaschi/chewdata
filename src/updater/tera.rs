@@ -5,6 +5,7 @@ use super::{Action, ActionType};
 use crate::helper::json_pointer::JsonPointer;
 use crate::updater::tera_helpers::{filters, function};
 use json_value_merge::Merge;
+use json_value_remove::Remove;
 use json_value_resolve::Resolve;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -12,28 +13,13 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::{fmt, io};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(default)]
-pub struct Tera {
-    // Use Vec in order to keep the order FIFO.
-    actions: Vec<Action>,
-    entry_name: String,
-    output_name: String,
-}
-
-impl Default for Tera {
-    fn default() -> Self {
-        Tera {
-            actions: Vec::default(),
-            entry_name: "input".to_string(),
-            output_name: "output".to_string(),
-        }
-    }
-}
+pub struct Tera {}
 
 impl fmt::Display for Tera {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Tera {{'{}','{}'}}", self.entry_name, self.output_name)
+        write!(f, "Tera {{}}")
     }
 }
 
@@ -42,11 +28,14 @@ impl Updater for Tera {
         &self,
         object: Value,
         mapping: Option<HashMap<String, Vec<Value>>>,
+        actions: Vec<Action>,
+        input_name: String,
+        output_name: String,
     ) -> io::Result<Value> {
         debug!(slog_scope::logger(), "Update"; "input" => format!("{}", object), "updater" => format!("{}", self));
         let mut engine = Tera::engine();
         let mut context = tera::Context::new();
-        context.insert(self.entry_name.clone(), &object);
+        context.insert(input_name, &object);
 
         if let Some(mapping) = mapping {
             for (field_path, object) in mapping {
@@ -55,12 +44,11 @@ impl Updater for Tera {
         }
 
         let mut json_value = Value::default();
-        for action in &self.actions {
+        for action in actions {
             debug!(slog_scope::logger(), "Field fetch into the pattern collection"; "field" => &action.field);
-            context.insert(self.output_name.clone(), &json_value.clone());
+            context.insert(output_name.clone(), &json_value.clone());
 
             let mut field_new_value = Value::default();
-            let json_pointer = action.field.clone().to_json_pointer();
 
             match &action.pattern {
                 Some(pattern) => {
@@ -91,6 +79,8 @@ impl Updater for Tera {
                 None => (),
             };
 
+            let json_pointer = action.field.clone().to_json_pointer();
+
             debug!(slog_scope::logger(), "{} the new field", action.action_type;
                 "output" => format!("{}", json_value),
                 "jpointer" => json_pointer.to_string(),
@@ -99,11 +89,14 @@ impl Updater for Tera {
 
             match action.action_type {
                 ActionType::Merge => {
-                    json_value.merge_in(&json_pointer, field_new_value);
+                    json_value.merge_in(&json_pointer, field_new_value)?;
                 }
                 ActionType::Replace => {
-                    json_value.merge_in(&json_pointer, Value::Null);
-                    json_value.merge_in(&json_pointer, field_new_value);
+                    json_value.merge_in(&json_pointer, Value::Null)?;
+                    json_value.merge_in(&json_pointer, field_new_value)?;
+                }
+                ActionType::Remove => {
+                    json_value.remove(&json_pointer)?;
                 }
             }
         }

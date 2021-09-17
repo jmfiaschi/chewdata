@@ -11,13 +11,13 @@ use slog::Drain;
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct Eraser {
-    #[serde(alias = "connector")]
+    #[serde(rename = "connector")]
     #[serde(alias = "conn")]
     connector_type: ConnectorType,
     pub alias: Option<String>,
     pub description: Option<String>,
     #[serde(alias = "wait")]
-    pub wait_in_milisec: u64,
+    pub wait_in_millisecond: usize,
     #[serde(alias = "exclude")]
     pub exclude_paths: Vec<String>,
 }
@@ -28,7 +28,7 @@ impl Default for Eraser {
             connector_type: ConnectorType::default(),
             alias: None,
             description: None,
-            wait_in_milisec: 10,
+            wait_in_millisecond: 10,
             exclude_paths: Vec::default(),
         }
     }
@@ -88,8 +88,8 @@ impl Step for Eraser {
                         );
                         let mut current_retry = 0;
                         while pipe_inbound.try_send(data_result.clone()).is_err() {
-                            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
-                            thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                            thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                             current_retry += 1;
                         }
                     }

@@ -41,32 +41,26 @@ async fn main() -> io::Result<()> {
             }
         },{
             "type": "t",
-            "updater": {
-                "type": "tera",
-                "actions": [
-                    {
-                        "field":"/",
-                        "pattern": "{{ input | json_encode() }}"
-                    },
-                    {
-                        "field":"new_field_in_mongo",
-                        "pattern": "{{ now() }}"
-                    }
-                ]
-            },
-            "thread_number":3
+            "actions": [
+                {
+                    "field":"/",
+                    "pattern": "{{ input | json_encode() }}"
+                },
+                {
+                    "field":"new_field_in_mongo",
+                    "pattern": "{{ now() }}"
+                }
+            ],
+            "thread_number": 3
         },{
             "type": "w",
             "connector":{
                 "type": "mongodb",
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
                 "db": "tests",
-                "collection": "read_write",
-                "update_options": {
-                    "upsert": true
-                }
+                "collection": "read_write"
             },
-            "thread_number":3
+            "thread_number": 1
         }
     ]
     "#;

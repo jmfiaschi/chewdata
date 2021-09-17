@@ -41,7 +41,7 @@ impl Default for Xml {
             is_pretty: false,
             indent_char: b' ',
             indent_size: 4,
-            entry_path: "/root/0/item".to_string(),
+            entry_path: "/root/*/item".to_string(),
         }
     }
 }
@@ -110,7 +110,7 @@ impl Xml {
         entry_path_value.merge_in(
             &self.entry_path.to_string().to_json_pointer(),
             Value::Array(Vec::default()),
-        );
+        )?;
 
         self.value_to_xml(&entry_path_value)
     }
@@ -230,7 +230,7 @@ impl Document for Xml {
     /// async fn main() -> io::Result<()> {
     ///     let mut document = Xml::default();
     ///     let mut connector = InMemory::new(r#""#);
-    ///     document.entry_path = "/root/0/item".to_string();
+    ///     document.entry_path = "/root/*/item".to_string();
     ///
     ///     let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#)?;
     ///     document.write_data(&mut connector, value).await?;
@@ -251,7 +251,7 @@ impl Document for Xml {
         new_value.merge_in(
             &self.entry_path.to_string().to_json_pointer(),
             Value::Array(vec![value]),
-        );
+        )?;
         Xml::convert_numeric_to_string(&mut new_value);
         Xml::add_attribute_character(&mut new_value)?;
 

@@ -59,14 +59,17 @@ async fn main() -> io::Result<()> {
             "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
             "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
             "region": "{{ BUCKET_REGION }}",
-            "query": "select * from s3object where url = 'http://news.ycombinator.com/item?id=4955772'"
+            "query": "select * from s3object where status = '200'"
         },
         "document" : {
             "type": "json"
         }
     },
     {
-        "type": "w"
+        "type": "w",
+        "document" : {
+            "type": "jsonl"
+        }
     }]
     "#;
 

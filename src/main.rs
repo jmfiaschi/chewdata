@@ -96,9 +96,9 @@ async fn main() -> Result<()> {
 
 fn application() -> App<'static, 'static> {
     App::new("chewdata")
-        .version("1.0")
+        .version("1.1.1")
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
-        .about("Simple tool to Extract-Transform-Load")
+        .about("Light and chainable ETL")
         .arg(
             Arg::with_name("json")
                 .short("j")

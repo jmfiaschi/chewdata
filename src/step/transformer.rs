@@ -1,7 +1,7 @@
 use super::{DataResult};
 use crate::step::reader::Reader;
 use crate::step::Step;
-use crate::updater::UpdaterType;
+use crate::updater::{Action,  UpdaterType};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fmt, io};
@@ -13,22 +13,24 @@ use slog::Drain;
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct Transformer {
-    #[serde(alias = "updater")]
+    #[serde(rename = "updater")]
     #[serde(alias = "u")]
-    updater_type: UpdaterType,
+    pub updater_type: UpdaterType,
     #[serde(alias = "refs")]
-    referentials: Option<Vec<Reader>>,
-    // Option in order to keep the referentials up-to-date everytime.
-    pub can_refreshed_referentials: bool,
+    pub referentials: Option<HashMap<String, Reader>>,
     pub alias: Option<String>,
     pub description: Option<String>,
     pub data_type: String,
-    // transform in parallel mode. The data order write into the document is not respected.
-    // By default, set to true in order to parallize the writting.
-    pub is_parallel: bool,
     #[serde(alias = "wait")]
-    pub wait_in_milisec: u64,
-    pub thread_number: i32,
+    pub wait_in_millisecond: usize,
+    #[serde(alias = "threads")]
+    pub thread_number: usize,
+    // Use Vec in order to keep the order FIFO.
+    pub actions: Vec<Action>,
+    #[serde(alias = "input")]
+    input_name: String,
+    #[serde(alias = "output")]
+    output_name: String,
 }
 
 impl Default for Transformer {
@@ -38,11 +40,12 @@ impl Default for Transformer {
             referentials: None,
             alias: None,
             description: None,
-            is_parallel: true,
-            can_refreshed_referentials: true,
             data_type: DataResult::OK.to_string(),
-            wait_in_milisec: 10,
-            thread_number: 1
+            wait_in_millisecond: 10,
+            thread_number: 1,
+            actions: Vec::default(),
+            input_name: "input".to_string(),
+            output_name: "output".to_string(),
         }
     }
 }
@@ -62,43 +65,30 @@ impl fmt::Display for Transformer {
     }
 }
 /// Return a referentials hashmap indexed by the alias of the referential.
-async fn referentials_hashmap(referentials: Vec<Reader>) -> Option<HashMap<String, Vec<Value>>> {
-    let mut referentials_hashmap = HashMap::new();
+async fn referentials_reader_to_dataset(referentials: HashMap<String, Reader>) -> io::Result<HashMap<String, Vec<Value>>> {
+    let mut referentials_dataset = HashMap::new();
 
     // For each reader, try to build the referential.
-    for referential in referentials {
-        let alias: String = match &referential.alias {
-            Some(alias) => alias.to_string(),
-            None => {
-                warn!(slog_scope::logger(), "Alias required for this referential"; "referential" => format!("{}", referential));
-                return None;
-            }
-        };
-
+    for (alias, referential) in referentials {
         let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
-        match referential.exec(None, Some(pipe_inbound)).await {
-            Ok(dataset_option) => dataset_option,
-            Err(e) => {
-                warn!(slog_scope::logger(), "Can't read the referentiel"; "error" => format!("{}", e), "referential" => format!("{}", referential));
-                return None;
-            }
-        };
-
         let mut referential_dataset: Vec<Value> = Vec::new();
+
+        referential.exec(None, Some(pipe_inbound)).await?;
+
         for data_result in pipe_outbound {
             referential_dataset.push(data_result.to_json_value());
         }
-        referentials_hashmap.insert(alias, referential_dataset);
+        referentials_dataset.insert(alias, referential_dataset);
     }
 
-    Some(referentials_hashmap)
+    Ok(referentials_dataset)
 }
 /// This Step transform a dataset.
 #[async_trait]
 impl Step for Transformer {
     async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
         debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
-
+        
         let pipe_inbound = match pipe_inbound_option {
             Some(pipe_inbound) => pipe_inbound,
             None => {
@@ -114,9 +104,9 @@ impl Step for Transformer {
                 return Ok(())
             }
         };
-
+        
         let mapping = match self.referentials.clone() {
-            Some(referentials) => referentials_hashmap(referentials).await,
+            Some(referentials) => Some(referentials_reader_to_dataset(referentials).await?),
             None => None
         };
 
@@ -138,7 +128,7 @@ impl Step for Transformer {
 
             let new_data_results = match self.updater_type
                 .updater()
-                .update(record.clone(), mapping.clone()) {
+                .update(record.clone(), mapping.clone(), self.actions.clone(), self.input_name.clone(), self.output_name.clone()) {
                     Ok(new_record) => {
                         debug!(slog_scope::logger(), "Record transformation success"; "step" => format!("{}", self), "record" => format!("{}", new_record));
 
@@ -148,12 +138,12 @@ impl Step for Transformer {
                         }
 
                         let new_data_result = DataResult::Ok(new_record);
-                        debug!(slog_scope::logger(), "Yield data result"; "step" => format!("{}", self), "data_result" => format!("{:?}", new_data_result));
+                        debug!(slog_scope::logger(), "New data result"; "step" => format!("{}", self), "data_result" => format!("{:?}", new_data_result));
                         new_data_result
                     }
                     Err(e) => {
                         let new_data_result = DataResult::Err((record, e));
-                        warn!(slog_scope::logger(), "Record transformation alert. Yield data result";"step" => format!("{}", self), "data_result" => format!("{:?}", new_data_result));
+                        warn!(slog_scope::logger(), "Record transformation error. New data result with error";"step" => format!("{}", self), "data_result" => format!("{:?}", new_data_result));
                         new_data_result
                     }
                 };
@@ -168,8 +158,8 @@ impl Step for Transformer {
             );
             let mut current_retry = 0;
             while pipe_inbound.try_send(new_data_results.clone()).is_err() {
-                warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
-                thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                 current_retry += 1;
             }
         }
@@ -179,7 +169,7 @@ impl Step for Transformer {
         debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
         Ok(())
     }
-    fn thread_number(&self) -> i32 {
+    fn thread_number(&self) -> usize {
         self.thread_number
     }
 }

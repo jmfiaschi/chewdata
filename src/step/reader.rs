@@ -13,17 +13,19 @@ use std::{thread, time};
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
 pub struct Reader {
-    #[serde(alias = "connector")]
+    #[serde(rename = "connector")]
     #[serde(alias = "conn")]
-    connector_type: ConnectorType,
-    #[serde(alias = "document")]
+    pub connector_type: ConnectorType,
+    #[serde(rename = "document")]
     #[serde(alias = "doc")]
-    document_type: DocumentType,
+    pub document_type: DocumentType,
     pub alias: Option<String>,
+    #[serde(alias = "desc")]
     pub description: Option<String>,
+    #[serde(alias = "data")]
     pub data_type: String,
     #[serde(alias = "wait")]
-    pub wait_in_milisec: u64,
+    pub wait_in_millisecond: usize,
 }
 
 impl Default for Reader {
@@ -34,7 +36,7 @@ impl Default for Reader {
             alias: None,
             description: None,
             data_type: DataResult::OK.to_string(),
-            wait_in_milisec: 10,
+            wait_in_millisecond: 10,
         }
     }
 }
@@ -105,8 +107,8 @@ impl Step for Reader {
                         );
                         let mut current_retry = 0;
                         while pipe_inbound.try_send(data_result.clone()).is_err() {
-                            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
-                            thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                            thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                             current_retry += 1;
                         }
                     }
@@ -127,8 +129,8 @@ impl Step for Reader {
                     );
                     let mut current_retry = 0;
                     while pipe_inbound.try_send(data_result.clone()).is_err() {
-                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
-                        thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                        thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                         current_retry += 1;
                     }
                 }
@@ -147,8 +149,8 @@ impl Step for Reader {
                     );
                     let mut current_retry = 0;
                     while pipe_inbound.try_send(data_result.clone()).is_err() {
-                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
-                        thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                        thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                         current_retry += 1;
                     }
                 }

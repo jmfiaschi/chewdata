@@ -28,7 +28,7 @@ async fn main() -> io::Result<()> {
         {"type":"e","connector":{"type":"local","path":"./data/out/cascade_file1.json"}}
         ,{"type":"e","connector":{"type":"local","path":"./data/out/cascade_file2.json"}}
         ,{"type":"r","connector":{"type":"local","path":"./data/multi_lines.json"}}
-        ,{"type":"t","updater":{"type":"tera","actions":[{"field":"/","pattern":"{% if input.number == 10 %}{{ throw(message='data write in the file cascade_file2.json') }}{% else %}{{ input | json_encode() }}{% endif %}"}]}}
+        ,{"type":"t","actions":[{"field":"/","pattern":"{% if input.number == 10 %}{{ throw(message='data write in the file cascade_file2.json') }}{% else %}{{ input | json_encode() }}{% endif %}"}]}
         ,{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file1.json"},"data_type":"ok"}
         ,{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file2.json"},"data_type":"err"}
     ]

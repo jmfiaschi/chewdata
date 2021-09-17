@@ -20,16 +20,18 @@ pub struct Curl {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     #[serde(alias = "auth")]
-    #[serde(alias = "authenticator")]
+    #[serde(rename = "authenticator")]
     pub authenticator_type: Option<Box<AuthenticatorType>>,
-    // The FQDN endpoint.
+    // The endpoint like http://my_site.com:80
     pub endpoint: String,
     // The http uri.
+    #[serde(alias = "uri")]
     pub path: String,
     // The http method.
     pub method: Method,
     // Add complementaries headers. This headers override the default headers.
     pub headers: Box<HashMap<String, String>>,
+    #[serde(alias = "params")]
     pub parameters: Value,
     pub limit: usize,
     pub skip: usize,
@@ -42,9 +44,11 @@ pub struct Curl {
 #[serde(default)]
 pub struct PaginatorParameters {
     #[serde(default = "default_limit")]
-    pub limit: String,
+    #[serde(alias = "limit")]
+    pub limit_name: String,
     #[serde(default = "default_skip")]
-    pub skip: String,
+    #[serde(alias = "skip")]
+    pub skip_name: String,
 }
 
 fn default_limit() -> String {
@@ -118,7 +122,11 @@ impl Connector for Curl {
     /// ```
     fn path(&self) -> String {
         match (self.is_variable(), self.parameters.clone()) {
-            (true, params) => self.path.clone().replace_mustache(params),
+            (true, params) => {
+                let mut path = self.path.clone();
+                path.replace_mustache(params);
+                path
+            },
             _ => self.path.clone(),
         }
     }
@@ -142,8 +150,11 @@ impl Connector for Curl {
             return Ok(false);
         }
 
-        let actuel_path = self.path.clone().replace_mustache(self.parameters.clone());
-        let new_path = self.path.clone().replace_mustache(new_parameters);
+        let mut actuel_path = self.path.clone();
+        actuel_path.replace_mustache(self.parameters.clone());
+        
+        let mut new_path = self.path.clone();
+        new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
             return Ok(false);
@@ -564,7 +575,7 @@ impl Paginator for CurlPaginator {
     ///     connector.path = "/links/{{n}}/{{offset}}".to_string();
     ///     connector.limit = 1;
     ///     connector.skip = 0;
-    ///     let paginator_parameters = PaginatorParameters { skip: "n".to_string(), limit: "offset".to_string() };
+    ///     let paginator_parameters = PaginatorParameters { skip_name: "n".to_string(), limit_name: "offset".to_string() };
     ///     connector.paginator_parameters = Some(paginator_parameters);
     ///     let mut paginator = connector.paginator().await?;
     ///
@@ -621,12 +632,12 @@ impl Paginator for CurlPaginator {
                     new_parameters.merge(serde_json::from_str(
                         format!(
                             r#"{{"{}":"{}"}}"#,
-                            paginator_parameters.limit, self.connector.limit
+                            paginator_parameters.limit_name, self.connector.limit
                         )
                         .as_str(),
                     )?);
                     new_parameters.merge(serde_json::from_str(
-                        format!(r#"{{"{}":"{}"}}"#, paginator_parameters.skip, self.skip).as_str(),
+                        format!(r#"{{"{}":"{}"}}"#, paginator_parameters.skip_name, self.skip).as_str(),
                     )?);
                 }
 

@@ -46,6 +46,9 @@ pub trait Updater: Send + Sync {
         &self,
         object: Value,
         mapping: Option<HashMap<String, Vec<Value>>>,
+        actions: Vec<Action>,
+        input_name: String,
+        output_name: String,
     ) -> io::Result<Value>;
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -65,8 +68,12 @@ fn default_field_value() -> String {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ActionType {
+    #[serde(alias = "merge")]
     Merge,
+    #[serde(alias = "replace")]
     Replace,
+    #[serde(alias = "remove")]
+    Remove,
 }
 
 impl fmt::Display for ActionType {

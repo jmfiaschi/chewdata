@@ -31,15 +31,12 @@ async fn main() -> io::Result<()> {
     },
     {
         "type": "t",
-        "updater": {
-            "type": "tera",
-            "actions": [
-                {
-                    "field":"test",
-                    "pattern": "{{ throw(message='I throw an error!') }}"
-                }
-            ]
-        }
+        "actions": [
+            {
+                "field":"test",
+                "pattern": "{{ throw(message='I throw an error!') }}"
+            }
+        ]
     },
     {
         "type": "w",

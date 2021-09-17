@@ -96,6 +96,11 @@ stop:
 
 clean:
 	@sudo rm -Rf cache
+	@cargo clean
+
+docs:
+	@cd docs
+	@zola build
 
 # Shell colors.
 RED=\033[0;31m

@@ -11,22 +11,23 @@ use std::{thread, time};
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Writer {
-    #[serde(alias = "connector")]
+    #[serde(rename = "connector")]
     #[serde(alias = "conn")]
     connector_type: ConnectorType,
-    #[serde(alias = "document")]
+    #[serde(rename = "document")]
     #[serde(alias = "doc")]
     document_type: DocumentType,
     pub alias: Option<String>,
+    #[serde(alias = "desc")]
     pub description: Option<String>,
+    #[serde(alias = "data")]
     pub data_type: String,
-    // Write in parallel mode. The data order write into the document is not respected.
-    // By default, set to true in order to parallize the writting.
-    pub is_parallel: bool,
+    #[serde(alias = "batch")]
     pub dataset_size: usize,
     #[serde(alias = "wait")]
-    pub wait_in_milisec: u64,
-    pub thread_number: i32,
+    pub wait_in_millisecond: usize,
+    #[serde(alias = "threads")]
+    pub thread_number: usize,
 }
 
 impl Default for Writer {
@@ -37,9 +38,8 @@ impl Default for Writer {
             alias: None,
             description: None,
             data_type: DataResult::OK.to_string(),
-            is_parallel: true,
             dataset_size: 1000,
-            wait_in_milisec: 10,
+            wait_in_millisecond: 10,
             thread_number: 1,
         }
     }
@@ -101,8 +101,8 @@ impl Step for Writer {
                 );
                 let mut current_retry = 0;
                 while pipe_inbound.try_send(data_result.clone()).is_err() {
-                    warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_milisec"=>self.wait_in_milisec, "current_retry" => current_retry);
-                    thread::sleep(time::Duration::from_millis(self.wait_in_milisec));
+                    warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                    thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                     current_retry += 1;
                 }
             }
@@ -189,7 +189,7 @@ impl Step for Writer {
         debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
         Ok(())
     }
-    fn thread_number(&self) -> i32 {
+    fn thread_number(&self) -> usize {
         self.thread_number
     }
 }

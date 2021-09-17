@@ -70,7 +70,7 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
         pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
         pipe_inbound_option: Option<MPMCSender<DataResult>>,
     ) -> io::Result<()>;
-    fn thread_number(&self) -> i32 {
+    fn thread_number(&self) -> usize {
         1
     }
 }
