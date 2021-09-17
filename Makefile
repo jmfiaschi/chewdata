@@ -96,6 +96,7 @@ stop:
 
 clean:
 	@sudo rm -Rf cache
+	@cargo clean
 
 docs:
 	@cd docs

@@ -46,19 +46,16 @@ async fn main() -> io::Result<()> {
         },
         {
             "type": "t",
-            "updater": {
-                "type": "tera",
-                "actions": [
-                    {
-                        "field":"",
-                        "pattern": "{{ input | json_encode() }}"
-                    },
-                    {
-                        "field":"uuid",
-                        "pattern": "{{ uuid_v4() }}"
-                    }
-                ]
-            }
+            "actions": [
+                {
+                    "field":"",
+                    "pattern": "{{ input | json_encode() }}"
+                },
+                {
+                    "field":"uuid",
+                    "pattern": "{{ uuid_v4() }}"
+                }
+            ]
         },
         {
             "type": "w",
