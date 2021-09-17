@@ -3,9 +3,9 @@ extern crate slog;
 extern crate glob;
 extern crate json_value_merge;
 extern crate json_value_resolve;
+extern crate multiqueue2 as multiqueue;
 extern crate serde;
 extern crate serde_json;
-extern crate multiqueue2 as multiqueue;
 
 pub mod connector;
 pub mod document;
@@ -14,16 +14,19 @@ pub mod step;
 pub mod updater;
 
 use self::step::StepType;
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, io};
-use multiqueue::MPMCReceiver;
 use async_std::task;
-use std::pin::Pin;
 use futures::stream::Stream;
-use serde_json::Value;
 use json_value_merge::Merge;
+use multiqueue::MPMCReceiver;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::pin::Pin;
+use std::{collections::HashMap, io};
 
-pub async fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>) -> io::Result<()> {
+pub async fn exec(
+    step_types: Vec<StepType>,
+    mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>,
+) -> io::Result<()> {
     let mut steps = Vec::default();
     let mut handles = Vec::default();
     let step_types_len = step_types.len();
@@ -33,21 +36,25 @@ pub async fn exec(step_types: Vec<StepType>, mut previous_step_pipe_outbound: Op
         let step = step_type.step_inner().clone();
         let thread_number = step.thread_number();
 
-        let mut pipe_inbound_option = None;   
-        if pos != step_types_len-1 {
+        let mut pipe_inbound_option = None;
+        if pos != step_types_len - 1 {
             pipe_inbound_option = Some(pipe_inbound.clone());
         }
 
         for _pos in 0..thread_number {
-            steps.push((step.clone(), previous_step_pipe_outbound.clone(), pipe_inbound_option.clone()));
+            steps.push((
+                step.clone(),
+                previous_step_pipe_outbound.clone(),
+                pipe_inbound_option.clone(),
+            ));
         }
         previous_step_pipe_outbound = Some(pipe_outbound);
     }
 
     for (step, inbound, outbound) in steps {
-        handles.push(task::spawn(async move { 
-            step.exec(inbound, outbound).await 
-        }));
+        handles.push(task::spawn(
+            async move { step.exec(inbound, outbound).await },
+        ));
     }
 
     for result in futures::future::join_all(handles).await {
@@ -109,10 +116,10 @@ impl Metadata {
     }
     fn content_type(&self) -> String {
         let mut content_type = String::default();
-        
+
         if let (Some(mime_type), Some(mime_subtype)) = (&self.mime_type, &self.mime_subtype) {
             content_type = format!("{}/{}", mime_type, mime_subtype);
-            
+
             if let Some(charset) = &self.charset {
                 content_type += &format!("; charset={}", charset);
             }
@@ -183,16 +190,30 @@ impl DataResult {
             DataResult::Ok(value) => value.to_owned(),
             DataResult::Err((value, error)) => {
                 let mut json_value = value.to_owned();
-                json_value.merge_in(
-                    format!("/{}", DataResult::FIELD_ERROR).as_ref(),
-                    Value::String(format!("{}", error)),
-                );
+                match json_value {
+                    Value::Array(_) => json_value
+                        .merge_in(
+                            format!("/*/{}", DataResult::FIELD_ERROR).as_ref(),
+                            Value::String(format!("{}", error)),
+                        )
+                        .unwrap(),
+                    _ => json_value
+                        .merge_in(
+                            format!("/{}", DataResult::FIELD_ERROR).as_ref(),
+                            Value::String(format!("{}", error)),
+                        )
+                        .unwrap(),
+                }
+
                 json_value
             }
         }
     }
     pub fn is_type(&self, data_type: &str) -> bool {
-        matches!((self, data_type), (DataResult::Ok(_), DataResult::OK) | (DataResult::Err(_), DataResult::ERR))
+        matches!(
+            (self, data_type),
+            (DataResult::Ok(_), DataResult::OK) | (DataResult::Err(_), DataResult::ERR)
+        )
     }
 }
 

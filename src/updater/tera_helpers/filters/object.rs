@@ -118,7 +118,7 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         }
         (Some(merge_with), Some(path), value) => {
             new_value.merge(value.clone());
-            new_value.merge_in(path.as_str(), merge_with);
+            new_value.merge_in(path.as_str(), merge_with)?;
             new_value
         }
         (None, Some(_), _value) => {
