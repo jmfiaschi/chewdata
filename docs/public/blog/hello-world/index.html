@@ -50,19 +50,19 @@
 	
 
 <title>Hello World | Chewdata</title>
-<meta name="description" content="Introducing Doks, a Hugo theme helping you build modern documentation websites that are secure, fast, and SEO-ready — by default.">
+<meta name="description" content="Hello World with chewdata.">
 <link rel="canonical" href="https://chewdata.github.io/blog/hello-world/">
 
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="doks.png">
   <meta name="twitter:title" content="Hello World">
-  <meta name="twitter:description" content="Introducing Doks, a Hugo theme helping you build modern documentation websites that are secure, fast, and SEO-ready — by default.">
+  <meta name="twitter:description" content="Hello World with chewdata.">
   <meta name="twitter:site" content="@jmfiaschi">
   <meta name="twitter:creator" content="@jmfiaschi">
   
   <meta property="og:title" content="Hello World">
-  <meta property="og:description" content="Introducing Doks, a Hugo theme helping you build modern documentation websites that are secure, fast, and SEO-ready — by default.">
+  <meta property="og:description" content="Hello World with chewdata.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://chewdata.github.io/blog/hello-world/">
 
@@ -70,7 +70,7 @@
     <meta property="og:image" content="doks.png">
   
 
-  <meta property="og:updated_time" content="2021-05-01T09:19:42+00:00">
+  <meta property="og:updated_time" content="2021-09-05T09:19:42+00:00">
   <meta property="og:site_name" content="Hello World">
 
   
@@ -97,8 +97,8 @@
       },
       "headline": "Hello World",
       "image": ,
-      "datePublished": "2021-05-01T09:19:42+00:00",
-      "dateModified": "2021-05-01T09:19:42+00:00",
+      "datePublished": "2021-09-05T09:19:42+00:00",
+      "dateModified": "2021-09-05T09:19:42+00:00",
       "author": {
         "@type": "Organization",
         "name": "Hello World"
@@ -113,7 +113,7 @@
         }
         
       },
-      "description": "Introducing Doks, a Hugo theme helping you build modern documentation websites that are secure, fast, and SEO-ready — by default."
+      "description": "Hello World with chewdata."
     }
     </script>
   
@@ -258,27 +258,47 @@
           <div class="blog-header">
             <h1>Hello World</h1>
             
-<p><small>Posted May  1, 2021 by <a class="stretched-link position-relative" href="https://chewdata.github.io/authors/rustaceans/">Rustaceans</a>&nbsp;&hyphen;&nbsp;<strong>1&nbsp;min read</strong></small><p>
+<p><small>Posted September  5, 2021 by <a class="stretched-link position-relative" href="https://chewdata.github.io/authors/none/">none</a>&nbsp;&hyphen;&nbsp;<strong>1&nbsp;min read</strong></small><p>
 
           </div>
-          <p class="lead">This is the source code of the traditional <b>Hello World</b> program.</p>
-          <pre data-lang="rust" style="background-color:#2b303b;color:#c0c5ce;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#65737e;">// This is a comment, and is ignored by the compiler
+          <p class="lead">This is an example how to do <b>Hello World</b> with chewdata.</p>
+          <p>In your Cargo.toml add :</p>
+<pre data-lang="toml" style="background-color:#2b303b;color:#c0c5ce;" class="language-toml "><code class="language-toml" data-lang="toml"><span>[package]
+</span><span style="color:#bf616a;">name </span><span>= &quot;</span><span style="color:#a3be8c;">hello_world</span><span>&quot;
+</span><span style="color:#bf616a;">version </span><span>= &quot;</span><span style="color:#a3be8c;">1.0.0</span><span>&quot;
+</span><span style="color:#bf616a;">edition </span><span>= &quot;</span><span style="color:#a3be8c;">2018</span><span>&quot;
 </span><span>
-</span><span style="color:#65737e;">// This is the main function
-</span><span style="color:#b48ead;">fn </span><span style="color:#8fa1b3;">main</span><span>() {
-</span><span>    </span><span style="color:#65737e;">// Statements here are executed when the compiled binary is called
+</span><span>[dependencies]
+</span><span style="color:#bf616a;">chewdata </span><span>= {</span><span style="color:#bf616a;">version</span><span>=&quot;</span><span style="color:#a3be8c;">1.2</span><span>&quot;,</span><span style="color:#bf616a;">default-features</span><span>=</span><span style="color:#d08770;">false</span><span>}
+</span><span style="color:#bf616a;">async-std </span><span>= { </span><span style="color:#bf616a;">version </span><span>= &quot;</span><span style="color:#a3be8c;">1.10</span><span>&quot;, </span><span style="color:#bf616a;">features </span><span>= [&quot;</span><span style="color:#a3be8c;">attributes</span><span>&quot;] }
+</span><span style="color:#bf616a;">serde_json </span><span>= &quot;</span><span style="color:#a3be8c;">1.0</span><span>&quot;
+</span></code></pre>
+<p>In your main rust file in ./src/main.rs :</p>
+<pre data-lang="rust" style="background-color:#2b303b;color:#c0c5ce;" class="language-rust "><code class="language-rust" data-lang="rust"><span style="color:#b48ead;">use </span><span>std::io;
 </span><span>
-</span><span>    </span><span style="color:#65737e;">// Print text to the console
-</span><span>    println!(&quot;</span><span style="color:#a3be8c;">Hello World!</span><span>&quot;);
+</span><span>#[</span><span style="color:#bf616a;">async_std</span><span>::</span><span style="color:#bf616a;">main</span><span>]
+</span><span>async </span><span style="color:#b48ead;">fn </span><span style="color:#8fa1b3;">main</span><span>() -&gt; io::Result&lt;()&gt; {
+</span><span>    </span><span style="color:#b48ead;">let</span><span> config = </span><span style="color:#b48ead;">r</span><span>#&quot;
+</span><span style="color:#a3be8c;">    [{
+</span><span style="color:#a3be8c;">        &quot;type&quot;: &quot;r&quot;,
+</span><span style="color:#a3be8c;">        &quot;conn&quot;: {
+</span><span style="color:#a3be8c;">            &quot;type&quot;: &quot;mem&quot;,
+</span><span style="color:#a3be8c;">            &quot;data&quot;: &quot;Hello World !!!&quot;
+</span><span style="color:#a3be8c;">        },
+</span><span style="color:#a3be8c;">        &quot;doc&quot;: { &quot;type&quot;: &quot;text&quot; }
+</span><span style="color:#a3be8c;">    },
+</span><span style="color:#a3be8c;">    {
+</span><span style="color:#a3be8c;">        &quot;type&quot;: &quot;w&quot;
+</span><span style="color:#a3be8c;">    }]
+</span><span style="color:#a3be8c;">    </span><span>&quot;#;
+</span><span>    </span><span style="color:#b48ead;">let</span><span> config = serde_json::from_str(config.</span><span style="color:#96b5b4;">to_string</span><span>().</span><span style="color:#96b5b4;">as_str</span><span>())?;
+</span><span>
+</span><span>    chewdata::exec(config, None).await
 </span><span>}
 </span></code></pre>
-<p><code>println!</code> is a macro that prints text to the console.</p>
-<p>A binary can be generated using the Rust compiler: <code>rustc</code>.</p>
-<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#bf616a;">$</span><span> rustc hello.rs
-</span></code></pre>
-<p><code>rustc</code> will produce a <code>hello</code> binary that can be executed.</p>
-<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#bf616a;">$</span><span> ./hello
-</span><span style="color:#bf616a;">Hello</span><span> World!
+<p>Run your script :</p>
+<pre data-lang="bash" style="background-color:#2b303b;color:#c0c5ce;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#bf616a;">$</span><span> cargo run
+</span><span style="color:#bf616a;">[</span><span>&quot;</span><span style="color:#a3be8c;">Hello World !!!</span><span>&quot;</span><span style="color:#bf616a;">]
 </span></code></pre>
 
         </article>

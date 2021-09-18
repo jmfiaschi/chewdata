@@ -1,41 +1,61 @@
 +++
 title = "Hello World"
-description = "Introducing Doks, a Hugo theme helping you build modern documentation websites that are secure, fast, and SEO-ready — by default."
-date = 2021-05-01T09:19:42+00:00
-updated = 2021-05-01T09:19:42+00:00
+description = "Hello World with chewdata."
+date = 2021-09-05T09:19:42+00:00
+updated = 2021-09-05T09:19:42+00:00
 draft = false
 template = "blog/page.html"
 
 [taxonomies]
-authors = ["Rustaceans"]
+authors = ["none"]
 
 [extra]
-lead = "This is the source code of the traditional <b>Hello World</b> program."
+lead = "This is an example how to do <b>Hello World</b> with chewdata."
 +++
 
+In your Cargo.toml add :
+
+```toml
+[package]
+name = "hello_world"
+version = "1.0.0"
+edition = "2018"
+
+[dependencies]
+chewdata = {version="1.2",default-features=false}
+async-std = { version = "1.10", features = ["attributes"] }
+serde_json = "1.0"
+```
+
+In your main rust file in ./src/main.rs :
+
 ```rust
-// This is a comment, and is ignored by the compiler
+use std::io;
 
-// This is the main function
-fn main() {
-    // Statements here are executed when the compiled binary is called
+#[async_std::main]
+async fn main() -> io::Result<()> {
+    let config = r#"
+    [{
+        "type": "r",
+        "conn": {
+            "type": "mem",
+            "data": "Hello World !!!"
+        },
+        "doc": { "type": "text" }
+    },
+    {
+        "type": "w"
+    }]
+    "#;
+    let config = serde_json::from_str(config.to_string().as_str())?;
 
-    // Print text to the console
-    println!("Hello World!");
+    chewdata::exec(config, None).await
 }
 ```
 
-`println!` is a macro that prints text to the console.
-
-A binary can be generated using the Rust compiler: `rustc`.
+Run your script :
 
 ```bash
-$ rustc hello.rs
-```
-
-`rustc` will produce a `hello` binary that can be executed.
-
-```bash
-$ ./hello
-Hello World!
+$ cargo run
+["Hello World !!!"]
 ```
