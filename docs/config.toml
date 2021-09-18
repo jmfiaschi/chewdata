@@ -1,7 +1,7 @@
 theme = "adidoks"
 
 # The URL the site will be built for
-base_url = "https://jmfiaschi.github.io/"
+base_url = "https://jmfiaschi.github.io/chewdata/"
 title = "Chewdata"
 description = "Chewdata is a light ETL in Rust"
 
