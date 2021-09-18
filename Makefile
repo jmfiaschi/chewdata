@@ -2,7 +2,7 @@ include .env
 export $(shell sed 's/=.*//' .env)
 
 .SILENT:
-.PHONY: build exec test bench help minio minio-install httpbin clean
+.PHONY: build exec test bench help minio minio-install httpbin clean docs
 
 help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -99,8 +99,7 @@ clean:
 	@cargo clean
 
 docs:
-	@cd docs
-	@zola build
+	@cd docs && zola build
 
 # Shell colors.
 RED=\033[0;31m
