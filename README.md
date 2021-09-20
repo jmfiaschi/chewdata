@@ -123,6 +123,6 @@ make test
 
 ## Useful links
 
-* [Benchmark report](https://jmfiaschi.github.io/chewdata/bench/main/)
+* [Benchmark report](https://jmfiaschi.github.io/chewdata/benches/reports/main/)
 * [Documentation](./docs)
 * [Package](https://crates.io/crates/chewdata)
