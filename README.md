@@ -1,10 +1,11 @@
 # Chewdata
+
 [![Linter](https://github.com/jmfiaschi/chewdata/workflows/Lint/badge.svg)](https://github.com/jmfiaschi/chewdata/actions)
 [![CI](https://github.com/jmfiaschi/chewdata/workflows/CI/badge.svg)](https://github.com/jmfiaschi/chewdata/actions)
 [![Coverage](https://codecov.io/gh/jmfiaschi/chewdata/branch/main/graph/badge.svg?token=EI62L7XQAH)](https://codecov.io/gh/jmfiaschi/chewdata)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
 
-This application is an simple ETL in rust that can be use as a connector between systems 
+This application is an simple ETL in rust that can be use as a connector between systems
 
 * It handle multiple formats : Json, Jsonl, CSV, Toml, XML, Yaml, Text
 * It can read/write data from :
@@ -20,7 +21,7 @@ This application is an simple ETL in rust that can be use as a connector between
 * Multi platforms
 * Use [tera template](https://tera.netlify.app/docs) in order to configure the actions for the data transformation
 
-the target of this project is to simplify the work of developers and simplify the connection between system. 
+the target of this project is to simplify the work of developers and simplify the connection between system.
 The work is not finished but I hope it will be useful for you.
 
 ## Getting started
@@ -30,7 +31,7 @@ The work is not finished but I hope it will be useful for you.
 Requirement:
 
 * [Rust](https://www.rust-lang.org/tools/install)
-* [Docker](https://docs.docker.com/get-docker/) and [Docker-compose](https://docs.docker.com/compose/install/) for testing the code in local 
+* [Docker](https://docs.docker.com/get-docker/) and [Docker-compose](https://docs.docker.com/compose/install/) for testing the code in local
 
 Commands to execute:
 
