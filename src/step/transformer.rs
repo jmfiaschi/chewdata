@@ -9,6 +9,7 @@ use multiqueue::{MPMCReceiver, MPMCSender};
 use std::{thread, time};
 use async_trait::async_trait;
 use slog::Drain;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -35,10 +36,11 @@ pub struct Transformer {
 
 impl Default for Transformer {
     fn default() -> Self {
+        let uuid = Uuid::new_v4();
         Transformer {
             updater_type: UpdaterType::default(),
             referentials: None,
-            alias: None,
+            alias: Some(uuid.to_simple().to_string()),
             description: None,
             data_type: DataResult::OK.to_string(),
             wait_in_millisecond: 10,

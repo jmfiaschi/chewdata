@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use slog::Drain;
 use std::{fmt, io};
 use std::{thread, time};
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -32,10 +33,11 @@ pub struct Writer {
 
 impl Default for Writer {
     fn default() -> Self {
+        let uuid = Uuid::new_v4();
         Writer {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
-            alias: None,
+            alias: Some(uuid.to_simple().to_string()),
             description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1000,

@@ -9,6 +9,7 @@ use serde::Deserialize;
 use slog::Drain;
 use std::{fmt, io};
 use std::{thread, time};
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -30,10 +31,11 @@ pub struct Reader {
 
 impl Default for Reader {
     fn default() -> Self {
+        let uuid = Uuid::new_v4();
         Reader {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
-            alias: None,
+            alias: Some(uuid.to_simple().to_string()),
             description: None,
             data_type: DataResult::OK.to_string(),
             wait_in_millisecond: 10,
@@ -108,7 +110,9 @@ impl Step for Reader {
                         let mut current_retry = 0;
                         while pipe_inbound.try_send(data_result.clone()).is_err() {
                             warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
-                            thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
+                            thread::sleep(time::Duration::from_millis(
+                                self.wait_in_millisecond as u64,
+                            ));
                             current_retry += 1;
                         }
                     }

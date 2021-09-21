@@ -7,6 +7,7 @@ use serde::Deserialize;
 use std::{fmt, io};
 use std::{thread, time};
 use slog::Drain;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -24,9 +25,10 @@ pub struct Eraser {
 
 impl Default for Eraser {
     fn default() -> Self {
+        let uuid = Uuid::new_v4();
         Eraser {
             connector_type: ConnectorType::default(),
-            alias: None,
+            alias: Some(uuid.to_simple().to_string()),
             description: None,
             wait_in_millisecond: 10,
             exclude_paths: Vec::default(),
