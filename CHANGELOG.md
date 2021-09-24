@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/jmfiaschi/chewdata/compare/v1.3.0...v1.3.1) (2021-09-24)
+
+
+### Bug Fixes
+
+* **xml:** fix transform string to scalar in the xml document ([583f8a0](https://github.com/jmfiaschi/chewdata/commit/583f8a0c94ef0764661a507b8a9a2cb7cae048ac))
+
 # [1.3.0](https://github.com/jmfiaschi/chewdata/compare/v1.2.0...v1.3.0) (2021-09-24)
 
 
