@@ -72,7 +72,7 @@ impl Xml {
         let new_json: String = remove_added_char
             .replace_all(value.to_string().as_ref(), "$1")
             .to_string();
-        let transform_string_to_scalar = Regex::new(r#""([^0][[:digit:]]+|[0-9][0-9]*\.[0-9]+|true|false)""#).unwrap();
+        let transform_string_to_scalar = Regex::new(r#""([1-9][[:digit:]]+|[0-9][0-9]*\.[0-9]+|true|false)""#).unwrap();
         let new_json_transformed: String = transform_string_to_scalar
             .replace_all(new_json.as_ref(), "$1")
             .to_string();

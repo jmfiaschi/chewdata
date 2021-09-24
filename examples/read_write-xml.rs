@@ -29,13 +29,15 @@ async fn main() -> io::Result<()> {
             "path": "./data/multi_lines.xml"
         },
         "document" :{
-            "type":"xml"
+            "type":"xml",
+            "entry_path": "/root"
         }
     },
     {
         "type": "writer",
         "document": {
-            "type": "xml"
+            "type": "xml",
+            "entry_path": "/root"
         }
     }]
     "#;
