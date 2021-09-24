@@ -1,5 +1,3 @@
-extern crate jxon;
-
 use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::json_pointer::JsonPointer;
@@ -74,7 +72,7 @@ impl Xml {
         let new_json: String = remove_added_char
             .replace_all(value.to_string().as_ref(), "$1")
             .to_string();
-        let transform_string_to_scalar = Regex::new(r#""([0-9.]+|true|false)""#).unwrap();
+        let transform_string_to_scalar = Regex::new(r#""([^0][[:digit:]]+|[0-9][0-9]*\.[0-9]+|true|false)""#).unwrap();
         let new_json_transformed: String = transform_string_to_scalar
             .replace_all(new_json.as_ref(), "$1")
             .to_string();
@@ -82,9 +80,9 @@ impl Xml {
         Ok(())
     }
     // jxon add some characteres in order to define attributes.
-    // This function add this attribute '$' for every fields. Use this method before the convertion json_to_xml.
+    // This function add this attribute '$' for every fields except "_". Use this method before the convertion json_to_xml.
     fn add_attribute_character(value: &mut Value) -> io::Result<()> {
-        let re = Regex::new(r#""([^"]+)": *""#).unwrap();
+        let re = Regex::new(r#""([^_]|[^"]{2,})": *""#).unwrap();
         let new_json: String = re
             .replace_all(value.to_string().as_ref(), r#""$$$1":""#)
             .to_string();
@@ -133,7 +131,7 @@ impl Document for Xml {
     }
     /// See [`Document::read_data`] for more details.
     ///
-    /// # Example: Should read xml data.
+    /// # Example: Should read data in key of an xml object
     /// ```
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::xml::Xml;
@@ -145,7 +143,7 @@ impl Document for Xml {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut document = Xml::default();
-    ///     document.entry_path = "/root/*/item/*".to_string();
+    ///     document.entry_path = "/root/*/item".to_string();
     ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"<root>
     ///     <item key_1="value_1" />
     ///     <item key_1="value_2" />
@@ -164,6 +162,37 @@ impl Document for Xml {
     ///     Ok(())
     /// }
     /// ```
+    /// # Example: Should read data in body of an xml object
+    /// ```
+    /// use chewdata::connector::{Connector, in_memory::InMemory};
+    /// use chewdata::document::xml::Xml;
+    /// use chewdata::document::Document;
+    /// use serde_json::Value;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut document = Xml::default();
+    ///     document.entry_path = "/root/*/item".to_string();
+    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"<root>
+    ///     <item>value_1</item>
+    ///     <item>value_2</item>
+    ///     </root>"#));
+    ///     connector.fetch().await?;
+    ///
+    ///     let mut dataset = document.read_data(&mut connector).await?;
+    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data_1: Value = serde_json::from_str(r#"{"_":"value_1"}"#)?;
+    ///     assert_eq!(expected_data_1, data_1);
+    ///
+    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let expected_data_2: Value = serde_json::from_str(r#"{"_":"value_2"}"#)?;
+    ///     assert_eq!(expected_data_2, data_2);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
         let mut string = String::new();
         connector.read_to_string(&mut string).await?;
@@ -174,7 +203,6 @@ impl Document for Xml {
                 format!("Can't parse the xml. {}", e),
             )
         })?;
-
         Xml::clean_json_value(&mut root_element)?;
         let mut records_option = root_element.search(&self.entry_path)?;
         if let Some(records) = records_option {
@@ -183,7 +211,6 @@ impl Document for Xml {
             warn!(slog_scope::logger(), "Entry path not found"; "entry_path" => &self.entry_path);
             return Ok(Box::pin(stream! { yield DataResult::Ok(serde_json::Value::Null); }));
         }
-
         let entry_path = self.entry_path.clone();
         Ok(Box::pin(stream! {
             match records_option {
@@ -239,6 +266,10 @@ impl Document for Xml {
     ///     let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_2"}]}"#)?;
     ///     document.write_data(&mut connector, value).await?;
     ///     assert_eq!(r#"<item><object column_1="line_1"/></item><item><object column_1="line_2"/></item>"#, &format!("{}", connector));
+    ///
+    ///     let value: Value = serde_json::from_str(r#"{"object":[{"_":"line_3"}]}"#)?;
+    ///     document.write_data(&mut connector, value).await?;
+    ///     assert_eq!(r#"<item><object column_1="line_1"/></item><item><object column_1="line_2"/></item><item><object>line_3</object></item>"#, &format!("{}", connector));
     ///
     ///     Ok(())
     /// }

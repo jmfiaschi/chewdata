@@ -71,4 +71,4 @@ jobs:
           comment-on-alert: true
           fail-on-alert: true
           alert-comment-cc-users: '@jmfiaschi'
-          benchmark-data-dir-path: 'docs/bench/${{ env.BRANCH_NAME }}'
+          benchmark-data-dir-path: 'docs/benches/${{ env.BRANCH_NAME }}'
