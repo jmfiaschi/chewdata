@@ -38,12 +38,12 @@ test: start unit-tests integration-tests
 
 unit-tests: start
 unit-tests: ## Launch all tests in local
-	@cargo test --doc -- --test-threads=1 ${name}
-	@cargo test --lib -- --test-threads=1 ${name}
+	@cargo test --doc -- ${name}
+	@cargo test --lib -- ${name}
 
 integration-tests: start
 integration-tests: 
-	@cargo test --tests -- --test-threads=1 ${name}
+	@cargo test --tests -- ${name}
 
 lint:
 	@cargo clippy

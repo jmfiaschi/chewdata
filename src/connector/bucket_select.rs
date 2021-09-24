@@ -901,7 +901,7 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.access_key_id = Some("minio_access_key".to_string());
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
-    ///     connector.path = "data/*.json".to_string();
+    ///     connector.path = "data/*.json$".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.limit = Some(5);
     ///     connector.skip = 2;
@@ -909,7 +909,7 @@ impl Paginator for BucketSelectPaginator {
     ///         ..Json::default().metadata
     ///     };
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/multi_lines.jsonl".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///
     ///     Ok(())
