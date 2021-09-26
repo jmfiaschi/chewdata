@@ -19,8 +19,15 @@ pub struct Io {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
+    #[serde(default = "default_eof")]
+    #[serde(alias = "end_of_input")]
+    pub eoi: String,
     #[serde(skip)]
     pub inner: Cursor<Vec<u8>>,
+}
+
+fn default_eof() -> String {
+    "\\q".to_string()
 }
 
 impl fmt::Display for Io {
@@ -85,10 +92,9 @@ impl Connector for Io {
         let mut buf = String::default();
 
         while let Some(line) = lines.next().await {
-            let current_line = line?;
-            match current_line.as_str() {
-                "exit" | "quit" | "\\q" => break,
-                _ => (),
+            let current_line: String = line?;
+            if current_line.eq(self.eoi.as_str()) {
+                break
             };
             buf = format!("{}{}\n", buf, current_line);
         }
