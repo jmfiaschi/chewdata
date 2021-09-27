@@ -1,6 +1,0 @@
-10;1456;"value to test";"Long val
-to test";"true";"é";"field must be renamed";"2019-12-31";1000000;10.156;"?search=test me";"A,B,C";"value_to_map";"field to remove"
-20;1456;"value to test 2";"Long val
-to test 2";"true";"à";"field must be renamed 2";"2020-12-31";2000000;10.12;"?search=test me 2";"D,E,F";"value_to_map_2";"field to remove 2"
-30;1456;"value to test 3";"Long val
-to test 3";"true";"€";"field must be renamed 3";"2018-12-31";5000000;100.1;"?search=test me 3";"G,H,I";"value_to_map_3";"field to remove 3"
