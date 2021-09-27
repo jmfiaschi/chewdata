@@ -583,14 +583,12 @@ impl Paginator for CurlPaginator {
     ///     assert_eq!("/links/1/10", reader.path().as_str());
     ///     let mut buffer1 = String::default();
     ///     let len1 = reader.read_to_string(&mut buffer1).await?;
-    ///     println!("buffer1 {:?}", buffer1);
     ///     assert!(0 < len1, "Can't read the content of the file.");
     ///
     ///     let mut reader = paginator.next_page().await?.unwrap();
     ///     assert_eq!("/links/2/10", reader.path().as_str());  
     ///     let mut buffer2 = String::default();
     ///     let len2 = reader.read_to_string(&mut buffer2).await?;
-    ///     println!("buffer2 {:?}", buffer2);
     ///     assert!(0 < len2, "Can't read the content of the file.");
     ///     assert!(buffer1 != buffer2, "The content of this two files is not different.");
     ///
