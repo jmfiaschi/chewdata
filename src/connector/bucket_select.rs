@@ -909,8 +909,8 @@ impl Paginator for BucketSelectPaginator {
     ///         ..Json::default().metadata
     ///     };
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///
     ///     Ok(())
     /// }
