@@ -23,6 +23,7 @@ pub struct Xml {
     pub is_pretty: bool,
     pub indent_char: u8,
     pub indent_size: usize,
+    // Elements to target
     pub entry_path: String,
 }
 
@@ -440,12 +441,19 @@ impl Document for Xml {
     ///     let mut document = Xml::default();
     ///     let mut connector = InMemory::new(r#"<root></root>"#);
     ///     connector.fetch().await?;
-    ///     document.entry_path = "/root/0/item".to_string();
+    ///     document.entry_path = "/root/*/item".to_string();
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
     ///     assert_eq!(false, document.has_data(buffer.as_str()));
     ///
+    ///     let mut connector = InMemory::new(r#"<root/>"#);
+    ///     connector.fetch().await?;
+    ///     document.entry_path = "/root/*/item".to_string();
+    ///
+    ///     let mut buffer = String::default();
+    ///     connector.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(buffer.as_str()));
     ///     Ok(())
     /// }
     /// ```
@@ -462,7 +470,7 @@ impl Document for Xml {
     ///     let mut document = Xml::default();
     ///     let mut connector = InMemory::new(r#""#);
     ///     connector.fetch().await?;
-    ///     document.entry_path = "/root/0/item".to_string();
+    ///     document.entry_path = "/root/*/item".to_string();
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
@@ -484,7 +492,7 @@ impl Document for Xml {
     ///     let mut document = Xml::default();
     ///     let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
     ///     connector.fetch().await?;
-    ///     document.entry_path = "/root/0/item".to_string();
+    ///     document.entry_path = "/root/*/item".to_string();
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
@@ -494,10 +502,22 @@ impl Document for Xml {
     /// }
     /// ```
     fn has_data(&self, str: &str) -> bool {
-        let xml_entry_path_begin: String = self.entry_point_path_start();
-        let xml_entry_path_end: String = self.entry_point_path_end();
+        let data_value = match jxon::xml_to_json(str) {
+            Ok(value) => value,
+            Err(e) => {
+                warn!(slog_scope::logger(), "Can't transform xml to value object"; "xml" => str, "error" => e.to_string());
+                return false;
+            }
+        };
+        let result = match data_value.search(self.entry_path.as_str()) {
+            Ok(option) => option,
+            Err(e) => {
+                warn!(slog_scope::logger(), "Entry path parameter malformed"; "entry_path" => self.entry_path.as_str(), "error" => e.to_string());
+                return false;
+            }
+        };
 
-        if format!("{}{}", xml_entry_path_begin, xml_entry_path_end) == str {
+        if result.is_none() {
             return false;
         }
 

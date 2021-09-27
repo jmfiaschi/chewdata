@@ -30,14 +30,14 @@ async fn main() -> io::Result<()> {
         },
         "document" :{
             "type":"xml",
-            "entry_path": "/root"
+            "entry_path": "/root/*/item"
         }
     },
     {
         "type": "writer",
         "document": {
             "type": "xml",
-            "entry_path": "/root"
+            "entry_path": "/root/*/item"
         }
     }]
     "#;
