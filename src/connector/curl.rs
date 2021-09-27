@@ -572,21 +572,25 @@ impl Paginator for CurlPaginator {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
-    ///     connector.path = "/links/{{n}}/{{offset}}".to_string();
+    ///     connector.path = "/links/{{n}}/10".to_string();
     ///     connector.limit = 1;
-    ///     connector.skip = 0;
-    ///     let paginator_parameters = PaginatorParameters { skip_name: "n".to_string(), limit_name: "offset".to_string() };
+    ///     connector.skip = 1;
+    ///     let paginator_parameters = PaginatorParameters { skip_name: "n".to_string(), limit_name: "limit".to_string() };
     ///     connector.paginator_parameters = Some(paginator_parameters);
     ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     let mut reader = paginator.next_page().await?.unwrap();     
+    ///     let mut reader = paginator.next_page().await?.unwrap();
+    ///     assert_eq!("/links/1/10", reader.path().as_str());
     ///     let mut buffer1 = String::default();
     ///     let len1 = reader.read_to_string(&mut buffer1).await?;
+    ///     println!("buffer1 {:?}", buffer1);
     ///     assert!(0 < len1, "Can't read the content of the file.");
     ///
-    ///     let mut reader = paginator.next_page().await?.unwrap();     
+    ///     let mut reader = paginator.next_page().await?.unwrap();
+    ///     assert_eq!("/links/2/10", reader.path().as_str());  
     ///     let mut buffer2 = String::default();
     ///     let len2 = reader.read_to_string(&mut buffer2).await?;
+    ///     println!("buffer2 {:?}", buffer2);
     ///     assert!(0 < len2, "Can't read the content of the file.");
     ///     assert!(buffer1 != buffer2, "The content of this two files is not different.");
     ///
@@ -622,8 +626,6 @@ impl Paginator for CurlPaginator {
     ) -> Result<Option<Box<dyn Connector>>> {
         Ok(match self.has_next {
             true => {
-                self.skip += self.connector.limit;
-
                 let mut new_connector = self.connector.clone();
                 let mut new_parameters = Value::default();
                 new_parameters.merge(self.connector.parameters.clone());
@@ -647,6 +649,8 @@ impl Paginator for CurlPaginator {
 
                 new_connector.set_parameters(new_parameters);
                 new_connector.fetch().await?;
+
+                self.skip += self.connector.limit;
 
                 Some(Box::new(new_connector))
             }
