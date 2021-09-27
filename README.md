@@ -124,6 +124,6 @@ make test
 
 ## Useful links
 
-* [Benchmark report](/chewdata/bench/main/)
-* [Documentation](/chewdata-docs/)
+* [Benchmark report](https://jmfiaschi.github.io/chewdata/bench/main/)
+* [Documentation](https://jmfiaschi.github.io/chewdata-docs/)
 * [Package](https://crates.io/crates/chewdata)
