@@ -51,7 +51,7 @@ If you want some examples to discover this project, go in this section [./exampl
 
 ### Run the ETL
 
-If you run the program without parameters, the application will wait until you write json data and finish by `quit`/`exit`/`\q`. By default, the program write json data in the output.
+If you run the program without parameters, the application will wait until you write json data and finish by `\q`. By default, the program write json data in the output.
 
 ```Bash
 $ cargo run 
