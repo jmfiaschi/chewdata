@@ -904,13 +904,13 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.path = "data/*.json$".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.limit = Some(5);
-    ///     connector.skip = 2;
+    ///     connector.skip = 1;
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///
     ///     Ok(())
     /// }
