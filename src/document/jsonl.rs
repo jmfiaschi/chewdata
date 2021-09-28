@@ -226,7 +226,7 @@ impl Document for Jsonl {
         connector.write_all(b"\n").await
     }
     /// See [`Document::has_data`] for more details.
-    fn has_data(&self, str: &str) -> bool {
-        !matches!(str, "{}" | "")
+    fn has_data(&self, str: &str) -> io::Result<bool> {
+        Ok(!matches!(str, "{}" | ""))
     }
 }

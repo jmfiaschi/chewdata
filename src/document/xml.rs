@@ -11,7 +11,7 @@ use json_value_merge::Merge;
 use json_value_search::Search;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
@@ -108,7 +108,7 @@ impl Xml {
         let mut entry_path_value: Value = Value::Null;
         entry_path_value.merge_in(
             &self.entry_path.to_string().to_json_pointer(),
-            Value::Array(Vec::default()),
+            Value::Array(vec![Value::Object(Map::default())]),
         )?;
 
         self.value_to_xml(&entry_path_value)
@@ -119,7 +119,7 @@ impl Xml {
             true => Some((self.indent_char, self.indent_size)),
             false => None,
         };
-
+        
         jxon::json_to_xml(value.to_string().as_ref(), indent)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))
     }
@@ -445,7 +445,7 @@ impl Document for Xml {
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()));
+    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
     ///
     ///     let mut connector = InMemory::new(r#"<root/>"#);
     ///     connector.fetch().await?;
@@ -453,7 +453,7 @@ impl Document for Xml {
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()));
+    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
     ///     Ok(())
     /// }
     /// ```
@@ -474,7 +474,7 @@ impl Document for Xml {
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()));
+    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
     ///
     ///     Ok(())
     /// }
@@ -496,31 +496,19 @@ impl Document for Xml {
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(true, document.has_data(buffer.as_str()));
+    ///     assert_eq!(true, document.has_data(buffer.as_str()).unwrap());
     ///
     ///     Ok(())
     /// }
     /// ```
-    fn has_data(&self, str: &str) -> bool {
-        let data_value = match jxon::xml_to_json(str) {
-            Ok(value) => value,
-            Err(e) => {
-                warn!(slog_scope::logger(), "Can't transform xml to value object"; "xml" => str, "error" => e.to_string());
-                return false;
-            }
-        };
-        let result = match data_value.search(self.entry_path.as_str()) {
-            Ok(option) => option,
-            Err(e) => {
-                warn!(slog_scope::logger(), "Entry path parameter malformed"; "entry_path" => self.entry_path.as_str(), "error" => e.to_string());
-                return false;
-            }
-        };
+    fn has_data(&self, str: &str) -> io::Result<bool> {
+        let data_value = jxon::xml_to_json(str)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
-        if result.is_none() {
-            return false;
+        if data_value.search(self.entry_path.as_str())?.is_none() {
+            return Ok(false);
         }
 
-        !matches!(str, "")
+        Ok(!matches!(str, ""))
     }
 }

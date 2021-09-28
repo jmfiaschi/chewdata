@@ -112,10 +112,18 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                         break;
                     }
                 };
-                if !document.has_data(inner) {
-                    info!(slog_scope::logger(), "The connector contain empty data. The pagination stop"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
-                    break;
-                }
+                
+                match document.has_data(inner) {
+                    Ok(false) => {
+                        info!(slog_scope::logger(), "The connector contain empty data. The pagination stop"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
+                        break;
+                    }
+                    Err(e) => {
+                        warn!(slog_scope::logger(), "Can't check if the document contains data"; "connector" => format!("{:?}", connector_reader), "error" => e, "document" => format!("{:?}", document));
+                        break;
+                    }
+                    _ => ()
+                };
 
                 let mut dataset = match document.read_data(connector_reader).await {
                     Ok(dataset) => dataset,
@@ -124,9 +132,11 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                         break;
                     }
                 };
+
                 while let Some(data_result) = dataset.next().await {
                     yield data_result;
                 }
+
                 debug!(slog_scope::logger(), "Next page ended"; "connector" => format!("{:?}", connector_reader), "document" => format!("{:?}", document));
             }
         }))

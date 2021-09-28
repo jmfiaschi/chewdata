@@ -121,8 +121,8 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
         Metadata::default()
     }
     /// Check if the str in argument has an empty data
-    fn has_data(&self, str: &str) -> bool {
-        !matches!(str, "")
+    fn has_data(&self, str: &str) -> io::Result<bool> {
+        Ok(!matches!(str, ""))
     }
     fn entry_point_path_start(&self) -> String {
         "".to_string()
