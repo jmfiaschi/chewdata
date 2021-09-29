@@ -6,10 +6,11 @@ use async_trait::async_trait;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt;
 use std::io::{Error, ErrorKind, Result};
 use surf::{http::headers, RequestBuilder};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Jwt {
     #[serde(alias = "algo")]
@@ -23,6 +24,39 @@ pub struct Jwt {
     pub payload: Box<Value>,
     pub parameters: Box<Value>,
     pub token: Option<String>,
+}
+
+impl fmt::Debug for Jwt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut obfuscate_refresh_token = self
+            .refresh_token
+            .clone();
+        obfuscate_refresh_token.replace_range(0..(obfuscate_refresh_token.len()/2), (0..(obfuscate_refresh_token.len()/2)).map(|_| "#").collect::<String>().as_str());
+
+        let mut obfuscate_key = self
+            .key
+            .clone();
+        obfuscate_key.replace_range(0..(obfuscate_key.len()/2), (0..(obfuscate_key.len()/2)).map(|_| "#").collect::<String>().as_str());
+
+        let mut obfuscate_token = self
+            .token
+            .clone()
+            .unwrap_or_default();
+        obfuscate_token.replace_range(0..(obfuscate_token.len()/2), (0..(obfuscate_token.len()/2)).map(|_| "#").collect::<String>().as_str());
+    
+        f.debug_struct("Jwt")
+            .field("algorithm", &self.algorithm)
+            .field("refresh_connector", &self.refresh_connector)
+            .field("refresh_document", &self.refresh_document)
+            .field("refresh_token", &obfuscate_refresh_token)
+            .field("jwk", &self.jwk)
+            .field("format", &self.format)
+            .field("key", &obfuscate_key)
+            .field("payload", &self.payload)
+            .field("parameters", &self.parameters)
+            .field("token", &obfuscate_token)
+            .finish()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
