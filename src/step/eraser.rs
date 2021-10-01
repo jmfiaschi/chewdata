@@ -6,7 +6,6 @@ use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;
 use std::{fmt, io};
 use std::{thread, time};
-use slog::Drain;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -58,7 +57,7 @@ impl Step for Eraser {
         pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
         pipe_inbound_option: Option<MPMCSender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
+        debug!(step = format!("{}", self).as_str(),  "Exec");
 
         let connector_type = self.connector_type.clone();
         let mut connector = connector_type.connector();
@@ -72,25 +71,22 @@ impl Step for Eraser {
                     let path = connector.path();
 
                     if !exclude_paths.contains(&path) {
-                        debug!(slog_scope::logger(), "Erase data started"; "step" => format!("{}", self.clone()));
+                        debug!(step = format!("{}", self.clone()).as_str(),  "Erase data started");
                         connector.erase().await?;
-                        debug!(slog_scope::logger(), "Erase data ended"; "step" => format!("{}", self.clone()));
+                        debug!(step = format!("{}", self.clone()).as_str(),  "Erase data ended");
                         exclude_paths.push(path);
                     }
 
                     if let Some(ref pipe_inbound) = pipe_inbound_option {
-                        info!(slog_scope::logger(),
-                            "Data send to the queue";
-                            "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                                true => format!("{:?}", data_result),
-                                false => "truncated, available only in debug mode".to_string(),
-                            },
-                            "step" => format!("{}", self.clone()),
-                            "pipe_outbound" => false
+                        debug!(
+                            data = format!("{:?}", data_result).as_str(),
+                            step = format!("{}", self.clone()).as_str(),
+                            pipe_outbound = false,
+                            "Data send to the queue"
                         );
                         let mut current_retry = 0;
                         while pipe_inbound.try_send(data_result.clone()).is_err() {
-                            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                            warn!(step = format!("{}", self).as_str(), wait_in_millisecond=self.wait_in_millisecond, current_retry = current_retry,  "The pipe is full, wait before to retry");
                             thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                             current_retry += 1;
                         }
@@ -99,14 +95,14 @@ impl Step for Eraser {
             }
             (Some(pipe_outbound), false) => {
                 for _data_result in pipe_outbound {}
-                debug!(slog_scope::logger(), "Erase data started"; "step" => format!("{}", self.clone()));
+                debug!(step = format!("{}", self.clone()).as_str(),  "Erase data started");
                 connector.erase().await?;
-                debug!(slog_scope::logger(), "Erase data ended"; "step" => format!("{}", self.clone()));
+                debug!(step = format!("{}", self.clone()).as_str(),  "Erase data ended");
             }
             (_, _) => {
-                debug!(slog_scope::logger(), "Erase data started"; "step" => format!("{}", self.clone()));
+                debug!(step = format!("{}", self.clone()).as_str(),  "Erase data started");
                 connector.erase().await?;
-                debug!(slog_scope::logger(), "Erase data ended"; "step" => format!("{}", self.clone()));
+                debug!(step = format!("{}", self.clone()).as_str(),  "Erase data ended");
             }
         };
 
@@ -114,7 +110,7 @@ impl Step for Eraser {
             drop(pipe_inbound);
         }
 
-        debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
+        debug!(step = format!("{}", self).as_str(),  "Exec ended");
         Ok(())
     }
 }

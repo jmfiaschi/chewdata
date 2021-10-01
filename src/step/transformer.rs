@@ -1,14 +1,13 @@
-use super::{DataResult};
+use super::DataResult;
 use crate::step::reader::Reader;
 use crate::step::Step;
-use crate::updater::{Action,  UpdaterType};
+use crate::updater::{Action, UpdaterType};
+use async_trait::async_trait;
+use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fmt, io};
-use multiqueue::{MPMCReceiver, MPMCSender};
 use std::{thread, time};
-use async_trait::async_trait;
-use slog::Drain;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -67,7 +66,9 @@ impl fmt::Display for Transformer {
     }
 }
 /// Return a referentials hashmap indexed by the alias of the referential.
-async fn referentials_reader_to_dataset(referentials: HashMap<String, Reader>) -> io::Result<HashMap<String, Vec<Value>>> {
+async fn referentials_reader_to_dataset(
+    referentials: HashMap<String, Reader>,
+) -> io::Result<HashMap<String, Vec<Value>>> {
     let mut referentials_dataset = HashMap::new();
 
     // For each reader, try to build the referential.
@@ -88,79 +89,109 @@ async fn referentials_reader_to_dataset(referentials: HashMap<String, Reader>) -
 /// This Step transform a dataset.
 #[async_trait]
 impl Step for Transformer {
-    async fn exec(&self, pipe_outbound_option: Option<MPMCReceiver<DataResult>>, pipe_inbound_option: Option<MPMCSender<DataResult>>) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
-        
+    async fn exec(
+        &self,
+        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
+        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+    ) -> io::Result<()> {
+        debug!(step = format!("{}", self).as_str(), "Exec");
+
         let pipe_inbound = match pipe_inbound_option {
             Some(pipe_inbound) => pipe_inbound,
             None => {
-                info!(slog_scope::logger(), "This step is skipped. No inbound pipe found"; "step" => format!("{}", self.clone()));
-                return Ok(())
+                info!(
+                    step = format!("{}", self.clone()).as_str(),
+                    "This step is skipped. No inbound pipe found"
+                );
+                return Ok(());
             }
         };
 
         let pipe_outbound = match pipe_outbound_option {
             Some(pipe_outbound) => pipe_outbound,
             None => {
-                info!(slog_scope::logger(), "This step is skipped. No outbound pipe found"; "step" => format!("{}", self.clone()));
-                return Ok(())
+                info!(
+                    step = format!("{}", self.clone()).as_str(),
+                    "This step is skipped. No outbound pipe found"
+                );
+                return Ok(());
             }
         };
-        
+
         let mapping = match self.referentials.clone() {
             Some(referentials) => Some(referentials_reader_to_dataset(referentials).await?),
-            None => None
+            None => None,
         };
 
         for data_result in pipe_outbound {
             if !data_result.is_type(self.data_type.as_ref()) {
-                info!(slog_scope::logger(),
-                    "This step handle only this data type";
-                    "data_type" => self.data_type.to_string(),
-                    "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                        true => format!("{:?}", data_result),
-                        false => "truncated, available only in debug mode".to_string(),
-                    },
-                    "step" => format!("{}", self.clone())
+                debug!(
+                    data_type = self.data_type.to_string().as_str(),
+                    data = format!("{:?}", data_result).as_str(),
+                    step = format!("{}", self.clone()).as_str(),
+                    "This step handle only this data type"
                 );
                 continue;
             }
 
             let record = data_result.to_json_value();
 
-            let new_data_results = match self.updater_type
-                .updater()
-                .update(record.clone(), mapping.clone(), self.actions.clone(), self.input_name.clone(), self.output_name.clone()) {
-                    Ok(new_record) => {
-                        debug!(slog_scope::logger(), "Record transformation success"; "step" => format!("{}", self), "record" => format!("{}", new_record));
+            let new_data_results = match self.updater_type.updater().update(
+                record.clone(),
+                mapping.clone(),
+                self.actions.clone(),
+                self.input_name.clone(),
+                self.output_name.clone(),
+            ) {
+                Ok(new_record) => {
+                    debug!(
+                        step = format!("{}", self).as_str(),
+                        record = format!("{}", new_record).as_str(),
+                        "Record transformation success"
+                    );
 
-                        if Value::Null == new_record {
-                            debug!(slog_scope::logger(), "Record skip because the value si null"; "step" => format!("{}", self), "record" => format!("{}", new_record));
-                            continue;
-                        }
+                    if Value::Null == new_record {
+                        debug!(
+                            step = format!("{}", self).as_str(),
+                            record = format!("{}", new_record).as_str(),
+                            "Record skip because the value si null"
+                        );
+                        continue;
+                    }
 
-                        let new_data_result = DataResult::Ok(new_record);
-                        debug!(slog_scope::logger(), "New data result"; "step" => format!("{}", self), "data_result" => format!("{:?}", new_data_result));
-                        new_data_result
-                    }
-                    Err(e) => {
-                        let new_data_result = DataResult::Err((record, e));
-                        warn!(slog_scope::logger(), "Record transformation error. New data result with error";"step" => format!("{}", self), "data_result" => format!("{:?}", new_data_result));
-                        new_data_result
-                    }
-                };
-            
-            info!(slog_scope::logger(),
-                "Data send to the queue";
-                "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                    true => format!("{:?}", new_data_results),
-                    false => "truncated, available only in debug mode".to_string(),
-                },
-                "step" => format!("{}", self.clone())
+                    let new_data_result = DataResult::Ok(new_record);
+                    debug!(
+                        step = format!("{}", self).as_str(),
+                        data_result = format!("{:?}", new_data_result).as_str(),
+                        "New data result"
+                    );
+                    new_data_result
+                }
+                Err(e) => {
+                    let new_data_result = DataResult::Err((record, e));
+                    warn!(
+                        step = format!("{}", self).as_str(),
+                        data_result = format!("{:?}", new_data_result).as_str(),
+                        "Record transformation error. New data result with error"
+                    );
+                    new_data_result
+                }
+            };
+
+            debug!(
+                data = format!("{:?}", new_data_results).as_str(),
+                step = format!("{}", self.clone()).as_str(),
+                "Data send to the queue"
             );
+            
             let mut current_retry = 0;
             while pipe_inbound.try_send(new_data_results.clone()).is_err() {
-                warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+                warn!(
+                    step = format!("{}", self).as_str(),
+                    "wait_in_millisecond" = self.wait_in_millisecond,
+                    current_retry = current_retry,
+                    "The pipe is full, wait before to retry"
+                );
                 thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
                 current_retry += 1;
             }
@@ -168,7 +199,7 @@ impl Step for Transformer {
 
         drop(pipe_inbound);
 
-        debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
+        debug!(step = format!("{}", self).as_str(), "Exec ended");
         Ok(())
     }
     fn thread_number(&self) -> usize {

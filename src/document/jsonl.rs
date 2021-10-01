@@ -179,7 +179,7 @@ impl Document for Jsonl {
                     }
                     (Ok(record), None) => yield DataResult::Ok(record),
                     (Err(e), _) => {
-                        warn!(slog_scope::logger(), "Can't deserialize the record"; "error"=>format!("{:?}",e));
+                        warn!(error = format!("{:?}", e).as_str(),  "Can't deserialize the record");
                         yield DataResult::Err((Value::Null, e.into()));
                     }
                 };

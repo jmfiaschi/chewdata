@@ -206,11 +206,11 @@ impl Csv {
             for record in data {
                 let data_result = match record {
                     Ok(record) => {
-                        debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
+                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         DataResult::Ok(Value::Object(record))
                     }
                     Err(e) => {
-                        warn!(slog_scope::logger(), "Can't deserialize the record"; "error"=>format!("{:?}",e));
+                        warn!(error = format!("{:?}",e).as_str(),  "Can't deserialize the record");
                         if let super::csv::csv::ErrorKind::Io(_) = e.kind() {
                             return;
                         };
@@ -220,7 +220,7 @@ impl Csv {
                 };
                 yield data_result;
             }
-            debug!(slog_scope::logger(), "End generator");
+            debug!("End generator");
         }))
     }
     /// Read csv data without header.
@@ -263,7 +263,7 @@ impl Csv {
             for record in reader.into_records() {
                 let data_result = match record {
                     Ok(record) => {
-                        debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
+                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         let map: Vec<Value> = record
                             .iter()
                             .map(|value| Value::String(value.to_string()))
@@ -271,7 +271,7 @@ impl Csv {
                         DataResult::Ok(Value::Array(map))
                     }
                     Err(e) => {
-                        warn!(slog_scope::logger(), "Can't deserialize the record"; "error"=>format!("{:?}",e));
+                        warn!(error = format!("{:?}",e).as_str(),  "Can't deserialize the record");
                         DataResult::Err((
                             Value::Null,
                             io::Error::new(io::ErrorKind::InvalidData, e),

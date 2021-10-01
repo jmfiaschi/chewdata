@@ -370,11 +370,10 @@ impl Connector for Mongodb {
             }
 
             trace!(
-                slog_scope::logger(),
-                "update_many";
-                "query" => format!("{:?}", &query_update),
-                "update" => format!("{:?}", doc! {"$set": &doc_without_id}),
-                "options" => format!("{:?}", &update_options),
+                query = format!("{:?}", &query_update).as_str(),
+                update = format!("{:?}", doc! {"$set": &doc_without_id}).as_str(),
+                options = format!("{:?}", &update_options).as_str(),
+                "update_many"
             );
 
             let result = collection
@@ -388,18 +387,16 @@ impl Connector for Mongodb {
 
             if 0 < result.matched_count {
                 debug!(
-                    slog_scope::logger(),
-                    "Document(s) updated into the connection";
-                    "result" => format!("{:?}", result),
-                    "connector" => format!("{}", self),
+                    result = format!("{:?}", result).as_str(),
+                    connector = format!("{}", self).as_str(),
+                    "Document(s) updated into the connection"
                 );
             }
             if result.upserted_id.is_some() {
                 debug!(
-                    slog_scope::logger(),
-                    "Document(s) inserted into the connection";
-                    "result" => format!("{:?}", result),
-                    "connector" => format!("{}", self),
+                    result = format!("{:?}", result).as_str(),
+                    connector = format!("{}", self).as_str(),
+                    "Document(s) inserted into the connection"
                 );
             }
         }

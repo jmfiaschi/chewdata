@@ -81,18 +81,18 @@ impl Mustache for String {
                 Some(Value::Number(number)) => format!("{}", number),
                 Some(Value::Bool(boolean)) => format!("{}", boolean),
                 None => {
-                    warn!(slog_scope::logger(),
-                        "replace_mustache: Can't resolve";
-                        "value" => value_captured,
-                        "json_pointer" => json_pointer,
-                        "object" => format!("{:?}", object),
+                    warn!(
+                        "This value '{}' can't be resolved for this path '{}' and this object '{}'",
+                        value_captured,
+                        json_pointer,
+                        format!("{:?}", object),
                     );
                     continue;
                 }
                 Some(_) => {
-                    warn!(slog_scope::logger(),
-                        "replace_mustache: This parameter is not handle, only scalar";
-                        "parameter" => format!("{:?}", object.pointer(&json_pointer))
+                    warn!(
+                        "This parameter '{}' is not handle, only scalar",
+                        format!("{:?}", object.pointer(&json_pointer))
                     );
                     continue;
                 }

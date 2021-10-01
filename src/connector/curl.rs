@@ -12,6 +12,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{collections::HashMap, fmt};
 use surf::http::{headers, Method, Url};
+use tracing_futures::{Instrument, WithSubscriber};
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -184,7 +185,6 @@ impl Connector for Curl {
     /// }
     /// ```
     async fn fetch(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Fetch started");
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -209,6 +209,7 @@ impl Connector for Curl {
         let req = request_builder.build();
         let mut res = client
             .send(req.clone())
+            .with_current_subscriber()
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -229,7 +230,6 @@ impl Connector for Curl {
         }
 
         self.inner = Box::new(Cursor::new(data));
-        debug!(slog_scope::logger(), "Fetch ended");
 
         Ok(())
     }
@@ -337,7 +337,7 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         if !res.status().is_success() {
-            warn!(slog_scope::logger(), "Can't get the len of the remote document with method HEAD"; "connector" => format!("{:?}", self), "status" => res.status().to_string());
+            warn!(connector = format!("{:?}", self).as_str(), status = res.status().to_string().as_str(),  "Can't get the len of the remote document with method HEAD");
 
             return Ok(0);
         }
@@ -646,7 +646,7 @@ impl Paginator for CurlPaginator {
                 }
 
                 new_connector.set_parameters(new_parameters);
-                new_connector.fetch().await?;
+                new_connector.fetch().instrument(tracing::info_span!("fetch")).await?;
 
                 self.skip += self.connector.limit;
 

@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;
-use slog::Drain;
 use std::{fmt, io};
 use std::{thread, time};
 use uuid::Uuid;
@@ -65,12 +64,15 @@ impl Step for Reader {
         pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
         pipe_inbound_option: Option<MPMCSender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
+        debug!(step = format!("{}", self).as_str(), "Exec");
 
         let pipe_inbound = match pipe_inbound_option {
             Some(pipe_inbound) => pipe_inbound,
             None => {
-                info!(slog_scope::logger(), "This step is skipped. No inbound pipe found"; "step" => format!("{}", self.clone()));
+                info!(
+                    step = format!("{}", self.clone()).as_str(),
+                    "This step is skipped. No inbound pipe found"
+                );
                 return Ok(());
             }
         };
@@ -89,14 +91,11 @@ impl Step for Reader {
                     }
 
                     if !data_result.is_type(self.data_type.as_ref()) {
-                        info!(slog_scope::logger(),
-                            "This step handle only this data type";
-                            "data_type" => self.data_type.to_string(),
-                            "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                                true => format!("{:?}", data_result),
-                                false => "truncated, available only in debug mode".to_string(),
-                            },
-                            "step" => format!("{}", self.clone())
+                        debug!(
+                            data_type = self.data_type.to_string().as_str(),
+                            data = format!("{:?}", data_result).as_str(),
+                            step = format!("{}", self.clone()).as_str(),
+                            "This step handle only this data type"
                         );
                         continue;
                     }
@@ -133,25 +132,27 @@ impl Step for Reader {
 
         drop(pipe_inbound);
 
-        debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
+        debug!(step = format!("{}", self).as_str(), "Exec ended");
         Ok(())
     }
 }
 
 impl Reader {
     fn send(&self, data_result: DataResult, pipe: &MPMCSender<DataResult>) -> io::Result<()> {
-        info!(slog_scope::logger(),
-            "Data send to the queue";
-            "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                true => format!("{:?}", data_result),
-                false => "truncated, available only in debug mode".to_string(),
-            },
-            "step" => format!("{}", self.clone()),
-            "pipe_outbound" => false
+        debug!(
+            data = format!("{:?}", data_result).as_str(),
+            step = format!("{}", self.clone()).as_str(),
+            pipe_outbound = false,
+            "Data send to the queue"
         );
         let mut current_retry = 0;
         while pipe.try_send(data_result.clone()).is_err() {
-            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
+            warn!(
+                step = format!("{}", self).as_str(),
+                "wait_in_millisecond" = self.wait_in_millisecond,
+                current_retry = current_retry,
+                "The pipe is full, wait before to retry"
+            );
             thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
             current_retry += 1;
         }

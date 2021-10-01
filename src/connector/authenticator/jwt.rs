@@ -144,7 +144,7 @@ impl Jwt {
     /// }
     /// ```
     pub async fn refresh(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Refresh the jwt token started");
+        debug!("Refresh the jwt token started");
         if let Some(refresh_connector_type) = self.refresh_connector.clone() {
             let mut payload = self.payload.clone();
             let parameters = self.parameters.clone();
@@ -169,7 +169,7 @@ impl Jwt {
 
             match payload.get(self.refresh_token.clone()) {
                 Some(Value::String(token)) => {
-                    info!(slog_scope::logger(), "JWT refreshed with succes"; "token" => token);
+                    info!(token = token.as_str(),  "JWT refreshed with succes");
                     self.token = Some(token.clone());
                     Ok(())
                 }
@@ -180,7 +180,7 @@ impl Jwt {
             }?;
         };
 
-        debug!(slog_scope::logger(), "Refresh the jwt token ended");
+        debug!("Refresh the jwt token ended");
         Ok(())
     }
     pub fn decode(
@@ -424,7 +424,7 @@ impl Authenticator for Jwt {
                         }
                         _ => {
                             self.token = None;
-                            warn!(slog_scope::logger(), "Can't decode the Java Web Token"; "error" => e.to_string());
+                            warn!(error = e.to_string().as_str(),  "Can't decode the Java Web Token");
                             return Err(Error::new(ErrorKind::InvalidInput, e));
                         }
                     };
@@ -439,7 +439,7 @@ impl Authenticator for Jwt {
             }
             None => {
                 warn!(
-                    slog_scope::logger(),
+                    
                     "No Java Web Token found for the authentication"
                 );
                 request_builder

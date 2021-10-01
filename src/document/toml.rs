@@ -76,12 +76,12 @@ impl Document for Toml {
             match record {
                 Value::Array(records) => {
                     for record in records {
-                        debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
+                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         yield DataResult::Ok(record);
                     }
                 }
                 record => {
-                    debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
+                    debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                     yield DataResult::Ok(record);
                 }
             };

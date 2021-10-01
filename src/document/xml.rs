@@ -157,7 +157,7 @@ impl Document for Xml {
         let xml_entry_path = match self.xml_entry_path() {
             Ok(xml) => xml,
             Err(e) => {
-                warn!(slog_scope::logger(), "Can't generate the xml entry path start"; "entry_path" => self.entry_path.clone(), "error" => e.to_string());
+                warn!(entry_path = self.entry_path.clone().as_str(), error = e.to_string().as_str(), "Can't generate the xml entry path start");
                 "".to_string()
             }
         };
@@ -175,7 +175,7 @@ impl Document for Xml {
         let xml_entry_path = match self.xml_entry_path() {
             Ok(xml) => xml,
             Err(e) => {
-                warn!(slog_scope::logger(), "Can't generate the xml entry path end"; "entry_path" => self.entry_path.clone(), "error" => e.to_string());
+                warn!(entry_path = self.entry_path.clone().as_str(), error = e.to_string().as_str(), "Can't generate the xml entry path end");
                 "".to_string()
             }
         };
@@ -270,7 +270,10 @@ impl Document for Xml {
         if let Some(records) = records_option {
             records_option = Some(Xml::trim_array(&records));
         } else {
-            warn!(slog_scope::logger(), "Entry path not found"; "entry_path" => &self.entry_path);
+            warn!(
+                entry_path = &self.entry_path.as_str(),
+                "Entry path not found"
+            );
             return Ok(Box::pin(
                 stream! { yield DataResult::Ok(serde_json::Value::Null); },
             ));
@@ -281,17 +284,17 @@ impl Document for Xml {
                 Some(record) => match record {
                     Value::Array(vec) => {
                         for json_value in vec {
-                            debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",json_value));
+                            debug!(record = format!("{:?}",json_value).as_str(),  "Record deserialized");
                             yield DataResult::Ok(json_value.clone());
                         }
                     }
                     _ => {
-                        debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
+                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         yield DataResult::Ok(record.clone());
                     }
                 },
                 None => {
-                    warn!(slog_scope::logger(), "This path not found into the document."; "path"=>entry_path.clone(), "xml"=>string.clone());
+                    warn!(path = entry_path.clone().as_str(), xml = string.clone().as_str(),  "This path not found into the document.");
                     yield DataResult::Err((
                         Value::Null,
                         io::Error::new(
