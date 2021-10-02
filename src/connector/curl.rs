@@ -13,8 +13,6 @@ use std::task::{Context, Poll};
 use std::{collections::HashMap, fmt};
 use surf::http::{headers, Method, Url};
 use tracing_futures::{Instrument, WithSubscriber};
-use std::time;
-use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -129,7 +127,7 @@ impl Connector for Curl {
                 let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
-            },
+            }
             _ => self.path.clone(),
         }
     }
@@ -155,7 +153,7 @@ impl Connector for Curl {
 
         let mut actuel_path = self.path.clone();
         actuel_path.replace_mustache(self.parameters.clone());
-        
+
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
@@ -187,7 +185,7 @@ impl Connector for Curl {
     /// }
     /// ```
     async fn fetch(&mut self) -> Result<()> {
-        let client = surf::client().with(SurfLogger);
+        let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
         let mut request_builder = surf::RequestBuilder::new(self.method, url);
@@ -199,7 +197,8 @@ impl Connector for Curl {
         }
 
         if !self.metadata().content_type().is_empty() {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -310,7 +309,7 @@ impl Connector for Curl {
     /// }
     /// ```
     async fn len(&mut self) -> Result<usize> {
-        let client = surf::client().with(SurfLogger);
+        let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
         let mut request_builder = surf::head(url);
@@ -322,7 +321,8 @@ impl Connector for Curl {
         }
 
         if !self.metadata().content_type().is_empty() {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -332,14 +332,18 @@ impl Connector for Curl {
         }
 
         let req = request_builder.build();
-        
+
         let res = client
             .send(req)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         if !res.status().is_success() {
-            warn!(connector = format!("{:?}", self).as_str(), status = res.status().to_string().as_str(),  "Can't get the len of the remote document with method HEAD");
+            warn!(
+                connector = format!("{:?}", self).as_str(),
+                status = res.status().to_string().as_str(),
+                "Can't get the len of the remote document with method HEAD"
+            );
 
             return Ok(0);
         }
@@ -383,7 +387,7 @@ impl Connector for Curl {
     /// }
     /// ```
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        let client = surf::client().with(SurfLogger);
+        let client = surf::client();
         // initialize the position of the cursor
         self.inner.set_position(0);
 
@@ -398,7 +402,8 @@ impl Connector for Curl {
         }
 
         if !self.metadata().content_type().is_empty() {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -458,7 +463,7 @@ impl Connector for Curl {
     /// }
     /// ```
     async fn erase(&mut self) -> Result<()> {
-        let client = surf::client().with(SurfLogger);
+        let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
         let mut request_builder = surf::RequestBuilder::new(Method::Delete, url);
@@ -470,7 +475,8 @@ impl Connector for Curl {
         }
 
         if !self.metadata().content_type().is_empty() {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -622,9 +628,7 @@ impl Paginator for CurlPaginator {
     ///     Ok(())
     /// }
     /// ```
-    async fn next_page(
-        &mut self
-    ) -> Result<Option<Box<dyn Connector>>> {
+    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
         Ok(match self.has_next {
             true => {
                 let mut new_connector = self.connector.clone();
@@ -640,7 +644,11 @@ impl Paginator for CurlPaginator {
                         .as_str(),
                     )?);
                     new_parameters.merge(serde_json::from_str(
-                        format!(r#"{{"{}":"{}"}}"#, paginator_parameters.skip_name, self.skip).as_str(),
+                        format!(
+                            r#"{{"{}":"{}"}}"#,
+                            paginator_parameters.skip_name, self.skip
+                        )
+                        .as_str(),
                     )?);
                 }
 
@@ -649,7 +657,10 @@ impl Paginator for CurlPaginator {
                 }
 
                 new_connector.set_parameters(new_parameters);
-                new_connector.fetch().instrument(tracing::info_span!("fetch")).await?;
+                new_connector
+                    .fetch()
+                    .instrument(tracing::info_span!("fetch"))
+                    .await?;
 
                 self.skip += self.connector.limit;
 
@@ -657,38 +668,5 @@ impl Paginator for CurlPaginator {
             }
             false => None,
         })
-    }
-}
-
-struct SurfLogger;
-#[surf::utils::async_trait]
-impl surf::middleware::Middleware for SurfLogger {
-    async fn handle(
-        &self,
-        req: surf::Request,
-        client: surf::Client,
-        next: surf::middleware::Next<'_>,
-    ) -> std::result::Result<surf::Response, http_types::Error> {
-        let start_time = time::Instant::now();
-        let uri = format!("{}", req.url());
-        let method = format!("{}", req.method());
-        let uuid = Uuid::new_v4();
-        let id = uuid.to_simple().to_string();
-
-        info!(req.id = id.as_str(), req.uri = uri.as_str(), req.method = method.as_str(), "sending request");
-
-        let res = next.run(req, client).await?;
-
-        let status = res.status();
-        let elapsed = start_time.elapsed();
-        if status.is_server_error() {
-            tracing::error!(req.id = id.as_str(), elapsed = &format!("{:?}", elapsed).as_str(), req.status = status.to_string().as_str(), "request completed");
-        } else if status.is_client_error() {
-            tracing::warn!(req.id = id.as_str(), elapsed = &format!("{:?}", elapsed).as_str(), req.status = status.to_string().as_str(), "request completed");
-        } else {
-            tracing::info!(req.id = id.as_str(), elapsed = &format!("{:?}", elapsed).as_str(), req.status = status.to_string().as_str(), "request completed");
-        };
-
-        Ok(res)
     }
 }

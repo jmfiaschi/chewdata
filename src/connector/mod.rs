@@ -126,7 +126,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                     _ => ()
                 };
 
-                let mut dataset = match document.read_data(connector_reader).await {
+                let mut dataset = match document.read_data(connector_reader).instrument(tracing::info_span!("read_data")).await {
                     Ok(dataset) => dataset,
                     Err(e) => {
                         error!(connector = format!("{:?}", connector_reader).as_str(), error = e.to_string().as_str(), document = format!("{:?}", document).as_str(),  "Can't pull the data");

@@ -6,6 +6,7 @@ use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};
 use std::{thread, time};
+use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -100,7 +101,9 @@ impl Step for Writer {
                     step = format!("{}", self.clone()).as_str(),
                     "Data send to the queue"
                 );
+
                 let mut current_retry = 0;
+                
                 while pipe_inbound.try_send(data_result.clone()).is_err() {
                     warn!(
                         step = format!("{}", self).as_str(),
@@ -126,8 +129,15 @@ impl Step for Writer {
             {
                 // If the path change, the writer flush and send the data in the buffer though the connector.
                 if connector.is_resource_will_change(data_result.to_json_value())? {
-                    document.close(&mut *connector).await?;
-                    match connector.send(Some(position)).await {
+                    document
+                        .close(&mut *connector)
+                        .instrument(tracing::info_span!("close"))
+                        .await?;
+                    match connector
+                        .send(Some(position))
+                        .instrument(tracing::info_span!("send"))
+                        .await
+                    {
                         Ok(_) => (),
                         Err(e) => {
                             warn!(
@@ -146,6 +156,7 @@ impl Step for Writer {
             }
 
             connector.set_parameters(data_result.to_json_value());
+
             debug!(
                 connector = format!("{:?}", &connector).as_str(),
                 document = format!("{:?}", &document).as_str(),
@@ -153,14 +164,25 @@ impl Step for Writer {
                 step = format!("{}", self.clone()).as_str(),
                 "Push data"
             );
+
             document
                 .write_data(&mut *connector, data_result.to_json_value())
+                .instrument(tracing::info_span!("write_data"))
                 .await?;
 
             if self.dataset_size <= current_dataset_size {
                 info!(step = format!("{}", self.clone()).as_str(), "Send data");
-                document.close(&mut *connector).await?;
-                match connector.send(Some(position)).await {
+
+                document
+                    .close(&mut *connector)
+                    .instrument(tracing::info_span!("close"))
+                    .await?;
+
+                match connector
+                    .send(Some(position))
+                    .instrument(tracing::info_span!("send"))
+                    .await
+                {
                     Ok(_) => (),
                     Err(e) => {
                         warn!(
@@ -173,6 +195,7 @@ impl Step for Writer {
                         )
                     }
                 };
+
                 current_dataset_size = 0;
             } else {
                 current_dataset_size += 1;
@@ -184,8 +207,14 @@ impl Step for Writer {
                 step = format!("{}", self.clone()).as_str(),
                 "Send data before to end the step"
             );
+
             document.close(&mut *connector).await?;
-            match connector.send(Some(position)).await {
+
+            match connector
+                .send(Some(position))
+                .instrument(tracing::info_span!("send"))
+                .await
+            {
                 Ok(_) => (),
                 Err(e) => {
                     warn!(

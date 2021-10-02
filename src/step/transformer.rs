@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fmt, io};
 use std::{thread, time};
+use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -76,7 +77,10 @@ async fn referentials_reader_to_dataset(
         let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
         let mut referential_dataset: Vec<Value> = Vec::new();
 
-        referential.exec(None, Some(pipe_inbound)).await?;
+        referential
+            .exec(None, Some(pipe_inbound))
+            .instrument(tracing::info_span!("exec"))
+            .await?;
 
         for data_result in pipe_outbound {
             referential_dataset.push(data_result.to_json_value());
@@ -183,7 +187,7 @@ impl Step for Transformer {
                 step = format!("{}", self.clone()).as_str(),
                 "Data send to the queue"
             );
-            
+
             let mut current_retry = 0;
             while pipe_inbound.try_send(new_data_results.clone()).is_err() {
                 warn!(

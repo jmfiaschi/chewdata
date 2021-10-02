@@ -8,6 +8,7 @@ use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;
 use std::{fmt, io};
 use std::{thread, time};
+use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -101,7 +102,11 @@ impl Step for Reader {
                     }
 
                     connector.set_parameters(data_result.to_json_value());
-                    let mut data = connector.pull_data(document.clone()).await?;
+                    let mut data = connector
+                        .pull_data(document.clone())
+                        .instrument(tracing::info_span!("pull_data"))
+                        .await?;
+
                     while let Some(data_result) = data.next().await {
                         self.send(data_result, &pipe_inbound)?;
                     }
@@ -109,7 +114,11 @@ impl Step for Reader {
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
-                    let mut data = connector.pull_data(document.clone()).await?;
+                    let mut data = connector
+                        .pull_data(document.clone())
+                        .instrument(tracing::info_span!("pull_data"))
+                        .await?;
+
                     while let Some(data_result) = data.next().await {
                         self.send(data_result, &pipe_inbound)?;
                     }
@@ -117,13 +126,21 @@ impl Step for Reader {
             }
             (Some(pipe_outbound), false) => {
                 for _data_result in pipe_outbound {}
-                let mut data = connector.pull_data(document.clone()).await?;
+                let mut data = connector
+                    .pull_data(document.clone())
+                    .instrument(tracing::info_span!("pull_data"))
+                    .await?;
+
                 while let Some(data_result) = data.next().await {
                     self.send(data_result, &pipe_inbound)?;
                 }
             }
             (None, _) => {
-                let mut data = connector.pull_data(document.clone()).await?;
+                let mut data = connector
+                    .pull_data(document.clone())
+                    .instrument(tracing::info_span!("pull_data"))
+                    .await?;
+
                 while let Some(data_result) = data.next().await {
                     self.send(data_result, &pipe_inbound)?;
                 }

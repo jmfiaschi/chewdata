@@ -11,7 +11,8 @@ use std::io::Read;
 use std::io::{Error, ErrorKind, Result};
 use tracing::*;
 use tracing_futures::WithSubscriber;
-use tracing_subscriber::{self, EnvFilter};
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 const ARG_JSON: &str = "json";
 const ARG_FILE: &str = "file";
@@ -24,6 +25,8 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         // build but do not install the subscriber.
         .finish();
+
+    tracing_subscriber::registry().init();
 
     trace!("Chewdata start...");
     let args = application().get_matches();
@@ -78,7 +81,9 @@ async fn main() -> Result<()> {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(steps, None).with_subscriber(subscriber).await
+    chewdata::exec(steps, None)
+        .with_subscriber(subscriber)
+        .await
 }
 
 fn application() -> App<'static, 'static> {

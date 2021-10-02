@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
+use tracing::Instrument;
 use tracing_futures::WithSubscriber;
 
 pub async fn exec(
@@ -54,7 +55,9 @@ pub async fn exec(
 
     for (step, inbound, outbound) in steps {
         handles.push(task::spawn(
-            async move { step.exec(inbound, outbound).await }.with_current_subscriber(),
+            async move { step.exec(inbound, outbound).await }
+                .instrument(tracing::info_span!("exec"))
+                .with_current_subscriber(),
         ));
     }
 

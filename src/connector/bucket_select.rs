@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time;
 use std::time::Duration;
 use std::vec::IntoIter;
 use std::{
@@ -25,7 +24,6 @@ use std::{
 use surf_bucket_select::model::{
     event_stream::EventStream, select_object_content::SelectObjectContentEventStreamItem,
 };
-use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -363,7 +361,7 @@ impl BucketSelect {
         }
     }
     async fn fetch_data(&mut self) -> Result<String> {
-        let client = surf::client().with(SurfLogger);
+        let client = surf::client();
 
         let endpoint = match self.endpoint.to_owned() {
             Some(endpoint) => endpoint,
@@ -448,7 +446,7 @@ impl BucketSelect {
         Ok(buffer)
     }
     async fn fetch_length(&mut self) -> Result<usize> {
-        let client = surf::client().with(SurfLogger);
+        let client = surf::client();
         let endpoint = match self.endpoint.to_owned() {
             Some(endpoint) => endpoint,
             None => format!("https://s3-{}.amazonaws.com", self.region),
@@ -931,58 +929,5 @@ impl Paginator for BucketSelectPaginator {
         }
 
         Ok(None)
-    }
-}
-
-struct SurfLogger;
-#[surf::utils::async_trait]
-impl surf::middleware::Middleware for SurfLogger {
-    async fn handle(
-        &self,
-        req: surf::Request,
-        client: surf::Client,
-        next: surf::middleware::Next<'_>,
-    ) -> std::result::Result<surf::Response, http_types::Error> {
-        let start_time = time::Instant::now();
-        let uri = format!("{}", req.url());
-        let method = format!("{}", req.method());
-        let uuid = Uuid::new_v4();
-        let id = uuid.to_simple().to_string();
-
-        info!(
-            req.id = id.as_str(),
-            req.uri = uri.as_str(),
-            req.method = method.as_str(),
-            "sending request"
-        );
-
-        let res = next.run(req, client).await?;
-
-        let status = res.status();
-        let elapsed = start_time.elapsed();
-        if status.is_server_error() {
-            tracing::error!(
-                req.id = id.as_str(),
-                elapsed = &format!("{:?}", elapsed).as_str(),
-                req.status = status.to_string().as_str(),
-                "request completed"
-            );
-        } else if status.is_client_error() {
-            tracing::warn!(
-                req.id = id.as_str(),
-                elapsed = &format!("{:?}", elapsed).as_str(),
-                req.status = status.to_string().as_str(),
-                "request completed"
-            );
-        } else {
-            tracing::info!(
-                req.id = id.as_str(),
-                elapsed = &format!("{:?}", elapsed).as_str(),
-                req.status = status.to_string().as_str(),
-                "request completed"
-            );
-        };
-
-        Ok(res)
     }
 }
