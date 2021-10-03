@@ -6,9 +6,9 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;
-use slog::Drain;
 use std::{fmt, io};
 use std::{thread, time};
+use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -65,12 +65,15 @@ impl Step for Reader {
         pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
         pipe_inbound_option: Option<MPMCSender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(slog_scope::logger(), "Exec"; "step" => format!("{}", self));
+        debug!(step = format!("{}", self).as_str(), "Exec");
 
         let pipe_inbound = match pipe_inbound_option {
             Some(pipe_inbound) => pipe_inbound,
             None => {
-                info!(slog_scope::logger(), "This step is skipped. No inbound pipe found"; "step" => format!("{}", self.clone()));
+                info!(
+                    step = format!("{}", self.clone()).as_str(),
+                    "This step is skipped. No inbound pipe found"
+                );
                 return Ok(());
             }
         };
@@ -81,89 +84,96 @@ impl Step for Reader {
 
         match (pipe_outbound_option, connector.is_variable()) {
             (Some(pipe_outbound), true) => {
+                // Used to check if the data has been received.
+                let mut has_data_been_received = false;
                 for data_result in pipe_outbound {
+                    if !has_data_been_received {
+                        has_data_been_received = true;
+                    }
+
                     if !data_result.is_type(self.data_type.as_ref()) {
-                        info!(slog_scope::logger(),
-                            "This step handle only this data type";
-                            "data_type" => self.data_type.to_string(),
-                            "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                                true => format!("{:?}", data_result),
-                                false => "truncated, available only in debug mode".to_string(),
-                            },
-                            "step" => format!("{}", self.clone())
+                        debug!(
+                            data_type = self.data_type.to_string().as_str(),
+                            data = format!("{:?}", data_result).as_str(),
+                            step = format!("{}", self.clone()).as_str(),
+                            "This step handle only this data type"
                         );
                         continue;
                     }
 
                     connector.set_parameters(data_result.to_json_value());
-                    let mut data = connector.pull_data(document.clone()).await?;
+                    let mut data = connector
+                        .pull_data(document.clone())
+                        .instrument(tracing::info_span!("pull_data"))
+                        .await?;
+
                     while let Some(data_result) = data.next().await {
-                        info!(slog_scope::logger(),
-                            "Data send to the queue";
-                            "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                                true => format!("{:?}", data_result),
-                                false => "truncated, available only in debug mode".to_string(),
-                            },
-                            "step" => format!("{}", self.clone()),
-                            "pipe_outbound" => true
-                        );
-                        let mut current_retry = 0;
-                        while pipe_inbound.try_send(data_result.clone()).is_err() {
-                            warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
-                            thread::sleep(time::Duration::from_millis(
-                                self.wait_in_millisecond as u64,
-                            ));
-                            current_retry += 1;
-                        }
+                        self.send(data_result, &pipe_inbound)?;
+                    }
+                }
+                // If data has not been received and the channel has been close, run last time the step.
+                // It arrive when the previous step don't push data through the pipe.
+                if !has_data_been_received {
+                    let mut data = connector
+                        .pull_data(document.clone())
+                        .instrument(tracing::info_span!("pull_data"))
+                        .await?;
+
+                    while let Some(data_result) = data.next().await {
+                        self.send(data_result, &pipe_inbound)?;
                     }
                 }
             }
             (Some(pipe_outbound), false) => {
                 for _data_result in pipe_outbound {}
-                let mut data = connector.pull_data(document.clone()).await?;
+                let mut data = connector
+                    .pull_data(document.clone())
+                    .instrument(tracing::info_span!("pull_data"))
+                    .await?;
+
                 while let Some(data_result) = data.next().await {
-                    info!(slog_scope::logger(),
-                        "Data send to the queue";
-                        "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                            true => format!("{:?}", data_result),
-                            false => "truncated, available only in debug mode".to_string(),
-                        },
-                        "step" => format!("{}", self.clone()),
-                        "pipe_outbound" => true
-                    );
-                    let mut current_retry = 0;
-                    while pipe_inbound.try_send(data_result.clone()).is_err() {
-                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
-                        thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
-                        current_retry += 1;
-                    }
+                    self.send(data_result, &pipe_inbound)?;
                 }
             }
             (None, _) => {
-                let mut data = connector.pull_data(document.clone()).await?;
+                let mut data = connector
+                    .pull_data(document.clone())
+                    .instrument(tracing::info_span!("pull_data"))
+                    .await?;
+
                 while let Some(data_result) = data.next().await {
-                    info!(slog_scope::logger(),
-                        "Data send to the queue";
-                        "data" => match slog::Logger::is_debug_enabled(&slog_scope::logger()) {
-                            true => format!("{:?}", data_result),
-                            false => "truncated, available only in debug mode".to_string(),
-                        },
-                        "step" => format!("{}", self.clone()),
-                        "pipe_outbound" => false
-                    );
-                    let mut current_retry = 0;
-                    while pipe_inbound.try_send(data_result.clone()).is_err() {
-                        warn!(slog_scope::logger(), "The pipe is full, wait before to retry"; "step" => format!("{}", self), "wait_in_millisecond"=>self.wait_in_millisecond, "current_retry" => current_retry);
-                        thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
-                        current_retry += 1;
-                    }
+                    self.send(data_result, &pipe_inbound)?;
                 }
             }
         };
 
         drop(pipe_inbound);
 
-        debug!(slog_scope::logger(), "Exec ended"; "step" => format!("{}", self));
+        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        Ok(())
+    }
+}
+
+impl Reader {
+    fn send(&self, data_result: DataResult, pipe: &MPMCSender<DataResult>) -> io::Result<()> {
+        debug!(
+            data = format!("{:?}", data_result).as_str(),
+            step = format!("{}", self.clone()).as_str(),
+            pipe_outbound = false,
+            "Data send to the queue"
+        );
+        let mut current_retry = 0;
+        while pipe.try_send(data_result.clone()).is_err() {
+            warn!(
+                step = format!("{}", self).as_str(),
+                "wait_in_millisecond" = self.wait_in_millisecond,
+                current_retry = current_retry,
+                "The pipe is full, wait before to retry"
+            );
+            thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
+            current_retry += 1;
+        }
+
         Ok(())
     }
 }

@@ -1,8 +1,8 @@
 use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::json_pointer::JsonPointer;
-use crate::{Dataset, DataResult};
 use crate::Metadata;
+use crate::{DataResult, Dataset};
 use async_std::io::prelude::WriteExt;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -11,7 +11,7 @@ use json_value_merge::Merge;
 use json_value_search::Search;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
@@ -23,6 +23,7 @@ pub struct Xml {
     pub is_pretty: bool,
     pub indent_char: u8,
     pub indent_size: usize,
+    // Elements to target
     pub entry_path: String,
 }
 
@@ -72,7 +73,8 @@ impl Xml {
         let new_json: String = remove_added_char
             .replace_all(value.to_string().as_ref(), "$1")
             .to_string();
-        let transform_string_to_scalar = Regex::new(r#""([1-9][[:digit:]]+|[0-9][0-9]*\.[0-9]+|true|false)""#).unwrap();
+        let transform_string_to_scalar =
+            Regex::new(r#""([1-9][[:digit:]]+|[0-9][0-9]*\.[0-9]+|true|false)""#).unwrap();
         let new_json_transformed: String = transform_string_to_scalar
             .replace_all(new_json.as_ref(), "$1")
             .to_string();
@@ -102,14 +104,38 @@ impl Xml {
             _ => value.clone(),
         }
     }
+    /// Build json value with entry_path
+    fn value_entry_path(&self, value: Value) -> io::Result<Value> {
+        let mut fields: Vec<&str> = self.entry_path.split('/').collect();
+        let last_field_opt = fields.pop();
+        let mut value_entry_path: Value = Value::Null;
+
+        if let Some(last_field) = last_field_opt {
+            match last_field.parse::<usize>() {
+                Ok(_) => {
+                    value_entry_path
+                        .merge_in(&self.entry_path.to_string().to_json_pointer(), value)?;
+                }
+                Err(_) => match last_field {
+                    "*" => {
+                        value_entry_path
+                            .merge_in(&self.entry_path.to_string().to_json_pointer(), value)?;
+                    }
+                    _ => {
+                        value_entry_path.merge_in(
+                            &self.entry_path.to_string().to_json_pointer(),
+                            Value::Array(vec![value]),
+                        )?;
+                    }
+                },
+            }
+        }
+
+        Ok(value_entry_path)
+    }
     /// Document an entry xml with the entry_path.
     fn xml_entry_path(&self) -> io::Result<String> {
-        let mut entry_path_value: Value = Value::Null;
-        entry_path_value.merge_in(
-            &self.entry_path.to_string().to_json_pointer(),
-            Value::Array(Vec::default()),
-        )?;
-
+        let entry_path_value = self.value_entry_path(Value::Object(Map::default()))?;
         self.value_to_xml(&entry_path_value)
     }
     /// Transform a json value to xml.
@@ -126,6 +152,42 @@ impl Xml {
 
 #[async_trait]
 impl Document for Xml {
+    /// See [`Document::entry_point_path_start`] for more details.
+    fn entry_point_path_start(&self) -> String {
+        let xml_entry_path = match self.xml_entry_path() {
+            Ok(xml) => xml,
+            Err(e) => {
+                warn!(entry_path = self.entry_path.clone().as_str(), error = e.to_string().as_str(), "Can't generate the xml entry path start");
+                "".to_string()
+            }
+        };
+
+        let xml_entry_path_begin: String = xml_entry_path
+            .split('<')
+            .filter(|node| !node.contains('/') && !node.is_empty())
+            .map(|node| format!("<{}", node))
+            .collect();
+
+        xml_entry_path_begin
+    }
+    /// See [`Document::entry_point_path_end`] for more details.
+    fn entry_point_path_end(&self) -> String {
+        let xml_entry_path = match self.xml_entry_path() {
+            Ok(xml) => xml,
+            Err(e) => {
+                warn!(entry_path = self.entry_path.clone().as_str(), error = e.to_string().as_str(), "Can't generate the xml entry path end");
+                "".to_string()
+            }
+        };
+
+        let xml_entry_path_end: String = xml_entry_path
+            .split('>')
+            .filter(|node| node.contains("</") && !node.is_empty())
+            .map(|node| format!("{}>", node))
+            .collect();
+
+        xml_entry_path_end
+    }
     fn metadata(&self) -> Metadata {
         Xml::default().metadata.merge(self.metadata.clone())
     }
@@ -208,8 +270,13 @@ impl Document for Xml {
         if let Some(records) = records_option {
             records_option = Some(Xml::trim_array(&records));
         } else {
-            warn!(slog_scope::logger(), "Entry path not found"; "entry_path" => &self.entry_path);
-            return Ok(Box::pin(stream! { yield DataResult::Ok(serde_json::Value::Null); }));
+            warn!(
+                entry_path = &self.entry_path.as_str(),
+                "Entry path not found"
+            );
+            return Ok(Box::pin(
+                stream! { yield DataResult::Ok(serde_json::Value::Null); },
+            ));
         }
         let entry_path = self.entry_path.clone();
         Ok(Box::pin(stream! {
@@ -217,17 +284,17 @@ impl Document for Xml {
                 Some(record) => match record {
                     Value::Array(vec) => {
                         for json_value in vec {
-                            debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",json_value));
+                            debug!(record = format!("{:?}",json_value).as_str(),  "Record deserialized");
                             yield DataResult::Ok(json_value.clone());
                         }
                     }
                     _ => {
-                        debug!(slog_scope::logger(), "Record deserialized"; "record" => format!("{:?}",record));
+                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         yield DataResult::Ok(record.clone());
                     }
                 },
                 None => {
-                    warn!(slog_scope::logger(), "This path not found into the document."; "path"=>entry_path.clone(), "xml"=>string.clone());
+                    warn!(path = entry_path.clone().as_str(), xml = string.clone().as_str(),  "This path not found into the document.");
                     yield DataResult::Err((
                         Value::Null,
                         io::Error::new(
@@ -278,17 +345,16 @@ impl Document for Xml {
         let xml_entry_path_begin: String = self.entry_point_path_start();
         let xml_entry_path_end: String = self.entry_point_path_end();
 
-        let mut new_value: Value = Value::Null;
-        new_value.merge_in(
-            &self.entry_path.to_string().to_json_pointer(),
-            Value::Array(vec![value]),
-        )?;
+        let mut new_value = self.value_entry_path(value)?;
         Xml::convert_numeric_to_string(&mut new_value);
         Xml::add_attribute_character(&mut new_value)?;
 
         let mut xml_new_value = self.value_to_xml(&new_value)?;
-        xml_new_value = xml_new_value.replace(xml_entry_path_begin.as_str(), "");
-        xml_new_value = xml_new_value.replace(xml_entry_path_end.as_str(), "");
+
+        if !xml_entry_path_begin.is_empty() && !xml_entry_path_end.is_empty() {
+            xml_new_value = xml_new_value.replace(xml_entry_path_begin.as_str(), "");
+            xml_new_value = xml_new_value.replace(xml_entry_path_end.as_str(), "");
+        }
 
         connector.write_all(xml_new_value.as_bytes()).await
     }
@@ -389,42 +455,6 @@ impl Document for Xml {
 
         Ok(())
     }
-    /// See [`Document::entry_point_path_start`] for more details.
-    fn entry_point_path_start(&self) -> String {
-        let xml_entry_path = match self.xml_entry_path() {
-            Ok(xml) => xml,
-            Err(e) => {
-                warn!(slog_scope::logger(), "Entry path not valid in order to write data."; "entry_path" => self.entry_path.clone(), "error" => e.to_string());
-                "".to_string()
-            }
-        };
-
-        let xml_entry_path_begin: String = xml_entry_path
-            .split('<')
-            .filter(|node| !node.contains('/') && !node.is_empty())
-            .map(|node| format!("<{}", node))
-            .collect();
-
-        xml_entry_path_begin
-    }
-    /// See [`Document::entry_point_path_end`] for more details.
-    fn entry_point_path_end(&self) -> String {
-        let xml_entry_path = match self.xml_entry_path() {
-            Ok(xml) => xml,
-            Err(e) => {
-                warn!(slog_scope::logger(), "Entry path not valid in order to write data."; "entry_path" => self.entry_path.clone(), "error" => e.to_string());
-                "".to_string()
-            }
-        };
-
-        let xml_entry_path_end: String = xml_entry_path
-            .split('<')
-            .filter(|node| node.contains('/') && !node.is_empty())
-            .map(|node| format!("<{}", node))
-            .collect();
-
-        xml_entry_path_end
-    }
     /// See [`Document::has_data`] for more details.
     ///
     /// # Example: Empty data
@@ -440,12 +470,19 @@ impl Document for Xml {
     ///     let mut document = Xml::default();
     ///     let mut connector = InMemory::new(r#"<root></root>"#);
     ///     connector.fetch().await?;
-    ///     document.entry_path = "/root/0/item".to_string();
+    ///     document.entry_path = "/root/*/item".to_string();
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()));
+    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
     ///
+    ///     let mut connector = InMemory::new(r#"<root/>"#);
+    ///     connector.fetch().await?;
+    ///     document.entry_path = "/root/*/item".to_string();
+    ///
+    ///     let mut buffer = String::default();
+    ///     connector.read_to_string(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
     ///     Ok(())
     /// }
     /// ```
@@ -462,11 +499,11 @@ impl Document for Xml {
     ///     let mut document = Xml::default();
     ///     let mut connector = InMemory::new(r#""#);
     ///     connector.fetch().await?;
-    ///     document.entry_path = "/root/0/item".to_string();
+    ///     document.entry_path = "/root/*/item".to_string();
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()));
+    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
     ///
     ///     Ok(())
     /// }
@@ -484,23 +521,23 @@ impl Document for Xml {
     ///     let mut document = Xml::default();
     ///     let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
     ///     connector.fetch().await?;
-    ///     document.entry_path = "/root/0/item".to_string();
+    ///     document.entry_path = "/root/*/item".to_string();
     ///
     ///     let mut buffer = String::default();
     ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(true, document.has_data(buffer.as_str()));
+    ///     assert_eq!(true, document.has_data(buffer.as_str()).unwrap());
     ///
     ///     Ok(())
     /// }
     /// ```
-    fn has_data(&self, str: &str) -> bool {
-        let xml_entry_path_begin: String = self.entry_point_path_start();
-        let xml_entry_path_end: String = self.entry_point_path_end();
+    fn has_data(&self, str: &str) -> io::Result<bool> {
+        let data_value = jxon::xml_to_json(str)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
-        if format!("{}{}", xml_entry_path_begin, xml_entry_path_end) == str {
-            return false;
+        if data_value.search(self.entry_path.as_str())?.is_none() {
+            return Ok(false);
         }
 
-        !matches!(str, "")
+        Ok(!matches!(str, ""))
     }
 }

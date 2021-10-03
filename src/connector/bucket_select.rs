@@ -418,16 +418,13 @@ impl BucketSelect {
         let mut buffer = String::default();
 
         if body_bytes.is_empty() {
-            warn!(
-                slog_scope::logger(),
-                "The response body of the bucket select is empty"
-            );
+            warn!("The response body of the bucket select is empty");
             return Ok(buffer);
         }
 
-        debug!(slog_scope::logger(),
-            "Data fetch from the bucket";
-            "data" => String::from_utf8_lossy(&body_bytes).to_string(),
+        debug!(
+            data = String::from_utf8_lossy(&body_bytes).to_string().as_str(),
+            "Data fetch from the bucket"
         );
 
         let mut event_stream =
@@ -506,16 +503,13 @@ impl BucketSelect {
         let mut buffer: usize = 0;
 
         if body_bytes.is_empty() {
-            warn!(
-                slog_scope::logger(),
-                "The response body of the bucket select is empty"
-            );
+            warn!("The response body of the bucket select is empty");
             return Ok(buffer);
         }
 
-        debug!(slog_scope::logger(),
-            "Data fetch from the bucket";
-            "data" => String::from_utf8_lossy(&body_bytes).to_string(),
+        debug!(
+            data = String::from_utf8_lossy(&body_bytes).to_string().as_str(),
+            "Data fetch from the bucket"
         );
 
         let mut event_stream =
@@ -904,7 +898,7 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.path = "data/*.json$".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.limit = Some(5);
-    ///     connector.skip = 2;
+    ///     connector.skip = 1;
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
@@ -923,7 +917,11 @@ impl Paginator for BucketSelectPaginator {
             match connector.fetch().await {
                 Ok(_) => (),
                 Err(e) => {
-                    warn!(slog_scope::logger(), "The paginator skip the resource due to an error"; "error" => e, "connector" => format!("{:?}", connector));
+                    warn!(
+                        error = e.to_string().as_str(),
+                        connector = format!("{:?}", connector).as_str(),
+                        "The paginator skip the resource due to an error"
+                    );
                     continue;
                 }
             };

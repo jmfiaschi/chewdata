@@ -2,11 +2,11 @@ use super::Authenticator;
 use crate::helper::mustache::Mustache;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{Error, ErrorKind, Result};
+use std::{fmt, io::{Error, ErrorKind, Result}};
 use async_trait::async_trait;
 use surf::{RequestBuilder, http::headers};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Basic {
     #[serde(alias = "usr")]
@@ -16,6 +16,26 @@ pub struct Basic {
     #[serde(alias = "pass")]
     pub password: String,
     pub parameters: Value,
+}
+
+impl fmt::Debug for Basic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut obfuscate_username = self
+            .username
+            .clone();
+        obfuscate_username.replace_range(0..(obfuscate_username.len()/2), (0..(obfuscate_username.len()/2)).map(|_| "#").collect::<String>().as_str());
+
+        let mut obfuscate_password = self
+            .password
+            .clone();
+        obfuscate_password.replace_range(0..(obfuscate_password.len()/2), (0..(obfuscate_password.len()/2)).map(|_| "#").collect::<String>().as_str());
+
+        f.debug_struct("Basic")
+            .field("username", &obfuscate_username)
+            .field("password", &obfuscate_password)
+            .field("parameters", &self.parameters)
+            .finish()
+    }
 }
 
 impl Default for Basic {

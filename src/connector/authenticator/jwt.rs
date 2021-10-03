@@ -6,10 +6,11 @@ use async_trait::async_trait;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt;
 use std::io::{Error, ErrorKind, Result};
 use surf::{http::headers, RequestBuilder};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Jwt {
     #[serde(alias = "algo")]
@@ -23,6 +24,39 @@ pub struct Jwt {
     pub payload: Box<Value>,
     pub parameters: Box<Value>,
     pub token: Option<String>,
+}
+
+impl fmt::Debug for Jwt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut obfuscate_refresh_token = self
+            .refresh_token
+            .clone();
+        obfuscate_refresh_token.replace_range(0..(obfuscate_refresh_token.len()/2), (0..(obfuscate_refresh_token.len()/2)).map(|_| "#").collect::<String>().as_str());
+
+        let mut obfuscate_key = self
+            .key
+            .clone();
+        obfuscate_key.replace_range(0..(obfuscate_key.len()/2), (0..(obfuscate_key.len()/2)).map(|_| "#").collect::<String>().as_str());
+
+        let mut obfuscate_token = self
+            .token
+            .clone()
+            .unwrap_or_default();
+        obfuscate_token.replace_range(0..(obfuscate_token.len()/2), (0..(obfuscate_token.len()/2)).map(|_| "#").collect::<String>().as_str());
+    
+        f.debug_struct("Jwt")
+            .field("algorithm", &self.algorithm)
+            .field("refresh_connector", &self.refresh_connector)
+            .field("refresh_document", &self.refresh_document)
+            .field("refresh_token", &obfuscate_refresh_token)
+            .field("jwk", &self.jwk)
+            .field("format", &self.format)
+            .field("key", &obfuscate_key)
+            .field("payload", &self.payload)
+            .field("parameters", &self.parameters)
+            .field("token", &obfuscate_token)
+            .finish()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -110,7 +144,7 @@ impl Jwt {
     /// }
     /// ```
     pub async fn refresh(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Refresh the jwt token started");
+        debug!("Refresh the jwt token started");
         if let Some(refresh_connector_type) = self.refresh_connector.clone() {
             let mut payload = self.payload.clone();
             let parameters = self.parameters.clone();
@@ -135,7 +169,7 @@ impl Jwt {
 
             match payload.get(self.refresh_token.clone()) {
                 Some(Value::String(token)) => {
-                    info!(slog_scope::logger(), "JWT refreshed with succes"; "token" => token);
+                    info!(token = token.as_str(),  "JWT refreshed with succes");
                     self.token = Some(token.clone());
                     Ok(())
                 }
@@ -146,7 +180,7 @@ impl Jwt {
             }?;
         };
 
-        debug!(slog_scope::logger(), "Refresh the jwt token ended");
+        debug!("Refresh the jwt token ended");
         Ok(())
     }
     pub fn decode(
@@ -390,7 +424,7 @@ impl Authenticator for Jwt {
                         }
                         _ => {
                             self.token = None;
-                            warn!(slog_scope::logger(), "Can't decode the Java Web Token"; "error" => e.to_string());
+                            warn!(error = e.to_string().as_str(),  "Can't decode the Java Web Token");
                             return Err(Error::new(ErrorKind::InvalidInput, e));
                         }
                     };
@@ -405,7 +439,7 @@ impl Authenticator for Jwt {
             }
             None => {
                 warn!(
-                    slog_scope::logger(),
+                    
                     "No Java Web Token found for the authentication"
                 );
                 request_builder

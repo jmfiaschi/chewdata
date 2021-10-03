@@ -1,22 +1,18 @@
 extern crate clap;
 extern crate env_applier;
-#[macro_use]
-extern crate slog;
-extern crate slog_async;
-extern crate slog_envlogger;
-extern crate slog_scope;
-extern crate slog_stdlog;
-extern crate slog_term;
 
 use chewdata::step::StepType;
 use clap::{App, Arg};
 use env_applier::EnvApply;
 use serde::Deserialize;
-use slog::{Drain, FnValue};
 use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::io::{Error, ErrorKind, Result};
+use tracing::*;
+use tracing_futures::WithSubscriber;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 const ARG_JSON: &str = "json";
 const ARG_FILE: &str = "file";
@@ -24,28 +20,22 @@ const DEFAULT_PROCESSORS: &str = r#"[{"type": "r"},{"type": "w"}]"#;
 
 #[async_std::main]
 async fn main() -> Result<()> {
-    // Init logger.
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::FullFormat::new(decorator).build().fuse();
-    let drain = slog_envlogger::new(drain);
-    let drain = slog_async::Async::default(drain).fuse();
-    let logger = slog::Logger::root(
-        drain.fuse(),
-        o!("file" => FnValue(move |info| {format!("{}:{}",info.file(),info.line())})),
-    );
-    let _scope_guard = slog_scope::set_global_logger(logger);
+    let subscriber = tracing_subscriber::fmt()
+        // filter spans/events with level TRACE or higher.
+        .with_env_filter(EnvFilter::from_default_env())
+        // build but do not install the subscriber.
+        .finish();
 
-    trace!(slog_scope::logger(), "Chewdata start...");
+    tracing_subscriber::registry().init();
+
+    trace!("Chewdata start...");
     let args = application().get_matches();
 
     if args.value_of("version").is_some() {
         return Ok(());
     }
 
-    trace!(
-        slog_scope::logger(),
-        "Transform the config in input into steps."
-    );
+    trace!("Transform the config in input into steps.");
     let steps: Vec<StepType> = match (args.value_of(ARG_JSON), args.value_of(ARG_FILE)) {
         (None, Some(file_path)) => match file_path.split('.').collect::<Vec<&str>>().last() {
             Some(v) => match *v {
@@ -91,7 +81,9 @@ async fn main() -> Result<()> {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(steps, None).await
+    chewdata::exec(steps, None)
+        .with_subscriber(subscriber)
+        .await
 }
 
 fn application() -> App<'static, 'static> {

@@ -415,7 +415,7 @@ impl Connector for Bucket {
     /// ```
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
         if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty() {
-            warn!(slog_scope::logger(), "Can't flush with variable path and without parameters";"path"=>self.path.clone(),"parameters"=>self.parameters.to_string());
+            warn!(path = self.path.clone().as_str(), parameters = self.parameters.to_string().as_str(),  "Can't flush with variable path and without parameters");
             return Ok(());
         }
 
@@ -423,7 +423,7 @@ impl Connector for Bucket {
         let path_resolved = self.path();
 
         if !self.is_empty().await? {
-            info!(slog_scope::logger(), "Fetch previous data into S3"; "path" => path_resolved.to_string());
+            info!(path = path_resolved.to_string().as_str(),  "Fetch previous data into S3");
             {
                 let mut connector_clone = self.clone();
                 connector_clone.fetch().await?;
@@ -596,7 +596,7 @@ impl BucketPaginator {
                                 )
                             },
                             Err(e) => {
-                                warn!(slog_scope::logger(), "Can't fetch the list of keys"; "error" => e.to_string());
+                                warn!(error = e.to_string().as_str(),  "Can't fetch the list of keys");
                                 (Vec::default(), false, None)
                             }
                         }
@@ -700,8 +700,8 @@ impl Paginator for BucketPaginator {
     ///     connector.limit = Some(5);
     ///     connector.skip = 2;
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///     assert_eq!("data/multi_lines.jsonl".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
     ///
     ///     Ok(())
     /// }

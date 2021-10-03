@@ -28,7 +28,7 @@ mod reader {
                 .args(&[config])
                 .env("APP_FILE_PATH_INPUT", &data_file_path)
                 .env("APP_FORMAT_INPUT", format)
-                .env("RUST_LOG", "")
+                .env("RUST_LOG", "null")
                 .current_dir(repo_dir())
                 .output()
                 .expect("failed to execute process.");
@@ -68,7 +68,7 @@ mod reader {
                 "BUCKET_SECRET_ACCESS_KEY",
                 env::var("BUCKET_SECRET_ACCESS_KEY").unwrap(),
             )
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");
@@ -97,7 +97,7 @@ mod reader {
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
             .env("CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");
@@ -129,7 +129,7 @@ mod reader {
                 "CURL_BASIC_AUTH_USERNAME",
                 env::var("CURL_BASIC_AUTH_USERNAME").unwrap(),
             )
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");
@@ -161,7 +161,7 @@ mod reader {
             .args(&[config])
             .env("CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
             .env("CURL_BEARER_TOKEN", env::var("CURL_BEARER_TOKEN").unwrap())
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");

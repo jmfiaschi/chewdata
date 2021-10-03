@@ -1,11 +1,11 @@
-#[macro_use]
-extern crate slog;
 extern crate glob;
 extern crate json_value_merge;
 extern crate json_value_resolve;
 extern crate multiqueue2 as multiqueue;
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate tracing;
 
 pub mod connector;
 pub mod document;
@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
+use tracing::Instrument;
+use tracing_futures::WithSubscriber;
 
 pub async fn exec(
     step_types: Vec<StepType>,
@@ -53,7 +55,9 @@ pub async fn exec(
 
     for (step, inbound, outbound) in steps {
         handles.push(task::spawn(
-            async move { step.exec(inbound, outbound).await },
+            async move { step.exec(inbound, outbound).await }
+                .instrument(tracing::info_span!("exec"))
+                .with_current_subscriber(),
         ));
     }
 

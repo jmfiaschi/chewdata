@@ -28,7 +28,7 @@ mod writer {
                 .args(&[config])
                 .env("APP_FILE_PATH_OUTPUT", &output_file_path)
                 .env("APP_FORMAT_OUTPUT", format)
-                .env("RUST_LOG", "")
+                .env("RUST_LOG", "null")
                 .current_dir(repo_dir())
                 .output()
                 .expect("failed to execute process.");
@@ -62,7 +62,7 @@ mod writer {
                 .env("CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
                 .env("METHOD", method)
                 .env("PATH", path)
-                .env("RUST_LOG","")
+                .env("RUST_LOG","null")
                 .current_dir(repo_dir())
                 .output()
                 .expect("failed to execute process.");
@@ -85,7 +85,7 @@ mod writer {
                     .env("CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
                     .env("METHOD", method)
                     .env("STATUS", status)
-                    .env("RUST_LOG","")
+                    .env("RUST_LOG","null")
                     .current_dir(repo_dir())
                     .output()
                     .expect("failed to execute process.");
@@ -104,7 +104,7 @@ mod writer {
         println!("Try to test this file '{}'.", output_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");
@@ -135,7 +135,7 @@ mod writer {
         println!("Try to test this file '{}'.", output_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");
@@ -156,7 +156,7 @@ mod writer {
         let config = r#"[{"type":"e","connector":{"type":"local","path":"./data/out/truncate_file.json"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","actions":[{"field":"field2","pattern":"value2"}]},{"type":"w","connector":{"type":"local","path":"./data/out/truncate_file.json"}}]"#;
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");
@@ -184,7 +184,7 @@ mod writer {
         println!("Try to test this file '{}'.", output_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");
@@ -205,7 +205,7 @@ mod writer {
         let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","actions":[{"field":"field2","pattern":"value2"}]},{"type":"w","connector":{"type":"local","path":"./data/out/no_truncate_file.json"}}]"#;
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");
@@ -231,7 +231,7 @@ mod writer {
         let config = r#"[{"type":"e","connector":{"type":"local","path":"./data/out/cascade_file1.json"}},{"type":"e","connector":{"type":"local","path":"./data/out/cascade_file2.json"}},{"type":"r","connector":{"type":"local","path":"./data/multi_lines.json"}},{"type":"t","actions":[{"field":"/","pattern":"{% if input.number == 10 %}{{ throw(message='data go to writer.cascade_file2.json') }}{% else %}{{ input | json_encode() }}{% endif %}"}]},{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file1.json"},"data_type":"ok"},{"type":"w","connector":{"type":"local","path":"./data/out/cascade_file2.json"},"data_type":"err"}]"#;
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
-            .env("RUST_LOG", "")
+            .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
             .expect("failed to execute process.");

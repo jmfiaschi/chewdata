@@ -12,6 +12,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{collections::HashMap, fmt};
 use surf::http::{headers, Method, Url};
+use tracing_futures::{Instrument, WithSubscriber};
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -126,7 +127,7 @@ impl Connector for Curl {
                 let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
-            },
+            }
             _ => self.path.clone(),
         }
     }
@@ -152,7 +153,7 @@ impl Connector for Curl {
 
         let mut actuel_path = self.path.clone();
         actuel_path.replace_mustache(self.parameters.clone());
-        
+
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
@@ -184,7 +185,6 @@ impl Connector for Curl {
     /// }
     /// ```
     async fn fetch(&mut self) -> Result<()> {
-        debug!(slog_scope::logger(), "Fetch started");
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -197,7 +197,8 @@ impl Connector for Curl {
         }
 
         if !self.metadata().content_type().is_empty() {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -209,6 +210,7 @@ impl Connector for Curl {
         let req = request_builder.build();
         let mut res = client
             .send(req.clone())
+            .with_current_subscriber()
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -229,7 +231,6 @@ impl Connector for Curl {
         }
 
         self.inner = Box::new(Cursor::new(data));
-        debug!(slog_scope::logger(), "Fetch ended");
 
         Ok(())
     }
@@ -320,7 +321,8 @@ impl Connector for Curl {
         }
 
         if !self.metadata().content_type().is_empty() {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -330,14 +332,18 @@ impl Connector for Curl {
         }
 
         let req = request_builder.build();
-        
+
         let res = client
             .send(req)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         if !res.status().is_success() {
-            warn!(slog_scope::logger(), "Can't get the len of the remote document with method HEAD"; "connector" => format!("{:?}", self), "status" => res.status().to_string());
+            warn!(
+                connector = format!("{:?}", self).as_str(),
+                status = res.status().to_string().as_str(),
+                "Can't get the len of the remote document with method HEAD"
+            );
 
             return Ok(0);
         }
@@ -396,7 +402,8 @@ impl Connector for Curl {
         }
 
         if !self.metadata().content_type().is_empty() {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -408,6 +415,7 @@ impl Connector for Curl {
         let req = request_builder.body(self.inner.get_ref().to_vec()).build();
         let mut res = client
             .send(req)
+            .with_current_subscriber()
             .await
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
@@ -467,7 +475,8 @@ impl Connector for Curl {
         }
 
         if !self.metadata().content_type().is_empty() {
-            request_builder = request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         if !self.headers.is_empty() {
@@ -572,19 +581,21 @@ impl Paginator for CurlPaginator {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
-    ///     connector.path = "/links/{{n}}/{{offset}}".to_string();
+    ///     connector.path = "/links/{{n}}/10".to_string();
     ///     connector.limit = 1;
-    ///     connector.skip = 0;
-    ///     let paginator_parameters = PaginatorParameters { skip_name: "n".to_string(), limit_name: "offset".to_string() };
+    ///     connector.skip = 1;
+    ///     let paginator_parameters = PaginatorParameters { skip_name: "n".to_string(), limit_name: "limit".to_string() };
     ///     connector.paginator_parameters = Some(paginator_parameters);
     ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     let mut reader = paginator.next_page().await?.unwrap();     
+    ///     let mut reader = paginator.next_page().await?.unwrap();
+    ///     assert_eq!("/links/1/10", reader.path().as_str());
     ///     let mut buffer1 = String::default();
     ///     let len1 = reader.read_to_string(&mut buffer1).await?;
     ///     assert!(0 < len1, "Can't read the content of the file.");
     ///
-    ///     let mut reader = paginator.next_page().await?.unwrap();     
+    ///     let mut reader = paginator.next_page().await?.unwrap();
+    ///     assert_eq!("/links/2/10", reader.path().as_str());  
     ///     let mut buffer2 = String::default();
     ///     let len2 = reader.read_to_string(&mut buffer2).await?;
     ///     assert!(0 < len2, "Can't read the content of the file.");
@@ -617,13 +628,9 @@ impl Paginator for CurlPaginator {
     ///     Ok(())
     /// }
     /// ```
-    async fn next_page(
-        &mut self
-    ) -> Result<Option<Box<dyn Connector>>> {
+    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
         Ok(match self.has_next {
             true => {
-                self.skip += self.connector.limit;
-
                 let mut new_connector = self.connector.clone();
                 let mut new_parameters = Value::default();
                 new_parameters.merge(self.connector.parameters.clone());
@@ -637,7 +644,11 @@ impl Paginator for CurlPaginator {
                         .as_str(),
                     )?);
                     new_parameters.merge(serde_json::from_str(
-                        format!(r#"{{"{}":"{}"}}"#, paginator_parameters.skip_name, self.skip).as_str(),
+                        format!(
+                            r#"{{"{}":"{}"}}"#,
+                            paginator_parameters.skip_name, self.skip
+                        )
+                        .as_str(),
                     )?);
                 }
 
@@ -646,7 +657,12 @@ impl Paginator for CurlPaginator {
                 }
 
                 new_connector.set_parameters(new_parameters);
-                new_connector.fetch().await?;
+                new_connector
+                    .fetch()
+                    .instrument(tracing::info_span!("fetch"))
+                    .await?;
+
+                self.skip += self.connector.limit;
 
                 Some(Box::new(new_connector))
             }

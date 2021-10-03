@@ -179,7 +179,7 @@ impl Document for Jsonl {
                     }
                     (Ok(record), None) => yield DataResult::Ok(record),
                     (Err(e), _) => {
-                        warn!(slog_scope::logger(), "Can't deserialize the record"; "error"=>format!("{:?}",e));
+                        warn!(error = format!("{:?}", e).as_str(),  "Can't deserialize the record");
                         yield DataResult::Err((Value::Null, e.into()));
                     }
                 };
@@ -226,7 +226,7 @@ impl Document for Jsonl {
         connector.write_all(b"\n").await
     }
     /// See [`Document::has_data`] for more details.
-    fn has_data(&self, str: &str) -> bool {
-        !matches!(str, "{}" | "")
+    fn has_data(&self, str: &str) -> io::Result<bool> {
+        Ok(!matches!(str, "{}" | ""))
     }
 }

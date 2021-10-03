@@ -2,16 +2,31 @@ use super::Authenticator;
 use crate::helper::mustache::Mustache;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{Error, ErrorKind, Result};
+use std::{fmt, io::{Error, ErrorKind, Result}};
 use async_trait::async_trait;
 use surf::{RequestBuilder, http::headers};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Bearer {
     pub token: String,
     pub is_base64: bool,
     pub parameters: Value,
+}
+
+impl fmt::Debug for Bearer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut obfuscate_token = self
+            .token
+            .clone();
+        obfuscate_token.replace_range(0..(obfuscate_token.len()/2), (0..(obfuscate_token.len()/2)).map(|_| "#").collect::<String>().as_str());
+
+        f.debug_struct("Bearer")
+            .field("token", &obfuscate_token)
+            .field("is_base64", &self.is_base64)
+            .field("parameters", &self.parameters)
+            .finish()
+    }
 }
 
 impl Default for Bearer {

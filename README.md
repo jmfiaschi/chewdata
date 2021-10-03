@@ -51,7 +51,7 @@ If you want some examples to discover this project, go in this section [./exampl
 
 ### Run the ETL
 
-If you run the program without parameters, the application will wait until you write json data and finish by `quit`/`exit`/`\q`. By default, the program write json data in the output.
+If you run the program without parameters, the application will wait until you write json data and finish by `\q`. By default, the program write json data in the output.
 
 ```Bash
 $ cargo run 
@@ -124,6 +124,6 @@ make test
 
 ## Useful links
 
-* [Benchmark report](/chewdata/bench/main/)
-* [Documentation](/chewdata-docs/)
+* [Benchmark report](https://jmfiaschi.github.io/chewdata/bench/main/)
+* [Documentation](https://jmfiaschi.github.io/chewdata-docs/)
 * [Package](https://crates.io/crates/chewdata)
