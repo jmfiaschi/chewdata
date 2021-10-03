@@ -85,7 +85,7 @@ mod transformer {
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
-                        .env("RUST_LOG", "")
+                        .env("RUST_LOG", "null")
                         .current_dir(repo_dir())
                         .output()
                         .expect("failed to execute process.");
@@ -144,7 +144,7 @@ mod transformer {
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
                         .env("INPUT_FILE_PATH", input_file)
-                        .env("RUST_LOG", "")
+                        .env("RUST_LOG", "null")
                         .current_dir(repo_dir())
                         .output()
                         .expect("failed to execute process.");
@@ -208,7 +208,7 @@ mod transformer {
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
-                        .env("RUST_LOG", "")
+                        .env("RUST_LOG", "null")
                         .current_dir(repo_dir())
                         .output()
                         .expect("failed to execute process.");
@@ -265,7 +265,7 @@ mod transformer {
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
-                        .env("RUST_LOG", "")
+                        .env("RUST_LOG", "null")
                         .current_dir(repo_dir())
                         .output()
                         .expect("failed to execute process.");
@@ -322,7 +322,7 @@ mod transformer {
                         .env("TEMPLATE_ENGINE", template_engine)
                         .env("FIELD_NAME", field_name)
                         .env("FIELD_PATTERN_TERA", pattern_tera)
-                        .env("RUST_LOG", "")
+                        .env("RUST_LOG", "null")
                         .current_dir(repo_dir())
                         .output()
                         .expect("failed to execute process.");
