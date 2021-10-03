@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/jmfiaschi/chewdata/compare/v1.3.1...v1.4.0) (2021-10-03)
+
+
+### Features
+
+* **io:** update curl / xml / logs / auth ([#10](https://github.com/jmfiaschi/chewdata/issues/10)) ([8e702ae](https://github.com/jmfiaschi/chewdata/commit/8e702ae9f6163f28d600ccd0d40e0274a0b01656))
+
 ## [1.3.1](https://github.com/jmfiaschi/chewdata/compare/v1.3.0...v1.3.1) (2021-09-24)
 
 
