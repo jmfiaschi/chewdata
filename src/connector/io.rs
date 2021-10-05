@@ -27,7 +27,7 @@ pub struct Io {
 }
 
 fn default_eof() -> String {
-    "\\q".to_string()
+    "".to_string()
 }
 
 impl fmt::Display for Io {
@@ -105,6 +105,8 @@ impl Connector for Io {
     /// See [`Connector::send`] for more details.
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
         stdout().write_all(self.inner.get_ref()).await?;
+        // Force to send data
+        stdout().flush().await?;
         self.clear();
 
         Ok(())
@@ -157,15 +159,13 @@ impl async_std::io::Write for Io {
 
 #[derive(Debug)]
 pub struct IoPaginator {
-    connector: Io,
-    has_next: bool,
+    connector: Io
 }
 
 impl IoPaginator {
     pub fn new(connector: Io) -> Result<Self> {
         Ok(IoPaginator {
-            connector,
-            has_next: true,
+            connector
         })
     }
 }
@@ -186,20 +186,14 @@ impl Paginator for IoPaginator {
     ///     let mut paginator = connector.paginator().await?;
     ///
     ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the second reader.");
     ///
     ///     Ok(())
     /// }
     /// ```
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        Ok(match self.has_next {
-            true => {
-                let mut connector = self.connector.clone();
-                self.has_next = false;
-                connector.fetch().await?;
-                Some(Box::new(connector))
-            }
-            false => None,
-        })
+        let mut connector = self.connector.clone();
+        connector.fetch().await?;
+        Ok(Some(Box::new(connector)))
     }
 }

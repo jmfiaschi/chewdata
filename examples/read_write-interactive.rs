@@ -18,12 +18,12 @@ async fn main() -> io::Result<()> {
     [{
         "type": "r",
         "conn":{
-            "type": "io",
-            "eoi": "\\exit"
+            "type": "io"
         }
     },
     {
-        "type": "write"
+        "type": "write",
+        "dataset_size": 1
     }]
     "#;
 

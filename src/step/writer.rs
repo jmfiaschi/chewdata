@@ -170,6 +170,8 @@ impl Step for Writer {
                 .instrument(tracing::info_span!("write_data"))
                 .await?;
 
+            current_dataset_size += 1;
+
             if self.dataset_size <= current_dataset_size {
                 info!(step = format!("{}", self.clone()).as_str(), "Send data");
 
@@ -197,8 +199,6 @@ impl Step for Writer {
                 };
 
                 current_dataset_size = 0;
-            } else {
-                current_dataset_size += 1;
             }
         }
 
