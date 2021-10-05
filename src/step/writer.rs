@@ -70,7 +70,7 @@ impl Step for Writer {
         pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
         pipe_inbound_option: Option<MPMCSender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(step = format!("{}", self).as_str(), "Exec");
+        trace!(step = format!("{}", self).as_str(), "Exec");
 
         let mut current_dataset_size = 0;
 
@@ -96,7 +96,7 @@ impl Step for Writer {
 
         for data_result in pipe_outbound {
             if let Some(ref pipe_inbound) = pipe_inbound_option {
-                debug!(
+                trace!(
                     data = format!("{:?}", data_result).as_str(),
                     step = format!("{}", self.clone()).as_str(),
                     "Data send to the queue"
@@ -117,7 +117,7 @@ impl Step for Writer {
             }
 
             if !data_result.is_type(self.data_type.as_ref()) {
-                debug!(
+                trace!(
                     data_type = self.data_type.to_string().as_str(),
                     data = format!("{:?}", data_result).as_str(),
                     step = format!("{}", self.clone()).as_str(),
@@ -157,7 +157,7 @@ impl Step for Writer {
 
             connector.set_parameters(data_result.to_json_value());
 
-            debug!(
+            trace!(
                 connector = format!("{:?}", &connector).as_str(),
                 document = format!("{:?}", &document).as_str(),
                 data = format!("{:?}", data_result).as_str(),
@@ -233,7 +233,7 @@ impl Step for Writer {
             drop(pipe_inbound);
         }
 
-        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        trace!(step = format!("{}", self).as_str(), "Exec ended");
         Ok(())
     }
     fn thread_number(&self) -> usize {

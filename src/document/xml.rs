@@ -284,12 +284,12 @@ impl Document for Xml {
                 Some(record) => match record {
                     Value::Array(vec) => {
                         for json_value in vec {
-                            debug!(record = format!("{:?}",json_value).as_str(),  "Record deserialized");
+                            trace!(record = format!("{:?}",json_value).as_str(),  "Record deserialized");
                             yield DataResult::Ok(json_value.clone());
                         }
                     }
                     _ => {
-                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
+                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         yield DataResult::Ok(record.clone());
                     }
                 },

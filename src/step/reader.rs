@@ -65,7 +65,7 @@ impl Step for Reader {
         pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
         pipe_inbound_option: Option<MPMCSender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(step = format!("{}", self).as_str(), "Exec");
+        trace!(step = format!("{}", self).as_str(), "Exec");
 
         let pipe_inbound = match pipe_inbound_option {
             Some(pipe_inbound) => pipe_inbound,
@@ -92,7 +92,7 @@ impl Step for Reader {
                     }
 
                     if !data_result.is_type(self.data_type.as_ref()) {
-                        debug!(
+                        trace!(
                             data_type = self.data_type.to_string().as_str(),
                             data = format!("{:?}", data_result).as_str(),
                             step = format!("{}", self.clone()).as_str(),
@@ -149,14 +149,14 @@ impl Step for Reader {
 
         drop(pipe_inbound);
 
-        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        trace!(step = format!("{}", self).as_str(), "Exec ended");
         Ok(())
     }
 }
 
 impl Reader {
     fn send(&self, data_result: DataResult, pipe: &MPMCSender<DataResult>) -> io::Result<()> {
-        debug!(
+        trace!(
             data = format!("{:?}", data_result).as_str(),
             step = format!("{}", self.clone()).as_str(),
             pipe_outbound = false,

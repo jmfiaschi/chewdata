@@ -103,7 +103,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                     None
                 }
             } {
-                debug!(connector = format!("{:?}", connector_reader).as_str(), document = format!("{:?}", document).as_str(),  "Next page started");
+                trace!(connector = format!("{:?}", connector_reader).as_str(), document = format!("{:?}", document).as_str(),  "Next page started");
 
                 // If the data in the connector contain empty data like "{}" or "<entry_path></entry_path>" stop the loop.
                 let inner = match std::str::from_utf8(connector_reader.inner()) {
@@ -138,7 +138,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                     yield data_result;
                 }
 
-                debug!(connector = format!("{:?}", connector_reader).as_str(), document = format!("{:?}", document).as_str(),  "Next page ended");
+                trace!(connector = format!("{:?}", connector_reader).as_str(), document = format!("{:?}", document).as_str(),  "Next page ended");
             }
         }))
     }

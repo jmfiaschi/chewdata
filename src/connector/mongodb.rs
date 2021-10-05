@@ -386,14 +386,14 @@ impl Connector for Mongodb {
                 .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
             if 0 < result.matched_count {
-                debug!(
+                trace!(
                     result = format!("{:?}", result).as_str(),
                     connector = format!("{}", self).as_str(),
                     "Document(s) updated into the connection"
                 );
             }
             if result.upserted_id.is_some() {
-                debug!(
+                trace!(
                     result = format!("{:?}", result).as_str(),
                     connector = format!("{}", self).as_str(),
                     "Document(s) inserted into the connection"

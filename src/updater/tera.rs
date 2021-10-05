@@ -32,7 +32,7 @@ impl Updater for Tera {
         input_name: String,
         output_name: String,
     ) -> io::Result<Value> {
-        debug!(input = format!("{}", object).as_str(), updater = format!("{}", self).as_str(), "Update");
+        trace!(input = format!("{}", object).as_str(), updater = format!("{}", self).as_str(), "Update");
         let mut engine = Tera::engine();
         let mut context = tera::Context::new();
         context.insert(input_name, &object);
@@ -45,7 +45,7 @@ impl Updater for Tera {
 
         let mut json_value = Value::default();
         for action in actions {
-            debug!(field = action.field.as_str(), "Field fetch into the pattern collection");
+            trace!(field = action.field.as_str(), "Field fetch into the pattern collection");
             context.insert(output_name.clone(), &json_value.clone());
 
             let mut field_new_value = Value::default();
@@ -72,16 +72,16 @@ impl Updater for Tera {
                             ),
                         )),
                     }?;
-                    debug!(value = render_result.as_str(),  "Field value before resolved it");
+                    trace!(value = render_result.as_str(),  "Field value before resolved it");
                     field_new_value = Value::resolve(render_result);
-                    debug!(value = format!("{}", field_new_value).as_str(),  "Field value after resolved it");
+                    trace!(value = format!("{}", field_new_value).as_str(),  "Field value after resolved it");
                 }
                 None => (),
             };
 
             let json_pointer = action.field.clone().to_json_pointer();
 
-            debug!(output = format!("{}", json_value).as_str(),
+            trace!(output = format!("{}", json_value).as_str(),
                 jpointer = json_pointer.to_string().as_str(),
                 "data to add" = format!("{}", field_new_value).as_str(),
                 "{} the new field", action.action_type
@@ -101,7 +101,7 @@ impl Updater for Tera {
             }
         }
 
-        debug!(output = format!("{}", json_value).as_str(),  "Update ended");
+        trace!(output = format!("{}", json_value).as_str(),  "Update ended");
         Ok(json_value)
     }
 }

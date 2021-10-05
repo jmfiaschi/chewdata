@@ -422,7 +422,7 @@ impl BucketSelect {
             return Ok(buffer);
         }
 
-        debug!(
+        trace!(
             data = String::from_utf8_lossy(&body_bytes).to_string().as_str(),
             "Data fetch from the bucket"
         );
@@ -507,7 +507,7 @@ impl BucketSelect {
             return Ok(buffer);
         }
 
-        debug!(
+        trace!(
             data = String::from_utf8_lossy(&body_bytes).to_string().as_str(),
             "Data fetch from the bucket"
         );

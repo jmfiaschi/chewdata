@@ -98,7 +98,7 @@ impl Step for Transformer {
         pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
         pipe_inbound_option: Option<MPMCSender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(step = format!("{}", self).as_str(), "Exec");
+        trace!(step = format!("{}", self).as_str(), "Exec");
 
         let pipe_inbound = match pipe_inbound_option {
             Some(pipe_inbound) => pipe_inbound,
@@ -129,7 +129,7 @@ impl Step for Transformer {
 
         for data_result in pipe_outbound {
             if !data_result.is_type(self.data_type.as_ref()) {
-                debug!(
+                trace!(
                     data_type = self.data_type.to_string().as_str(),
                     data = format!("{:?}", data_result).as_str(),
                     step = format!("{}", self.clone()).as_str(),
@@ -148,14 +148,14 @@ impl Step for Transformer {
                 self.output_name.clone(),
             ) {
                 Ok(new_record) => {
-                    debug!(
+                    trace!(
                         step = format!("{}", self).as_str(),
                         record = format!("{}", new_record).as_str(),
                         "Record transformation success"
                     );
 
                     if Value::Null == new_record {
-                        debug!(
+                        trace!(
                             step = format!("{}", self).as_str(),
                             record = format!("{}", new_record).as_str(),
                             "Record skip because the value si null"
@@ -164,7 +164,7 @@ impl Step for Transformer {
                     }
 
                     let new_data_result = DataResult::Ok(new_record);
-                    debug!(
+                    trace!(
                         step = format!("{}", self).as_str(),
                         data_result = format!("{:?}", new_data_result).as_str(),
                         "New data result"
@@ -182,7 +182,7 @@ impl Step for Transformer {
                 }
             };
 
-            debug!(
+            trace!(
                 data = format!("{:?}", new_data_results).as_str(),
                 step = format!("{}", self.clone()).as_str(),
                 "Data send to the queue"
@@ -203,7 +203,7 @@ impl Step for Transformer {
 
         drop(pipe_inbound);
 
-        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        trace!(step = format!("{}", self).as_str(), "Exec ended");
         Ok(())
     }
     fn thread_number(&self) -> usize {

@@ -206,7 +206,7 @@ impl Csv {
             for record in data {
                 let data_result = match record {
                     Ok(record) => {
-                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
+                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         DataResult::Ok(Value::Object(record))
                     }
                     Err(e) => {
@@ -220,7 +220,7 @@ impl Csv {
                 };
                 yield data_result;
             }
-            debug!("End generator");
+            trace!("End generator");
         }))
     }
     /// Read csv data without header.
@@ -263,7 +263,7 @@ impl Csv {
             for record in reader.into_records() {
                 let data_result = match record {
                     Ok(record) => {
-                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
+                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         let map: Vec<Value> = record
                             .iter()
                             .map(|value| Value::String(value.to_string()))

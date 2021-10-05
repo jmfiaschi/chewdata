@@ -144,7 +144,7 @@ impl Jwt {
     /// }
     /// ```
     pub async fn refresh(&mut self) -> Result<()> {
-        debug!("Refresh the jwt token started");
+        trace!("Refresh the jwt token started");
         if let Some(refresh_connector_type) = self.refresh_connector.clone() {
             let mut payload = self.payload.clone();
             let parameters = self.parameters.clone();
@@ -180,7 +180,7 @@ impl Jwt {
             }?;
         };
 
-        debug!("Refresh the jwt token ended");
+        trace!("Refresh the jwt token ended");
         Ok(())
     }
     pub fn decode(

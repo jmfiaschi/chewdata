@@ -58,7 +58,7 @@ impl Step for Eraser {
         pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
         pipe_inbound_option: Option<MPMCSender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(step = format!("{}", self).as_str(), "Exec");
+        trace!(step = format!("{}", self).as_str(), "Exec");
 
         let connector_type = self.connector_type.clone();
         let mut connector = connector_type.connector();
@@ -72,7 +72,7 @@ impl Step for Eraser {
                     let path = connector.path();
 
                     if !exclude_paths.contains(&path) {
-                        debug!(
+                        trace!(
                             step = format!("{}", self.clone()).as_str(),
                             "Erase data started"
                         );
@@ -82,7 +82,7 @@ impl Step for Eraser {
                             .instrument(tracing::info_span!("erase"))
                             .await?;
 
-                        debug!(
+                        trace!(
                             step = format!("{}", self.clone()).as_str(),
                             "Erase data ended"
                         );
@@ -91,7 +91,7 @@ impl Step for Eraser {
                     }
 
                     if let Some(ref pipe_inbound) = pipe_inbound_option {
-                        debug!(
+                        trace!(
                             data = format!("{:?}", data_result).as_str(),
                             step = format!("{}", self.clone()).as_str(),
                             pipe_outbound = false,
@@ -118,7 +118,7 @@ impl Step for Eraser {
             (Some(pipe_outbound), false) => {
                 for _data_result in pipe_outbound {}
 
-                debug!(
+                trace!(
                     step = format!("{}", self.clone()).as_str(),
                     "Erase data started"
                 );
@@ -128,13 +128,13 @@ impl Step for Eraser {
                     .instrument(tracing::info_span!("erase"))
                     .await?;
 
-                debug!(
+                trace!(
                     step = format!("{}", self.clone()).as_str(),
                     "Erase data ended"
                 );
             }
             (_, _) => {
-                debug!(
+                trace!(
                     step = format!("{}", self.clone()).as_str(),
                     "Erase data started"
                 );
@@ -144,7 +144,7 @@ impl Step for Eraser {
                     .instrument(tracing::info_span!("erase"))
                     .await?;
 
-                debug!(
+                trace!(
                     step = format!("{}", self.clone()).as_str(),
                     "Erase data ended"
                 );
@@ -155,7 +155,7 @@ impl Step for Eraser {
             drop(pipe_inbound);
         }
 
-        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        trace!(step = format!("{}", self).as_str(), "Exec ended");
         Ok(())
     }
 }
