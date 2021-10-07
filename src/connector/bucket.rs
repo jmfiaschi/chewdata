@@ -254,7 +254,7 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        trace!("Start");
+        info!("Start");
 
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
@@ -292,7 +292,6 @@ impl Connector for Bucket {
             }
         })?;
 
-        trace!("End");
         Ok(len)
     }
     /// See [`Connector::is_empty`] for more details.
@@ -350,7 +349,7 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         let connector = self.clone();
         let s3_client = connector.s3_client();
@@ -381,7 +380,6 @@ impl Connector for Bucket {
 
         self.inner = Cursor::new(result?.as_bytes().to_vec());
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -425,7 +423,7 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty() {
             warn!(path = self.path.clone().as_str(), parameters = self.parameters.to_string().as_str(),  "Can't flush with variable path and without parameters");
@@ -483,7 +481,6 @@ impl Connector for Bucket {
 
         self.clear();
 
-        trace!("End");
         Ok(())
     }
     fn set_metadata(&mut self, metadata: Metadata) {
@@ -496,7 +493,7 @@ impl Connector for Bucket {
     /// See [`Connector::erase`] for more details.
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         let path_resolved = self.path();
         let s3_client = self.s3_client();
@@ -515,7 +512,6 @@ impl Connector for Bucket {
             }
         })?;
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -728,7 +724,7 @@ impl Paginator for BucketPaginator {
     /// ```
     #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        trace!("Start");
+        info!("Start");
         
         let mut connector = self.connector.clone();
 

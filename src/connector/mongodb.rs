@@ -162,7 +162,7 @@ impl Connector for Mongodb {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
@@ -191,7 +191,6 @@ impl Connector for Mongodb {
 
         self.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -221,7 +220,7 @@ impl Connector for Mongodb {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        trace!("Start");
+        info!("Start");
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
@@ -237,7 +236,6 @@ impl Connector for Mongodb {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -346,7 +344,7 @@ impl Connector for Mongodb {
     /// ```
     #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
@@ -413,7 +411,6 @@ impl Connector for Mongodb {
 
         self.clear();
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::clear`] for more details.
@@ -509,7 +506,7 @@ impl Paginator for MongodbPaginator {
     /// ```
     #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        trace!("Start");
+        info!("Start");
         let mut connector = self.connector.clone();
 
         let find_options = match *connector.find_options {

@@ -88,7 +88,7 @@ impl Connector for Io {
     /// See [`Connector::fetch`] for more details.
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        trace!("Start");
+        info!("Start");
         
         let stdin = BufReader::new(stdin());
 
@@ -108,13 +108,12 @@ impl Connector for Io {
         trace!("Save lines into the inner buffer");
         self.inner = Cursor::new(buf.into_bytes());
         
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
     #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         trace!("Write data into stdout");
         stdout().write_all(self.inner.get_ref()).await?;
@@ -123,12 +122,11 @@ impl Connector for Io {
         stdout().flush().await?;
         self.clear();
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
-        Ok(())
+        unimplemented!("IO connector can't erase data to the remote document. Use other connector type")
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
@@ -208,7 +206,7 @@ impl Paginator for IoPaginator {
     /// ```
     #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        trace!("Start");
+        info!("Start");
 
         let mut connector = self.connector.clone();
         connector.fetch().await?;

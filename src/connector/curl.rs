@@ -312,7 +312,7 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        trace!("Start");
+        info!("Start");
 
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
@@ -362,7 +362,6 @@ impl Connector for Curl {
             .parse::<usize>()
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        trace!("End");
         Ok(content_length)
     }
     /// See [`Connector::send`] for more details.
@@ -394,7 +393,7 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         let client = surf::client();
         // initialize the position of the cursor
@@ -450,7 +449,6 @@ impl Connector for Curl {
             self.inner.set_position(0);
         }
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -473,7 +471,7 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
@@ -516,7 +514,6 @@ impl Connector for Curl {
             ));
         }
 
-        trace!("End");
         Ok(())
     }
     /// See [`Writer::inner`] for more details.
@@ -643,7 +640,7 @@ impl Paginator for CurlPaginator {
     /// ```
     #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        trace!("Start");
+        info!("Start");
         
         Ok(match self.has_next {
             true => {

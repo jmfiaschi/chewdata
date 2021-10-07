@@ -223,7 +223,7 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         let mut file = OpenOptions::new()
             .read(true)
@@ -246,7 +246,6 @@ impl Connector for Local {
 
         self.clear();
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::is_resource_will_change`] for more details.
@@ -309,7 +308,7 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         let mut buff = Vec::default();
         OpenOptions::new()
@@ -322,7 +321,6 @@ impl Connector for Local {
             .read_to_end(&mut buff)?;
         self.inner = Cursor::new(buff);
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -349,7 +347,7 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        trace!("Start");
+        info!("Start");
 
         OpenOptions::new()
             .read(false)
@@ -360,7 +358,6 @@ impl Connector for Local {
             .open(self.path().as_str())?
             .write_all(String::default().as_bytes())?;
 
-        trace!("End");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -499,7 +496,7 @@ impl Paginator for LocalPaginator {
     /// ```
     #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        trace!("Strat");
+        info!("Start");
         
         let mut connector = Local::default();
 
