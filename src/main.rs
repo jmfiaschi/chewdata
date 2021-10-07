@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::env;
 use std::fs::File;
 use std::io::Read;
-use std::io::{Error, ErrorKind, Result};
+use std::io::{Error, ErrorKind, Result, stdout};
 use tracing::*;
 use tracing_futures::WithSubscriber;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -20,7 +20,9 @@ const DEFAULT_PROCESSORS: &str = r#"[{"type": "r"},{"type": "w"}]"#;
 
 #[async_std::main]
 async fn main() -> Result<()> {
+    let (non_blocking, _guard) = tracing_appender::non_blocking(stdout());
     let subscriber = tracing_subscriber::fmt()
+        .with_writer(non_blocking)
         // filter spans/events with level TRACE or higher.
         .with_env_filter(EnvFilter::from_default_env())
         // build but do not install the subscriber.
@@ -88,7 +90,7 @@ async fn main() -> Result<()> {
 
 fn application() -> App<'static, 'static> {
     App::new("chewdata")
-        .version("1.1.1")
+        .version("1.5.0")
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
         .about("Light and chainable ETL")
         .arg(
