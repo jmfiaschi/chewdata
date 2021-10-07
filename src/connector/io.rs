@@ -86,11 +86,17 @@ impl Connector for Io {
         self.inner.get_ref()
     }
     /// See [`Connector::fetch`] for more details.
+    #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        trace!("Start");
+        
         let stdin = BufReader::new(stdin());
+
+        trace!("Fetch lines");
         let mut lines = stdin.lines();
         let mut buf = String::default();
 
+        trace!("Read lines");
         while let Some(line) = lines.next().await {
             let current_line: String = line?;
             if current_line.eq(self.eoi.as_str()) {
@@ -98,17 +104,26 @@ impl Connector for Io {
             };
             buf = format!("{}{}\n", buf, current_line);
         }
-        self.inner = Cursor::new(buf.into_bytes());
 
+        trace!("Save lines into the inner buffer");
+        self.inner = Cursor::new(buf.into_bytes());
+        
+        trace!("End");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
+    #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
+        trace!("Start");
+
+        trace!("Write data into stdout");
         stdout().write_all(self.inner.get_ref()).await?;
         // Force to send data
+        trace!("Flush data into stdout");
         stdout().flush().await?;
         self.clear();
 
+        trace!("End");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -191,9 +206,13 @@ impl Paginator for IoPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        trace!("Start");
+
         let mut connector = self.connector.clone();
         connector.fetch().await?;
+
         Ok(Some(Box::new(connector)))
     }
 }

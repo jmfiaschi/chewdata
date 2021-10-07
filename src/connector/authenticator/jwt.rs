@@ -143,8 +143,9 @@ impl Jwt {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     pub async fn refresh(&mut self) -> Result<()> {
-        trace!("Refresh the jwt token started");
+        trace!("Start");
         if let Some(refresh_connector_type) = self.refresh_connector.clone() {
             let mut payload = self.payload.clone();
             let parameters = self.parameters.clone();
@@ -180,7 +181,7 @@ impl Jwt {
             }?;
         };
 
-        trace!("Refresh the jwt token ended");
+        trace!("End");
         Ok(())
     }
     pub fn decode(
@@ -382,6 +383,7 @@ impl Authenticator for Jwt {
     ///
     ///     Ok(())
     /// }
+    #[instrument]
     async fn authenticate(&mut self, request_builder: RequestBuilder) -> Result<RequestBuilder> {
         let mut token_option = self.token.clone();
         let parameters = self.parameters.clone();

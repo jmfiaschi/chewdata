@@ -654,7 +654,10 @@ impl Connector for BucketSelect {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn len(&mut self) -> Result<usize> {
+        trace!("Start");
+        
         let mut connector = self.clone();
         connector.query = format!(
             "{} {}",
@@ -733,7 +736,10 @@ impl Connector for BucketSelect {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        trace!("Start");
+
         if let (Some(true), Some("csv")) = (
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),
@@ -909,7 +915,10 @@ impl Paginator for BucketSelectPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        trace!("Start");
+
         let mut connector = self.connector.clone();
 
         for path in &mut self.paths {

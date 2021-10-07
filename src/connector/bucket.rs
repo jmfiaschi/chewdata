@@ -252,7 +252,10 @@ impl Connector for Bucket {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn len(&mut self) -> Result<usize> {
+        trace!("Start");
+
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
             return Err(Error::new(
@@ -270,7 +273,7 @@ impl Connector for Bucket {
         };
 
         //TODO: When rusoto will use last version of tokio we should remove the block_on.
-        Runtime::new()?.block_on(async {
+        let len = Runtime::new()?.block_on(async {
             match s3_client.head_object(request).await {
                 Ok(response) => match response.content_length {
                     Some(len) => Ok(len as usize),
@@ -287,7 +290,10 @@ impl Connector for Bucket {
                     }
                 }
             }
-        })
+        })?;
+
+        trace!("End");
+        Ok(len)
     }
     /// See [`Connector::is_empty`] for more details.
     ///
@@ -342,7 +348,10 @@ impl Connector for Bucket {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        trace!("Start");
+
         let connector = self.clone();
         let s3_client = connector.s3_client();
         let request = GetObjectRequest {
@@ -372,6 +381,7 @@ impl Connector for Bucket {
 
         self.inner = Cursor::new(result?.as_bytes().to_vec());
 
+        trace!("End");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -413,7 +423,10 @@ impl Connector for Bucket {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
+        trace!("Start");
+
         if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty() {
             warn!(path = self.path.clone().as_str(), parameters = self.parameters.to_string().as_str(),  "Can't flush with variable path and without parameters");
             return Ok(());
@@ -470,6 +483,7 @@ impl Connector for Bucket {
 
         self.clear();
 
+        trace!("End");
         Ok(())
     }
     fn set_metadata(&mut self, metadata: Metadata) {
@@ -480,7 +494,10 @@ impl Connector for Bucket {
         self.metadata.clone()
     }
     /// See [`Connector::erase`] for more details.
+    #[instrument]
     async fn erase(&mut self) -> Result<()> {
+        trace!("Start");
+
         let path_resolved = self.path();
         let s3_client = self.s3_client();
         let put_request = PutObjectRequest {
@@ -496,7 +513,10 @@ impl Connector for Bucket {
                 Ok(_) => Ok(()),
                 Err(e) => Err(Error::new(ErrorKind::NotFound, e)),
             }
-        })
+        })?;
+
+        trace!("End");
+        Ok(())
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
@@ -706,7 +726,10 @@ impl Paginator for BucketPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        trace!("Start");
+        
         let mut connector = self.connector.clone();
 
         Ok(match self.paths.next() {

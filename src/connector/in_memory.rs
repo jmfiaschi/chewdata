@@ -213,7 +213,10 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
+        trace!("Start");
+
         let inner = self.inner().clone();
         let resource_len = self.len().await?;
         self.clear();
@@ -231,6 +234,7 @@ impl Connector for InMemory {
         memory.write_all(&inner)?;
         memory.set_position(0);
 
+        trace!("End");
         Ok(())
     }
     /// See [`Connector::inner`] for more details.
@@ -316,7 +320,10 @@ impl Paginator for InMemoryPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        trace!("Start");
+        
         let mut connector = self.connector.clone();
         Ok(match self.has_next {
             true => {
