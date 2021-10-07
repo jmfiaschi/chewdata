@@ -34,7 +34,7 @@ pub async fn exec(
     let step_types_len = step_types.len();
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
-        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
+        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(10000);
         let step = step_type.step_inner().clone();
         let thread_number = step.thread_number();
 
