@@ -6,10 +6,10 @@ use tracing_subscriber::EnvFilter;
 
 #[async_std::main]
 async fn main() -> io::Result<()> {
+    let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let subscriber = tracing_subscriber::fmt()
-        // filter spans/events with level TRACE or higher.
+        .with_writer(non_blocking)
         .with_env_filter(EnvFilter::from_default_env())
-        // build but do not install the subscriber.
         .finish();
 
     tracing_subscriber::registry().init();

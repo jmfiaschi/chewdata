@@ -160,7 +160,10 @@ impl Connector for Mongodb {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        info!("Start");
+
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
@@ -215,7 +218,9 @@ impl Connector for Mongodb {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn erase(&mut self) -> Result<()> {
+        info!("Start");
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
@@ -337,7 +342,10 @@ impl Connector for Mongodb {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
+        info!("Start");
+
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
@@ -386,14 +394,14 @@ impl Connector for Mongodb {
                 .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
             if 0 < result.matched_count {
-                debug!(
+                trace!(
                     result = format!("{:?}", result).as_str(),
                     connector = format!("{}", self).as_str(),
                     "Document(s) updated into the connection"
                 );
             }
             if result.upserted_id.is_some() {
-                debug!(
+                trace!(
                     result = format!("{:?}", result).as_str(),
                     connector = format!("{}", self).as_str(),
                     "Document(s) inserted into the connection"
@@ -496,7 +504,9 @@ impl Paginator for MongodbPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        info!("Start");
         let mut connector = self.connector.clone();
 
         let find_options = match *connector.find_options {

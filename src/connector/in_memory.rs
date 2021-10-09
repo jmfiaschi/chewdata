@@ -151,9 +151,13 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        info!("Start");
+
         let resource = self.memory.lock().await;
         self.inner = io::Cursor::new(resource.get_ref().clone());
+        
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -175,9 +179,13 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn erase(&mut self) -> io::Result<()> {
+        info!("Start");
+
         let mut memory = self.memory.lock().await;
         *memory = Cursor::default();
+
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -213,7 +221,10 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
+        info!("Start");
+
         let inner = self.inner().clone();
         let resource_len = self.len().await?;
         self.clear();
@@ -316,7 +327,10 @@ impl Paginator for InMemoryPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        info!("Start");
+        
         let mut connector = self.connector.clone();
         Ok(match self.has_next {
             true => {

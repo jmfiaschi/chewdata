@@ -12,7 +12,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{collections::HashMap, fmt};
 use surf::http::{headers, Method, Url};
-use tracing_futures::{Instrument, WithSubscriber};
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -184,7 +183,10 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        trace!("Start");
+
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -210,7 +212,6 @@ impl Connector for Curl {
         let req = request_builder.build();
         let mut res = client
             .send(req.clone())
-            .with_current_subscriber()
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -232,6 +233,7 @@ impl Connector for Curl {
 
         self.inner = Box::new(Cursor::new(data));
 
+        trace!("End");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -308,7 +310,10 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn len(&mut self) -> Result<usize> {
+        info!("Start");
+
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -386,7 +391,10 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
+        info!("Start");
+
         let client = surf::client();
         // initialize the position of the cursor
         self.inner.set_position(0);
@@ -415,7 +423,6 @@ impl Connector for Curl {
         let req = request_builder.body(self.inner.get_ref().to_vec()).build();
         let mut res = client
             .send(req)
-            .with_current_subscriber()
             .await
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
@@ -462,7 +469,10 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn erase(&mut self) -> Result<()> {
+        info!("Start");
+
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -628,7 +638,10 @@ impl Paginator for CurlPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        info!("Start");
+        
         Ok(match self.has_next {
             true => {
                 let mut new_connector = self.connector.clone();
@@ -659,7 +672,6 @@ impl Paginator for CurlPaginator {
                 new_connector.set_parameters(new_parameters);
                 new_connector
                     .fetch()
-                    .instrument(tracing::info_span!("fetch"))
                     .await?;
 
                 self.skip += self.connector.limit;

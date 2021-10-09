@@ -2,11 +2,9 @@ use crate::connector::ConnectorType;
 use crate::document::DocumentType;
 use crate::step::{DataResult, Step};
 use async_trait::async_trait;
-use multiqueue::{MPMCReceiver, MPMCSender};
+use crossbeam::channel::{Receiver, Sender};
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};
-use std::{thread, time};
-use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -65,22 +63,20 @@ impl fmt::Display for Writer {
 // This Step write data from somewhere into another stream.
 #[async_trait]
 impl Step for Writer {
+    #[instrument]
     async fn exec(
         &self,
-        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
-        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+        receiver_option: Option<Receiver<DataResult>>,
+        sender_option: Option<Sender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(step = format!("{}", self).as_str(), "Exec");
+        info!("Start");
 
         let mut current_dataset_size = 0;
 
-        let pipe_outbound = match pipe_outbound_option {
-            Some(pipe_outbound) => pipe_outbound,
+        let receiver = match receiver_option {
+            Some(receiver) => receiver,
             None => {
-                info!(
-                    step = format!("{}", self.clone()).as_str(),
-                    "This step is skipped. No outbound pipe found"
-                );
+                info!("This step is skipped. Need a step before or a receiver");
                 return Ok(());
             }
         };
@@ -94,33 +90,18 @@ impl Step for Writer {
         // Use to init the connector during the loop
         let default_connector = connector.clone();
 
-        for data_result in pipe_outbound {
-            if let Some(ref pipe_inbound) = pipe_inbound_option {
-                debug!(
-                    data = format!("{:?}", data_result).as_str(),
-                    step = format!("{}", self.clone()).as_str(),
-                    "Data send to the queue"
-                );
-
-                let mut current_retry = 0;
-                
-                while pipe_inbound.try_send(data_result.clone()).is_err() {
-                    warn!(
-                        step = format!("{}", self).as_str(),
-                        "wait_in_millisecond" = self.wait_in_millisecond,
-                        current_retry = current_retry,
-                        "The pipe is full, wait before to retry"
-                    );
-                    thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
-                    current_retry += 1;
-                }
+        for data_result in receiver {
+            if let Some(ref sender) = sender_option {
+                trace!("Send data to the queue");
+                sender
+                    .send(data_result.clone())
+                    .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
             }
 
             if !data_result.is_type(self.data_type.as_ref()) {
-                debug!(
+                trace!(
                     data_type = self.data_type.to_string().as_str(),
                     data = format!("{:?}", data_result).as_str(),
-                    step = format!("{}", self.clone()).as_str(),
                     "This step handle only this data type"
                 );
                 continue;
@@ -129,20 +110,12 @@ impl Step for Writer {
             {
                 // If the path change, the writer flush and send the data in the buffer though the connector.
                 if connector.is_resource_will_change(data_result.to_json_value())? {
-                    document
-                        .close(&mut *connector)
-                        .instrument(tracing::info_span!("close"))
-                        .await?;
-                    match connector
-                        .send(Some(position))
-                        .instrument(tracing::info_span!("send"))
-                        .await
-                    {
+                    document.close(&mut *connector).await?;
+                    match connector.send(Some(position)).await {
                         Ok(_) => (),
                         Err(e) => {
                             warn!(
                                 error = e.to_string().as_str(),
-                                step = format!("{}", self.clone()).as_str(),
                                 data = String::from_utf8_lossy(connector.inner())
                                     .to_string()
                                     .as_str(),
@@ -157,37 +130,20 @@ impl Step for Writer {
 
             connector.set_parameters(data_result.to_json_value());
 
-            debug!(
-                connector = format!("{:?}", &connector).as_str(),
-                document = format!("{:?}", &document).as_str(),
-                data = format!("{:?}", data_result).as_str(),
-                step = format!("{}", self.clone()).as_str(),
-                "Push data"
-            );
-
             document
                 .write_data(&mut *connector, data_result.to_json_value())
-                .instrument(tracing::info_span!("write_data"))
                 .await?;
 
+            current_dataset_size += 1;
+
             if self.dataset_size <= current_dataset_size {
-                info!(step = format!("{}", self.clone()).as_str(), "Send data");
+                document.close(&mut *connector).await?;
 
-                document
-                    .close(&mut *connector)
-                    .instrument(tracing::info_span!("close"))
-                    .await?;
-
-                match connector
-                    .send(Some(position))
-                    .instrument(tracing::info_span!("send"))
-                    .await
-                {
+                match connector.send(Some(position)).await {
                     Ok(_) => (),
                     Err(e) => {
                         warn!(
                             error = e.to_string().as_str(),
-                            step = format!("{}", self.clone()).as_str(),
                             data = String::from_utf8_lossy(connector.inner())
                                 .to_string()
                                 .as_str(),
@@ -197,29 +153,19 @@ impl Step for Writer {
                 };
 
                 current_dataset_size = 0;
-            } else {
-                current_dataset_size += 1;
             }
         }
 
         if 0 < current_dataset_size {
-            info!(
-                step = format!("{}", self.clone()).as_str(),
-                "Send data before to end the step"
-            );
+            info!("Send data before to end the step");
 
             document.close(&mut *connector).await?;
 
-            match connector
-                .send(Some(position))
-                .instrument(tracing::info_span!("send"))
-                .await
-            {
+            match connector.send(Some(position)).await {
                 Ok(_) => (),
                 Err(e) => {
                     warn!(
                         error = e.to_string().as_str(),
-                        step = format!("{}", self.clone()).as_str(),
                         data = String::from_utf8_lossy(connector.inner())
                             .to_string()
                             .as_str(),
@@ -229,11 +175,11 @@ impl Step for Writer {
             };
         }
 
-        if let Some(pipe_inbound) = pipe_inbound_option {
-            drop(pipe_inbound);
+        if let Some(sender) = sender_option {
+            drop(sender);
         }
 
-        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        info!("End");
         Ok(())
     }
     fn thread_number(&self) -> usize {

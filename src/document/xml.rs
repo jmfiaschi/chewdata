@@ -255,7 +255,10 @@ impl Document for Xml {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
+        info!("Start");
+
         let mut string = String::new();
         connector.read_to_string(&mut string).await?;
 
@@ -284,12 +287,12 @@ impl Document for Xml {
                 Some(record) => match record {
                     Value::Array(vec) => {
                         for json_value in vec {
-                            debug!(record = format!("{:?}",json_value).as_str(),  "Record deserialized");
+                            trace!(record = format!("{:?}",json_value).as_str(),  "Record deserialized");
                             yield DataResult::Ok(json_value.clone());
                         }
                     }
                     _ => {
-                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
+                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         yield DataResult::Ok(record.clone());
                     }
                 },
@@ -341,7 +344,10 @@ impl Document for Xml {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+        trace!("Start");
+
         let xml_entry_path_begin: String = self.entry_point_path_start();
         let xml_entry_path_end: String = self.entry_point_path_end();
 
@@ -429,7 +435,10 @@ impl Document for Xml {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn close(&self, connector: &mut dyn Connector) -> io::Result<()> {
+        info!("Start");
+        
         let remote_len = connector.len().await?;
         let buff = String::from_utf8(connector.inner().to_vec())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;

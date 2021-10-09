@@ -206,7 +206,7 @@ impl Csv {
             for record in data {
                 let data_result = match record {
                     Ok(record) => {
-                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
+                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         DataResult::Ok(Value::Object(record))
                     }
                     Err(e) => {
@@ -220,7 +220,7 @@ impl Csv {
                 };
                 yield data_result;
             }
-            debug!("End generator");
+            trace!("End generator");
         }))
     }
     /// Read csv data without header.
@@ -263,7 +263,7 @@ impl Csv {
             for record in reader.into_records() {
                 let data_result = match record {
                     Ok(record) => {
-                        debug!(record = format!("{:?}",record).as_str(),  "Record deserialized");
+                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
                         let map: Vec<Value> = record
                             .iter()
                             .map(|value| Value::String(value.to_string()))
@@ -331,7 +331,10 @@ impl Document for Csv {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
+        info!("Start");
+
         let mut buf = Vec::new();
         connector.read_to_end(&mut buf).await?;
 
@@ -415,7 +418,10 @@ impl Document for Csv {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+        trace!("Start");
+        
         let write_header = connector.metadata().has_headers.unwrap_or_else(|| self.metadata().has_headers.unwrap_or(false));
         // Use a buffer here because the csv builder flush everytime it write something.
         let mut builder_writer = self.writer_builder().from_writer(vec![]);

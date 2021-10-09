@@ -3,12 +3,10 @@ use crate::document::DocumentType;
 use crate::step::Step;
 use crate::DataResult;
 use async_trait::async_trait;
+use crossbeam::channel::{Receiver, Sender};
 use futures::StreamExt;
-use multiqueue::{MPMCReceiver, MPMCSender};
 use serde::Deserialize;
 use std::{fmt, io};
-use std::{thread, time};
-use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -60,20 +58,18 @@ impl fmt::Display for Reader {
 
 #[async_trait]
 impl Step for Reader {
+    #[instrument]
     async fn exec(
         &self,
-        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
-        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+        receiver_option: Option<Receiver<DataResult>>,
+        sender_option: Option<Sender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(step = format!("{}", self).as_str(), "Exec");
+        info!("Start");
 
-        let pipe_inbound = match pipe_inbound_option {
-            Some(pipe_inbound) => pipe_inbound,
+        let sender = match sender_option {
+            Some(sender) => sender,
             None => {
-                info!(
-                    step = format!("{}", self.clone()).as_str(),
-                    "This step is skipped. No inbound pipe found"
-                );
+                info!("This step is skipped. Need a step after or a sender");
                 return Ok(());
             }
         };
@@ -82,97 +78,71 @@ impl Step for Reader {
         let document = self.document_type.clone().document_inner();
         connector.set_metadata(connector.metadata().merge(document.metadata()));
 
-        match (pipe_outbound_option, connector.is_variable()) {
-            (Some(pipe_outbound), true) => {
+        match (receiver_option, connector.is_variable()) {
+            (Some(receiver), true) => {
                 // Used to check if the data has been received.
                 let mut has_data_been_received = false;
-                for data_result in pipe_outbound {
+                for data_result in receiver {
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
 
                     if !data_result.is_type(self.data_type.as_ref()) {
-                        debug!(
+                        trace!(
                             data_type = self.data_type.to_string().as_str(),
                             data = format!("{:?}", data_result).as_str(),
-                            step = format!("{}", self.clone()).as_str(),
                             "This step handle only this data type"
                         );
                         continue;
                     }
 
                     connector.set_parameters(data_result.to_json_value());
-                    let mut data = connector
-                        .pull_data(document.clone())
-                        .instrument(tracing::info_span!("pull_data"))
-                        .await?;
+                    let mut data = connector.pull_data(document.clone()).await?;
 
                     while let Some(data_result) = data.next().await {
-                        self.send(data_result, &pipe_inbound)?;
+                        self.send(data_result, &sender)?;
                     }
                 }
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
-                    let mut data = connector
-                        .pull_data(document.clone())
-                        .instrument(tracing::info_span!("pull_data"))
-                        .await?;
+                    let mut data = connector.pull_data(document.clone()).await?;
 
                     while let Some(data_result) = data.next().await {
-                        self.send(data_result, &pipe_inbound)?;
+                        self.send(data_result, &sender)?;
                     }
                 }
             }
-            (Some(pipe_outbound), false) => {
-                for _data_result in pipe_outbound {}
-                let mut data = connector
-                    .pull_data(document.clone())
-                    .instrument(tracing::info_span!("pull_data"))
-                    .await?;
+            (Some(receiver), false) => {
+                for _data_result in receiver {}
+                let mut data = connector.pull_data(document.clone()).await?;
 
                 while let Some(data_result) = data.next().await {
-                    self.send(data_result, &pipe_inbound)?;
+                    self.send(data_result, &sender)?;
                 }
             }
             (None, _) => {
-                let mut data = connector
-                    .pull_data(document.clone())
-                    .instrument(tracing::info_span!("pull_data"))
-                    .await?;
+                let mut data = connector.pull_data(document.clone()).await?;
 
                 while let Some(data_result) = data.next().await {
-                    self.send(data_result, &pipe_inbound)?;
+                    self.send(data_result, &sender)?;
                 }
             }
         };
 
-        drop(pipe_inbound);
+        drop(sender);
 
-        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        info!("End");
         Ok(())
     }
 }
 
 impl Reader {
-    fn send(&self, data_result: DataResult, pipe: &MPMCSender<DataResult>) -> io::Result<()> {
-        debug!(
-            data = format!("{:?}", data_result).as_str(),
-            step = format!("{}", self.clone()).as_str(),
-            pipe_outbound = false,
-            "Data send to the queue"
-        );
-        let mut current_retry = 0;
-        while pipe.try_send(data_result.clone()).is_err() {
-            warn!(
-                step = format!("{}", self).as_str(),
-                "wait_in_millisecond" = self.wait_in_millisecond,
-                current_retry = current_retry,
-                "The pipe is full, wait before to retry"
-            );
-            thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
-            current_retry += 1;
-        }
+    #[instrument]
+    fn send(&self, data_result: DataResult, pipe: &Sender<DataResult>) -> io::Result<()> {
+        trace!("Send data to the queue");
+        pipe.send(data_result.clone())
+            .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
 
         Ok(())
     }

@@ -35,7 +35,6 @@ use serde_json::Value;
 use std::fmt;
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
-use tracing_futures::Instrument;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
@@ -92,44 +91,48 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     // Fetch data from the resource and set the inner of the connector.
     async fn fetch(&mut self) -> Result<()>;
     // Pull the data from the inner connector, transform the data with the document type and return data as a stream.
+    #[instrument]
     async fn pull_data(&mut self, document: Box<dyn Document>) -> std::io::Result<Dataset> {
+        trace!("Start");
+
         let mut paginator = self.paginator().await?;
 
-        Ok(Box::pin(stream! {
-            while let Some(ref mut connector_reader) = match paginator.next_page().instrument(tracing::info_span!("next_page")).await {
+        let stream = Box::pin(stream! {
+            trace!("Start to paginate");
+            while let Some(ref mut connector_reader) = match paginator.next_page().await {
                 Ok(connector_option) => connector_option,
                 Err(e) => {
-                    error!(error = e.to_string().as_str(), document = format!("{:?}", document).as_str(), "Can't get the next paginator");
+                    error!(error = e.to_string().as_str(), "Can't get the next paginator");
                     None
                 }
             } {
-                debug!(connector = format!("{:?}", connector_reader).as_str(), document = format!("{:?}", document).as_str(),  "Next page started");
-
                 // If the data in the connector contain empty data like "{}" or "<entry_path></entry_path>" stop the loop.
                 let inner = match std::str::from_utf8(connector_reader.inner()) {
                     Ok(inner) => inner,
                     Err(e) => {
-                        error!(connector = format!("{:?}", connector_reader).as_str(), error = e.to_string().as_str(), document = format!("{:?}", document).as_str(),  "Can't decode the connector inner");
+                        error!(error = e.to_string().as_str(),  "Can't decode the connector inner");
                         break;
                     }
                 };
 
                 match document.has_data(inner) {
                     Ok(false) => {
-                        info!(connector = format!("{:?}", connector_reader).as_str(), document = format!("{:?}", document).as_str(), "The connector contain empty data. The pagination stop");
+                        info!("The connector contain empty data. The pagination stop");
                         break;
                     }
                     Err(e) => {
-                        warn!(connector = format!("{:?}", connector_reader).as_str(), error = e.to_string().as_str(), document = format!("{:?}", document).as_str(), "Can't check if the document contains data");
+                        warn!(error = e.to_string().as_str(), "Can't check if the document contains data");
                         break;
                     }
-                    _ => ()
+                    _ => {
+                        trace!("The connector contain data");
+                    }
                 };
 
-                let mut dataset = match document.read_data(connector_reader).instrument(tracing::info_span!("read_data")).await {
+                let mut dataset = match document.read_data(connector_reader).await {
                     Ok(dataset) => dataset,
                     Err(e) => {
-                        error!(connector = format!("{:?}", connector_reader).as_str(), error = e.to_string().as_str(), document = format!("{:?}", document).as_str(),  "Can't pull the data");
+                        error!(error = e.to_string().as_str(),  "Can't pull the data");
                         break;
                     }
                 };
@@ -137,10 +140,11 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                 while let Some(data_result) = dataset.next().await {
                     yield data_result;
                 }
-
-                debug!(connector = format!("{:?}", connector_reader).as_str(), document = format!("{:?}", document).as_str(),  "Next page ended");
             }
-        }))
+        });
+
+        trace!("End");
+        Ok(stream)
     }
     // Send the data from the inner connector to the remote resource.
     async fn send(&mut self, position: Option<isize>) -> Result<()>;

@@ -11,7 +11,7 @@ use crate::DataResult;
 use serde::Deserialize;
 
 use async_trait::async_trait;
-use multiqueue::{MPMCReceiver, MPMCSender};
+use crossbeam::channel::{Receiver, Sender};
 use std::io;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -67,8 +67,8 @@ impl StepType {
 pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     async fn exec(
         &self,
-        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
-        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+        receiver_option: Option<Receiver<DataResult>>,
+        sender_option: Option<Sender<DataResult>>,
     ) -> io::Result<()>;
     fn thread_number(&self) -> usize {
         1

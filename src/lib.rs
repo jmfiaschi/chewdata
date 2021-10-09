@@ -1,7 +1,6 @@
 extern crate glob;
 extern crate json_value_merge;
 extern crate json_value_resolve;
-extern crate multiqueue2 as multiqueue;
 extern crate serde;
 extern crate serde_json;
 #[macro_use]
@@ -17,46 +16,44 @@ use self::step::StepType;
 use async_std::task;
 use futures::stream::Stream;
 use json_value_merge::Merge;
-use multiqueue::MPMCReceiver;
+use crossbeam::channel::Receiver;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
-use tracing::Instrument;
 use tracing_futures::WithSubscriber;
 
 pub async fn exec(
     step_types: Vec<StepType>,
-    mut previous_step_pipe_outbound: Option<MPMCReceiver<DataResult>>,
+    mut previous_step_receiver: Option<Receiver<DataResult>>,
 ) -> io::Result<()> {
     let mut steps = Vec::default();
     let mut handles = Vec::default();
     let step_types_len = step_types.len();
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
-        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
+        let (sender, receiver) = crossbeam::channel::unbounded();
         let step = step_type.step_inner().clone();
         let thread_number = step.thread_number();
 
-        let mut pipe_inbound_option = None;
+        let mut sender_option = None;
         if pos != step_types_len - 1 {
-            pipe_inbound_option = Some(pipe_inbound.clone());
+            sender_option = Some(sender.clone());
         }
 
         for _pos in 0..thread_number {
             steps.push((
                 step.clone(),
-                previous_step_pipe_outbound.clone(),
-                pipe_inbound_option.clone(),
+                previous_step_receiver.clone(),
+                sender_option.clone(),
             ));
         }
-        previous_step_pipe_outbound = Some(pipe_outbound);
+        previous_step_receiver = Some(receiver);
     }
 
     for (step, inbound, outbound) in steps {
         handles.push(task::spawn(
             async move { step.exec(inbound, outbound).await }
-                .instrument(tracing::info_span!("exec"))
                 .with_current_subscriber(),
         ));
     }

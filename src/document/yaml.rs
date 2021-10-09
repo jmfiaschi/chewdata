@@ -77,7 +77,10 @@ impl Document for Yaml {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
+        info!("Start");
+
         let mut string = String::new();
         connector.read_to_string(&mut string).await?;
 
@@ -128,7 +131,10 @@ impl Document for Yaml {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+        trace!("Start");
+        
         let mut buf: io::Cursor<Vec<_>> = io::Cursor::default();
 
         serde_yaml::to_writer(&mut buf, &value).map_err(|e| {

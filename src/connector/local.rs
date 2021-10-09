@@ -221,7 +221,10 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
+        info!("Start");
+
         let mut file = OpenOptions::new()
             .read(true)
             .create(true)
@@ -303,7 +306,10 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        info!("Start");
+
         let mut buff = Vec::default();
         OpenOptions::new()
             .read(true)
@@ -339,7 +345,10 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn erase(&mut self) -> Result<()> {
+        info!("Start");
+
         OpenOptions::new()
             .read(false)
             .create(true)
@@ -347,7 +356,9 @@ impl Connector for Local {
             .write(true)
             .truncate(true)
             .open(self.path().as_str())?
-            .write_all(String::default().as_bytes())
+            .write_all(String::default().as_bytes())?;
+
+        Ok(())
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
@@ -483,7 +494,10 @@ impl Paginator for LocalPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        info!("Start");
+        
         let mut connector = Local::default();
 
         Ok(match self.paths.next() {

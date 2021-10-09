@@ -3,12 +3,10 @@ use crate::step::reader::Reader;
 use crate::step::Step;
 use crate::updater::{Action, UpdaterType};
 use async_trait::async_trait;
-use multiqueue::{MPMCReceiver, MPMCSender};
+use crossbeam::channel::{Receiver, Sender};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fmt, io};
-use std::{thread, time};
-use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -74,15 +72,12 @@ async fn referentials_reader_to_dataset(
 
     // For each reader, try to build the referential.
     for (alias, referential) in referentials {
-        let (pipe_inbound, pipe_outbound) = multiqueue::mpmc_queue(1000);
+        let (sender, receiver) = crossbeam::channel::unbounded();
         let mut referential_dataset: Vec<Value> = Vec::new();
 
-        referential
-            .exec(None, Some(pipe_inbound))
-            .instrument(tracing::info_span!("exec"))
-            .await?;
+        referential.exec(None, Some(sender)).await?;
 
-        for data_result in pipe_outbound {
+        for data_result in receiver {
             referential_dataset.push(data_result.to_json_value());
         }
         referentials_dataset.insert(alias, referential_dataset);
@@ -93,31 +88,26 @@ async fn referentials_reader_to_dataset(
 /// This Step transform a dataset.
 #[async_trait]
 impl Step for Transformer {
+    #[instrument]
     async fn exec(
         &self,
-        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
-        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+        receiver_option: Option<Receiver<DataResult>>,
+        sender_option: Option<Sender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(step = format!("{}", self).as_str(), "Exec");
+        info!("Start");
 
-        let pipe_inbound = match pipe_inbound_option {
-            Some(pipe_inbound) => pipe_inbound,
+        let sender = match sender_option {
+            Some(sender) => sender,
             None => {
-                info!(
-                    step = format!("{}", self.clone()).as_str(),
-                    "This step is skipped. No inbound pipe found"
-                );
+                info!("This step is skipped. Need a step after or a sender");
                 return Ok(());
             }
         };
 
-        let pipe_outbound = match pipe_outbound_option {
-            Some(pipe_outbound) => pipe_outbound,
+        let receiver = match receiver_option {
+            Some(receiver) => receiver,
             None => {
-                info!(
-                    step = format!("{}", self.clone()).as_str(),
-                    "This step is skipped. No outbound pipe found"
-                );
+                info!("This step is skipped. Need a step before or a receiver");
                 return Ok(());
             }
         };
@@ -127,12 +117,11 @@ impl Step for Transformer {
             None => None,
         };
 
-        for data_result in pipe_outbound {
+        for data_result in receiver {
             if !data_result.is_type(self.data_type.as_ref()) {
-                debug!(
+                trace!(
                     data_type = self.data_type.to_string().as_str(),
                     data = format!("{:?}", data_result).as_str(),
-                    step = format!("{}", self.clone()).as_str(),
                     "This step handle only this data type"
                 );
                 continue;
@@ -148,15 +137,13 @@ impl Step for Transformer {
                 self.output_name.clone(),
             ) {
                 Ok(new_record) => {
-                    debug!(
-                        step = format!("{}", self).as_str(),
+                    trace!(
                         record = format!("{}", new_record).as_str(),
                         "Record transformation success"
                     );
 
                     if Value::Null == new_record {
-                        debug!(
-                            step = format!("{}", self).as_str(),
+                        trace!(
                             record = format!("{}", new_record).as_str(),
                             "Record skip because the value si null"
                         );
@@ -164,8 +151,7 @@ impl Step for Transformer {
                     }
 
                     let new_data_result = DataResult::Ok(new_record);
-                    debug!(
-                        step = format!("{}", self).as_str(),
+                    trace!(
                         data_result = format!("{:?}", new_data_result).as_str(),
                         "New data result"
                     );
@@ -174,7 +160,6 @@ impl Step for Transformer {
                 Err(e) => {
                     let new_data_result = DataResult::Err((record, e));
                     warn!(
-                        step = format!("{}", self).as_str(),
                         data_result = format!("{:?}", new_data_result).as_str(),
                         "Record transformation error. New data result with error"
                     );
@@ -182,28 +167,15 @@ impl Step for Transformer {
                 }
             };
 
-            debug!(
-                data = format!("{:?}", new_data_results).as_str(),
-                step = format!("{}", self.clone()).as_str(),
-                "Data send to the queue"
-            );
-
-            let mut current_retry = 0;
-            while pipe_inbound.try_send(new_data_results.clone()).is_err() {
-                warn!(
-                    step = format!("{}", self).as_str(),
-                    "wait_in_millisecond" = self.wait_in_millisecond,
-                    current_retry = current_retry,
-                    "The pipe is full, wait before to retry"
-                );
-                thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
-                current_retry += 1;
-            }
+            trace!("Send data to the queue");
+            sender
+                .send(new_data_results.clone())
+                .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
         }
 
-        drop(pipe_inbound);
+        drop(sender);
 
-        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        info!("End");
         Ok(())
     }
     fn thread_number(&self) -> usize {

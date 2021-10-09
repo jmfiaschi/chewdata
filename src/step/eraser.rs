@@ -2,11 +2,9 @@ use crate::connector::ConnectorType;
 use crate::step::Step;
 use crate::DataResult;
 use async_trait::async_trait;
-use multiqueue::{MPMCReceiver, MPMCSender};
+use crossbeam::channel::{Receiver, Sender};
 use serde::Deserialize;
 use std::{fmt, io};
-use std::{thread, time};
-use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -53,109 +51,54 @@ impl fmt::Display for Eraser {
 
 #[async_trait]
 impl Step for Eraser {
+    #[instrument]
     async fn exec(
         &self,
-        pipe_outbound_option: Option<MPMCReceiver<DataResult>>,
-        pipe_inbound_option: Option<MPMCSender<DataResult>>,
+        receiver_option: Option<Receiver<DataResult>>,
+        sender_option: Option<Sender<DataResult>>,
     ) -> io::Result<()> {
-        debug!(step = format!("{}", self).as_str(), "Exec");
+        info!("Start");
 
         let connector_type = self.connector_type.clone();
         let mut connector = connector_type.connector();
         let mut exclude_paths = self.exclude_paths.clone();
 
-        match (pipe_outbound_option, connector.is_variable()) {
-            (Some(pipe_outbound), true) => {
-                for data_result in pipe_outbound {
+        match (receiver_option, connector.is_variable()) {
+            (Some(receiver), true) => {
+                for data_result in receiver {
                     let json_value = data_result.to_json_value();
                     connector.set_parameters(json_value.clone());
                     let path = connector.path();
 
                     if !exclude_paths.contains(&path) {
-                        debug!(
-                            step = format!("{}", self.clone()).as_str(),
-                            "Erase data started"
-                        );
-
-                        connector
-                            .erase()
-                            .instrument(tracing::info_span!("erase"))
-                            .await?;
-
-                        debug!(
-                            step = format!("{}", self.clone()).as_str(),
-                            "Erase data ended"
-                        );
+                        connector.erase().await?;
 
                         exclude_paths.push(path);
                     }
 
-                    if let Some(ref pipe_inbound) = pipe_inbound_option {
-                        debug!(
-                            data = format!("{:?}", data_result).as_str(),
-                            step = format!("{}", self.clone()).as_str(),
-                            pipe_outbound = false,
-                            "Data send to the queue"
-                        );
-
-                        let mut current_retry = 0;
-
-                        while pipe_inbound.try_send(data_result.clone()).is_err() {
-                            warn!(
-                                step = format!("{}", self).as_str(),
-                                wait_in_millisecond = self.wait_in_millisecond,
-                                current_retry = current_retry,
-                                "The pipe is full, wait before to retry"
-                            );
-                            thread::sleep(time::Duration::from_millis(
-                                self.wait_in_millisecond as u64,
-                            ));
-                            current_retry += 1;
-                        }
+                    if let Some(ref sender) = sender_option {
+                        trace!("Send data to the queue");
+                        sender
+                            .send(data_result.clone())
+                            .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
                     }
                 }
             }
-            (Some(pipe_outbound), false) => {
-                for _data_result in pipe_outbound {}
+            (Some(receiver), false) => {
+                for _data_result in receiver {}
 
-                debug!(
-                    step = format!("{}", self.clone()).as_str(),
-                    "Erase data started"
-                );
-
-                connector
-                    .erase()
-                    .instrument(tracing::info_span!("erase"))
-                    .await?;
-
-                debug!(
-                    step = format!("{}", self.clone()).as_str(),
-                    "Erase data ended"
-                );
+                connector.erase().await?;
             }
             (_, _) => {
-                debug!(
-                    step = format!("{}", self.clone()).as_str(),
-                    "Erase data started"
-                );
-
-                connector
-                    .erase()
-                    .instrument(tracing::info_span!("erase"))
-                    .await?;
-
-                debug!(
-                    step = format!("{}", self.clone()).as_str(),
-                    "Erase data ended"
-                );
+                connector.erase().await?;
             }
         };
 
-        if let Some(pipe_inbound) = pipe_inbound_option {
-            drop(pipe_inbound);
+        if let Some(sender) = sender_option {
+            drop(sender);
         }
 
-        debug!(step = format!("{}", self).as_str(), "Exec ended");
+        info!("End");
         Ok(())
     }
 }
