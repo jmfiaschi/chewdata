@@ -7,7 +7,6 @@ use crossbeam::channel::{Receiver, Sender};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fmt, io};
-use std::{thread, time};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -168,18 +167,10 @@ impl Step for Transformer {
                 }
             };
 
-            let mut current_retry = 0;
-
             trace!("Send data to the queue");
-            while sender.try_send(new_data_results.clone()).is_err() {
-                warn!(
-                    wait_in_millisecond = self.wait_in_millisecond,
-                    current_retry = current_retry,
-                    "The pipe is full, wait before to retry"
-                );
-                thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
-                current_retry += 1;
-            }
+            sender
+                .send(new_data_results.clone())
+                .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
         }
 
         drop(sender);

@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};
-use std::{thread, time};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -93,18 +92,10 @@ impl Step for Writer {
 
         for data_result in receiver {
             if let Some(ref sender) = sender_option {
-                let mut current_retry = 0;
-
                 trace!("Send data to the queue");
-                while sender.try_send(data_result.clone()).is_err() {
-                    warn!(
-                        wait_in_millisecond = self.wait_in_millisecond,
-                        current_retry = current_retry,
-                        "The pipe is full, wait before to retry"
-                    );
-                    thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
-                    current_retry += 1;
-                }
+                sender
+                    .send(data_result.clone())
+                    .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
             }
 
             if !data_result.is_type(self.data_type.as_ref()) {

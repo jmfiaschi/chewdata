@@ -7,7 +7,6 @@ use crossbeam::channel::{Receiver, Sender};
 use futures::StreamExt;
 use serde::Deserialize;
 use std::{fmt, io};
-use std::{thread, time};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -141,18 +140,9 @@ impl Step for Reader {
 impl Reader {
     #[instrument]
     fn send(&self, data_result: DataResult, pipe: &Sender<DataResult>) -> io::Result<()> {
-        let mut current_retry = 0;
-
         trace!("Send data to the queue");
-        while pipe.try_send(data_result.clone()).is_err() {
-            warn!(
-                wait_in_millisecond = self.wait_in_millisecond,
-                current_retry = current_retry,
-                "The pipe is full, wait before to retry"
-            );
-            thread::sleep(time::Duration::from_millis(self.wait_in_millisecond as u64));
-            current_retry += 1;
-        }
+        pipe.send(data_result.clone())
+            .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
 
         Ok(())
     }
