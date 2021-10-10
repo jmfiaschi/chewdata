@@ -83,7 +83,7 @@ impl Updater for Tera {
 
             trace!(output = format!("{}", json_value).as_str(),
                 jpointer = json_pointer.to_string().as_str(),
-                "data to add" = format!("{}", field_new_value).as_str(),
+                data = format!("{}", field_new_value).as_str(),
                 "{} the new field", action.action_type
             );
 
