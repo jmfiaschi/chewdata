@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/jmfiaschi/chewdata/compare/v1.5.0...v1.5.1) (2021-10-10)
+
+
+### Bug Fixes
+
+* **dependency:** key value in error ([60c21be](https://github.com/jmfiaschi/chewdata/commit/60c21be191c3b73123023d1cc889969ea10bb5a2))
+
 # [1.5.0](https://github.com/jmfiaschi/chewdata/compare/v1.4.0...v1.5.0) (2021-10-09)
 
 
