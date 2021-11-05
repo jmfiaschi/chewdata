@@ -14,9 +14,9 @@ pub mod updater;
 
 use self::step::StepType;
 use async_std::task;
+use crossbeam::channel::{Receiver, Sender};
 use futures::stream::Stream;
 use json_value_merge::Merge;
-use crossbeam::channel::Receiver;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::pin::Pin;
@@ -25,11 +25,13 @@ use tracing_futures::WithSubscriber;
 
 pub async fn exec(
     step_types: Vec<StepType>,
-    mut previous_step_receiver: Option<Receiver<DataResult>>,
+    input_receiver: Option<Receiver<DataResult>>,
+    output_sender: Option<Sender<DataResult>>,
 ) -> io::Result<()> {
     let mut steps = Vec::default();
     let mut handles = Vec::default();
     let step_types_len = step_types.len();
+    let mut previous_step_receiver = input_receiver;
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
         let (sender, receiver) = crossbeam::channel::unbounded();
@@ -39,6 +41,8 @@ pub async fn exec(
         let mut sender_option = None;
         if pos != step_types_len - 1 {
             sender_option = Some(sender.clone());
+        } else if let Some(external_sender) = &output_sender {
+            sender_option = Some(external_sender.clone());
         }
 
         for _pos in 0..thread_number {
@@ -53,8 +57,7 @@ pub async fn exec(
 
     for (step, inbound, outbound) in steps {
         handles.push(task::spawn(
-            async move { step.exec(inbound, outbound).await }
-                .with_current_subscriber(),
+            async move { step.exec(inbound, outbound).await }.with_current_subscriber(),
         ));
     }
 

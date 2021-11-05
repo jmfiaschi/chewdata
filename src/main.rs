@@ -83,7 +83,7 @@ async fn main() -> Result<()> {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(steps, None)
+    chewdata::exec(steps, None, None)
         .with_subscriber(subscriber)
         .await
 }
