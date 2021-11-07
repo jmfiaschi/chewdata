@@ -17,5 +17,5 @@ async fn main() -> io::Result<()> {
     "#;
     let config = serde_json::from_str(config.to_string().as_str())?;
 
-    chewdata::exec(config, None).await
+    chewdata::exec(config, None, None).await
 }

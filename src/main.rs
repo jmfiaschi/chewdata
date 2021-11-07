@@ -83,14 +83,14 @@ async fn main() -> Result<()> {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(steps, None)
+    chewdata::exec(steps, None, None)
         .with_subscriber(subscriber)
         .await
 }
 
 fn application() -> App<'static, 'static> {
     App::new("chewdata")
-        .version("1.5.1")
+        .version("1.6.0")
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
         .about("Light and chainable ETL")
         .arg(

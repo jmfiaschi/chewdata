@@ -32,7 +32,7 @@ example:
 	@cargo run --example $(name)
 
 release: ## Released the script in local
-	@cargo build --release --test-threads=1
+	@cargo build --release
 
 test: start unit-tests integration-tests	
 
@@ -68,7 +68,7 @@ minio:
 	echo "${YELLOW}Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY} ${NC}"
 	@docker-compose up -d minio1 minio2 minio3 minio4 nginx
 
-minio-install:
+minio\:install:
 	echo "${BLUE}Configure Minio server.${NC}"
 	@docker-compose run --rm mc alias set s3 http://nginx:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
 	@docker-compose run --rm mc mb -p s3/my-bucket
@@ -89,17 +89,23 @@ mongo:
 semantic-release:
 	@npx semantic-release
 
-start: minio minio-install httpbin mongo
+start: minio minio\:install httpbin mongo
 
 stop: 
 	@docker-compose down
 
 clean:
-	@sudo rm -Rf cache
+	@sudo rm -Rf .cache
 	@cargo clean
 
 docs:
 	@cd docs && zola build
+
+version:
+	@grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml
+
+docker\:build:
+	@docker build -t chewdata .
 
 # Shell colors.
 RED=\033[0;31m
