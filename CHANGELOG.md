@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/jmfiaschi/chewdata/compare/v1.5.1...v1.6.0) (2021-11-07)
+
+
+### Features
+
+* **external_input_and_output:** give the possibility to inject an input_receiver and output_sender ([#12](https://github.com/jmfiaschi/chewdata/issues/12)) ([c23edfa](https://github.com/jmfiaschi/chewdata/commit/c23edfac3616a62d3cea2108d5149acb6b06279f))
+
 ## [1.5.1](https://github.com/jmfiaschi/chewdata/compare/v1.5.0...v1.5.1) (2021-10-10)
 
 
