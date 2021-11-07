@@ -82,6 +82,7 @@ jobs:
         with:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      - run: cp .env.ci .env
       - run: CHEWDATA_TAG=$(make version) && echo "CHEWDATA_TAG=$CHEWDATA_TAG" >> $GITHUB_ENV
       - uses: docker/setup-buildx-action@v1
       - uses: docker/build-push-action@v2
