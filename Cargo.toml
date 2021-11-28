@@ -11,9 +11,9 @@ repository = "https://github.com/jmfiaschi/chewdata"
 
 [dependencies]
 tracing = "0.1"
-tracing-subscriber = { version = "0.2", features= ["fmt", "env-filter"] }
+tracing-subscriber = { version = "0.3", features= ["fmt", "env-filter"] }
 tracing-futures = "0.2"
-tracing-appender = { version = "0.1" }
+tracing-appender = { version = "0.2" }
 glob = "0.3"
 env_applier = "0.1"
 serde_json = "1.0"

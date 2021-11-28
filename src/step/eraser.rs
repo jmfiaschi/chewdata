@@ -15,8 +15,6 @@ pub struct Eraser {
     connector_type: ConnectorType,
     pub alias: Option<String>,
     pub description: Option<String>,
-    #[serde(alias = "wait")]
-    pub wait_in_millisecond: usize,
     #[serde(alias = "exclude")]
     pub exclude_paths: Vec<String>,
 }
@@ -28,7 +26,6 @@ impl Default for Eraser {
             connector_type: ConnectorType::default(),
             alias: Some(uuid.to_simple().to_string()),
             description: None,
-            wait_in_millisecond: 10,
             exclude_paths: Vec::default(),
         }
     }
