@@ -1,0 +1,8 @@
+.github
+.cache
+.vscode
+Cargo.lock
+examples
+data
+target
+docs

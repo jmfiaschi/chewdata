@@ -20,29 +20,29 @@ services:
         <<: *minio-common
         hostname: minio1
         volumes:
-            - ./cache/minio/data1-1:/data1
-            - ./cache/minio/data1-2:/data2
+            - ./.cache/minio/data1-1:/data1
+            - ./.cache/minio/data1-2:/data2
 
     minio2:
         <<: *minio-common
         hostname: minio2
         volumes:
-            - ./cache/minio/data2-1:/data1
-            - ./cache/minio/data2-2:/data2
+            - ./.cache/minio/data2-1:/data1
+            - ./.cache/minio/data2-2:/data2
 
     minio3:
         <<: *minio-common
         hostname: minio3
         volumes:
-            - ./cache/minio/data3-1:/data1
-            - ./cache/minio/data3-2:/data2
+            - ./.cache/minio/data3-1:/data1
+            - ./.cache/minio/data3-2:/data2
 
     minio4:
         <<: *minio-common
         hostname: minio4
         volumes:
-            - ./cache/minio/data4-1:/data1
-            - ./cache/minio/data4-2:/data2
+            - ./.cache/minio/data4-1:/data1
+            - ./.cache/minio/data4-2:/data2
 
     nginx:
         image: nginx:latest
@@ -61,7 +61,7 @@ services:
     mc:
         image: minio/mc:latest
         volumes:
-            - ./cache/minio/root:/root
+            - ./.cache/minio/root:/root
             - ./data:/root/data
 
     httpbin:
