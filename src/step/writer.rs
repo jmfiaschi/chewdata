@@ -23,8 +23,6 @@ pub struct Writer {
     pub data_type: String,
     #[serde(alias = "batch")]
     pub dataset_size: usize,
-    #[serde(alias = "wait")]
-    pub wait_in_millisecond: usize,
     #[serde(alias = "threads")]
     pub thread_number: usize,
 }
@@ -39,7 +37,6 @@ impl Default for Writer {
             description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1000,
-            wait_in_millisecond: 10,
             thread_number: 1,
         }
     }

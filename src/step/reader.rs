@@ -23,8 +23,6 @@ pub struct Reader {
     pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
-    #[serde(alias = "wait")]
-    pub wait_in_millisecond: usize,
 }
 
 impl Default for Reader {
@@ -36,7 +34,6 @@ impl Default for Reader {
             alias: Some(uuid.to_simple().to_string()),
             description: None,
             data_type: DataResult::OK.to_string(),
-            wait_in_millisecond: 10,
         }
     }
 }

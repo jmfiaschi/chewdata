@@ -20,8 +20,6 @@ pub struct Transformer {
     pub alias: Option<String>,
     pub description: Option<String>,
     pub data_type: String,
-    #[serde(alias = "wait")]
-    pub wait_in_millisecond: usize,
     #[serde(alias = "threads")]
     pub thread_number: usize,
     // Use Vec in order to keep the order FIFO.
@@ -41,7 +39,6 @@ impl Default for Transformer {
             alias: Some(uuid.to_simple().to_string()),
             description: None,
             data_type: DataResult::OK.to_string(),
-            wait_in_millisecond: 10,
             thread_number: 1,
             actions: Vec::default(),
             input_name: "input".to_string(),
