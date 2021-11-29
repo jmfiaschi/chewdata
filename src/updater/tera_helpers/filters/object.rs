@@ -173,14 +173,14 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 /// ```
 pub fn search(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let path = match args.get("path") {
-        Some(val) => val.as_str().ok_or("Function `search` can't get the `path` argument")?.clone(),
+        Some(val) => val.as_str().ok_or("Function `search` can't get the `path` argument")?,
         None => return Err(Error::msg(
             "Function `search` didn't receive a `path` argument",
         ))
     };
 
     let new_value = match value.clone().search(path)? {
-        Some(value) => value.clone(),
+        Some(value) => value,
         None => Value::Null,
     };
 
