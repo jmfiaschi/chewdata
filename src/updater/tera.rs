@@ -117,6 +117,7 @@ impl Tera {
         engine.register_function("set_env", function::set_env);
         engine.register_function("base64_encode", function::base64_encode);
         engine.register_function("base64_decode", function::base64_decode);
+        engine.register_filter("search", filters::object::search);
 
         engine
     }
