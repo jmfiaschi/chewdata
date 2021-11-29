@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/jmfiaschi/chewdata/compare/v1.7.0...v1.8.0) (2021-11-29)
+
+
+### Features
+
+* **tera:** add object search by path ([#14](https://github.com/jmfiaschi/chewdata/issues/14)) ([4accb4e](https://github.com/jmfiaschi/chewdata/commit/4accb4e46530d1e6a80804fd6a639fbe2bc66fa3))
+
 # [1.7.0](https://github.com/jmfiaschi/chewdata/compare/v1.6.0...v1.7.0) (2021-11-28)
 
 
