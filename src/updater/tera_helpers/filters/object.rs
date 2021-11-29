@@ -1,4 +1,5 @@
 use json_value_merge::Merge;
+use json_value_search::Search;
 use serde_json::value::Value;
 use std::collections::HashMap;
 use tera::*;
@@ -131,6 +132,56 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
                 "Function `merge` was called without the 'with' argument. Only an array can be merged without argument.",
             ))
         }
+    };
+
+    Ok(new_value)
+}
+
+/// Search elements in object Value.
+///
+/// # Example:
+/// ```
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use json_value_search::Search;
+/// use json_value_merge::Merge;
+/// use chewdata::updater::tera_helpers::filters::object::search;
+///
+/// let mut obj = Value::default();
+/// obj.merge_in("/field_1/field_2", Value::String("value".to_string()));
+///
+/// let mut args = HashMap::new();
+/// args.insert("path".to_string(), Value::String("/field_1".to_string()));
+///
+/// let result = search(&obj, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(serde_json::from_str::<Value>(r#"{"field_2":"value"}"#).unwrap(), result.unwrap());
+/// 
+/// let mut args = HashMap::new();
+/// args.insert("path".to_string(), Value::String("/field_1/field_2".to_string()));
+///
+/// let result = search(&obj, &args);
+/// assert!(result.is_ok());
+/// assert_eq!("value".to_string(), result.unwrap());
+/// 
+/// let mut args = HashMap::new();
+/// args.insert("path".to_string(), Value::String("/field_1/not_found".to_string()));
+///
+/// let result = search(&obj, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(Value::Null, result.unwrap());
+/// ```
+pub fn search(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
+    let path = match args.get("path") {
+        Some(val) => val.as_str().ok_or("Function `search` can't get the `path` argument")?,
+        None => return Err(Error::msg(
+            "Function `search` didn't receive a `path` argument",
+        ))
+    };
+
+    let new_value = match value.clone().search(path)? {
+        Some(value) => value,
+        None => Value::Null,
     };
 
     Ok(new_value)

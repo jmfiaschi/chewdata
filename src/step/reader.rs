@@ -138,7 +138,7 @@ impl Reader {
     #[instrument]
     fn send(&self, data_result: DataResult, pipe: &Sender<DataResult>) -> io::Result<()> {
         trace!("Send data to the queue");
-        pipe.send(data_result.clone())
+        pipe.send(data_result)
             .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
 
         Ok(())
