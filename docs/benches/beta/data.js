@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638310177287,
+  "lastUpdate": 1638310189272,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -659,6 +659,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 604,
             "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "268d88df2570fc8dc69a57e8b0f41ca599ae5e28",
+          "message": "fix(eraser): erase data in static connector before to share new data",
+          "timestamp": "2021-11-30T22:51:53+01:00",
+          "tree_id": "e51e60af20fa10ec88f6d495d762858a03090285",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/268d88df2570fc8dc69a57e8b0f41ca599ae5e28"
+        },
+        "date": 1638310188468,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 223,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 199,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 204888,
+            "range": "± 440",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 33152,
+            "range": "± 40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 381,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 611,
+            "range": "± 0",
             "unit": "ns/iter"
           }
         ]
