@@ -56,19 +56,21 @@ impl Updater for Tera {
                     {
                         Ok(render_result) => Ok(render_result),
                         Err(e) => Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
+                            io::ErrorKind::InvalidInput,
                             format!(
-                                "Failed to render the field '{}'. {}",
+                                "Failed to render the field '{}'. {}.",
                                 action.field,
                                 match e.source() {
                                     Some(e) => {
                                         match e.source() {
-                                                Some(e) => e.to_string(),
-                                                None => "Pattern not found. Error during the evaluation of the pattern, check if it exist.".to_string(),
+                                            Some(e) => {
+                                                e.to_string()
                                             }
+                                            None => e.to_string(),
+                                        }
                                     }
-                                    None => "".to_string(),
-                                }
+                                    None => format!("Please fix the pattern `{}`", pattern.to_string()),
+                                }.replace(" '__tera_one_off'", "")
                             ),
                         )),
                     }?;

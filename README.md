@@ -11,7 +11,7 @@ This application is an simple ETL in rust that can be use as a connector between
 * It can read/write data from :
   * Mongodb database
   * S3/Minio with versionning & select
-  * Http(s) APIs with with some authenicators: Basic, Bearer, Jwt
+  * Http(s) APIs with some authenicators: Basic, Bearer, Jwt
   * Local
   * Relational DB like PSQL (`Not Yet`)
   * Message broker (`Not Yet`)
