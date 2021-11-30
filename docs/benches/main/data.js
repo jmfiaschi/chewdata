@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638207229713,
+  "lastUpdate": 1638309057159,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -179,6 +179,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 645,
             "range": "± 33",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0f415b4b5d03b7979facc964c456086b51a41466",
+          "message": "fix(transformer): give more detail on the tera errors (#15)\n\n* fix(transformer): give more detail on the tera errors",
+          "timestamp": "2021-11-30T22:36:13+01:00",
+          "tree_id": "b82859ce882902443c73c4900193ccec0a39ce2f",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/0f415b4b5d03b7979facc964c456086b51a41466"
+        },
+        "date": 1638309056552,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 172,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 157,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 169739,
+            "range": "± 10399",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 25984,
+            "range": "± 1440",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 300,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 461,
+            "range": "± 22",
             "unit": "ns/iter"
           }
         ]
