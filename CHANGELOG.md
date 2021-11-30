@@ -1,3 +1,10 @@
+## [1.8.2](https://github.com/jmfiaschi/chewdata/compare/v1.8.1...v1.8.2) (2021-11-30)
+
+
+### Bug Fixes
+
+* **eraser:** erase data in static connector before to share new data ([#16](https://github.com/jmfiaschi/chewdata/issues/16)) ([5f0a565](https://github.com/jmfiaschi/chewdata/commit/5f0a565c853c9f46c3ce573ef509ad29824309d6))
+
 ## [1.8.1](https://github.com/jmfiaschi/chewdata/compare/v1.8.0...v1.8.1) (2021-11-30)
 
 
