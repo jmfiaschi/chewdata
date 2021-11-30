@@ -5,7 +5,7 @@
 [![Coverage](https://codecov.io/gh/jmfiaschi/chewdata/branch/main/graph/badge.svg?token=EI62L7XQAH)](https://codecov.io/gh/jmfiaschi/chewdata)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
 
-This application is an simple ETL in rust that can be use as a connector between systems
+This application is an simple ETL in rust that can be used as a connector between systems
 
 * It handle multiple formats : Json, Jsonl, CSV, Toml, XML, Yaml, Text
 * It can read/write data from :

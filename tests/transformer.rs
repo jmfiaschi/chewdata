@@ -302,8 +302,8 @@ mod transformer {
     fn it_should_throw_an_error() {
         let patterns = [(
             "_error",
-            "{{ throw(message='I want to throw an error !') }}",
-            r#"Failed to render the field '/my_field'. I want to throw an error !"#,
+            "{{ throw(message='I want to throw an error') }}",
+            r#"Failed to render the field '/my_field'. I want to throw an error."#,
         )];
         let configs = [(
             "tera",
