@@ -262,7 +262,7 @@ mod writer {
         println!("Try to test this file '{}'.", output_file2_path);
         let value_result2 = data(&output_file2_path);
         assert_eq!(
-            r#"[{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Failed to render the field '/'. data go to writer.cascade_file2.json"}]"#,
+            r#"[{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Failed to render the field '/'. data go to writer.cascade_file2.json."}]"#,
             value_result2
         );
     }
