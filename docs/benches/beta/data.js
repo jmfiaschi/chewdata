@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638202507693,
+  "lastUpdate": 1638275830249,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -359,6 +359,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 605,
             "range": "± 30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "5b3ec673e07f2454e67b4a6757f30f38e4fba08b",
+          "message": "fix(transformer): give more detail on the tera errors",
+          "timestamp": "2021-11-30T13:20:11+01:00",
+          "tree_id": "4ceee83db8f5617b39f4a614e1e9d5d1b06a2dfb",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/5b3ec673e07f2454e67b4a6757f30f38e4fba08b"
+        },
+        "date": 1638275829034,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 232,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 220,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 195304,
+            "range": "± 14365",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 28769,
+            "range": "± 2197",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 372,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 596,
+            "range": "± 44",
             "unit": "ns/iter"
           }
         ]
