@@ -82,9 +82,16 @@ impl Step for Eraser {
                 }
             }
             (Some(receiver), false) => {
-                for _data_result in receiver {}
-
                 connector.erase().await?;
+                
+                for data_result in receiver {
+                    if let Some(ref sender) = sender_option {
+                        trace!("Send data to the queue");
+                        sender
+                            .send(data_result.clone())
+                            .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
+                    }
+                }
             }
             (_, _) => {
                 connector.erase().await?;
