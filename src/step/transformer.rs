@@ -117,7 +117,7 @@ impl Step for Transformer {
         for data_result in receiver {
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!(
-                    data_type = self.data_type.to_string().as_str(),
+                    data_type_accepted = self.data_type.to_string().as_str(),
                     data = format!("{:?}", data_result).as_str(),
                     "This step handle only this data type"
                 );
@@ -126,7 +126,7 @@ impl Step for Transformer {
 
             let record = data_result.to_json_value();
 
-            let new_data_results = match self.updater_type.updater().update(
+            let new_data_result = match self.updater_type.updater().update(
                 record.clone(),
                 mapping.clone(),
                 self.actions.clone(),
@@ -164,10 +164,7 @@ impl Step for Transformer {
                 }
             };
 
-            trace!("Send data to the queue");
-            sender
-                .send(new_data_results.clone())
-                .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
+            self.send(new_data_result, &sender)?;
         }
 
         drop(sender);
