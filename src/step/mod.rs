@@ -73,6 +73,14 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     fn thread_number(&self) -> usize {
         1
     }
+    #[instrument]
+    fn send(&self, data_result: DataResult, pipe: &Sender<DataResult>) -> io::Result<()> {
+        trace!("Send data to the queue");
+        pipe.send(data_result)
+            .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
+
+        Ok(())
+    }
 }
 
 pub trait StepClone {

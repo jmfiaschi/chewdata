@@ -355,8 +355,7 @@ impl Connector for Local {
             .append(false)
             .write(true)
             .truncate(true)
-            .open(self.path().as_str())?
-            .write_all(String::default().as_bytes())?;
+            .open(self.path().as_str())?;
 
         Ok(())
     }

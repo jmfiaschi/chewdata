@@ -87,26 +87,24 @@ impl Step for Writer {
         // Use to init the connector during the loop
         let default_connector = connector.clone();
 
-        for data_result in receiver {
+        for data_result_received in receiver {
             if let Some(ref sender) = sender_option {
-                trace!("Send data to the queue");
-                sender
-                    .send(data_result.clone())
-                    .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
+                self.send(data_result_received.clone(), &sender)?;
             }
 
-            if !data_result.is_type(self.data_type.as_ref()) {
+            if !data_result_received.is_type(self.data_type.as_ref()) {
                 trace!(
-                    data_type = self.data_type.to_string().as_str(),
-                    data = format!("{:?}", data_result).as_str(),
+                    data_type_accepted = self.data_type.to_string().as_str(),
+                    data_result = format!("{:?}", data_result_received).as_str(),
                     "This step handle only this data type"
                 );
                 continue;
             }
 
             {
-                // If the path change, the writer flush and send the data in the buffer though the connector.
-                if connector.is_resource_will_change(data_result.to_json_value())? {
+                // If the path change and the inner connector not empty, the connector
+                // flush and send the data to the remote document before to load a new document.
+                if connector.is_resource_will_change(data_result_received.to_json_value())? && !connector.inner().is_empty() {
                     document.close(&mut *connector).await?;
                     match connector.send(Some(position)).await {
                         Ok(_) => (),
@@ -125,10 +123,10 @@ impl Step for Writer {
                 }
             }
 
-            connector.set_parameters(data_result.to_json_value());
+            connector.set_parameters(data_result_received.to_json_value());
 
             document
-                .write_data(&mut *connector, data_result.to_json_value())
+                .write_data(&mut *connector, data_result_received.to_json_value())
                 .await?;
 
             current_dataset_size += 1;
@@ -154,7 +152,7 @@ impl Step for Writer {
         }
 
         if 0 < current_dataset_size {
-            info!("Send data before to end the step");
+            info!(dataset_size = current_dataset_size, "Send data before to end the step");
 
             document.close(&mut *connector).await?;
 

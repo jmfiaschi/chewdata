@@ -79,27 +79,30 @@ impl Step for Reader {
             (Some(receiver), true) => {
                 // Used to check if the data has been received.
                 let mut has_data_been_received = false;
-                for data_result in receiver {
+                
+                for data_result_received in receiver {
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
 
-                    if !data_result.is_type(self.data_type.as_ref()) {
+                    if !data_result_received.is_type(self.data_type.as_ref()) {
                         trace!(
-                            data_type = self.data_type.to_string().as_str(),
-                            data = format!("{:?}", data_result).as_str(),
+                            data_type_accepted = self.data_type.to_string().as_str(),
+                            data_result = format!("{:?}", data_result_received).as_str(),
                             "This step handle only this data type"
                         );
                         continue;
                     }
 
-                    connector.set_parameters(data_result.to_json_value());
+                    connector.set_parameters(data_result_received.clone().to_json_value());
                     let mut data = connector.pull_data(document.clone()).await?;
 
-                    while let Some(data_result) = data.next().await {
-                        self.send(data_result, &sender)?;
+                    while let Some(ref mut sender_data_result) = data.next().await {
+                        sender_data_result.merge(data_result_received.clone());
+                        self.send(sender_data_result.clone(), &sender)?;
                     }
                 }
+
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
@@ -111,11 +114,32 @@ impl Step for Reader {
                 }
             }
             (Some(receiver), false) => {
-                for _data_result in receiver {}
-                let mut data = connector.pull_data(document.clone()).await?;
+                // Used to check if the data has been received.
+                let mut has_data_been_received = false;
 
-                while let Some(data_result) = data.next().await {
-                    self.send(data_result, &sender)?;
+                for data_result_received in receiver {
+                    if !has_data_been_received {
+                        has_data_been_received = true;
+                    }
+
+                    // TODO: See if we can use stream::cycle and remove the pull_data from the loop.
+                    // Useless to loop on the same document
+                    let mut data = connector.pull_data(document.clone()).await?;
+
+                    while let Some(ref mut sender_data_result) = data.next().await {
+                        sender_data_result.merge(data_result_received.clone());
+                        self.send(sender_data_result.clone(), &sender)?;
+                    }
+                }
+
+                // If data has not been received and the channel has been close, run last time the step.
+                // It arrive when the previous step don't push data through the pipe.
+                if !has_data_been_received {
+                    let mut data = connector.pull_data(document.clone()).await?;
+
+                    while let Some(data_result) = data.next().await {
+                        self.send(data_result, &sender)?;
+                    }
                 }
             }
             (None, _) => {
@@ -130,17 +154,6 @@ impl Step for Reader {
         drop(sender);
 
         info!("End");
-        Ok(())
-    }
-}
-
-impl Reader {
-    #[instrument]
-    fn send(&self, data_result: DataResult, pipe: &Sender<DataResult>) -> io::Result<()> {
-        trace!("Send data to the queue");
-        pipe.send(data_result)
-            .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
-
         Ok(())
     }
 }

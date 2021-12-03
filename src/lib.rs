@@ -219,6 +219,18 @@ impl DataResult {
             (DataResult::Ok(_), DataResult::OK) | (DataResult::Err(_), DataResult::ERR)
         )
     }
+    pub fn merge(&mut self, data_result: DataResult) {
+        let new_json_value = data_result.to_json_value();
+
+        match self {
+            DataResult::Ok(value) => {
+                value.merge(new_json_value);
+            },
+            DataResult::Err((value, _e)) => {
+                value.merge(new_json_value);
+            },
+        };
+    }
 }
 
 pub type Dataset = Pin<Box<dyn Stream<Item = DataResult> + Send>>;
