@@ -89,7 +89,7 @@ impl Step for Writer {
 
         for data_result_received in receiver {
             if let Some(ref sender) = sender_option {
-                self.send(data_result_received.clone(), &sender)?;
+                self.send(data_result_received.clone(), sender)?;
             }
 
             if !data_result_received.is_type(self.data_type.as_ref()) {

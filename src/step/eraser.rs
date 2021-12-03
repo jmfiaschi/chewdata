@@ -85,7 +85,7 @@ impl Step for Eraser {
                     }
 
                     if let Some(ref sender) = sender_option {
-                        self.send(data_result_received, &sender)?;
+                        self.send(data_result_received, sender)?;
                     }
                 }
             }
@@ -101,7 +101,7 @@ impl Step for Eraser {
                     }
 
                     if let Some(ref sender) = sender_option {
-                        self.send(data_result_received, &sender)?;
+                        self.send(data_result_received, sender)?;
                     }
                 }
             }
