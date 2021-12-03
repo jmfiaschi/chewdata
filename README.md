@@ -7,19 +7,23 @@
 
 This application is an simple ETL in rust that can be used as a connector between systems
 
-* It handle multiple formats : Json, Jsonl, CSV, Toml, XML, Yaml, Text
-* It can read/write data from :
-  * Mongodb database
-  * S3/Minio with versionning & select
-  * Http(s) APIs with some authenicators: Basic, Bearer, Jwt
-  * Local
-  * Relational DB like PSQL (`Not Yet`)
-  * Message broker (`Not Yet`)
+| Available | Feature              | Values                                                      | Description                        |
+| --------- | -------------------- | ----------------------------------------------------------- | ---------------------------------- |
+| x         | Supported format     | `Json` , `Jsonl` , `CSV` , `Toml` , `XML` , `Yaml` , `Text` | Read and Write in these format     |
+| x         | Object Databases     | `mongodb`                                                   | Read / Write / Clean data          |
+| -         | Relational Databases | `psql`                                                      | Read / Write / Clean data          |
+| x         | Bucket               | `s3` , `minio`                                              | Read / Write / Clean / Select data |
+| x         | Curl                 | `*`                                                         | Read / Write / Clean data          |
+| x         | Curl auth            | `basic` , `bearer` , `jwt`                                  | Read / Write / Clean data          |
+| -         | Message brocker      | `rabbitMQ` , `kafka`                                        | Read / Write / Clean data          |
+| x         | Transform data       | [tera template](https://tera.netlify.app/docs)              | Transform the data in the fly      |
+
+More useful information:
+
 * It need only rustup
 * No garbage collector
 * Parallel work
 * Multi platforms
-* Use [tera template](https://tera.netlify.app/docs) in order to configure the actions for the data transformation
 
 the target of this project is to simplify the work of developers and simplify the connection between system.
 The work is not finished but I hope it will be useful for you.
