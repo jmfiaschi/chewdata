@@ -1,3 +1,10 @@
+## [1.8.3](https://github.com/jmfiaschi/chewdata/compare/v1.8.2...v1.8.3) (2021-12-03)
+
+
+### Bug Fixes
+
+* **erase:** can clear data in the document before and after a step ([#17](https://github.com/jmfiaschi/chewdata/issues/17)) ([b638908](https://github.com/jmfiaschi/chewdata/commit/b638908b9ed5325bb3d3c6da85d2d585a632b86c))
+
 ## [1.8.2](https://github.com/jmfiaschi/chewdata/compare/v1.8.1...v1.8.2) (2021-11-30)
 
 
