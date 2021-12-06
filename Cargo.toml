@@ -1,13 +1,15 @@
 [package]
 name = "chewdata"
-version = "1.8.3"
-authors = ["Jean-Marc Fiaschi"]
+version = "1.8.4"
+authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2018"
 description = "Extract Transform and Load data"
 license = "MIT/Apache-2.0"
 readme = "README.md"
 homepage = "https://www.chewdata.org"
 repository = "https://github.com/jmfiaschi/chewdata"
+include = ["src/*", "LICENSE-APACHE", "LICENSE-MIT", "README.md"]
+categories = ["encoding","network-programming","data-structures"]
 
 [dependencies]
 tracing = "0.1"

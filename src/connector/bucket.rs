@@ -5,6 +5,7 @@ use crate::Metadata;
 use async_std::prelude::*;
 use async_trait::async_trait;
 use regex::Regex;
+use rusoto_core::credential::DefaultCredentialsProvider;
 use rusoto_core::{credential::StaticProvider, Region, RusotoError};
 use rusoto_s3::ListObjectsV2Request;
 use rusoto_s3::{GetObjectRequest, HeadObjectRequest, PutObjectRequest, S3Client, S3 as RusotoS3};
@@ -13,13 +14,13 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::vec::IntoIter;
 use std::{
     fmt,
     io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write},
 };
 use tokio::io::AsyncReadExt;
 use tokio::runtime::Runtime;
-use std::vec::IntoIter;
 
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 
@@ -51,7 +52,10 @@ pub struct Bucket {
 impl Default for Bucket {
     fn default() -> Self {
         let mut tags = HashMap::default();
-        tags.insert(DEFAULT_TAG_SERVICE_WRITER_NAME.0.to_string(), DEFAULT_TAG_SERVICE_WRITER_NAME.1.to_string());
+        tags.insert(
+            DEFAULT_TAG_SERVICE_WRITER_NAME.0.to_string(),
+            DEFAULT_TAG_SERVICE_WRITER_NAME.1.to_string(),
+        );
 
         Bucket {
             metadata: Metadata::default(),
@@ -86,11 +90,14 @@ impl fmt::Display for Bucket {
 // Not display the inner for better performance with big data
 impl fmt::Debug for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut secret_access_key = self
-            .secret_access_key
-            .clone()
-            .unwrap_or_default();
-        secret_access_key.replace_range(0..(secret_access_key.len()/2), (0..(secret_access_key.len()/2)).map(|_| "#").collect::<String>().as_str());
+        let mut secret_access_key = self.secret_access_key.clone().unwrap_or_default();
+        secret_access_key.replace_range(
+            0..(secret_access_key.len() / 2),
+            (0..(secret_access_key.len() / 2))
+                .map(|_| "#")
+                .collect::<String>()
+                .as_str(),
+        );
         f.debug_struct("Bucket")
             .field("metadata", &self.metadata)
             .field("endpoint", &self.endpoint)
@@ -111,27 +118,37 @@ impl fmt::Debug for Bucket {
 }
 
 impl Bucket {
-    fn s3_client(&self) -> S3Client {
-        match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
-            (Some(access_key_id), Some(secret_access_key)) => S3Client::new_with(
-                rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
-                StaticProvider::new_minimal(access_key_id.to_owned(), secret_access_key.to_owned()),
-                Region::Custom {
-                    name: self.region.to_owned(),
-                    endpoint: match self.endpoint.to_owned() {
-                        Some(endpoint) => endpoint,
-                        None => format!("https://s3-{}.amazonaws.com", self.region),
+    fn s3_client(&self) -> Result<S3Client> {
+        Ok(
+            match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
+                (Some(access_key_id), Some(secret_access_key)) => S3Client::new_with(
+                    rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
+                    StaticProvider::new_minimal(
+                        access_key_id.to_owned(),
+                        secret_access_key.to_owned(),
+                    ),
+                    Region::Custom {
+                        name: self.region.to_owned(),
+                        endpoint: match self.endpoint.to_owned() {
+                            Some(endpoint) => endpoint,
+                            None => format!("https://s3-{}.amazonaws.com", self.region),
+                        },
                     },
-                },
-            ),
-            (_, _) => S3Client::new(Region::Custom {
-                name: self.region.to_owned(),
-                endpoint: match self.endpoint.to_owned() {
-                    Some(endpoint) => endpoint,
-                    None => format!("https://s3-{}.amazonaws.com", self.region),
-                },
-            }),
-        }
+                ),
+                (_, _) => S3Client::new_with(
+                    rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
+                    DefaultCredentialsProvider::new()
+                        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?,
+                    Region::Custom {
+                        name: self.region.to_owned(),
+                        endpoint: match self.endpoint.to_owned() {
+                            Some(endpoint) => endpoint,
+                            None => format!("https://s3-{}.amazonaws.com", self.region),
+                        },
+                    },
+                ),
+            },
+        )
     }
     fn tagging(&self) -> String {
         let mut tagging = String::default();
@@ -195,7 +212,7 @@ impl Connector for Bucket {
 
         let mut actuel_path = self.path.clone();
         actuel_path.replace_mustache(*self.parameters.clone());
-        
+
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
@@ -225,7 +242,7 @@ impl Connector for Bucket {
                 let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
-            },
+            }
             _ => self.path.clone(),
         }
     }
@@ -264,7 +281,7 @@ impl Connector for Bucket {
             ));
         }
 
-        let s3_client = self.s3_client();
+        let s3_client = self.s3_client()?;
         let request = HeadObjectRequest {
             bucket: self.bucket.clone(),
             key: self.path(),
@@ -282,10 +299,12 @@ impl Connector for Bucket {
                 Err(e) => {
                     let error = format!("{:?}", e);
                     match e {
-                        RusotoError::Unknown(http_response) => match http_response.status.as_u16() {
-                            404 => Ok(0),
-                            _ => Err(Error::new(ErrorKind::Interrupted, error)),
-                        },
+                        RusotoError::Unknown(http_response) => {
+                            match http_response.status.as_u16() {
+                                404 => Ok(0),
+                                _ => Err(Error::new(ErrorKind::Interrupted, error)),
+                            }
+                        }
                         _ => Err(Error::new(ErrorKind::Interrupted, e)),
                     }
                 }
@@ -352,7 +371,7 @@ impl Connector for Bucket {
         info!("Start");
 
         let connector = self.clone();
-        let s3_client = connector.s3_client();
+        let s3_client = connector.s3_client()?;
         let request = GetObjectRequest {
             bucket: connector.bucket.clone(),
             key: connector.path(),
@@ -425,8 +444,13 @@ impl Connector for Bucket {
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
         info!("Start");
 
-        if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty() {
-            warn!(path = self.path.clone().as_str(), parameters = self.parameters.to_string().as_str(),  "Can't flush with variable path and without parameters");
+        if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty()
+        {
+            warn!(
+                path = self.path.clone().as_str(),
+                parameters = self.parameters.to_string().as_str(),
+                "Can't flush with variable path and without parameters"
+            );
             return Ok(());
         }
 
@@ -434,7 +458,10 @@ impl Connector for Bucket {
         let path_resolved = self.path();
 
         if !self.is_empty().await? {
-            info!(path = path_resolved.to_string().as_str(),  "Fetch previous data into S3");
+            info!(
+                path = path_resolved.to_string().as_str(),
+                "Fetch previous data into S3"
+            );
             {
                 let mut connector_clone = self.clone();
                 connector_clone.fetch().await?;
@@ -447,14 +474,14 @@ impl Connector for Bucket {
         match position {
             Some(pos) => match content_file.len() as isize + pos {
                 start if start > 0 => cursor.seek(SeekFrom::Start(start as u64)),
-                _ => cursor.seek(SeekFrom::Start(0))
+                _ => cursor.seek(SeekFrom::Start(0)),
             },
             None => cursor.seek(SeekFrom::End(0)),
         }?;
-        
+
         cursor.write_all(self.inner.get_ref())?;
 
-        let s3_client = self.s3_client();
+        let s3_client = self.s3_client()?;
         let put_request = PutObjectRequest {
             bucket: self.bucket.to_owned(),
             key: path_resolved,
@@ -465,7 +492,7 @@ impl Connector for Bucket {
             cache_control: self.cache_control.to_owned(),
             content_language: match self.metadata().content_language().is_empty() {
                 true => None,
-                false => Some(self.metadata().content_language()) 
+                false => Some(self.metadata().content_language()),
             },
             expires: self.expires.to_owned(),
             ..Default::default()
@@ -496,7 +523,7 @@ impl Connector for Bucket {
         info!("Start");
 
         let path_resolved = self.path();
-        let s3_client = self.s3_client();
+        let s3_client = self.s3_client()?;
         let put_request = PutObjectRequest {
             bucket: self.bucket.to_owned(),
             key: path_resolved,
@@ -567,56 +594,71 @@ impl BucketPaginator {
     pub fn new(connector: Bucket) -> Result<Self> {
         let mut paths = Vec::default();
 
-        let reg_path_contain_wildcard = Regex::new("[*]")
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+        let reg_path_contain_wildcard =
+            Regex::new("[*]").map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
         let path = connector.path();
-        
+
         match reg_path_contain_wildcard.is_match(path.as_str()) {
             true => {
                 let delimiter = "/";
 
-                let directories:Vec<&str> = path.split_terminator(delimiter).collect();
-                let prefix_keys: Vec<&str> = directories.clone().into_iter().take_while(|item| !item.contains('*') ).collect();
-                let postfix_keys: Vec<&str> = directories.clone().into_iter().filter(|item| !prefix_keys.contains(item)).collect();
+                let directories: Vec<&str> = path.split_terminator(delimiter).collect();
+                let prefix_keys: Vec<&str> = directories
+                    .clone()
+                    .into_iter()
+                    .take_while(|item| !item.contains('*'))
+                    .collect();
+                let postfix_keys: Vec<&str> = directories
+                    .clone()
+                    .into_iter()
+                    .filter(|item| !prefix_keys.contains(item))
+                    .collect();
 
                 let key_pattern = postfix_keys
                     .join(delimiter)
-                    .replace(".","\\.")
-                    .replace("*",".*");
+                    .replace(".", "\\.")
+                    .replace("*", ".*");
                 let reg_key = Regex::new(key_pattern.as_str())
                     .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
                 let mut is_truncated = true;
                 let mut next_token: Option<String> = None;
                 while is_truncated {
-                    let s3_client = connector.s3_client();
+                    let s3_client = connector.s3_client()?;
                     let request = ListObjectsV2Request {
                         bucket: connector.bucket.clone(),
                         delimiter: Some(delimiter.to_string()),
-                        prefix: Some(format!("{}/",prefix_keys.join("/"))),
+                        prefix: Some(format!("{}/", prefix_keys.join("/"))),
                         continuation_token: next_token,
                         ..Default::default()
                     };
                     //TODO: When rusoto will use last version of tokio we should remove the block_on.
-                    let (mut paths_tmp, is_truncated_tmp, next_token_tmp) = Runtime::new()?.block_on(async {
-                        match s3_client.list_objects_v2(request).await {
-                            Ok(response) => {
-                                (
-                                    response.contents.unwrap_or_default().into_iter().filter(|object| match object.key {
-                                        Some(ref path) => reg_key.is_match(path.as_str()),
-                                        None => false
-                                    })
-                                    .map(|object| object.key.unwrap()).collect(), 
+                    let (mut paths_tmp, is_truncated_tmp, next_token_tmp) = Runtime::new()?
+                        .block_on(async {
+                            match s3_client.list_objects_v2(request).await {
+                                Ok(response) => (
+                                    response
+                                        .contents
+                                        .unwrap_or_default()
+                                        .into_iter()
+                                        .filter(|object| match object.key {
+                                            Some(ref path) => reg_key.is_match(path.as_str()),
+                                            None => false,
+                                        })
+                                        .map(|object| object.key.unwrap())
+                                        .collect(),
                                     response.is_truncated.unwrap_or(false),
-                                    response.next_continuation_token
-                                )
-                            },
-                            Err(e) => {
-                                warn!(error = e.to_string().as_str(),  "Can't fetch the list of keys");
-                                (Vec::default(), false, None)
+                                    response.next_continuation_token,
+                                ),
+                                Err(e) => {
+                                    warn!(
+                                        error = e.to_string().as_str(),
+                                        "Can't fetch the list of keys"
+                                    );
+                                    (Vec::default(), false, None)
+                                }
                             }
-                        }
-                    });
+                        });
 
                     is_truncated = is_truncated_tmp;
                     next_token = next_token_tmp;
@@ -624,7 +666,7 @@ impl BucketPaginator {
                 }
 
                 if let Some(limit) = connector.limit {
-                    let paths_range_start= if paths.len() < connector.skip {
+                    let paths_range_start = if paths.len() < connector.skip {
                         paths.len()
                     } else {
                         connector.skip
@@ -637,7 +679,7 @@ impl BucketPaginator {
 
                     paths = paths[paths_range_start..paths_range_end].to_vec();
                 }
-            },
+            }
             false => {
                 paths.append(&mut vec![path]);
             }
@@ -725,7 +767,7 @@ impl Paginator for BucketPaginator {
     #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
         info!("Start");
-        
+
         let mut connector = self.connector.clone();
 
         Ok(match self.paths.next() {
