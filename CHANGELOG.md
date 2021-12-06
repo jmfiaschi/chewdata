@@ -1,3 +1,10 @@
+## [1.8.4](https://github.com/jmfiaschi/chewdata/compare/v1.8.3...v1.8.4) (2021-12-06)
+
+
+### Bug Fixes
+
+* **bucket:** use the DefaultCredentialsProvider by default ([#18](https://github.com/jmfiaschi/chewdata/issues/18)) ([0cd6b09](https://github.com/jmfiaschi/chewdata/commit/0cd6b09e5f8cf8202350faa81404b4f21b70b252))
+
 ## [1.8.3](https://github.com/jmfiaschi/chewdata/compare/v1.8.2...v1.8.3) (2021-12-03)
 
 
