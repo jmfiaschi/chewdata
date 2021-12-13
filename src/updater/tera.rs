@@ -116,7 +116,6 @@ impl Tera {
         // register new filter
         engine.register_filter("merge", filters::object::merge);
         engine.register_function("uuid_v4", function::uuid_v4);
-        engine.register_function("set_env", function::set_env);
         engine.register_function("base64_encode", function::base64_encode);
         engine.register_function("base64_decode", function::base64_decode);
         engine.register_filter("search", filters::object::search);
