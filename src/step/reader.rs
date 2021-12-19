@@ -77,7 +77,7 @@ impl Step for Reader {
 
         match (receiver_option, connector.is_variable()) {
             (Some(receiver), true) => {
-                // Used to check if the data has been received.
+                // Used to check if one data has been received.
                 let mut has_data_been_received = false;
                 
                 for data_result_received in receiver {
@@ -114,7 +114,7 @@ impl Step for Reader {
                 }
             }
             (Some(receiver), false) => {
-                // Used to check if the data has been received.
+                // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
                 for data_result_received in receiver {

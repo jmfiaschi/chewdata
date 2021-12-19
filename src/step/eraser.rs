@@ -65,7 +65,14 @@ impl Step for Eraser {
 
         match (receiver_option, connector.is_variable()) {
             (Some(receiver), true) => {
+                // Used to check if one data has been received.
+                let mut has_data_been_received = false;
+
                 for data_result_received in receiver {
+                    if !has_data_been_received {
+                        has_data_been_received = true;
+                    }
+
                     if !data_result_received.is_type(self.data_type.as_ref()) {
                         trace!(
                             data_type_accepted = self.data_type.to_string().as_str(),
@@ -88,9 +95,21 @@ impl Step for Eraser {
                         self.send(data_result_received, sender)?;
                     }
                 }
+
+                // No data has been received, clean the connector.
+                if !has_data_been_received {
+                    connector.erase().await?;
+                }
             }
             (Some(receiver), false) => {
+                // Used to check if one data has been received.
+                let mut has_data_been_received = false;
+
                 for data_result_received in receiver {
+                    if !has_data_been_received {
+                        has_data_been_received = true;
+                    }
+
                     let path = connector.path();
 
                     // erase when the step receive the first message
@@ -103,6 +122,11 @@ impl Step for Eraser {
                     if let Some(ref sender) = sender_option {
                         self.send(data_result_received, sender)?;
                     }
+                }
+
+                // No data has been received, clean the connector.
+                if !has_data_been_received {
+                    connector.erase().await?;
                 }
             }
             (_, _) => {
