@@ -47,6 +47,8 @@ pub struct Bucket {
     pub expires: Option<String>,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
+    #[serde(skip)]
+    client: Option<S3Client>
 }
 
 impl Default for Bucket {
@@ -73,6 +75,7 @@ impl Default for Bucket {
             tags,
             cache_control: None,
             expires: None,
+            client: None,
         }
     }
 }
@@ -118,37 +121,43 @@ impl fmt::Debug for Bucket {
 }
 
 impl Bucket {
-    fn s3_client(&self) -> Result<S3Client> {
-        Ok(
-            match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
-                (Some(access_key_id), Some(secret_access_key)) => S3Client::new_with(
-                    rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
-                    StaticProvider::new_minimal(
-                        access_key_id.to_owned(),
-                        secret_access_key.to_owned(),
+    fn s3_client(&mut self) -> Result<S3Client> {
+        Ok(match &self.client {
+            Some(client) => client.clone(),
+            None => {
+                let client = match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
+                    (Some(access_key_id), Some(secret_access_key)) => S3Client::new_with(
+                        rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
+                        StaticProvider::new_minimal(
+                            access_key_id.to_owned(),
+                            secret_access_key.to_owned(),
+                        ),
+                        Region::Custom {
+                            name: self.region.to_owned(),
+                            endpoint: match self.endpoint.to_owned() {
+                                Some(endpoint) => endpoint,
+                                None => format!("https://s3-{}.amazonaws.com", self.region),
+                            },
+                        },
                     ),
-                    Region::Custom {
-                        name: self.region.to_owned(),
-                        endpoint: match self.endpoint.to_owned() {
-                            Some(endpoint) => endpoint,
-                            None => format!("https://s3-{}.amazonaws.com", self.region),
+                    (_, _) => S3Client::new_with(
+                        rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
+                        DefaultCredentialsProvider::new()
+                            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?,
+                        Region::Custom {
+                            name: self.region.to_owned(),
+                            endpoint: match self.endpoint.to_owned() {
+                                Some(endpoint) => endpoint,
+                                None => format!("https://s3-{}.amazonaws.com", self.region),
+                            },
                         },
-                    },
-                ),
-                (_, _) => S3Client::new_with(
-                    rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
-                    DefaultCredentialsProvider::new()
-                        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?,
-                    Region::Custom {
-                        name: self.region.to_owned(),
-                        endpoint: match self.endpoint.to_owned() {
-                            Some(endpoint) => endpoint,
-                            None => format!("https://s3-{}.amazonaws.com", self.region),
-                        },
-                    },
-                ),
-            },
-        )
+                    ),
+                };
+
+                self.client = Some(client.clone());
+                client
+            }
+        })
     }
     fn tagging(&self) -> String {
         let mut tagging = String::default();
@@ -370,7 +379,7 @@ impl Connector for Bucket {
     async fn fetch(&mut self) -> Result<()> {
         info!("Start");
 
-        let connector = self.clone();
+        let mut connector = self.clone();
         let s3_client = connector.s3_client()?;
         let request = GetObjectRequest {
             bucket: connector.bucket.clone(),
@@ -593,6 +602,7 @@ pub struct BucketPaginator {
 impl BucketPaginator {
     pub fn new(connector: Bucket) -> Result<Self> {
         let mut paths = Vec::default();
+        let mut connector = connector.clone();
 
         let reg_path_contain_wildcard =
             Regex::new("[*]").map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
