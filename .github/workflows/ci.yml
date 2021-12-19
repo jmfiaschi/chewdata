@@ -1,12 +1,22 @@
-name: CI
+---
+name: ci
 
-on: [push]
+on: push
 
 env:
   CARGO_TERM_COLOR: always
   CHEWDATA_TAG: latest
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: rustup component add clippy
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
   build:
     runs-on: ubuntu-latest
     steps:
@@ -18,10 +28,12 @@ jobs:
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
       - run: cargo clean
       - run: make build
   unit-tests:
-    needs: [build]
+    needs: [build,lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -32,9 +44,11 @@ jobs:
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
       - run: make unit-tests
   integration-tests:
-    needs: [build]
+    needs: [build,lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -45,9 +59,11 @@ jobs:
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
       - run: make integration-tests
   benchmark:
-    needs: ["build"]
+    needs: [build,lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -59,6 +75,8 @@ jobs:
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
       - name: Generate benchmark
         run: make bench | tee output.txt
       - name: Store benchmark result
@@ -68,13 +86,31 @@ jobs:
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          alert-threshold: '130%'
+          alert-threshold: '200%'
           comment-on-alert: true
           fail-on-alert: true
           alert-comment-cc-users: '@jmfiaschi'
           benchmark-data-dir-path: 'docs/benches/${{ env.BRANCH_NAME }}'
+  release:
+    needs: [benchmark,integration-tests,unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Semantic Release
+        run: |
+          sudo npm install semantic-release -g
+          sudo npm install @semantic-release/changelog -g
+          sudo npm install @semantic-release/git -g
+          sudo npm install @semantic-release/github -g
+          sudo npm install @semantic-release/exec -g
+          cargo install semantic-release-rust --version 1.0.0-alpha.8
+      - name: Run Semantic Release
+        run: semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
   docker:
-    needs: ["unit-tests","integration-tests"]
+    needs: [benchmark,integration-tests,unit-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

@@ -70,57 +70,6 @@ pub fn uuid_v4(args: &HashMap<String, Value>) -> Result<Value> {
     Ok(Value::String(uuid_string))
 }
 
-/// Set env variable with a name and value.
-///
-/// # Example
-/// ```
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::set_env;
-///
-/// let mut args = HashMap::new();
-/// args.insert("name".to_string(), Value::String("ENV_NAME".to_string()));
-/// args.insert("value".to_string(), Value::String("ENV_VALUE".to_string()));
-/// set_env(&args);
-/// assert_eq!(std::env::var("ENV_NAME").unwrap(),"ENV_VALUE");
-/// ```
-pub fn set_env(args: &HashMap<String, Value>) -> Result<Value> {
-    let name = match args.get("name") {
-        Some(val) => match from_value::<String>(val.clone()) {
-            Ok(v) => v,
-            Err(_) => {
-                return Err(Error::msg(format!(
-                    "Function `set_env` received name={} but `name` can only be a string",
-                    val
-                )));
-            }
-        },
-        None => {
-            return Err(Error::msg(
-                "Function `set_env` didn't receive a `name` argument",
-            ))
-        }
-    };
-
-    let value = match args.get("value") {
-        Some(val) => val,
-        None => {
-            return Err(Error::msg(
-                "Function `set_env` didn't receive a `value` argument",
-            ))
-        }
-    };
-
-    match value {
-        Value::String(string) => std::env::set_var(&name, string),
-        Value::Number(number) => std::env::set_var(&name, number.to_string()),
-        Value::Bool(bool) => std::env::set_var(&name, bool.to_string()),
-        _ => (),
-    };
-
-    Ok(Value::Null)
-}
-
 /// Encode string to base64
 ///
 /// # Example

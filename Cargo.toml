@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "1.8.4"
+version ="1.9.0-beta.3"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2018"
 description = "Extract Transform and Load data"
@@ -21,7 +21,7 @@ env_applier = "0.1"
 serde_json = "1.0"
 json_value_merge = "1.1"
 json_value_remove = "1.0"
-json_value_resolve = "0.1"
+json_value_resolve = "1.0"
 json_value_search = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde-with-expand-env = "1.1"
@@ -77,6 +77,7 @@ default = [
 [[bench]]
 name = "reader_benchmark"
 harness = false
+path = "benches/reader_benchmark.rs"
 
 [profile.release]
 lto = true

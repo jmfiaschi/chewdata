@@ -1,3 +1,18 @@
+# [1.9.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.9.0-beta.2...v1.9.0-beta.3) (2021-12-19)
+
+
+### Bug Fixes
+
+* **ci:** use specific key ([1770fd0](https://github.com/jmfiaschi/chewdata/commit/1770fd02c842388ba9efc884ef2ccedfbe2c9e07))
+* **ci:** use specific key ([d97c7e3](https://github.com/jmfiaschi/chewdata/commit/d97c7e3068c1141b1fa07ca75a38f290df64e7d5))
+
+# [1.9.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.9.0-beta.1...v1.9.0-beta.2) (2021-12-19)
+
+
+### Bug Fixes
+
+* **eraser:** clean files event with empty data in input ([9c8ccae](https://github.com/jmfiaschi/chewdata/commit/9c8ccaee9d1a059091da52e8b6fc53b6b0706f8c))
+
 ## [1.8.4](https://github.com/jmfiaschi/chewdata/compare/v1.8.3...v1.8.4) (2021-12-06)
 
 
