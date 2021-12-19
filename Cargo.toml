@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version ="1.9.0-beta.1"
+version ="1.9.0-beta.2"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2018"
 description = "Extract Transform and Load data"
