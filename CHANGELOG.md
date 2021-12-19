@@ -1,3 +1,17 @@
+# [1.9.0-alpha.1](https://github.com/jmfiaschi/chewdata/compare/v1.8.4...v1.9.0-alpha.1) (2021-12-19)
+
+
+### Bug Fixes
+
+* **bucket:** lazyload the client ([33b5a20](https://github.com/jmfiaschi/chewdata/commit/33b5a20a060261c1de4377c0a1e0b420eb57edf6))
+* **cargo:** update version automatically ([f0b7f68](https://github.com/jmfiaschi/chewdata/commit/f0b7f687517463ab63700d281f02d87e85b30c0a))
+* **eraser:** clean files event with empty data in input ([9c8ccae](https://github.com/jmfiaschi/chewdata/commit/9c8ccaee9d1a059091da52e8b6fc53b6b0706f8c))
+
+
+### Features
+
+* **tera:** remove set_env function ([18c4fa4](https://github.com/jmfiaschi/chewdata/commit/18c4fa4c3b4f3448ee51122377aab4129e90d68c))
+
 ## [1.8.4](https://github.com/jmfiaschi/chewdata/compare/v1.8.3...v1.8.4) (2021-12-06)
 
 
