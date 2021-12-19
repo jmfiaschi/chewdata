@@ -29,10 +29,7 @@ jobs:
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
         with:
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
-            ${{ runner.os }}-cargo
+          sharedKey: build
       - run: cargo clean
       - run: make build
   unit-tests:
@@ -48,10 +45,7 @@ jobs:
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
         with:
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
-            ${{ runner.os }}-cargo
+          sharedKey: build
       - run: make unit-tests
   integration-tests:
     needs: [build,lint]
@@ -66,10 +60,7 @@ jobs:
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
         with:
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
-            ${{ runner.os }}-cargo
+          sharedKey: build
       - run: make integration-tests
   benchmark:
     needs: [build,lint]
@@ -85,10 +76,7 @@ jobs:
       - uses: falti/dotenv-action@v0.2.6 
       - uses: Swatinem/rust-cache@v1
         with:
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
-            ${{ runner.os }}-cargo
+          sharedKey: build
       - name: Generate benchmark
         run: make bench | tee output.txt
       - name: Store benchmark result
