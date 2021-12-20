@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1639949105193,
+  "lastUpdate": 1640023656531,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -478,6 +478,66 @@ window.BENCHMARK_DATA = {
           {
             "name": "read_yaml/",
             "value": 405,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "77469bb9e72bd05120a08bfcc88be43a9341b7f4",
+          "message": "fix(step_context): add step_context to avoid variable names collision (#20)",
+          "timestamp": "2021-12-20T18:46:09+01:00",
+          "tree_id": "f0d5c2c52e23fe6481eaac21d1bb3f0a696e793e",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/77469bb9e72bd05120a08bfcc88be43a9341b7f4"
+        },
+        "date": 1640023655775,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 189,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 166,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 164299,
+            "range": "± 675",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 23308,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 290,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 455,
             "range": "± 0",
             "unit": "ns/iter"
           }
