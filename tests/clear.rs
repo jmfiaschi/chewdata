@@ -72,7 +72,7 @@ mod clear {
 
     #[test]
     fn it_should_clear_dynamique_files() {
-        let config = r#"[{"type":"r","conn":{"type":"mem","data":"[{\"id\":1},{\"id\":2},{\"id\":3}]"}},{"type":"r","conn":{"type":"local","path":"./data/multi_lines.json"}},{"type":"w","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ id }}.json"}}]"#;
+        let config = r#"[{"type":"r","alias":"mem","conn":{"type":"mem","data":"[{\"id\":1},{\"id\":2},{\"id\":3}]"}},{"type":"r","conn":{"type":"local","path":"./data/multi_lines.json"}},{"type":"w","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ steps.mem.id }}.json"}}]"#;
         Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
             .env("RUST_LOG", "null")
@@ -80,7 +80,7 @@ mod clear {
             .output()
             .expect("failed to execute process.");
 
-        let config = r#"[{"type":"r","conn":{"type":"mem","data":"[{\"id\":1},{\"id\":2},{\"id\":3}]"}},{"type":"e","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ id }}.json"}},{"type":"r","conn":{"type":"local","path":"./data/multi_lines.json"}},{"type":"w","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ id }}.json"}},{"type":"w"}]"#;
+        let config = r#"[{"type":"r","alias":"mem","conn":{"type":"mem","data":"[{\"id\":1},{\"id\":2},{\"id\":3}]"}},{"type":"e","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ steps.mem.id }}.json"}},{"type":"r","conn":{"type":"local","path":"./data/multi_lines.json"}},{"type":"w","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ steps.mem.id }}.json"}},{"type":"w"}]"#;
         println!(
             "Clear the files and write again."
         );
@@ -104,7 +104,7 @@ mod clear {
             json_result
         );
 
-        let config = r#"[{"type":"r","conn":{"type":"mem","data":"[{\"id\":1},{\"id\":2},{\"id\":3}]"}},{"type":"r","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ id }}.json"}},{"type":"e","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ id }}.json"}},{"type":"w","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ id }}.json"}},{"type":"w"}]"#;
+        let config = r#"[{"type":"r","alias":"mem","conn":{"type":"mem","data":"[{\"id\":1},{\"id\":2},{\"id\":3}]"}},{"type":"r","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ steps.mem.id }}.json"}},{"type":"e","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ steps.mem.id }}.json"}},{"type":"w","conn":{"type":"local","path":"./data/out/clear_multi_file_{{ steps.mem.id }}.json"}},{"type":"w"}]"#;
         println!("Read the files, clear the files and rewrite again. Test these files are empty.");
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])

@@ -1,3 +1,10 @@
+## [1.9.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.9.0...v1.9.1-beta.1) (2021-12-20)
+
+
+### Bug Fixes
+
+* **step_context:** add step_context to avoid variable names collision ([c05e80b](https://github.com/jmfiaschi/chewdata/commit/c05e80ba2a7e5131ccd77695f1b097a9170619c2))
+
 # [1.9.0](https://github.com/jmfiaschi/chewdata/compare/v1.8.4...v1.9.0) (2021-12-19)
 
 

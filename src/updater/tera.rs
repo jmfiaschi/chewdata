@@ -24,35 +24,43 @@ impl fmt::Display for Tera {
 }
 
 impl Updater for Tera {
+    #[instrument]
     fn update(
         &self,
         object: Value,
+        context: Value,
         mapping: Option<HashMap<String, Vec<Value>>>,
         actions: Vec<Action>,
         input_name: String,
         output_name: String,
     ) -> io::Result<Value> {
-        trace!(input = format!("{}", object).as_str(), updater = format!("{}", self).as_str(), "Update");
+        trace!("Start");
+
         let mut engine = Tera::engine();
-        let mut context = tera::Context::new();
-        context.insert(input_name, &object);
+        let mut tera_context = tera::Context::new();
+        tera_context.insert(input_name, &object);
+        tera_context.insert("context", &context);
 
         if let Some(mapping) = mapping {
             for (field_path, object) in mapping {
-                context.insert(&field_path.clone(), &object.clone());
+                tera_context.insert(&field_path.clone(), &object.clone());
             }
         }
 
         let mut json_value = Value::default();
         for action in actions {
-            trace!(field = action.field.as_str(), "Field fetch into the pattern collection");
-            context.insert(output_name.clone(), &json_value.clone());
+            trace!(
+                field = action.field.as_str(),
+                "Field fetch into the pattern collection"
+            );
+            tera_context.insert(output_name.clone(), &json_value.clone());
 
             let mut field_new_value = Value::default();
 
             match &action.pattern {
                 Some(pattern) => {
-                    let render_result: String = match engine.render_str(pattern.as_str(), &context)
+                    let render_result: String = match engine
+                        .render_str(pattern.as_str(), &tera_context)
                     {
                         Ok(render_result) => Ok(render_result),
                         Err(e) => Err(io::Error::new(
@@ -63,30 +71,38 @@ impl Updater for Tera {
                                 match e.source() {
                                     Some(e) => {
                                         match e.source() {
-                                            Some(e) => {
-                                                e.to_string()
-                                            }
+                                            Some(e) => e.to_string(),
                                             None => e.to_string(),
                                         }
                                     }
-                                    None => format!("Please fix the pattern `{}`", pattern.to_string()),
-                                }.replace(" '__tera_one_off'", "")
+                                    None =>
+                                        format!("Please fix the pattern `{}`", pattern.to_string()),
+                                }
+                                .replace(" '__tera_one_off'", "")
                             ),
                         )),
                     }?;
-                    trace!(value = render_result.as_str(),  "Field value before resolved it");
+                    trace!(
+                        value = render_result.as_str(),
+                        "Field value before resolved it"
+                    );
                     field_new_value = Value::resolve(render_result);
-                    trace!(value = format!("{}", field_new_value).as_str(),  "Field value after resolved it");
+                    trace!(
+                        value = format!("{}", field_new_value).as_str(),
+                        "Field value after resolved it"
+                    );
                 }
                 None => (),
             };
 
             let json_pointer = action.field.clone().to_json_pointer();
 
-            trace!(output = format!("{}", json_value).as_str(),
+            trace!(
+                output = format!("{}", json_value).as_str(),
                 jpointer = json_pointer.to_string().as_str(),
                 data = format!("{}", field_new_value).as_str(),
-                "{} the new field", action.action_type
+                "{} the new field",
+                action.action_type
             );
 
             match action.action_type {
@@ -103,7 +119,7 @@ impl Updater for Tera {
             }
         }
 
-        trace!(output = format!("{}", json_value).as_str(),  "Update ended");
+        trace!(output = format!("{}", json_value).as_str(), "Update ended");
         Ok(json_value)
     }
 }

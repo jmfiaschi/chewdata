@@ -1,4 +1,5 @@
 use chewdata::DataResult;
+use chewdata::StepContext;
 use crossbeam::channel::unbounded;
 use std::io;
 use std::thread;
@@ -15,7 +16,6 @@ async fn main() -> io::Result<()> {
         "description": "run in a lambda script",
         "actions": [
             {
-                "field":"/",
                 "pattern": "{{ input | json_encode() }}"
             },
             {
@@ -29,10 +29,12 @@ async fn main() -> io::Result<()> {
     // Spawn a thread that receives a message and then sends one.
     thread::spawn(move || {
         let data = serde_json::from_str(r#"{"field_1":"value_1","field_2":"value_1"}"#).unwrap();
-        sender_input.send(DataResult::Ok(data)).unwrap();
+        let step_context = StepContext::new("step_1".to_string(), DataResult::Ok(data)).unwrap();
+        sender_input.send(step_context).unwrap();
 
         let data = serde_json::from_str(r#"{"field_1":"value_2","field_2":"value_2"}"#).unwrap();
-        sender_input.send(DataResult::Ok(data)).unwrap();
+        let step_context = StepContext::new("step_1".to_string(), DataResult::Ok(data)).unwrap();
+        sender_input.send(step_context).unwrap();
     });
 
     let config = serde_json::from_str(config.to_string().as_str())?;

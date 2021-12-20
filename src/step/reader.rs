@@ -1,7 +1,7 @@
-use crate::connector::ConnectorType;
 use crate::document::DocumentType;
 use crate::step::Step;
 use crate::DataResult;
+use crate::{connector::ConnectorType, StepContext};
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
 use futures::StreamExt;
@@ -18,7 +18,7 @@ pub struct Reader {
     #[serde(rename = "document")]
     #[serde(alias = "doc")]
     pub document_type: DocumentType,
-    pub alias: Option<String>,
+    pub alias: String,
     #[serde(alias = "desc")]
     pub description: Option<String>,
     #[serde(alias = "data")]
@@ -31,7 +31,7 @@ impl Default for Reader {
         Reader {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
-            alias: Some(uuid.to_simple().to_string()),
+            alias: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
         }
@@ -43,9 +43,7 @@ impl fmt::Display for Reader {
         write!(
             f,
             "Reader {{'{}','{}'}}",
-            self.alias
-                .to_owned()
-                .unwrap_or_else(|| "No alias".to_string()),
+            self.alias,
             self.description
                 .to_owned()
                 .unwrap_or_else(|| "No description".to_string())
@@ -58,8 +56,8 @@ impl Step for Reader {
     #[instrument]
     async fn exec(
         &self,
-        receiver_option: Option<Receiver<DataResult>>,
-        sender_option: Option<Sender<DataResult>>,
+        receiver_option: Option<Receiver<StepContext>>,
+        sender_option: Option<Sender<StepContext>>,
     ) -> io::Result<()> {
         info!("Start");
 
@@ -79,27 +77,26 @@ impl Step for Reader {
             (Some(receiver), true) => {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
-                
-                for data_result_received in receiver {
+
+                for mut step_context_received in receiver {
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
 
-                    if !data_result_received.is_type(self.data_type.as_ref()) {
-                        trace!(
-                            data_type_accepted = self.data_type.to_string().as_str(),
-                            data_result = format!("{:?}", data_result_received).as_str(),
-                            "This step handle only this data type"
-                        );
+                    if !step_context_received
+                        .data_result()
+                        .is_type(self.data_type.as_ref())
+                    {
+                        trace!("This step handle only this data type");
                         continue;
                     }
 
-                    connector.set_parameters(data_result_received.clone().to_json_value());
+                    connector.set_parameters(step_context_received.to_value()?);
                     let mut data = connector.pull_data(document.clone()).await?;
 
-                    while let Some(ref mut sender_data_result) = data.next().await {
-                        sender_data_result.merge(data_result_received.clone());
-                        self.send(sender_data_result.clone(), &sender)?;
+                    while let Some(data_result) = data.next().await {
+                        step_context_received.insert_step_result(self.alias(), data_result)?;
+                        self.send(step_context_received.clone(), &sender)?;
                     }
                 }
 
@@ -109,7 +106,8 @@ impl Step for Reader {
                     let mut data = connector.pull_data(document.clone()).await?;
 
                     while let Some(data_result) = data.next().await {
-                        self.send(data_result, &sender)?;
+                        let step_context = StepContext::new(self.alias(), data_result)?;
+                        self.send(step_context, &sender)?;
                     }
                 }
             }
@@ -117,7 +115,7 @@ impl Step for Reader {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                for data_result_received in receiver {
+                for mut step_context_received in receiver {
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
@@ -126,9 +124,9 @@ impl Step for Reader {
                     // Useless to loop on the same document
                     let mut data = connector.pull_data(document.clone()).await?;
 
-                    while let Some(ref mut sender_data_result) = data.next().await {
-                        sender_data_result.merge(data_result_received.clone());
-                        self.send(sender_data_result.clone(), &sender)?;
+                    while let Some(data_result) = data.next().await {
+                        step_context_received.insert_step_result(self.alias(), data_result)?;
+                        self.send(step_context_received.clone(), &sender)?;
                     }
                 }
 
@@ -138,7 +136,8 @@ impl Step for Reader {
                     let mut data = connector.pull_data(document.clone()).await?;
 
                     while let Some(data_result) = data.next().await {
-                        self.send(data_result, &sender)?;
+                        let step_context = StepContext::new(self.alias(), data_result)?;
+                        self.send(step_context, &sender)?;
                     }
                 }
             }
@@ -146,7 +145,8 @@ impl Step for Reader {
                 let mut data = connector.pull_data(document.clone()).await?;
 
                 while let Some(data_result) = data.next().await {
-                    self.send(data_result, &sender)?;
+                    let step_context = StepContext::new(self.alias(), data_result)?;
+                    self.send(step_context, &sender)?;
                 }
             }
         };
@@ -155,5 +155,8 @@ impl Step for Reader {
 
         info!("End");
         Ok(())
+    }
+    fn alias(&self) -> String {
+        self.alias.clone()
     }
 }

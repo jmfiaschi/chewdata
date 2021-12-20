@@ -1,6 +1,7 @@
 use crate::connector::ConnectorType;
 use crate::document::DocumentType;
 use crate::step::{DataResult, Step};
+use crate::StepContext;
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
 use serde::{Deserialize, Serialize};
@@ -16,7 +17,7 @@ pub struct Writer {
     #[serde(rename = "document")]
     #[serde(alias = "doc")]
     document_type: DocumentType,
-    pub alias: Option<String>,
+    pub alias: String,
     #[serde(alias = "desc")]
     pub description: Option<String>,
     #[serde(alias = "data")]
@@ -33,7 +34,7 @@ impl Default for Writer {
         Writer {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
-            alias: Some(uuid.to_simple().to_string()),
+            alias: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1000,
@@ -47,9 +48,7 @@ impl fmt::Display for Writer {
         write!(
             f,
             "Writer {{'{}','{}'}}",
-            self.alias
-                .to_owned()
-                .unwrap_or_else(|| "No alias".to_string()),
+            self.alias,
             self.description
                 .to_owned()
                 .unwrap_or_else(|| "No description".to_string())
@@ -63,8 +62,8 @@ impl Step for Writer {
     #[instrument]
     async fn exec(
         &self,
-        receiver_option: Option<Receiver<DataResult>>,
-        sender_option: Option<Sender<DataResult>>,
+        receiver_option: Option<Receiver<StepContext>>,
+        sender_option: Option<Sender<StepContext>>,
     ) -> io::Result<()> {
         info!("Start");
 
@@ -87,24 +86,25 @@ impl Step for Writer {
         // Use to init the connector during the loop
         let default_connector = connector.clone();
 
-        for data_result_received in receiver {
+        for step_context_received in receiver {
             if let Some(ref sender) = sender_option {
-                self.send(data_result_received.clone(), sender)?;
+                self.send(step_context_received.clone(), sender)?;
             }
 
-            if !data_result_received.is_type(self.data_type.as_ref()) {
-                trace!(
-                    data_type_accepted = self.data_type.to_string().as_str(),
-                    data_result = format!("{:?}", data_result_received).as_str(),
-                    "This step handle only this data type"
-                );
+            if !step_context_received
+                .data_result()
+                .is_type(self.data_type.as_ref())
+            {
+                trace!("This step handle only this data type");
                 continue;
             }
 
             {
                 // If the path change and the inner connector not empty, the connector
                 // flush and send the data to the remote document before to load a new document.
-                if connector.is_resource_will_change(data_result_received.to_json_value())? && !connector.inner().is_empty() {
+                if connector.is_resource_will_change(step_context_received.to_value()?)?
+                    && !connector.inner().is_empty()
+                {
                     document.close(&mut *connector).await?;
                     match connector.send(Some(position)).await {
                         Ok(_) => (),
@@ -123,10 +123,13 @@ impl Step for Writer {
                 }
             }
 
-            connector.set_parameters(data_result_received.to_json_value());
+            connector.set_parameters(step_context_received.to_value()?);
 
             document
-                .write_data(&mut *connector, data_result_received.to_json_value())
+                .write_data(
+                    &mut *connector,
+                    step_context_received.data_result().to_value(),
+                )
                 .await?;
 
             current_dataset_size += 1;
@@ -152,7 +155,10 @@ impl Step for Writer {
         }
 
         if 0 < current_dataset_size {
-            info!(dataset_size = current_dataset_size, "Send data before to end the step");
+            info!(
+                dataset_size = current_dataset_size,
+                "Send data before to end the step"
+            );
 
             document.close(&mut *connector).await?;
 
@@ -179,5 +185,8 @@ impl Step for Writer {
     }
     fn thread_number(&self) -> usize {
         self.thread_number
+    }
+    fn alias(&self) -> String {
+        self.alias.clone()
     }
 }

@@ -7,7 +7,7 @@ use super::step::eraser::Eraser;
 use super::step::reader::Reader;
 use super::step::transformer::Transformer;
 use super::step::writer::Writer;
-use crate::DataResult;
+use crate::{DataResult, StepContext};
 use serde::Deserialize;
 
 use async_trait::async_trait;
@@ -67,19 +67,22 @@ impl StepType {
 pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     async fn exec(
         &self,
-        receiver_option: Option<Receiver<DataResult>>,
-        sender_option: Option<Sender<DataResult>>,
+        receiver_option: Option<Receiver<StepContext>>,
+        sender_option: Option<Sender<StepContext>>,
     ) -> io::Result<()>;
     fn thread_number(&self) -> usize {
         1
     }
     #[instrument]
-    fn send(&self, data_result: DataResult, pipe: &Sender<DataResult>) -> io::Result<()> {
-        trace!("Send data to the queue");
-        pipe.send(data_result)
+    fn send(&self, step_context: StepContext, pipe: &Sender<StepContext>) -> io::Result<()> {
+        trace!("Send context to the queue");
+        pipe.send(step_context)
             .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
 
         Ok(())
+    }
+    fn alias(&self) -> String {
+        "default".to_string()
     }
 }
 

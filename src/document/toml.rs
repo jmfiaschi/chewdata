@@ -58,7 +58,7 @@ impl Document for Toml {
     ///     connector.fetch().await?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let data = dataset.next().await.unwrap().to_value();
     ///     let expected_data: Value = serde_json::from_str(r#"{"Title":{"key_1":"value_1","key_2":"value_2"}}"#)?;
     ///     assert_eq!(expected_data, data);
     ///

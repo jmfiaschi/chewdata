@@ -163,8 +163,8 @@ impl Csv {
     ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
     ///
     ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
-    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
-    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let data_1 = dataset.next().await.unwrap().to_value();
+    ///     let data_2 = dataset.next().await.unwrap().to_value();
     ///     let expected_data_1: Value = serde_json::from_str(r#"{"column1":"A1","column2":"A2"}"#)?;
     ///     let expected_data_2: Value = serde_json::from_str(r#"{"column1":"B1","column2":"B2"}"#)?;
     ///     assert_eq!(expected_data_1, data_1);
@@ -248,8 +248,8 @@ impl Csv {
     ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
     ///
     ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
-    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
-    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let data_1 = dataset.next().await.unwrap().to_value();
+    ///     let data_2 = dataset.next().await.unwrap().to_value();
     ///     let expected_data_1 = Value::Array(vec![Value::String("A1".to_string()),Value::String("A2".to_string())]);
     ///     let expected_data_2 = Value::Array(vec![Value::String("B1".to_string()),Value::String("B2".to_string())]);
     ///     assert_eq!(expected_data_1, data_1);
@@ -317,7 +317,7 @@ impl Document for Csv {
     ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
     ///
     ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let data = dataset.next().await.unwrap().to_value();
     ///     let expected_data: Value = serde_json::from_str(r#"{
     ///     "string":"My text",
     ///     "string_backspace":"My text with\n backspace",

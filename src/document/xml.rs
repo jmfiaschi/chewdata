@@ -213,11 +213,11 @@ impl Document for Xml {
     ///     connector.fetch().await?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
+    ///     let data_1 = dataset.next().await.unwrap().to_value();
     ///     let expected_data_1: Value = serde_json::from_str(r#"{"key_1":"value_1"}"#)?;
     ///     assert_eq!(expected_data_1, data_1);
     ///
-    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let data_2 = dataset.next().await.unwrap().to_value();
     ///     let expected_data_2: Value = serde_json::from_str(r#"{"key_1":"value_2"}"#)?;
     ///     assert_eq!(expected_data_2, data_2);
     ///
@@ -244,11 +244,11 @@ impl Document for Xml {
     ///     connector.fetch().await?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data_1 = dataset.next().await.unwrap().to_json_value();
+    ///     let data_1 = dataset.next().await.unwrap().to_value();
     ///     let expected_data_1: Value = serde_json::from_str(r#"{"_":"value_1"}"#)?;
     ///     assert_eq!(expected_data_1, data_1);
     ///
-    ///     let data_2 = dataset.next().await.unwrap().to_json_value();
+    ///     let data_2 = dataset.next().await.unwrap().to_value();
     ///     let expected_data_2: Value = serde_json::from_str(r#"{"_":"value_2"}"#)?;
     ///     assert_eq!(expected_data_2, data_2);
     ///

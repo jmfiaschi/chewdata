@@ -70,7 +70,7 @@ impl Document for Yaml {
     ///     connector.fetch().await?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let data = dataset.next().await.unwrap().to_value();
     ///     let expected_data: Value = serde_yaml::from_str(yaml_str).unwrap();
     ///     assert_eq!(expected_data, data);
     ///
