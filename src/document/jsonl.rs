@@ -62,7 +62,7 @@ impl Document for Jsonl {
     ///     connector.fetch().await?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let data = dataset.next().await.unwrap().to_value();
     ///     let expected_data: Value = serde_json::from_str(json_str)?;
     ///     assert_eq!(expected_data, data);
     ///
@@ -114,7 +114,7 @@ impl Document for Jsonl {
     ///     let expected_data: Value = serde_json::from_str(r#"{"field":"value1"}"#)?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let data = dataset.next().await.unwrap().to_value();
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
@@ -138,7 +138,7 @@ impl Document for Jsonl {
     ///     let expected_data: Value = serde_json::from_str(r#"{"array1":[{"field":"value1"},{"field":"value2"}],"_error":"Entry path '/not_found/*' not found."}"#)?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let data = dataset.next().await.unwrap().to_value();
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())

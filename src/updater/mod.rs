@@ -45,6 +45,7 @@ pub trait Updater: Send + Sync {
     fn update(
         &self,
         object: Value,
+        context: Value,
         mapping: Option<HashMap<String, Vec<Value>>>,
         actions: Vec<Action>,
         input_name: String,

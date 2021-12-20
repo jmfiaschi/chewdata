@@ -18,15 +18,16 @@ use crossbeam::channel::{Receiver, Sender};
 use futures::stream::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, Map};
+use std::io::Result;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
 use tracing_futures::WithSubscriber;
 
 pub async fn exec(
     step_types: Vec<StepType>,
-    input_receiver: Option<Receiver<DataResult>>,
-    output_sender: Option<Sender<DataResult>>,
+    input_receiver: Option<Receiver<StepContext>>,
+    output_sender: Option<Sender<StepContext>>,
 ) -> io::Result<()> {
     let mut steps = Vec::default();
     let mut handles = Vec::default();
@@ -189,7 +190,7 @@ impl DataResult {
     pub const ERR: &'static str = "err";
     const FIELD_ERROR: &'static str = "_error";
 
-    pub fn to_json_value(&self) -> Value {
+    pub fn to_value(&self) -> Value {
         match self {
             DataResult::Ok(value) => value.to_owned(),
             DataResult::Err((value, error)) => {
@@ -220,7 +221,7 @@ impl DataResult {
         )
     }
     pub fn merge(&mut self, data_result: DataResult) {
-        let new_json_value = data_result.to_json_value();
+        let new_json_value = data_result.to_value();
 
         match self {
             DataResult::Ok(value) => {
@@ -230,6 +231,49 @@ impl DataResult {
                 value.merge(new_json_value);
             },
         };
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StepContext {
+    steps_result: Value,
+    data_result: DataResult,
+}
+
+impl StepContext {
+    pub fn new(step_alias: String, data_result: DataResult) -> Result<Self> {
+        let mut map = Map::default();
+        map.insert(step_alias, data_result.to_value());
+        
+        let mut steps_result = Value::default();
+        steps_result.merge_in("/steps", Value::Object(map))?;
+
+        Ok(StepContext {
+            steps_result,
+            data_result,
+        })
+    }
+    pub fn insert_step_result(&mut self, step_alias: String, data_result: DataResult) -> Result<()> {
+        let mut map = Map::default();
+        map.insert(step_alias, data_result.to_value());
+
+        self.steps_result.merge_in("/steps", Value::Object(map))?;
+        self.data_result = data_result;
+
+        Ok(())
+    }
+    pub fn data_result(&self) -> DataResult {
+        self.data_result.clone()
+    }
+    pub fn steps_result(&self) -> Value {
+        self.steps_result.clone()
+    }
+    pub fn to_value(&self) -> Result<Value> {
+        let mut value = self.data_result.to_value();
+        let steps_result: Value = self.steps_result.clone();
+        value.merge_in("steps", steps_result)?;
+        
+        Ok(value)
     }
 }
 

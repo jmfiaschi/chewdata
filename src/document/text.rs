@@ -53,7 +53,7 @@ impl Document for Text {
     ///     connector.fetch().await?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_json_value();
+    ///     let data = dataset.next().await.unwrap().to_value();
     ///     assert_eq!(r#"My text1 \n My text 2"#, data);
     ///
     ///     Ok(())

@@ -2,6 +2,7 @@ use super::DataResult;
 use crate::step::reader::Reader;
 use crate::step::Step;
 use crate::updater::{Action, UpdaterType};
+use crate::StepContext;
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
 use serde::Deserialize;
@@ -17,7 +18,7 @@ pub struct Transformer {
     pub updater_type: UpdaterType,
     #[serde(alias = "refs")]
     pub referentials: Option<HashMap<String, Reader>>,
-    pub alias: Option<String>,
+    pub alias: String,
     pub description: Option<String>,
     pub data_type: String,
     #[serde(alias = "threads")]
@@ -36,7 +37,7 @@ impl Default for Transformer {
         Transformer {
             updater_type: UpdaterType::default(),
             referentials: None,
-            alias: Some(uuid.to_simple().to_string()),
+            alias: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             thread_number: 1,
@@ -52,9 +53,7 @@ impl fmt::Display for Transformer {
         write!(
             f,
             "Transformer {{'{}','{}' }}",
-            self.alias
-                .to_owned()
-                .unwrap_or_else(|| "No alias".to_string()),
+            self.alias,
             self.description
                 .to_owned()
                 .unwrap_or_else(|| "No description".to_string())
@@ -74,8 +73,8 @@ async fn referentials_reader_to_dataset(
 
         referential.exec(None, Some(sender)).await?;
 
-        for data_result in receiver {
-            referential_dataset.push(data_result.to_json_value());
+        for step_context in receiver {
+            referential_dataset.push(step_context.data_result().to_value());
         }
         referentials_dataset.insert(alias, referential_dataset);
     }
@@ -88,8 +87,8 @@ impl Step for Transformer {
     #[instrument]
     async fn exec(
         &self,
-        receiver_option: Option<Receiver<DataResult>>,
-        sender_option: Option<Sender<DataResult>>,
+        receiver_option: Option<Receiver<StepContext>>,
+        sender_option: Option<Sender<StepContext>>,
     ) -> io::Result<()> {
         info!("Start");
 
@@ -114,20 +113,18 @@ impl Step for Transformer {
             None => None,
         };
 
-        for data_result in receiver {
+        for mut step_context_received in receiver {
+            let data_result = step_context_received.data_result();
             if !data_result.is_type(self.data_type.as_ref()) {
-                trace!(
-                    data_type_accepted = self.data_type.to_string().as_str(),
-                    data = format!("{:?}", data_result).as_str(),
-                    "This step handle only this data type"
-                );
+                trace!("This step handle only this data type");
                 continue;
             }
 
-            let record = data_result.to_json_value();
+            let record = data_result.to_value();
 
             let new_data_result = match self.updater_type.updater().update(
                 record.clone(),
+                step_context_received.steps_result(),
                 mapping.clone(),
                 self.actions.clone(),
                 self.input_name.clone(),
@@ -164,7 +161,8 @@ impl Step for Transformer {
                 }
             };
 
-            self.send(new_data_result, &sender)?;
+            step_context_received.insert_step_result(self.alias(), new_data_result)?;
+            self.send(step_context_received.clone(), &sender)?;
         }
 
         drop(sender);
@@ -174,5 +172,8 @@ impl Step for Transformer {
     }
     fn thread_number(&self) -> usize {
         self.thread_number
+    }
+    fn alias(&self) -> String {
+        self.alias.clone()
     }
 }
