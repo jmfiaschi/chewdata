@@ -55,11 +55,11 @@ pub trait Updater: Send + Sync {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Action {
     #[serde(default = "default_field_value")]
-    field: String,
-    pattern: Option<String>,
+    pub field: String,
+    pub pattern: Option<String>,
     #[serde(rename = "type")]
     #[serde(default = "ActionType::merge")]
-    action_type: ActionType,
+    pub action_type: ActionType,
 }
 
 /// Default field value link to the root object
