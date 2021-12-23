@@ -60,27 +60,7 @@ impl fmt::Display for Transformer {
         )
     }
 }
-/// Return a referentials hashmap indexed by the alias of the referential.
-async fn referentials_reader_to_dataset(
-    referentials: HashMap<String, Reader>,
-) -> io::Result<HashMap<String, Vec<Value>>> {
-    let mut referentials_dataset = HashMap::new();
 
-    // For each reader, try to build the referential.
-    for (alias, referential) in referentials {
-        let (sender, receiver) = crossbeam::channel::unbounded();
-        let mut referential_dataset: Vec<Value> = Vec::new();
-
-        referential.exec(None, Some(sender)).await?;
-
-        for step_context in receiver {
-            referential_dataset.push(step_context.data_result().to_value());
-        }
-        referentials_dataset.insert(alias, referential_dataset);
-    }
-
-    Ok(referentials_dataset)
-}
 /// This Step transform a dataset.
 #[async_trait]
 impl Step for Transformer {
@@ -108,8 +88,8 @@ impl Step for Transformer {
             }
         };
 
-        let mapping = match self.referentials.clone() {
-            Some(referentials) => Some(referentials_reader_to_dataset(referentials).await?),
+        let referentials = match self.referentials.clone() {
+            Some(referentials) => Some(super::referentials_reader_into_value(referentials).await?),
             None => None,
         };
 
@@ -125,17 +105,12 @@ impl Step for Transformer {
             let new_data_result = match self.updater_type.updater().update(
                 record.clone(),
                 step_context_received.steps_result(),
-                mapping.clone(),
+                referentials.clone(),
                 self.actions.clone(),
                 self.input_name.clone(),
                 self.output_name.clone(),
             ) {
                 Ok(new_record) => {
-                    trace!(
-                        record = format!("{}", new_record).as_str(),
-                        "Record transformation success"
-                    );
-
                     if Value::Null == new_record {
                         trace!(
                             record = format!("{}", new_record).as_str(),
@@ -144,21 +119,9 @@ impl Step for Transformer {
                         continue;
                     }
 
-                    let new_data_result = DataResult::Ok(new_record);
-                    trace!(
-                        data_result = format!("{:?}", new_data_result).as_str(),
-                        "New data result"
-                    );
-                    new_data_result
+                    DataResult::Ok(new_record)
                 }
-                Err(e) => {
-                    let new_data_result = DataResult::Err((record, e));
-                    warn!(
-                        data_result = format!("{:?}", new_data_result).as_str(),
-                        "Record transformation error. New data result with error"
-                    );
-                    new_data_result
-                }
+                Err(e) => DataResult::Err((record, e)),
             };
 
             step_context_received.insert_step_result(self.alias(), new_data_result)?;
