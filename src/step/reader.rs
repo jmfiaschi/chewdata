@@ -18,7 +18,8 @@ pub struct Reader {
     #[serde(rename = "document")]
     #[serde(alias = "doc")]
     pub document_type: DocumentType,
-    pub alias: String,
+    #[serde(alias = "alias")]
+    pub name: String,
     #[serde(alias = "desc")]
     pub description: Option<String>,
     #[serde(alias = "data")]
@@ -31,7 +32,7 @@ impl Default for Reader {
         Reader {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
-            alias: uuid.to_simple().to_string(),
+            name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
         }
@@ -43,7 +44,7 @@ impl fmt::Display for Reader {
         write!(
             f,
             "Reader {{'{}','{}'}}",
-            self.alias,
+            self.name,
             self.description
                 .to_owned()
                 .unwrap_or_else(|| "No description".to_string())
@@ -95,7 +96,7 @@ impl Step for Reader {
                     let mut data = connector.pull_data(document.clone()).await?;
 
                     while let Some(data_result) = data.next().await {
-                        step_context_received.insert_step_result(self.alias(), data_result)?;
+                        step_context_received.insert_step_result(self.name(), data_result)?;
                         self.send(step_context_received.clone(), &sender)?;
                     }
                 }
@@ -106,7 +107,7 @@ impl Step for Reader {
                     let mut data = connector.pull_data(document.clone()).await?;
 
                     while let Some(data_result) = data.next().await {
-                        let step_context = StepContext::new(self.alias(), data_result)?;
+                        let step_context = StepContext::new(self.name(), data_result)?;
                         self.send(step_context, &sender)?;
                     }
                 }
@@ -125,7 +126,7 @@ impl Step for Reader {
                     let mut data = connector.pull_data(document.clone()).await?;
 
                     while let Some(data_result) = data.next().await {
-                        step_context_received.insert_step_result(self.alias(), data_result)?;
+                        step_context_received.insert_step_result(self.name(), data_result)?;
                         self.send(step_context_received.clone(), &sender)?;
                     }
                 }
@@ -136,7 +137,7 @@ impl Step for Reader {
                     let mut data = connector.pull_data(document.clone()).await?;
 
                     while let Some(data_result) = data.next().await {
-                        let step_context = StepContext::new(self.alias(), data_result)?;
+                        let step_context = StepContext::new(self.name(), data_result)?;
                         self.send(step_context, &sender)?;
                     }
                 }
@@ -145,7 +146,7 @@ impl Step for Reader {
                 let mut data = connector.pull_data(document.clone()).await?;
 
                 while let Some(data_result) = data.next().await {
-                    let step_context = StepContext::new(self.alias(), data_result)?;
+                    let step_context = StepContext::new(self.name(), data_result)?;
                     self.send(step_context, &sender)?;
                 }
             }
@@ -156,7 +157,7 @@ impl Step for Reader {
         info!("End");
         Ok(())
     }
-    fn alias(&self) -> String {
-        self.alias.clone()
+    fn name(&self) -> String {
+        self.name.clone()
     }
 }

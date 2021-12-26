@@ -90,7 +90,7 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
 
         Ok(())
     }
-    fn alias(&self) -> String {
+    fn name(&self) -> String {
         "default".to_string()
     }
 }
