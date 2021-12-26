@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1639990255796,
+  "lastUpdate": 1640549776819,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1499,6 +1499,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 553,
             "range": "± 6",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "4107e41f792416e16153e7a5ecb02a177f2f97cd",
+          "message": "feat(validator): Add tests and docs",
+          "timestamp": "2021-12-26T20:47:12+01:00",
+          "tree_id": "fe8c3a18a5498dae4d86a4e1576a245475b32ba2",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/4107e41f792416e16153e7a5ecb02a177f2f97cd"
+        },
+        "date": 1640549775770,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 232,
+            "range": "± 21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 201,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 197506,
+            "range": "± 27194",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 29972,
+            "range": "± 2182",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 353,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 570,
+            "range": "± 33",
             "unit": "ns/iter"
           }
         ]
