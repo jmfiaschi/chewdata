@@ -1,21 +1,20 @@
-mod eraser;
-mod reader;
-mod transformer;
-mod writer;
-mod validator;
+pub mod eraser;
+pub mod reader;
+pub mod transformer;
+pub mod validator;
+pub mod writer;
 
-use super::step::eraser::Eraser;
-use super::step::reader::Reader;
-use super::step::validator::Validator;
-use super::step::transformer::Transformer;
-use super::step::writer::Writer;
 use crate::{DataResult, StepContext};
+use eraser::Eraser;
+use reader::Reader;
 use serde::Deserialize;
+use transformer::Transformer;
+use validator::Validator;
+use writer::Writer;
 
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
-use serde_json::Value;
-use std::{io, collections::HashMap};
+use std::io;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -113,26 +112,4 @@ impl Clone for Box<dyn Step> {
     fn clone(&self) -> Box<dyn Step> {
         self.clone_box()
     }
-}
-
-/// Return a referentials hashmap indexed by the alias of the referential.
-async fn referentials_reader_into_value(
-    referentials: HashMap<String, Reader>,
-) -> io::Result<HashMap<String, Vec<Value>>> {
-    let mut referentials_vec = HashMap::new();
-
-    // For each reader, try to build the referential.
-    for (alias, referential) in referentials {
-        let (sender, receiver) = crossbeam::channel::unbounded();
-        let mut values: Vec<Value> = Vec::new();
-
-        referential.exec(None, Some(sender)).await?;
-
-        for step_context in receiver {
-            values.push(step_context.data_result().to_value());
-        }
-        referentials_vec.insert(alias, values);
-    }
-
-    Ok(referentials_vec)
 }

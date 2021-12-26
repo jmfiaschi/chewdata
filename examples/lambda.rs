@@ -29,19 +29,19 @@ async fn main() -> io::Result<()> {
     // Spawn a thread that receives a message and then sends one.
     thread::spawn(move || {
         let data = serde_json::from_str(r#"{"field_1":"value_1","field_2":"value_1"}"#).unwrap();
-        let step_context = StepContext::new("step_1".to_string(), DataResult::Ok(data)).unwrap();
+        let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
         sender_input.send(step_context).unwrap();
 
         let data = serde_json::from_str(r#"{"field_1":"value_2","field_2":"value_2"}"#).unwrap();
-        let step_context = StepContext::new("step_1".to_string(), DataResult::Ok(data)).unwrap();
+        let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
         sender_input.send(step_context).unwrap();
     });
 
     let config = serde_json::from_str(config.to_string().as_str())?;
     chewdata::exec(config, Some(receiver_input), Some(sender_output)).await?;
 
-    for data_result in receiver_output {
-        println!("data_result {:?}", data_result);
+    for step_context in receiver_output {
+        println!("data_result {:?}", step_context.data_result());
     }
 
     Ok(())
