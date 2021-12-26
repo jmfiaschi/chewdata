@@ -1,3 +1,17 @@
+# [1.10.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.2...v1.10.0-beta.3) (2021-12-26)
+
+
+### Bug Fixes
+
+* **step_context:** add step_context to avoid variable names collision ([#20](https://github.com/jmfiaschi/chewdata/issues/20)) ([77469bb](https://github.com/jmfiaschi/chewdata/commit/77469bb9e72bd05120a08bfcc88be43a9341b7f4))
+
+
+### Features
+
+* **step:** replace alias by name to identify a step ([443fd43](https://github.com/jmfiaschi/chewdata/commit/443fd4392e325006ab48753777fc03b0ae93cf69))
+* **validator:** Add a validator step ([09bbeb7](https://github.com/jmfiaschi/chewdata/commit/09bbeb7ff44daba445027777e374826c8cffead3))
+* **validator:** Add tests and docs ([f1986df](https://github.com/jmfiaschi/chewdata/commit/f1986df515531641469d02fe5e8a27115aacca1c))
+
 # [1.10.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.1...v1.10.0-beta.2) (2021-12-26)
 
 
