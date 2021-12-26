@@ -19,7 +19,8 @@ pub struct Transformer {
     pub updater_type: UpdaterType,
     #[serde(alias = "refs")]
     pub referentials: Option<HashMap<String, Reader>>,
-    pub alias: String,
+    #[serde(alias = "alias")]
+    pub name: String,
     pub description: Option<String>,
     pub data_type: String,
     #[serde(alias = "threads")]
@@ -38,7 +39,7 @@ impl Default for Transformer {
         Transformer {
             updater_type: UpdaterType::default(),
             referentials: None,
-            alias: uuid.to_simple().to_string(),
+            name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             thread_number: 1,
@@ -54,7 +55,7 @@ impl fmt::Display for Transformer {
         write!(
             f,
             "Transformer {{'{}','{}' }}",
-            self.alias,
+            self.name,
             self.description
                 .to_owned()
                 .unwrap_or_else(|| "No description".to_string())
@@ -125,7 +126,7 @@ impl Step for Transformer {
                 Err(e) => DataResult::Err((record, e)),
             };
 
-            step_context_received.insert_step_result(self.alias(), new_data_result)?;
+            step_context_received.insert_step_result(self.name(), new_data_result)?;
             self.send(step_context_received.clone(), &sender)?;
         }
 
@@ -137,7 +138,7 @@ impl Step for Transformer {
     fn thread_number(&self) -> usize {
         self.thread_number
     }
-    fn alias(&self) -> String {
-        self.alias.clone()
+    fn name(&self) -> String {
+        self.name.clone()
     }
 }

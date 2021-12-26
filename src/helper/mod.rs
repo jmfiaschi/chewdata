@@ -43,7 +43,7 @@ pub async fn referentials_reader_into_value(
 ) -> io::Result<HashMap<String, Vec<Value>>> {
     let mut referentials_vec = HashMap::new();
 
-    for (alias, referential) in referentials {
+    for (name, referential) in referentials {
         let (sender, receiver) = crossbeam::channel::unbounded();
         let mut values: Vec<Value> = Vec::new();
 
@@ -52,7 +52,7 @@ pub async fn referentials_reader_into_value(
         for step_context in receiver {
             values.push(step_context.data_result().to_value());
         }
-        referentials_vec.insert(alias, values);
+        referentials_vec.insert(name, values);
     }
 
     Ok(referentials_vec)
