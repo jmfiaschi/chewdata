@@ -1,3 +1,4 @@
+use super::super::helper::referentials_reader_into_value;
 use super::DataResult;
 use crate::step::reader::Reader;
 use crate::step::Step;
@@ -23,12 +24,12 @@ pub struct Transformer {
     pub data_type: String,
     #[serde(alias = "threads")]
     pub thread_number: usize,
-    // Use Vec in order to keep the order FIFO.
+    // Use Vec in order to keep the FIFO order.
     pub actions: Vec<Action>,
     #[serde(alias = "input")]
-    input_name: String,
+    pub input_name: String,
     #[serde(alias = "output")]
-    output_name: String,
+    pub output_name: String,
 }
 
 impl Default for Transformer {
@@ -89,7 +90,7 @@ impl Step for Transformer {
         };
 
         let referentials = match self.referentials.clone() {
-            Some(referentials) => Some(super::referentials_reader_into_value(referentials).await?),
+            Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
             None => None,
         };
 

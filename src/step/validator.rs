@@ -1,3 +1,4 @@
+use super::super::helper::referentials_reader_into_value;
 use super::DataResult;
 use crate::helper::json_pointer::JsonPointer;
 use crate::step::Step;
@@ -10,7 +11,7 @@ use json_value_search::Search;
 use serde::Deserialize;
 use serde_json::Value;
 use std::io::{Error, ErrorKind};
-use std::{collections::HashMap, fmt, io};
+use std::{collections::{BTreeMap,HashMap}, fmt, io};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -26,12 +27,12 @@ pub struct Validator {
     pub data_type: String,
     #[serde(alias = "threads")]
     pub thread_number: usize,
-    pub rules: HashMap<String, Rule>,
+    pub rules: BTreeMap<String, Rule>,
     #[serde(alias = "input")]
-    input_name: String,
+    pub input_name: String,
     #[serde(alias = "output")]
-    output_name: String,
-    error_separator: String,
+    pub output_name: String,
+    pub error_separator: String,
 }
 
 impl Default for Validator {
@@ -44,7 +45,7 @@ impl Default for Validator {
             description: None,
             data_type: DataResult::OK.to_string(),
             thread_number: 1,
-            rules: HashMap::default(),
+            rules: BTreeMap::default(),
             input_name: "input".to_string(),
             output_name: "output".to_string(),
             error_separator: "\r\n".to_string(),
@@ -65,10 +66,113 @@ impl fmt::Display for Validator {
     }
 }
 
-/// This Step validate the contain of a dataset.
 #[async_trait]
 impl Step for Validator {
     #[instrument]
+    /// This step validate the values of a dataset.
+    ///
+    /// # Example: simple validations
+    /// ```rust
+    /// use std::io;
+    /// use serde_json::Value;
+    /// use json_value_search::Search;
+    /// use chewdata::DataResult;
+    /// use chewdata::StepContext;
+    /// use chewdata::step::Step;
+    /// use chewdata::step::validator::{Validator, Rule};
+    /// use crossbeam::channel::unbounded;
+    /// use std::thread;
+    /// use std::collections::{BTreeMap, HashMap};
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let (sender_input, receiver_input) = unbounded();
+    ///     let (sender_output, receiver_output) = unbounded();
+    ///
+    ///     let mut rules = BTreeMap::default();
+    ///     rules.insert("rule_number_1".to_string(), Rule {
+    ///         pattern: "{% if input.number_1 is matching('\\d+') %} true {% else %} false {% endif %}".to_string(),
+    ///         message: Some("Err N.1".to_string())
+    ///     });
+    ///     rules.insert("rule_number_2".to_string(), Rule {
+    ///         pattern: "{% if input.number_2 < 100 %} true {% else %} false {% endif %}".to_string(),
+    ///         message: Some("Err N.2".to_string())
+    ///     });
+    ///     rules.insert("rule_text".to_string(), Rule {
+    ///         pattern: "{% if input.text is matching('[^\\d]+') %} true {% else %} false {% endif %}".to_string(),
+    ///         message: Some("Err T.1".to_string())
+    ///     });
+    ///
+    ///     let validator = Validator {
+    ///         rules: rules,
+    ///         error_separator: " & ".to_string(),
+    ///         ..Default::default()
+    ///     };
+    ///
+    ///     thread::spawn(move || {
+    ///         let data = serde_json::from_str(r#"{"number_1":"my_string","number_2":100,"text":"120"}"#).unwrap();
+    ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+    ///         sender_input.send(step_context).unwrap();
+    ///     });
+    ///     
+    ///     validator.exec(Some(receiver_input), Some(sender_output)).await?;
+    ///
+    ///     for step_context in receiver_output {
+    ///         let error_result = step_context.data_result().to_value().search("/_error").unwrap().unwrap();
+    ///         let error_result_expected = Value::String("Err N.1 & Err N.2 & Err T.1".to_string());
+    ///         assert_eq!(error_result_expected, error_result);
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Display one error for pattern render error
+    /// ```rust
+    /// use std::io;
+    /// use serde_json::Value;
+    /// use json_value_search::Search;
+    /// use chewdata::DataResult;
+    /// use chewdata::StepContext;
+    /// use chewdata::step::Step;
+    /// use chewdata::step::validator::{Validator, Rule};
+    /// use crossbeam::channel::unbounded;
+    /// use std::thread;
+    /// use std::collections::{BTreeMap, HashMap};
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let (sender_input, receiver_input) = unbounded();
+    ///     let (sender_output, receiver_output) = unbounded();
+    ///
+    ///     let mut rules = BTreeMap::default();
+    ///     rules.insert("rule_exception".to_string(), Rule {
+    ///         pattern: "{% if input.number_1 is matching('\\d+') %} true {% else %} false {% endif %}".to_string(),
+    ///         message: Some("Err N.1".to_string())
+    ///     });
+    ///
+    ///     let validator = Validator {
+    ///         rules: rules,
+    ///         error_separator: " & ".to_string(),
+    ///         ..Default::default()
+    ///     };
+    ///
+    ///     thread::spawn(move || {
+    ///         let data = serde_json::from_str(r#"{"number":100}"#).unwrap();
+    ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+    ///         sender_input.send(step_context).unwrap();
+    ///     });
+    ///     
+    ///     validator.exec(Some(receiver_input), Some(sender_output)).await?;
+    ///
+    ///     for step_context in receiver_output {
+    ///         let error_result = step_context.data_result().to_value().search("/_error").unwrap().unwrap();
+    ///         let error_result_expected = Value::String("Failed to render the field 'rule_exception'. Tester `matching` was called on an undefined variable.".to_string());
+    ///         assert_eq!(error_result_expected, error_result);
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     async fn exec(
         &self,
         receiver_option: Option<Receiver<StepContext>>,
@@ -93,7 +197,7 @@ impl Step for Validator {
         };
 
         let referentials = match self.referentials.clone() {
-            Some(referentials) => Some(super::referentials_reader_into_value(referentials).await?),
+            Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
             None => None,
         };
 
@@ -144,7 +248,7 @@ impl Step for Validator {
                             value.clone().search(rule_name.to_json_pointer().as_str());
 
                         let error = match value_result {
-                            Ok(Some(Value::Bool(true))) => String::default(),
+                            Ok(Some(Value::Bool(true))) => continue,
                             Ok(Some(Value::Bool(false))) => {
                                 rule.message.unwrap_or(format!("The rule '{}' failed", rule_name))
                             }
@@ -160,7 +264,7 @@ impl Step for Validator {
                             ),
                             Err(e) => e.to_string(),
                         };
-
+                        
                         if !errors.is_empty() {
                             errors.push_str(self.error_separator.as_str());
                         }
