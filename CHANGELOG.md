@@ -1,3 +1,16 @@
+# [1.10.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.9.0...v1.10.0-beta.1) (2021-12-26)
+
+
+### Bug Fixes
+
+* **step_context:** add step_context to avoid variable names collision ([c05e80b](https://github.com/jmfiaschi/chewdata/commit/c05e80ba2a7e5131ccd77695f1b097a9170619c2))
+
+
+### Features
+
+* **validator:** Add a validator step ([697aecc](https://github.com/jmfiaschi/chewdata/commit/697aecc36698c07ec1953dcd0add3877aa3ba3f0))
+* **validator:** Add tests and docs ([4107e41](https://github.com/jmfiaschi/chewdata/commit/4107e41f792416e16153e7a5ecb02a177f2f97cd))
+
 # [1.9.0](https://github.com/jmfiaschi/chewdata/compare/v1.8.4...v1.9.0) (2021-12-19)
 
 
