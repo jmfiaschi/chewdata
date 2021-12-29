@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1640555932861,
+  "lastUpdate": 1640771755016,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1679,6 +1679,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 460,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "1b07bae4310433a2c9aab11347b7f4f5f2ee4311",
+          "message": "chore(changelog): merge issue",
+          "timestamp": "2021-12-29T10:32:51+01:00",
+          "tree_id": "4de10c3da498588c5fd315342751364b7f0da91b",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/1b07bae4310433a2c9aab11347b7f4f5f2ee4311"
+        },
+        "date": 1640771754423,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 184,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 164,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 159941,
+            "range": "± 211",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 23327,
+            "range": "± 24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 296,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 472,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
