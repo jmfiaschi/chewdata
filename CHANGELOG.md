@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/jmfiaschi/chewdata/compare/v1.9.1...v1.10.0) (2021-12-29)
+
+
+### Features
+
+* **validator:** Add a validator step ([895ef86](https://github.com/jmfiaschi/chewdata/commit/895ef8689034cd5c22ee85c12c0690aecfa4f937))
+
 # [1.10.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.2...v1.10.0-beta.3) (2021-12-26)
 
 
