@@ -1,3 +1,4 @@
+use super::super::helper::referentials_reader_into_value;
 use super::DataResult;
 use crate::step::reader::Reader;
 use crate::step::Step;
@@ -18,17 +19,18 @@ pub struct Transformer {
     pub updater_type: UpdaterType,
     #[serde(alias = "refs")]
     pub referentials: Option<HashMap<String, Reader>>,
-    pub alias: String,
+    #[serde(alias = "alias")]
+    pub name: String,
     pub description: Option<String>,
     pub data_type: String,
     #[serde(alias = "threads")]
     pub thread_number: usize,
-    // Use Vec in order to keep the order FIFO.
+    // Use Vec in order to keep the FIFO order.
     pub actions: Vec<Action>,
     #[serde(alias = "input")]
-    input_name: String,
+    pub input_name: String,
     #[serde(alias = "output")]
-    output_name: String,
+    pub output_name: String,
 }
 
 impl Default for Transformer {
@@ -37,7 +39,7 @@ impl Default for Transformer {
         Transformer {
             updater_type: UpdaterType::default(),
             referentials: None,
-            alias: uuid.to_simple().to_string(),
+            name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             thread_number: 1,
@@ -53,34 +55,14 @@ impl fmt::Display for Transformer {
         write!(
             f,
             "Transformer {{'{}','{}' }}",
-            self.alias,
+            self.name,
             self.description
                 .to_owned()
                 .unwrap_or_else(|| "No description".to_string())
         )
     }
 }
-/// Return a referentials hashmap indexed by the alias of the referential.
-async fn referentials_reader_to_dataset(
-    referentials: HashMap<String, Reader>,
-) -> io::Result<HashMap<String, Vec<Value>>> {
-    let mut referentials_dataset = HashMap::new();
 
-    // For each reader, try to build the referential.
-    for (alias, referential) in referentials {
-        let (sender, receiver) = crossbeam::channel::unbounded();
-        let mut referential_dataset: Vec<Value> = Vec::new();
-
-        referential.exec(None, Some(sender)).await?;
-
-        for step_context in receiver {
-            referential_dataset.push(step_context.data_result().to_value());
-        }
-        referentials_dataset.insert(alias, referential_dataset);
-    }
-
-    Ok(referentials_dataset)
-}
 /// This Step transform a dataset.
 #[async_trait]
 impl Step for Transformer {
@@ -108,8 +90,8 @@ impl Step for Transformer {
             }
         };
 
-        let mapping = match self.referentials.clone() {
-            Some(referentials) => Some(referentials_reader_to_dataset(referentials).await?),
+        let referentials = match self.referentials.clone() {
+            Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
             None => None,
         };
 
@@ -125,17 +107,12 @@ impl Step for Transformer {
             let new_data_result = match self.updater_type.updater().update(
                 record.clone(),
                 step_context_received.steps_result(),
-                mapping.clone(),
+                referentials.clone(),
                 self.actions.clone(),
                 self.input_name.clone(),
                 self.output_name.clone(),
             ) {
                 Ok(new_record) => {
-                    trace!(
-                        record = format!("{}", new_record).as_str(),
-                        "Record transformation success"
-                    );
-
                     if Value::Null == new_record {
                         trace!(
                             record = format!("{}", new_record).as_str(),
@@ -144,24 +121,12 @@ impl Step for Transformer {
                         continue;
                     }
 
-                    let new_data_result = DataResult::Ok(new_record);
-                    trace!(
-                        data_result = format!("{:?}", new_data_result).as_str(),
-                        "New data result"
-                    );
-                    new_data_result
+                    DataResult::Ok(new_record)
                 }
-                Err(e) => {
-                    let new_data_result = DataResult::Err((record, e));
-                    warn!(
-                        data_result = format!("{:?}", new_data_result).as_str(),
-                        "Record transformation error. New data result with error"
-                    );
-                    new_data_result
-                }
+                Err(e) => DataResult::Err((record, e)),
             };
 
-            step_context_received.insert_step_result(self.alias(), new_data_result)?;
+            step_context_received.insert_step_result(self.name(), new_data_result)?;
             self.send(step_context_received.clone(), &sender)?;
         }
 
@@ -173,7 +138,7 @@ impl Step for Transformer {
     fn thread_number(&self) -> usize {
         self.thread_number
     }
-    fn alias(&self) -> String {
-        self.alias.clone()
+    fn name(&self) -> String {
+        self.name.clone()
     }
 }

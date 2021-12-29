@@ -17,7 +17,8 @@ pub struct Writer {
     #[serde(rename = "document")]
     #[serde(alias = "doc")]
     document_type: DocumentType,
-    pub alias: String,
+    #[serde(alias = "alias")]
+    pub name: String,
     #[serde(alias = "desc")]
     pub description: Option<String>,
     #[serde(alias = "data")]
@@ -34,7 +35,7 @@ impl Default for Writer {
         Writer {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
-            alias: uuid.to_simple().to_string(),
+            name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1000,
@@ -48,7 +49,7 @@ impl fmt::Display for Writer {
         write!(
             f,
             "Writer {{'{}','{}'}}",
-            self.alias,
+            self.name,
             self.description
                 .to_owned()
                 .unwrap_or_else(|| "No description".to_string())
@@ -186,7 +187,7 @@ impl Step for Writer {
     fn thread_number(&self) -> usize {
         self.thread_number
     }
-    fn alias(&self) -> String {
-        self.alias.clone()
+    fn name(&self) -> String {
+        self.name.clone()
     }
 }

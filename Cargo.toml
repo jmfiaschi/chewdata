@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version ="1.9.1"
+version ="1.10.0-beta.3"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2018"
 description = "Extract Transform and Load data"
@@ -22,7 +22,7 @@ serde_json = "1.0"
 json_value_merge = "1.1"
 json_value_remove = "1.0"
 json_value_resolve = "1.0"
-json_value_search = "0.1"
+json_value_search = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde-with-expand-env = "1.1"
 futures = "0.3"

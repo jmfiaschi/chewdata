@@ -13,7 +13,8 @@ pub struct Eraser {
     #[serde(rename = "connector")]
     #[serde(alias = "conn")]
     connector_type: ConnectorType,
-    pub alias: String,
+    #[serde(alias = "alias")]
+    pub name: String,
     pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
@@ -26,7 +27,7 @@ impl Default for Eraser {
         let uuid = Uuid::new_v4();
         Eraser {
             connector_type: ConnectorType::default(),
-            alias: uuid.to_simple().to_string(),
+            name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             exclude_paths: Vec::default(),
@@ -39,7 +40,7 @@ impl fmt::Display for Eraser {
         write!(
             f,
             "Eraser {{'{}','{}'}}",
-            self.alias,
+            self.name,
             self.description
                 .to_owned()
                 .unwrap_or_else(|| "No description".to_string())
@@ -90,7 +91,7 @@ impl Step for Eraser {
 
                     if let Some(ref sender) = sender_option {
                         step_context_received.insert_step_result(
-                            self.alias(),
+                            self.name(),
                             step_context_received.data_result(),
                         )?;
 
@@ -150,7 +151,7 @@ impl Step for Eraser {
         info!("End");
         Ok(())
     }
-    fn alias(&self) -> String {
-        self.alias.clone()
+    fn name(&self) -> String {
+        self.name.clone()
     }
 }

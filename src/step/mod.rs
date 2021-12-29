@@ -1,14 +1,16 @@
-mod eraser;
-mod reader;
-mod transformer;
-mod writer;
+pub mod eraser;
+pub mod reader;
+pub mod transformer;
+pub mod validator;
+pub mod writer;
 
-use super::step::eraser::Eraser;
-use super::step::reader::Reader;
-use super::step::transformer::Transformer;
-use super::step::writer::Writer;
 use crate::{DataResult, StepContext};
+use eraser::Eraser;
+use reader::Reader;
 use serde::Deserialize;
+use transformer::Transformer;
+use validator::Validator;
+use writer::Writer;
 
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
@@ -34,6 +36,10 @@ pub enum StepType {
     #[serde(alias = "truncate")]
     #[serde(alias = "e")]
     Eraser(Eraser),
+    #[serde(rename = "validator")]
+    #[serde(alias = "validate")]
+    #[serde(alias = "v")]
+    Validator(Validator),
 }
 
 impl StepType {
@@ -43,6 +49,7 @@ impl StepType {
             StepType::Writer(step) => Box::new(step),
             StepType::Transformer(step) => Box::new(step),
             StepType::Eraser(step) => Box::new(step),
+            StepType::Validator(step) => Box::new(step),
         }
     }
     pub fn step(&self) -> &dyn Step {
@@ -51,6 +58,7 @@ impl StepType {
             StepType::Writer(ref step) => step,
             StepType::Transformer(ref step) => step,
             StepType::Eraser(ref step) => step,
+            StepType::Validator(ref step) => step,
         }
     }
     pub fn step_mut(&mut self) -> &mut dyn Step {
@@ -59,6 +67,7 @@ impl StepType {
             StepType::Writer(ref mut step) => step,
             StepType::Transformer(ref mut step) => step,
             StepType::Eraser(ref mut step) => step,
+            StepType::Validator(ref mut step) => step,
         }
     }
 }
@@ -81,7 +90,7 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
 
         Ok(())
     }
-    fn alias(&self) -> String {
+    fn name(&self) -> String {
         "default".to_string()
     }
 }

@@ -241,9 +241,9 @@ pub struct StepContext {
 }
 
 impl StepContext {
-    pub fn new(step_alias: String, data_result: DataResult) -> Result<Self> {
+    pub fn new(step_name: String, data_result: DataResult) -> Result<Self> {
         let mut map = Map::default();
-        map.insert(step_alias, data_result.to_value());
+        map.insert(step_name, data_result.to_value());
         
         let mut steps_result = Value::default();
         steps_result.merge_in("/steps", Value::Object(map))?;
@@ -253,9 +253,9 @@ impl StepContext {
             data_result,
         })
     }
-    pub fn insert_step_result(&mut self, step_alias: String, data_result: DataResult) -> Result<()> {
+    pub fn insert_step_result(&mut self, step_name: String, data_result: DataResult) -> Result<()> {
         let mut map = Map::default();
-        map.insert(step_alias, data_result.to_value());
+        map.insert(step_name, data_result.to_value());
 
         self.steps_result.merge_in("/steps", Value::Object(map))?;
         self.data_result = data_result;
