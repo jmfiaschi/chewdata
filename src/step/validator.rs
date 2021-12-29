@@ -69,7 +69,6 @@ impl fmt::Display for Validator {
 
 #[async_trait]
 impl Step for Validator {
-    #[instrument]
     /// This step validate the values of a dataset.
     ///
     /// # Example: simple validations
@@ -174,6 +173,7 @@ impl Step for Validator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn exec(
         &self,
         receiver_option: Option<Receiver<StepContext>>,

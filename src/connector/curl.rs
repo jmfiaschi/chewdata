@@ -598,16 +598,18 @@ impl Paginator for CurlPaginator {
     ///     connector.paginator_parameters = Some(paginator_parameters);
     ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     let mut reader = paginator.next_page().await?.unwrap();
-    ///     assert_eq!("/links/1/10", reader.path().as_str());
+    ///     let mut connector = paginator.next_page().await?.unwrap();
+    ///     connector.fetch().await?;  
+    ///     assert_eq!("/links/1/10", connector.path().as_str());
     ///     let mut buffer1 = String::default();
-    ///     let len1 = reader.read_to_string(&mut buffer1).await?;
+    ///     let len1 = connector.read_to_string(&mut buffer1).await?;
     ///     assert!(0 < len1, "Can't read the content of the file.");
     ///
-    ///     let mut reader = paginator.next_page().await?.unwrap();
-    ///     assert_eq!("/links/2/10", reader.path().as_str());  
+    ///     let mut connector = paginator.next_page().await?.unwrap();
+    ///     connector.fetch().await?;  
+    ///     assert_eq!("/links/2/10", connector.path().as_str());  
     ///     let mut buffer2 = String::default();
-    ///     let len2 = reader.read_to_string(&mut buffer2).await?;
+    ///     let len2 = connector.read_to_string(&mut buffer2).await?;
     ///     assert!(0 < len2, "Can't read the content of the file.");
     ///     assert!(buffer1 != buffer2, "The content of this two files is not different.");
     ///
@@ -670,9 +672,6 @@ impl Paginator for CurlPaginator {
                 }
 
                 new_connector.set_parameters(new_parameters);
-                new_connector
-                    .fetch()
-                    .await?;
 
                 self.skip += self.connector.limit;
 

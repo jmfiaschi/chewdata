@@ -491,11 +491,13 @@ impl Paginator for MongodbPaginator {
     ///     let mut paginator = connector.paginator().await?;
     ///
     ///     let mut connector = paginator.next_page().await?.unwrap();
+    ///     connector.fetch().await?;
     ///     let mut buffer1 = String::default();
     ///     let len1 = connector.read_to_string(&mut buffer1).await?;
     ///     assert!(true, "Can't read the content of the file.");
     ///
-    ///     let mut connector = paginator.next_page().await?.unwrap();     
+    ///     let mut connector = paginator.next_page().await?.unwrap();
+    ///     connector.fetch().await?;     
     ///     let mut buffer2 = String::default();
     ///     let len2 = connector.read_to_string(&mut buffer2).await?;
     ///     assert!(0 < len2, "Can't read the content of the file.");
@@ -523,7 +525,6 @@ impl Paginator for MongodbPaginator {
 
         find_options.skip = Some(self.skip);
         connector.find_options = Box::new(Some(find_options.clone()));
-        connector.fetch().await?;
 
         Ok(Some(Box::new(connector)))
     }

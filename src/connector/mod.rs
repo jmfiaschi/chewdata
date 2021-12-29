@@ -106,6 +106,18 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
                     None
                 }
             } {
+                match connector_reader.fetch().await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        warn!(
+                            error = e.to_string().as_str(),
+                            connector = format!("{:?}", connector_reader).as_str(),
+                            "The paginator skip the resource due to an error"
+                        );
+                        continue;
+                    }
+                };
+
                 // If the data in the connector contain empty data like "{}" or "<entry_path></entry_path>" stop the loop.
                 let inner = match std::str::from_utf8(connector_reader.inner()) {
                     Ok(inner) => inner,

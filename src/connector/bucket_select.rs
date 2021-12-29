@@ -923,17 +923,6 @@ impl Paginator for BucketSelectPaginator {
 
         for path in &mut self.paths {
             connector.path = path;
-            match connector.fetch().await {
-                Ok(_) => (),
-                Err(e) => {
-                    warn!(
-                        error = e.to_string().as_str(),
-                        connector = format!("{:?}", connector).as_str(),
-                        "The paginator skip the resource due to an error"
-                    );
-                    continue;
-                }
-            };
             return Ok(Some(Box::new(connector)));
         }
 

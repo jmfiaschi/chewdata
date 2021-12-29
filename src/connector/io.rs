@@ -208,9 +208,6 @@ impl Paginator for IoPaginator {
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
         info!("Start");
 
-        let mut connector = self.connector.clone();
-        connector.fetch().await?;
-
-        Ok(Some(Box::new(connector)))
+        Ok(Some(Box::new(self.connector.clone())))
     }
 }

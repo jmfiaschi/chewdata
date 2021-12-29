@@ -773,7 +773,6 @@ impl Paginator for BucketPaginator {
         Ok(match self.paths.next() {
             Some(path) => {
                 connector.path = path;
-                connector.fetch().await?;
                 Some(Box::new(connector))
             }
             None => None,

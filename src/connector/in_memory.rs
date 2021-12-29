@@ -331,12 +331,10 @@ impl Paginator for InMemoryPaginator {
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
         info!("Start");
         
-        let mut connector = self.connector.clone();
         Ok(match self.has_next {
             true => {
                 self.has_next = false;
-                connector.fetch().await?;
-                Some(Box::new(connector))
+                Some(Box::new(self.connector.clone()))
             }
             false => None,
         })
