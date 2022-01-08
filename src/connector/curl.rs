@@ -1,8 +1,10 @@
 use super::authenticator::AuthenticatorType;
 use super::{Connector, Paginator};
+use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
 use async_trait::async_trait;
+use futures::StreamExt;
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -24,8 +26,7 @@ pub struct Curl {
     pub authenticator_type: Option<Box<AuthenticatorType>>,
     // The endpoint like http://my_site.com:80
     pub endpoint: String,
-    // The http uri.
-    #[serde(alias = "uri")]
+    // The path of the resource
     pub path: String,
     // The http method.
     pub method: Method,
@@ -33,30 +34,13 @@ pub struct Curl {
     pub headers: Box<HashMap<String, String>>,
     #[serde(alias = "params")]
     pub parameters: Value,
-    pub limit: usize,
-    pub skip: usize,
     #[serde(alias = "paginator")]
-    pub paginator_parameters: Option<PaginatorParameters>,
+    pub paginator_type: PaginatorType,
+    #[serde(alias = "counter")]
+    #[serde(alias = "count")]
+    pub counter_type: Option<CounterType>,
     #[serde(skip)]
     pub inner: Box<Cursor<Vec<u8>>>,
-}
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
-#[serde(default)]
-pub struct PaginatorParameters {
-    #[serde(default = "default_limit")]
-    #[serde(alias = "limit")]
-    pub limit_name: String,
-    #[serde(default = "default_skip")]
-    #[serde(alias = "skip")]
-    pub skip_name: String,
-}
-
-fn default_limit() -> String {
-    "limit".to_string()
-}
-
-fn default_skip() -> String {
-    "skip".to_string()
 }
 
 impl Default for Curl {
@@ -69,9 +53,8 @@ impl Default for Curl {
             method: Method::Get,
             headers: Box::new(HashMap::default()),
             parameters: Value::Null,
-            limit: 100,
-            skip: 0,
-            paginator_parameters: None,
+            paginator_type: PaginatorType::default(),
+            counter_type: None,
             inner: Box::new(Cursor::default()),
         }
     }
@@ -98,9 +81,7 @@ impl fmt::Debug for Curl {
             .field("method", &self.method)
             .field("headers", &self.headers)
             .field("parameters", &self.parameters)
-            .field("limit", &self.limit)
-            .field("skip", &self.skip)
-            .field("paginator_parameters", &self.paginator_parameters)
+            .field("paginator_type", &self.paginator_type)
             .finish()
     }
 }
@@ -238,7 +219,22 @@ impl Connector for Curl {
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
-        Ok(Box::pin(CurlPaginator::new(self.clone())))
+        let paginator = match self.paginator_type {
+            PaginatorType::Offset(ref offset_paginator) => {
+                let mut offset_paginator = offset_paginator.clone();
+                offset_paginator.set_connector(self.clone());
+
+                Box::new(offset_paginator) as Box<dyn Paginator + Send>
+            }
+            PaginatorType::Cursor(ref cursor_paginator) => {
+                let mut cursor_paginator = cursor_paginator.clone();
+                cursor_paginator.set_connector(self.clone());
+
+                Box::new(cursor_paginator) as Box<dyn Paginator + Send>
+            }
+        };
+
+        Ok(Pin::new(paginator))
     }
     /// See [`Connector::is_variable_path`] for more details.
     ///
@@ -558,30 +554,66 @@ impl async_std::io::Write for Curl {
     }
 }
 
-#[derive(Debug)]
-pub struct CurlPaginator {
-    connector: Curl,
-    skip: usize,
-    has_next: bool,
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(tag = "type")]
+pub enum CounterType {
+    #[serde(alias = "header")]
+    Header(HeaderCounter),
+    #[serde(rename = "body")]
+    Body(BodyCounter),
 }
 
-impl CurlPaginator {
-    pub fn new(connector: Curl) -> Self {
-        CurlPaginator {
-            connector: connector.clone(),
-            skip: connector.skip,
-            has_next: true,
+impl Default for CounterType {
+    fn default() -> Self {
+        CounterType::Header(HeaderCounter::default())
+    }
+}
+
+impl CounterType {
+    pub async fn count(
+        &self,
+        connector: Curl,
+        document: Option<Box<dyn Document>>,
+    ) -> Result<Option<usize>> {
+        match self {
+            CounterType::Header(header_counter) => header_counter.count(connector).await,
+            CounterType::Body(body_counter) => {
+                let document = match document {
+                    Some(document) => Ok(document),
+                    None => Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "The counter type Body need a document type to work",
+                    )),
+                }?;
+                body_counter.count(connector, document).await
+            }
         }
     }
 }
 
-#[async_trait]
-impl Paginator for CurlPaginator {
-    /// See [`Paginator::next_page`] for more details.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct HeaderCounter {
+    // Header Name
+    pub name: String,
+    // path of the count resource
+    pub path: Option<String>,
+}
+
+impl Default for HeaderCounter {
+    fn default() -> Self {
+        HeaderCounter {
+            name: "X-Total-Count".to_string(),
+            path: None,
+        }
+    }
+}
+
+impl HeaderCounter {
+    /// Get the number of items from the header
     ///
-    /// # Example: Paginate through the remove document.
+    /// # Example: Get the number
     /// ```rust
-    /// use chewdata::connector::{curl::Curl, curl::PaginatorParameters, Connector};
+    /// use chewdata::connector::curl::{Curl, HeaderCounter};
     /// use surf::http::Method;
     /// use async_std::prelude::*;
     /// use std::io;
@@ -591,12 +623,294 @@ impl Paginator for CurlPaginator {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
-    ///     connector.path = "/links/{{n}}/10".to_string();
-    ///     connector.limit = 1;
-    ///     connector.skip = 1;
-    ///     let paginator_parameters = PaginatorParameters { skip_name: "n".to_string(), limit_name: "limit".to_string() };
-    ///     connector.paginator_parameters = Some(paginator_parameters);
+    ///     connector.path = "/get".to_string();
+    ///
+    ///     let mut counter = HeaderCounter::default();
+    ///     counter.name = "Content-Length".to_string();
+    ///     assert_eq!(Some(194), counter.count(connector).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Not get the number
+    /// ```rust
+    /// use chewdata::connector::curl::{Curl, HeaderCounter};
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/get".to_string();
+    ///
+    ///     let mut counter = HeaderCounter::default();
+    ///     counter.name = "not_found".to_string();
+    ///     assert_eq!(None, counter.count(connector).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument]
+    pub async fn count(&self, connector: Curl) -> Result<Option<usize>> {
+        let client = surf::client();
+        let mut connector = connector.clone();
+
+        if let Some(path) = self.path.clone() {
+            connector.path = path;
+        }
+
+        let url = Url::parse(format!("{}{}", connector.endpoint, connector.path()).as_str())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let mut request_builder = surf::head(url);
+
+        if let Some(ref mut authenticator_type) = connector.authenticator_type {
+            let authenticator = authenticator_type.authenticator_mut();
+            authenticator.set_parameters(connector.parameters.clone());
+            request_builder = authenticator.authenticate(request_builder).await?;
+        }
+
+        if !connector.metadata().content_type().is_empty() {
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, connector.metadata().content_type());
+        }
+
+        if !connector.headers.is_empty() {
+            for (key, value) in connector.headers.iter() {
+                request_builder = request_builder.header(key.as_str(), value.as_str());
+            }
+        }
+
+        let req = request_builder.build();
+
+        let res = client
+            .send(req)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        if !res.status().is_success() {
+            warn!(
+                status = res.status().to_string().as_str(),
+                "Can't get the number of elements into the remote document with the method HEAD"
+            );
+
+            return Ok(None);
+        }
+
+        let header_value = res
+            .header(self.name.as_str())
+            .map(|value| value.as_str())
+            .unwrap_or("0");
+
+        if header_value == "0" {
+            return Ok(None);
+        }
+
+        Ok(match header_value.to_string().parse::<usize>() {
+            Ok(count) => Some(count),
+            Err(_) => None,
+        })
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct BodyCounter {
+    // The entry path to catch the value in the body
+    pub entry_path: String,
+    // Path of the count resource
+    pub path: Option<String>,
+}
+
+impl Default for BodyCounter {
+    fn default() -> Self {
+        BodyCounter {
+            entry_path: "/count".to_string(),
+            path: None,
+        }
+    }
+}
+
+impl BodyCounter {
+    /// Get the number of items from the response body
+    ///
+    /// # Example: Get the number
+    /// ```rust
+    /// use chewdata::connector::curl::{Curl, BodyCounter};
+    /// use chewdata::document::json::Json;
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Post;
+    ///     connector.path = "/anything?count=10".to_string();
+    ///
+    ///     let mut counter = BodyCounter::default();
+    ///     counter.entry_path = "/args/count".to_string();
+    ///     assert_eq!(Some(10), counter.count(connector, Box::new(Json::default())).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Don't find the count in the body
+    /// ```rust
+    /// use chewdata::connector::curl::{Curl, BodyCounter};
+    /// use chewdata::document::json::Json;
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Post;
+    ///     connector.path = "/anything?count=10".to_string();
+    ///
+    ///     let mut counter = BodyCounter::default();
+    ///     counter.entry_path = "/args/test".to_string();
+    ///     assert_eq!(None, counter.count(connector, Box::new(Json::default())).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument]
+    pub async fn count(
+        &self,
+        connector: Curl,
+        document: Box<dyn Document>,
+    ) -> Result<Option<usize>> {
+        let mut connector = connector.clone();
+        let mut document = document.clone();
+
+        if let Some(path) = self.path.clone() {
+            connector.path = path;
+        }
+
+        document.set_entry_path(self.entry_path.clone());
+
+        connector.fetch().await?;
+
+        let mut dataset = document
+            .read_data(&mut (Box::new(connector) as Box<dyn Connector>))
+            .await?;
+
+        let data_opt = dataset.next().await;
+
+        let value = match data_opt {
+            Some(data) => data.to_value(),
+            None => Value::Null,
+        };
+
+        let count = match value {
+            Value::Number(_) => value.as_u64().map(|number| number as usize),
+            Value::String(_) => match value.as_str() {
+                Some(value) => match value.parse::<usize>() {
+                    Ok(number) => Some(number),
+                    Err(_) => None,
+                },
+                None => None,
+            },
+            _ => None,
+        };
+
+        Ok(count)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(tag = "type")]
+pub enum PaginatorType {
+    #[serde(alias = "offset")]
+    Offset(OffsetPaginator),
+    #[serde(rename = "cursor")]
+    Cursor(CursorPaginator),
+}
+
+impl Default for PaginatorType {
+    fn default() -> Self {
+        PaginatorType::Offset(OffsetPaginator::default())
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct OffsetPaginator {
+    pub limit: usize,
+    pub skip: usize,
+    pub count: Option<usize>,
+    #[serde(skip)]
+    pub connector: Option<Box<Curl>>,
+    #[serde(skip)]
+    pub has_next: bool,
+}
+
+impl Default for OffsetPaginator {
+    fn default() -> Self {
+        OffsetPaginator {
+            limit: 100,
+            skip: 0,
+            count: None,
+            connector: None,
+            has_next: true,
+        }
+    }
+}
+
+impl OffsetPaginator {
+    fn set_connector(&mut self, connector: Curl) -> &mut Self
+    where
+        Self: Paginator + Sized,
+    {
+        self.connector = Some(Box::new(connector));
+        self
+    }
+}
+
+#[async_trait]
+impl Paginator for OffsetPaginator {
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        // Lazy loading
+        if self.count.is_some() {
+            return Ok(self.count);
+        }
+
+        if let Some(connector) = self.connector.clone() {
+            if let Some(counter_type) = connector.counter_type.clone() {
+                self.count = counter_type.count(*connector, None).await?;
+                return Ok(self.count);
+            }
+        }
+
+        Ok(None)
+    }
+    /// See [`Paginator::next_page`] for more details.
+    ///
+    /// # Example: Paginate indefinitely with the offset paginator
+    /// ```rust
+    /// use chewdata::connector::{curl::{Curl, PaginatorType, OffsetPaginator}, Connector};
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/links/{{ paginator.skip }}/10".to_string();
+    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
+    ///         skip: 1,
+    ///         limit: 1,
+    ///         ..Default::default()
+    ///     });
     ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
     ///
     ///     let mut connector = paginator.next_page().await?.unwrap();
     ///     connector.fetch().await?;  
@@ -616,9 +930,9 @@ impl Paginator for CurlPaginator {
     ///     Ok(())
     /// }
     /// ```
-    /// # Example: Paginate one time on a remove document.
+    /// # Example: Paginate one time with the offset paginator
     /// ```rust
-    /// use chewdata::connector::{curl::Curl, curl::PaginatorParameters, Connector};
+    /// use chewdata::connector::{curl::Curl, Connector};
     /// use surf::http::Method;
     /// use async_std::prelude::*;
     /// use std::io;
@@ -630,54 +944,258 @@ impl Paginator for CurlPaginator {
     ///     connector.method = Method::Get;
     ///     connector.path = "/get".to_string();
     ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
     ///
-    ///     let mut reader = paginator.next_page().await?;     
-    ///     assert!(reader.is_some());
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_some());
     ///
-    ///     let mut reader = paginator.next_page().await?;
-    ///     assert!(reader.is_none());
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_none());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Paginate three times with the offset paginator and the paginator can return multi connectors in parallel
+    /// ```rust
+    /// use chewdata::connector::{curl::{Curl, PaginatorType, OffsetPaginator}, Connector};
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/links/{{ paginator.skip }}/10".to_string();
+    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
+    ///         skip: 0,
+    ///         limit: 1,
+    ///         count: Some(3),
+    ///         ..Default::default()
+    ///     });
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_some());
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_some());
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_none());
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
     async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        info!("Start");
-        
         Ok(match self.has_next {
             true => {
-                let mut new_connector = self.connector.clone();
-                let mut new_parameters = Value::default();
-                new_parameters.merge(self.connector.parameters.clone());
+                let connector = match self.connector.clone() {
+                    Some(connector) => connector,
+                    None => return Ok(None),
+                };
 
-                if let Some(paginator_parameters) = self.connector.paginator_parameters.clone() {
-                    new_parameters.merge(serde_json::from_str(
-                        format!(
-                            r#"{{"{}":"{}"}}"#,
-                            paginator_parameters.limit_name, self.connector.limit
-                        )
-                        .as_str(),
-                    )?);
-                    new_parameters.merge(serde_json::from_str(
-                        format!(
-                            r#"{{"{}":"{}"}}"#,
-                            paginator_parameters.skip_name, self.skip
-                        )
-                        .as_str(),
-                    )?);
-                }
+                let mut new_connector = connector.clone();
+                let mut new_parameters = new_connector.parameters.clone();
 
-                if self.connector.paginator_parameters.clone().is_none() {
-                    self.has_next = false;
-                }
+                new_parameters
+                    .merge_in("/paginator/limit", Value::String(self.limit.to_string()))?;
+                new_parameters.merge_in("/paginator/skip", Value::String(self.skip.to_string()))?;
 
                 new_connector.set_parameters(new_parameters);
 
-                self.skip += self.connector.limit;
+                if let Some(count) = self.count {
+                    if count <= self.limit + self.skip {
+                        self.has_next = false;
+                    }
+                }
 
-                Some(Box::new(new_connector))
+                if connector.path() == new_connector.path() {
+                    self.has_next = false;
+                }
+
+                self.skip += self.limit;
+
+                Some(new_connector)
             }
             false => None,
         })
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        self.count.is_some()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CursorPaginator {
+    pub limit: usize,
+    // The entry path to catch the value in the body
+    pub entry_path: String,
+    #[serde(skip)]
+    pub document: Option<Box<dyn Document>>,
+    #[serde(skip)]
+    pub connector: Option<Box<Curl>>,
+    #[serde(skip)]
+    pub next_token: Option<String>,
+    #[serde(skip)]
+    pub has_next: bool,
+}
+
+impl Default for CursorPaginator {
+    fn default() -> Self {
+        CursorPaginator {
+            limit: 100,
+            connector: None,
+            document: None,
+            next_token: None,
+            entry_path: "/next".to_string(),
+            has_next: true,
+        }
+    }
+}
+
+impl CursorPaginator {
+    fn set_connector(&mut self, connector: Curl) -> &mut Self
+    where
+        Self: Paginator + Sized,
+    {
+        self.connector = Some(Box::new(connector));
+        self
+    }
+}
+
+#[async_trait]
+impl Paginator for CursorPaginator {
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(None)
+    }
+    /// See [`Paginator::set_document`] for more details.
+    fn set_document(&mut self, document: Box<dyn Document>) {
+        self.document = Some(document);
+    }
+    /// See [`Paginator::next_page`] for more details.
+    ///
+    /// # Example: Paginate to the next cursor
+    /// ```rust
+    /// use chewdata::connector::{curl::{Curl, PaginatorType, CursorPaginator}, Connector};
+    /// use chewdata::document::json::Json;
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/uuid?next={{ paginator.next_token }}".to_string();
+    ///     connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
+    ///         limit: 1,
+    ///         entry_path: "/uuid".to_string(),
+    ///         ..Default::default()
+    ///     });
+    ///     let mut paginator = connector.paginator().await?;
+    ///     paginator.set_document(Box::new(Json::default()));
+    ///     assert!(!paginator.is_parallelizable());
+    ///
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_some());
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Not found the next cursor token
+    /// ```rust
+    /// use chewdata::connector::{curl::{Curl, PaginatorType, CursorPaginator}, Connector};
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/uuid?next={{ paginator.next_token }}".to_string();
+    ///     connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
+    ///         limit: 1,
+    ///         entry_path: "/uuid".to_string(),
+    ///         ..Default::default()
+    ///     });
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
+    ///
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_some());
+    ///     let mut connector = paginator.next_page().await?;
+    ///     assert!(connector.is_none());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument]
+    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
+        if !self.has_next {
+            return Ok(None);
+        }
+
+        Ok(
+            match (&mut self.connector.clone(), &mut self.document.clone()) {
+                (Some(connector), Some(document)) => {
+                    let mut new_parameters = connector.parameters.clone();
+
+                    if let Some(next_token) = self.next_token.clone() {
+                        new_parameters.merge_in("/paginator/next_token", Value::String(next_token))?;
+                    }
+
+                    new_parameters
+                        .merge_in("/paginator/limit", Value::String(self.limit.to_string()))?;
+
+                    document.set_entry_path(self.entry_path.clone());
+                    connector.fetch().await?;
+
+                    let mut dataset = document
+                        .read_data(&mut (connector.clone() as Box<dyn Connector>))
+                        .await?;
+
+                    let data_opt = dataset.next().await;
+
+                    let value = match data_opt {
+                        Some(data) => data.to_value(),
+                        None => Value::Null,
+                    };
+
+                    self.next_token = match value {
+                        Value::Number(_) => Some(value.to_string()),
+                        Value::String(string) => Some(string),
+                        _ => None,
+                    };
+
+                    if self.next_token.is_none() {
+                        self.has_next = false;
+                    }
+
+                    Some(connector.clone())
+                }
+                (Some(connector), None) => {
+                    self.has_next = false;
+
+                    Some(connector.clone())
+                }
+                (_, _) => None,
+            },
+        )
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        false
     }
 }

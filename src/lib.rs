@@ -69,7 +69,7 @@ pub async fn exec(
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(default)]
 pub struct Metadata {
     pub has_headers: Option<bool>,
@@ -83,24 +83,6 @@ pub struct Metadata {
     pub charset: Option<String>,
     pub compression: Option<String>,
     pub language: Option<String>,
-}
-
-impl Default for Metadata {
-    fn default() -> Self {
-        Metadata {
-            has_headers: None,
-            delimiter: None,
-            quote: None,
-            escape: None,
-            comment: None,
-            terminator: None,
-            mime_type: None,
-            mime_subtype: None,
-            charset: None,
-            compression: None,
-            language: None,
-        }
-    }
 }
 
 impl Metadata {
