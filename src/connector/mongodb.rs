@@ -1,17 +1,22 @@
 use super::{Connector, Paginator};
-use crate::helper::mustache::Mustache;
+use crate::{document::Document as ChewdataDocument, helper::mustache::Mustache};
+use async_std::sync::Mutex;
+use async_stream::stream;
 use async_trait::async_trait;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use mongodb::{
     bson::{doc, Document},
-    options::{FindOptions, UpdateOptions},
+    options::{CountOptions, FindOptions, UpdateOptions},
     Client,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{Cursor, Error, ErrorKind, Result};
 use std::task::{Context, Poll};
 use std::{fmt, pin::Pin};
+use std::{
+    io::{Cursor, Error, ErrorKind, Result},
+    sync::Arc,
+};
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -22,10 +27,15 @@ pub struct Mongodb {
     #[serde(alias = "col")]
     pub collection: String,
     pub query: Box<Option<Value>>,
-    #[serde(alias = "projection")]
     pub find_options: Box<Option<FindOptions>>,
     #[serde(skip_serializing)]
     pub update_options: Box<Option<UpdateOptions>>,
+    #[serde(alias = "paginator")]
+    pub paginator_type: PaginatorType,
+    #[serde(alias = "counter")]
+    #[serde(alias = "count")]
+    pub counter_type: Option<CounterType>,
+    #[serde(alias = "projection")]
     #[serde(skip)]
     pub inner: Box<Cursor<Vec<u8>>>,
 }
@@ -42,6 +52,8 @@ impl Default for Mongodb {
             query: Default::default(),
             find_options: Default::default(),
             update_options: Box::new(Some(update_option)),
+            paginator_type: PaginatorType::default(),
+            counter_type: None,
             inner: Default::default(),
         }
     }
@@ -79,7 +91,22 @@ impl Connector for Mongodb {
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
-        Ok(Box::pin(MongodbPaginator::new(self.clone()).await?))
+        let paginator = match self.paginator_type {
+            PaginatorType::Offset(ref offset_paginator) => {
+                let mut offset_paginator = offset_paginator.clone();
+                offset_paginator.set_connector(self.clone());
+
+                Box::new(offset_paginator) as Box<dyn Paginator + Send>
+            }
+            PaginatorType::Cursor(ref cursor_paginator) => {
+                let mut cursor_paginator = cursor_paginator.clone();
+                cursor_paginator.set_connector(self.clone());
+
+                Box::new(cursor_paginator) as Box<dyn Paginator + Send>
+            }
+        };
+
+        Ok(Pin::new(paginator))
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
@@ -164,25 +191,26 @@ impl Connector for Mongodb {
     async fn fetch(&mut self) -> Result<()> {
         info!("Start");
 
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
+
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
         let options = *self.find_options.clone();
         let query: Option<Document> = match *self.query {
-            Some(ref query) => serde_json::from_str(
-                query
-                .to_string()
-                .as_str(),
-            )?,
-            None => None
+            Some(ref query) => serde_json::from_str(query.to_string().as_str())?,
+            None => None,
         };
 
         let client = Client::with_uri_str(&hostname)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
         let db = client.database(&database);
-        let collection = db.collection(&collection);
-        let cursor: mongodb::Cursor = collection
+        let collection = db.collection::<Document>(&collection);
+        let cursor = collection
             .find(query, options)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
@@ -230,7 +258,7 @@ impl Connector for Mongodb {
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         let db = client.database(&database);
-        let collection = db.collection(&collection);
+        let collection = db.collection::<Document>(&collection);
         collection
             .delete_many(doc! {}, None)
             .await
@@ -358,7 +386,7 @@ impl Connector for Mongodb {
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         let db = client.database(&database);
-        let collection = db.collection(&collection);
+        let collection = db.collection::<Document>(&collection);
 
         for doc in docs {
             let query_update = match *self.query.clone() {
@@ -366,10 +394,8 @@ impl Connector for Mongodb {
                     let json_doc: Value = serde_json::to_value(doc.clone())?;
                     query_tmp.replace_mustache(json_doc.clone());
                     serde_json::from_str(query_tmp.to_string().as_str())?
-                },
-                None => {
-                    doc.clone()
                 }
+                None => doc.clone(),
             };
 
             let mut doc_without_id = doc.clone();
@@ -451,52 +477,220 @@ impl async_std::io::Write for Mongodb {
     }
 }
 
-#[derive(Debug)]
-pub struct MongodbPaginator {
-    connector: Mongodb,
-    skip: i64,
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(tag = "type")]
+pub enum CounterType {
+    #[serde(alias = "scan")]
+    #[serde(skip_serializing)]
+    Scan(ScanCounter),
 }
 
-impl MongodbPaginator {
-    pub async fn new(connector: Mongodb) -> Result<Self> {
-        Ok(MongodbPaginator {
-            connector,
-            skip: -1,
-        })
+impl Default for CounterType {
+    fn default() -> Self {
+        CounterType::Scan(ScanCounter::default())
     }
 }
 
-#[async_trait]
-impl Paginator for MongodbPaginator {
-    /// See [`Paginator::next_page`] for more details.
+impl CounterType {
+    pub async fn count(
+        &self,
+        connector: Mongodb,
+        _document: Option<Box<dyn ChewdataDocument>>,
+    ) -> Result<Option<usize>> {
+        match self {
+            CounterType::Scan(scan) => scan.count(connector).await,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ScanCounter {
+    #[serde(skip_serializing)]
+    pub options: Option<CountOptions>,
+}
+
+impl ScanCounter {
+    /// Get the number of items from the scan
     ///
-    /// # Example
+    /// # Example: Get the number
     /// ```rust
-    /// use chewdata::connector::mongodb::Mongodb;
-    /// use mongodb::options::{FindOptions};
-    /// use chewdata::connector::Connector;
+    /// use chewdata::connector::mongodb::{Mongodb, ScanCounter};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut find_options = FindOptions::default();
-    ///     find_options.limit = Some(1);
-    ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     connector.find_options = Box::new(Some(find_options));
+    ///
+    ///     let counter = ScanCounter::default();
+    ///     assert!(counter.count(connector).await?.is_some());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Not get the number
+    /// ```rust
+    /// use chewdata::connector::mongodb::{Mongodb, ScanCounter};
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Mongodb::default();
+    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+    ///     connector.database = "not_found".into();
+    ///     connector.collection = "startup_log".into();
+    ///
+    ///     let mut counter = ScanCounter::default();
+    ///     assert_eq!(Some(0), counter.count(connector).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument]
+    pub async fn count(&self, connector: Mongodb) -> Result<Option<usize>> {
+        info!("Start");
+
+        let hostname = connector.endpoint.clone();
+        let database = connector.database.clone();
+        let collection = connector.collection.clone();
+        let options = self.options.clone();
+        let query: Option<Document> = match *connector.query {
+            Some(ref query) => serde_json::from_str(query.to_string().as_str())?,
+            None => None,
+        };
+
+        let client = Client::with_uri_str(&hostname)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        let db = client.database(&database);
+        let collection = db.collection::<Document>(&collection);
+        let count = collection
+            .count_documents(query, options)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        Ok(Some(count as usize))
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(tag = "type")]
+pub enum PaginatorType {
+    #[serde(alias = "offset")]
+    Offset(OffsetPaginator),
+    #[serde(rename = "cursor")]
+    Cursor(CursorPaginator),
+}
+
+impl Default for PaginatorType {
+    fn default() -> Self {
+        PaginatorType::Offset(OffsetPaginator::default())
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct OffsetPaginator {
+    pub limit: usize,
+    pub skip: usize,
+    pub count: Option<usize>,
+    #[serde(skip)]
+    pub connector: Option<Box<Mongodb>>,
+    #[serde(skip)]
+    pub has_next: bool,
+}
+
+impl Default for OffsetPaginator {
+    fn default() -> Self {
+        OffsetPaginator {
+            limit: 100,
+            skip: 0,
+            count: None,
+            connector: None,
+            has_next: true,
+        }
+    }
+}
+
+impl OffsetPaginator {
+    fn set_connector(&mut self, connector: Mongodb) -> &mut Self
+    where
+        Self: Paginator + Sized,
+    {
+        self.connector = Some(Box::new(connector));
+        self
+    }
+}
+
+#[async_trait]
+impl Paginator for OffsetPaginator {
+    /// See [`Paginator::count`] for more details.
+    ///
+    /// # Example: Paginate indefinitely with the offset paginator
+    /// ```rust
+    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, OffsetPaginator, CounterType, ScanCounter}, Connector};
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Mongodb::default();
+    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+    ///     connector.database = "local".into();
+    ///     connector.collection = "startup_log".into();
+    ///     connector.counter_type = Some(CounterType::Scan(ScanCounter::default()));
+    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator::default());
+    ///
     ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     let mut connector = paginator.next_page().await?.unwrap();
+    ///     assert_eq!(Some(4), paginator.count().await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    async fn count(&mut self) -> Result<Option<usize>> {
+        if let Some(connector) = self.connector.clone() {
+            if let Some(counter_type) = connector.counter_type.clone() {
+                self.count = counter_type.count(*connector, None).await?;
+                return Ok(self.count);
+            }
+        }
+
+        Ok(None)
+    }
+    /// See [`Paginator::stream`] for more details.
+    ///
+    /// # Example: Paginate indefinitely with the offset paginator
+    /// ```rust
+    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, OffsetPaginator}, Connector};
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Mongodb::default();
+    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+    ///     connector.database = "local".into();
+    ///     connector.collection = "startup_log".into();
+    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
+    ///         skip: 1,
+    ///         limit: 1,
+    ///         ..Default::default()
+    ///     });
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     let mut connector = stream.next().await.transpose()?.unwrap();
     ///     connector.fetch().await?;
     ///     let mut buffer1 = String::default();
     ///     let len1 = connector.read_to_string(&mut buffer1).await?;
     ///     assert!(true, "Can't read the content of the file.");
     ///
-    ///     let mut connector = paginator.next_page().await?.unwrap();
+    ///     let mut connector = stream.next().await.transpose()?.unwrap();
     ///     connector.fetch().await?;     
     ///     let mut buffer2 = String::default();
     ///     let len2 = connector.read_to_string(&mut buffer2).await?;
@@ -506,26 +700,278 @@ impl Paginator for MongodbPaginator {
     ///     Ok(())
     /// }
     /// ```
+    /// # Example: Paginate three times with the offset paginator and the paginator can return multi connectors in parallel
+    /// ```rust
+    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, OffsetPaginator}, Connector};
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Mongodb::default();
+    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+    ///     connector.database = "local".into();
+    ///     connector.collection = "startup_log".into();
+    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
+    ///         skip: 0,
+    ///         limit: 1,
+    ///         count: Some(3),
+    ///         ..Default::default()
+    ///     });
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_none());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        info!("Start");
-        let mut connector = self.connector.clone();
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = match self.connector.clone() {
+            Some(connector) => Ok(connector),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't paginate without a connector",
+            )),
+        }?;
 
-        let find_options = match *connector.find_options {
-            Some(ref mut find_options) => find_options,
-            None => return Ok(Some(Box::new(connector))),
+        let mut has_next = true;
+        let limit = self.limit;
+        let mut skip = self.skip;
+        let count_opt = match self.count {
+            Some(count) => Some(count),
+            None => self.count().await?,
         };
 
-        let limit = match find_options.limit {
-            Some(limit) => limit,
-            None => return Ok(Some(Box::new(connector))),
+        let stream = Box::pin(stream! {
+            while has_next {
+                let mut new_connector = connector.clone();
+                let mut find_options = FindOptions::default();
+                find_options.skip = Some(skip as u64);
+                find_options.limit = Some(limit as i64);
+                new_connector.find_options = Box::new(Some(find_options.clone()));
+
+                if let Some(count) = count_opt {
+                    if count <= limit + skip {
+                        has_next = false;
+                    }
+                }
+
+                skip += limit;
+
+                yield Ok(new_connector as Box<dyn Connector>);
+            }
+        });
+
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        self.count.is_some()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CursorPaginator {
+    pub limit: usize,
+    pub skip: usize,
+    pub batch_size: Option<usize>,
+    #[serde(skip)]
+    pub connector: Option<Box<Mongodb>>,
+    #[serde(skip)]
+    pub cursor: Option<Arc<Mutex<mongodb::Cursor<Document>>>>,
+}
+
+impl Default for CursorPaginator {
+    fn default() -> Self {
+        CursorPaginator {
+            limit: 100,
+            skip: 0,
+            batch_size: None,
+            connector: None,
+            cursor: None,
+        }
+    }
+}
+
+impl CursorPaginator {
+    fn set_connector(&mut self, connector: Mongodb) -> &mut Self
+    where
+        Self: Paginator + Sized,
+    {
+        self.connector = Some(Box::new(connector));
+        self
+    }
+}
+
+#[async_trait]
+impl Paginator for CursorPaginator {
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(None)
+    }
+    /// See [`Paginator::set_document`] for more details.
+    fn set_document(&mut self, _document: Box<dyn ChewdataDocument>) {}
+    /// See [`Paginator::stream`] for more details.
+    ///
+    /// # Example: Paginate to the next cursor
+    /// ```rust
+    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, CursorPaginator}, Connector};
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Mongodb::default();
+    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+    ///     connector.database = "local".into();
+    ///     connector.collection = "startup_log".into();
+    ///     connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
+    ///         skip: 0,
+    ///         limit: 1,
+    ///         ..Default::default()
+    ///     });
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    /// # Example: Reach the end of the cursor
+    /// ```rust
+    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, CursorPaginator}, Connector};
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Mongodb::default();
+    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+    ///     connector.database = "local".into();
+    ///     connector.collection = "startup_log".into();
+    ///     connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
+    ///         skip: 0,
+    ///         ..Default::default()
+    ///     });
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     println!("connector {:?}", connector);
+    ///     assert!(connector.is_some());
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_none());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument]
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = match self.connector.clone() {
+            Some(connector) => Ok(connector),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't paginate without a connector",
+            )),
+        }?;
+
+        let hostname = connector.endpoint.clone();
+        let database = connector.database.clone();
+        let collection = connector.collection.clone();
+        let mut skip = self.skip;
+        let batch_size = self.limit;
+
+        let mut options = (*connector.find_options.clone()).unwrap_or_default();
+        options.skip = Some(skip as u64);
+
+        let query: Option<Document> = match *connector.query {
+            Some(ref query) => serde_json::from_str(query.to_string().as_str())?,
+            None => None,
         };
 
-        self.skip = limit + find_options.skip.unwrap_or(self.skip);
+        let client = Client::with_uri_str(&hostname)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        let db = client.database(&database);
+        let collection = db.collection::<Document>(&collection);
+        let mut cursor = collection
+            .find(query, Some(options))
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        find_options.skip = Some(self.skip);
-        connector.find_options = Box::new(Some(find_options.clone()));
+        let stream = Box::pin(stream! {
+            let mut docs: Vec<_> = Vec::default();
+            while let Some(doc) = cursor.next().await {
+                println!("coucou");
+                match doc {
+                    Ok(doc) => docs.push(doc.clone()),
+                    Err(_e) => {
+                        println!("error")
+                    },
+                };
 
-        Ok(Some(Box::new(connector)))
+                if batch_size <= docs.len() {
+                    let mut new_connector = connector.clone();
+
+                    let mut options = (*new_connector.find_options.clone()).unwrap_or_default();
+                    options.skip = Some(skip as u64);
+                    options.limit = Some(batch_size as i64);
+
+                    new_connector.find_options = Box::new(Some(options.clone()));
+                    skip+=batch_size;
+
+                    let data = serde_json::to_string(&docs)?;
+                    new_connector.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
+                    docs = Vec::default();
+
+                    yield Ok(new_connector as Box<dyn Connector>);
+                }
+            }
+            if !docs.is_empty() {
+                let mut new_connector = connector.clone();
+
+                let mut options = (*new_connector.find_options.clone()).unwrap_or_default();
+                options.skip = Some(skip as u64);
+                options.limit = Some(batch_size as i64);
+
+                new_connector.find_options = Box::new(Some(options.clone()));
+
+                let data = serde_json::to_string(&docs)?;
+                new_connector.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
+
+                yield Ok(new_connector as Box<dyn Connector>);
+            }
+
+        });
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        false
     }
 }

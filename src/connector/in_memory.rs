@@ -1,7 +1,9 @@
 use super::{Connector, Paginator};
 use crate::Metadata;
 use async_std::sync::Mutex;
+use async_stream::stream;
 use async_trait::async_trait;
+use futures::Stream;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{Cursor, Result, Seek, SeekFrom, Write};
@@ -157,7 +159,7 @@ impl Connector for InMemory {
 
         let resource = self.memory.lock().await;
         self.inner = io::Cursor::new(resource.get_ref().clone());
-        
+
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -228,17 +230,17 @@ impl Connector for InMemory {
         let inner = self.inner().clone();
         let resource_len = self.len().await?;
         self.clear();
-        
+
         let mut memory = self.memory.lock().await;
 
         match position {
             Some(pos) => match resource_len as isize + pos {
                 start if start > 0 => memory.seek(SeekFrom::Start(start as u64)),
-                _ => memory.seek(SeekFrom::Start(0))
+                _ => memory.seek(SeekFrom::Start(0)),
             },
             None => memory.seek(SeekFrom::End(0)),
         }?;
-        
+
         memory.write_all(&inner)?;
         memory.set_position(0);
 
@@ -293,21 +295,21 @@ impl async_std::io::Write for InMemory {
 #[derive(Debug)]
 pub struct InMemoryPaginator {
     connector: InMemory,
-    has_next: bool,
 }
 
 impl InMemoryPaginator {
     pub fn new(connector: InMemory) -> Result<Self> {
-        Ok(InMemoryPaginator {
-            connector,
-            has_next: true,
-        })
+        Ok(InMemoryPaginator { connector })
     }
 }
 
 #[async_trait]
 impl Paginator for InMemoryPaginator {
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(None)
+    }
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
     /// ```rust
@@ -320,23 +322,28 @@ impl Paginator for InMemoryPaginator {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = InMemory::default();
     ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        info!("Start");
-        
-        Ok(match self.has_next {
-            true => {
-                self.has_next = false;
-                Some(Box::new(self.connector.clone()))
-            }
-            false => None,
-        })
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = self.connector.clone();
+        let stream = Box::pin(stream! {
+            yield Ok(Box::new(connector.clone()) as Box<dyn Connector>);
+        });
+
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        false
     }
 }

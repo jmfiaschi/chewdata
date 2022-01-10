@@ -4,6 +4,7 @@ use crate::connector::Connector;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
 use async_std::prelude::*;
+use async_stream::stream;
 use async_trait::async_trait;
 use regex::Regex;
 use rusoto_core::credential::ProvideAwsCredentials;
@@ -657,7 +658,7 @@ impl Connector for BucketSelect {
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
         trace!("Start");
-        
+
         let mut connector = self.clone();
         connector.query = format!(
             "{} {}",
@@ -855,7 +856,11 @@ impl BucketSelectPaginator {
 
 #[async_trait]
 impl Paginator for BucketSelectPaginator {
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(Some(self.paths.clone().count()))
+    }
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
     /// ```rust
@@ -863,6 +868,7 @@ impl Paginator for BucketSelectPaginator {
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -878,10 +884,13 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
+    /// 
     ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
     ///
     ///     Ok(())
     /// }
@@ -892,6 +901,7 @@ impl Paginator for BucketSelectPaginator {
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -908,24 +918,39 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
+    /// 
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
-    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     assert_eq!("data/multi_lines.json".to_string(), stream.next().await.transpose()?.unwrap().path());
+    ///     assert_eq!("data/one_line.json".to_string(), stream.next().await.transpose()?.unwrap().path());
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        trace!("Start");
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = self.connector.clone();
+        let mut paths = self.paths.clone();
 
-        let mut connector = self.connector.clone();
+        let stream = Box::pin(stream! {
+            while let Some(path) = paths.next() {
+                trace!(next_path = path.as_str(), "Next path");
 
-        for path in &mut self.paths {
-            connector.path = path;
-            return Ok(Some(Box::new(connector)));
-        }
+                let mut new_connector = connector.clone();
+                new_connector.path = path;
 
-        Ok(None)
+                yield Ok(Box::new(new_connector) as Box<dyn Connector>);
+            }
+        });
+
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        true
     }
 }

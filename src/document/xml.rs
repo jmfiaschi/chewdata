@@ -152,12 +152,20 @@ impl Xml {
 
 #[async_trait]
 impl Document for Xml {
+    /// See [`Document::set_entry_path`] for more details.
+    fn set_entry_path(&mut self, entry_path: String) {
+        self.entry_path = entry_path;
+    }
     /// See [`Document::entry_point_path_start`] for more details.
     fn entry_point_path_start(&self) -> String {
         let xml_entry_path = match self.xml_entry_path() {
             Ok(xml) => xml,
             Err(e) => {
-                warn!(entry_path = self.entry_path.clone().as_str(), error = e.to_string().as_str(), "Can't generate the xml entry path start");
+                warn!(
+                    entry_path = self.entry_path.clone().as_str(),
+                    error = e.to_string().as_str(),
+                    "Can't generate the xml entry path start"
+                );
                 "".to_string()
             }
         };
@@ -175,7 +183,11 @@ impl Document for Xml {
         let xml_entry_path = match self.xml_entry_path() {
             Ok(xml) => xml,
             Err(e) => {
-                warn!(entry_path = self.entry_path.clone().as_str(), error = e.to_string().as_str(), "Can't generate the xml entry path end");
+                warn!(
+                    entry_path = self.entry_path.clone().as_str(),
+                    error = e.to_string().as_str(),
+                    "Can't generate the xml entry path end"
+                );
                 "".to_string()
             }
         };
@@ -438,7 +450,7 @@ impl Document for Xml {
     #[instrument]
     async fn close(&self, connector: &mut dyn Connector) -> io::Result<()> {
         info!("Start");
-        
+
         let remote_len = connector.len().await?;
         let buff = String::from_utf8(connector.inner().to_vec())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;

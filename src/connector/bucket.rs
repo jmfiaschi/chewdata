@@ -3,6 +3,7 @@ use crate::connector::Connector;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
 use async_std::prelude::*;
+use async_stream::stream;
 use async_trait::async_trait;
 use regex::Regex;
 use rusoto_core::credential::DefaultCredentialsProvider;
@@ -695,12 +696,17 @@ impl BucketPaginator {
 
 #[async_trait]
 impl Paginator for BucketPaginator {
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(Some(self.paths.clone().count()))
+    }
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -711,10 +717,13 @@ impl Paginator for BucketPaginator {
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
-    ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
     ///
     ///     Ok(())
     /// }
@@ -723,6 +732,7 @@ impl Paginator for BucketPaginator {
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -733,10 +743,13 @@ impl Paginator for BucketPaginator {
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/*.json*".to_string();
-    ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the second reader.");
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
     ///     Ok(())
     /// }
@@ -745,6 +758,7 @@ impl Paginator for BucketPaginator {
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -757,25 +771,39 @@ impl Paginator for BucketPaginator {
     ///     connector.path = "data/*.json*".to_string();
     ///     connector.limit = Some(5);
     ///     connector.skip = 2;
+    ///
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/multi_lines.jsonl".to_string(), paginator.next_page().await?.unwrap().path());
-    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     assert_eq!("data/multi_lines.jsonl".to_string(), stream.next().await.transpose()?.unwrap().path());
+    ///     assert_eq!("data/one_line.json".to_string(), stream.next().await.transpose()?.unwrap().path());
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        info!("Start");
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = self.connector.clone();
+        let mut paths = self.paths.clone();
 
-        let mut connector = self.connector.clone();
+        let stream = Box::pin(stream! {
+            while let Some(path) = paths.next() {
+                trace!(next_path = path.as_str(), "Next path");
 
-        Ok(match self.paths.next() {
-            Some(path) => {
-                connector.path = path;
-                Some(Box::new(connector))
+                let mut new_connector = connector.clone();
+                new_connector.path = path;
+
+                yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
-            None => None,
-        })
+        });
+
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        true
     }
 }

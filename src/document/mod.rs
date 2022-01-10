@@ -130,6 +130,8 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     fn entry_point_path_end(&self) -> String {
         "".to_string()
     }
+    /// Set the entry path
+    fn set_entry_path(&mut self, _entry_point: String) {}
 }
 
 pub trait DocumentClone {

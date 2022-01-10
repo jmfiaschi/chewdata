@@ -3,8 +3,9 @@ use super::{Connector, Paginator};
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
+use async_stream::stream;
 use async_trait::async_trait;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -609,6 +610,9 @@ impl Default for HeaderCounter {
 }
 
 impl HeaderCounter {
+    pub fn new(name: String, path: Option<String>) -> Self {
+        HeaderCounter { name, path }
+    }
     /// Get the number of items from the header
     ///
     /// # Example: Get the number
@@ -733,6 +737,9 @@ impl Default for BodyCounter {
 }
 
 impl BodyCounter {
+    pub fn new(entry_path: String, path: Option<String>) -> Self {
+        BodyCounter { entry_path, path }
+    }
     /// Get the number of items from the response body
     ///
     /// # Example: Get the number
@@ -845,8 +852,6 @@ pub struct OffsetPaginator {
     pub count: Option<usize>,
     #[serde(skip)]
     pub connector: Option<Box<Curl>>,
-    #[serde(skip)]
-    pub has_next: bool,
 }
 
 impl Default for OffsetPaginator {
@@ -856,7 +861,6 @@ impl Default for OffsetPaginator {
             skip: 0,
             count: None,
             connector: None,
-            has_next: true,
         }
     }
 }
@@ -874,12 +878,31 @@ impl OffsetPaginator {
 #[async_trait]
 impl Paginator for OffsetPaginator {
     /// See [`Paginator::count`] for more details.
+    ///
+    /// # Example: Paginate indefinitely with the offset paginator
+    /// ```rust
+    /// use chewdata::connector::{curl::{Curl, PaginatorType, OffsetPaginator, CounterType, HeaderCounter}, Connector};
+    /// use surf::http::Method;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/get".to_string();
+    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator::default());
+    ///     connector.counter_type = Some(CounterType::Header(HeaderCounter::new("Content-Length".to_string(), None)));
+    ///     let mut paginator = connector.paginator().await?;
+    ///
+    ///     assert_eq!(Some(194), paginator.count().await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument]
     async fn count(&mut self) -> Result<Option<usize>> {
-        // Lazy loading
-        if self.count.is_some() {
-            return Ok(self.count);
-        }
-
         if let Some(connector) = self.connector.clone() {
             if let Some(counter_type) = connector.counter_type.clone() {
                 self.count = counter_type.count(*connector, None).await?;
@@ -889,7 +912,7 @@ impl Paginator for OffsetPaginator {
 
         Ok(None)
     }
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example: Paginate indefinitely with the offset paginator
     /// ```rust
@@ -911,15 +934,16 @@ impl Paginator for OffsetPaginator {
     ///     });
     ///     let mut paginator = connector.paginator().await?;
     ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     let mut connector = paginator.next_page().await?.unwrap();
+    ///     let mut connector = stream.next().await.transpose()?.unwrap();
     ///     connector.fetch().await?;  
     ///     assert_eq!("/links/1/10", connector.path().as_str());
     ///     let mut buffer1 = String::default();
     ///     let len1 = connector.read_to_string(&mut buffer1).await?;
     ///     assert!(0 < len1, "Can't read the content of the file.");
     ///
-    ///     let mut connector = paginator.next_page().await?.unwrap();
+    ///     let mut connector = stream.next().await.transpose()?.unwrap();
     ///     connector.fetch().await?;  
     ///     assert_eq!("/links/2/10", connector.path().as_str());  
     ///     let mut buffer2 = String::default();
@@ -945,11 +969,12 @@ impl Paginator for OffsetPaginator {
     ///     connector.path = "/get".to_string();
     ///     let mut paginator = connector.paginator().await?;
     ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     let mut connector = paginator.next_page().await?;
+    ///     let connector = stream.next().await.transpose()?;
     ///     assert!(connector.is_some());
     ///
-    ///     let mut connector = paginator.next_page().await?;
+    ///     let connector = stream.next().await.transpose()?;
     ///     assert!(connector.is_none());
     ///
     ///     Ok(())
@@ -976,54 +1001,69 @@ impl Paginator for OffsetPaginator {
     ///     });
     ///     let mut paginator = connector.paginator().await?;
     ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     let mut connector = paginator.next_page().await?;
-    ///     assert!(connector.is_some());
-    ///     let mut connector = paginator.next_page().await?;
-    ///     assert!(connector.is_some());
-    ///     let mut connector = paginator.next_page().await?;
+    ///     let connector = stream.next().await.transpose()?;
     ///     assert!(connector.is_some());
     ///
-    ///     let mut connector = paginator.next_page().await?;
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     let connector = stream.next().await.transpose()?;
+    ///     assert!(connector.is_some());
+    ///
+    ///     let connector = stream.next().await.transpose()?;
     ///     assert!(connector.is_none());
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        Ok(match self.has_next {
-            true => {
-                let connector = match self.connector.clone() {
-                    Some(connector) => connector,
-                    None => return Ok(None),
-                };
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = match self.connector.clone() {
+            Some(connector) => Ok(connector),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't paginate without a connector",
+            )),
+        }?;
 
+        let mut has_next = true;
+        let limit = self.limit;
+        let mut skip = self.skip;
+        let count_opt = match self.count {
+            Some(count) => Some(count),
+            None => self.count().await?,
+        };
+
+        let stream = Box::pin(stream! {
+            while has_next {
                 let mut new_connector = connector.clone();
-                let mut new_parameters = new_connector.parameters.clone();
-
-                new_parameters
-                    .merge_in("/paginator/limit", Value::String(self.limit.to_string()))?;
-                new_parameters.merge_in("/paginator/skip", Value::String(self.skip.to_string()))?;
+                let mut new_parameters = connector.parameters.clone();
+                new_parameters.merge_in("/paginator/limit", Value::String(limit.to_string()))?;
+                new_parameters.merge_in("/paginator/skip", Value::String(skip.to_string()))?;
 
                 new_connector.set_parameters(new_parameters);
 
-                if let Some(count) = self.count {
-                    if count <= self.limit + self.skip {
-                        self.has_next = false;
+                if let Some(count) = count_opt {
+                    if count <= limit + skip {
+                        has_next = false;
                     }
                 }
 
                 if connector.path() == new_connector.path() {
-                    self.has_next = false;
+                    has_next = false;
                 }
 
-                self.skip += self.limit;
+                skip += limit;
 
-                Some(new_connector)
+                yield Ok(new_connector as Box<dyn Connector>);
             }
-            false => None,
-        })
+        });
+
+        Ok(stream)
     }
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&mut self) -> bool {
@@ -1042,8 +1082,6 @@ pub struct CursorPaginator {
     pub connector: Option<Box<Curl>>,
     #[serde(skip)]
     pub next_token: Option<String>,
-    #[serde(skip)]
-    pub has_next: bool,
 }
 
 impl Default for CursorPaginator {
@@ -1054,7 +1092,6 @@ impl Default for CursorPaginator {
             document: None,
             next_token: None,
             entry_path: "/next".to_string(),
-            has_next: true,
         }
     }
 }
@@ -1079,7 +1116,7 @@ impl Paginator for CursorPaginator {
     fn set_document(&mut self, document: Box<dyn Document>) {
         self.document = Some(document);
     }
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example: Paginate to the next cursor
     /// ```rust
@@ -1103,96 +1140,84 @@ impl Paginator for CursorPaginator {
     ///     let mut paginator = connector.paginator().await?;
     ///     paginator.set_document(Box::new(Json::default()));
     ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     let mut connector = paginator.next_page().await?;
+    ///     let connector = stream.next().await.transpose()?;
     ///     assert!(connector.is_some());
-    ///     let mut connector = paginator.next_page().await?;
+    ///
+    ///     let connector = stream.next().await.transpose()?;
     ///     assert!(connector.is_some());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Not found the next cursor token
-    /// ```rust
-    /// use chewdata::connector::{curl::{Curl, PaginatorType, CursorPaginator}, Connector};
-    /// use surf::http::Method;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Get;
-    ///     connector.path = "/uuid?next={{ paginator.next_token }}".to_string();
-    ///     connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
-    ///         limit: 1,
-    ///         entry_path: "/uuid".to_string(),
-    ///         ..Default::default()
-    ///     });
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(!paginator.is_parallelizable());
-    ///
-    ///     let mut connector = paginator.next_page().await?;
-    ///     assert!(connector.is_some());
-    ///     let mut connector = paginator.next_page().await?;
-    ///     assert!(connector.is_none());
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        if !self.has_next {
-            return Ok(None);
-        }
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = match self.connector.clone() {
+            Some(connector) => Ok(connector),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't paginate without a connector",
+            )),
+        }?;
 
-        Ok(
-            match (&mut self.connector.clone(), &mut self.document.clone()) {
-                (Some(connector), Some(document)) => {
-                    let mut new_parameters = connector.parameters.clone();
+        let mut document = match self.document.clone() {
+            Some(document) => Ok(document),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't paginate without a document",
+            )),
+        }?;
 
-                    if let Some(next_token) = self.next_token.clone() {
-                        new_parameters.merge_in("/paginator/next_token", Value::String(next_token))?;
-                    }
+        let mut has_next = true;
+        let limit = self.limit;
+        let entry_path = self.entry_path.clone();
+        let mut next_token_opt = self.next_token.clone();
 
-                    new_parameters
-                        .merge_in("/paginator/limit", Value::String(self.limit.to_string()))?;
+        let stream = Box::pin(stream! {
+            while has_next {
+                let mut new_connector = connector.clone();
+                let mut new_parameters = connector.parameters.clone();
 
-                    document.set_entry_path(self.entry_path.clone());
-                    connector.fetch().await?;
-
-                    let mut dataset = document
-                        .read_data(&mut (connector.clone() as Box<dyn Connector>))
-                        .await?;
-
-                    let data_opt = dataset.next().await;
-
-                    let value = match data_opt {
-                        Some(data) => data.to_value(),
-                        None => Value::Null,
-                    };
-
-                    self.next_token = match value {
-                        Value::Number(_) => Some(value.to_string()),
-                        Value::String(string) => Some(string),
-                        _ => None,
-                    };
-
-                    if self.next_token.is_none() {
-                        self.has_next = false;
-                    }
-
-                    Some(connector.clone())
+                if let Some(next_token) = next_token_opt {
+                    new_parameters.merge_in("/paginator/next_token", Value::String(next_token))?;
                 }
-                (Some(connector), None) => {
-                    self.has_next = false;
 
-                    Some(connector.clone())
+                new_parameters
+                    .merge_in("/paginator/limit", Value::String(limit.to_string()))?;
+
+                document.set_entry_path(entry_path.clone());
+                new_connector.fetch().await?;
+
+                let mut dataset = document
+                    .read_data(&mut (new_connector.clone() as Box<dyn Connector>))
+                    .await?;
+
+                let data_opt = dataset.next().await;
+
+                let value = match data_opt {
+                    Some(data) => data.to_value(),
+                    None => Value::Null,
+                };
+
+                next_token_opt = match value {
+                    Value::Number(_) => Some(value.to_string()),
+                    Value::String(string) => Some(string),
+                    _ => None,
+                };
+
+                if next_token_opt.is_none() {
+                    has_next = false;
                 }
-                (_, _) => None,
-            },
-        )
+                println!("has_next {:?} {:?} ", has_next, next_token_opt);
+
+                yield Ok(new_connector.clone() as Box<dyn Connector>);
+            }
+        });
+
+        Ok(stream)
     }
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&mut self) -> bool {

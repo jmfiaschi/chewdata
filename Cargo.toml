@@ -50,7 +50,7 @@ jsonwebtoken = { version = "7.2", optional = true }
 surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
 surf_bucket_select = { version = "0.2", optional = true }
 http-types = { version = "2.12", optional = true}
-mongodb = { version = "1.2", default-features = false, features = ["async-std-runtime"], optional = true }
+mongodb = { version = "2.1", default-features = false, features = ["async-std-runtime"], optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["stable"] }

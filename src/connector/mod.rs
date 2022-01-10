@@ -30,6 +30,7 @@ use async_std::io::{Read, Write};
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::StreamExt;
+use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -93,14 +94,13 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     // Pull the data from the inner connector, transform the data with the document type and return data as a stream.
     #[instrument]
     async fn pull_data(&mut self, document: Box<dyn Document>) -> std::io::Result<Dataset> {
-        trace!("Start");
-
         let mut paginator = self.paginator().await?;
         paginator.set_document(document.clone());
+        let mut stream = paginator.stream().await?;
 
         let stream = Box::pin(stream! {
             trace!("Start to paginate");
-            while let Some(ref mut connector_reader) = match paginator.next_page().await {
+            while let Some(ref mut connector_reader) = match stream.next().await.transpose() {
                 Ok(connector_option) => connector_option,
                 Err(e) => {
                     error!(error = e.to_string().as_str(), "Can't get the next paginator");
@@ -222,7 +222,8 @@ impl Clone for Box<dyn Connector> {
 pub trait Paginator: std::fmt::Debug + Unpin {
     /// Update the document in the paginator. Used to find the total of items in a payload
     fn set_document(&mut self, _document: Box<dyn Document>) {}
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>>;
+    /// Get the stream of connectors
+    async fn stream(&mut self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>>;
     /// Try to fetch the number of item in the connector.
     /// None: Can't retrieve the total of item for any reason.
     /// Some(count): Retrieve the total of item and store the value in the paginator.
