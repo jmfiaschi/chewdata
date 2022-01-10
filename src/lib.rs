@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 extern crate glob;
 extern crate json_value_merge;
 extern crate json_value_resolve;
