@@ -88,15 +88,13 @@ async fn main() -> Result<()> {
         .await
 }
 
-fn application() -> App<'static, 'static> {
+fn application() -> App<'static> {
     App::new("chewdata")
-        .version("1.6.0")
+        .version("1.10.0")
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
         .about("Light and chainable ETL")
         .arg(
-            Arg::with_name("json")
-                .short("j")
-                .long("json")
+            Arg::new("json")
                 .value_name("JSON")
                 .help("Init steps with a json configuration in input")
                 .takes_value(true)
@@ -104,8 +102,8 @@ fn application() -> App<'static, 'static> {
                 .index(1),
         )
         .arg(
-            Arg::with_name("file")
-                .short("f")
+            Arg::new("file")
+                .short('f')
                 .long("file")
                 .value_name("FILE")
                 .help("Init steps with file configuration in input")
