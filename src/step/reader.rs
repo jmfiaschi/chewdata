@@ -38,7 +38,7 @@ impl Default for Reader {
             name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
-            thread_number: 1,
+            thread_number: 5,
         }
     }
 }
@@ -177,7 +177,7 @@ async fn exec_connector<'step>(
                     };
                     match send_data_into_pipe(step, &mut connector, document, pipe, context).await
                     {
-                        Ok(Some(_)) => trace!("All data pushed into the pipe"),
+                        Ok(Some(_)) => trace!("All data has been pushed into the pipe. The concurrency loop in the paginator continue"),
                         Ok(None) => trace!("Connector doesn't have any data to pushed into the pipe. The concurrency loop in the paginator continue"),
                         Err(e) => warn!(error = e.to_string().as_str(), "Impossible to push data into the pipe. The concurrency loop in the paginator continue")
                     };
@@ -198,7 +198,7 @@ async fn exec_connector<'step>(
                     }
                 };
                 match send_data_into_pipe(step, connector, document, pipe, context).await? {
-                    Some(_) => trace!("All data pushed into the pipe"),
+                    Some(_) => trace!("All data has been pushed into the pipe. The iterative loop in the paginator continue"),
                     None => {
                         trace!("Connector doesn't have any data to pushed into the pipe. The iterative loop in the paginator is stoped");
                         break;
