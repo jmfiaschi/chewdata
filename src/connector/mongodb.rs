@@ -646,7 +646,7 @@ impl Paginator for OffsetPaginator {
     ///
     ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     assert_eq!(Some(4), paginator.count().await?);
+    ///     assert!(paginator.count().await?.is_some());
     ///
     ///     Ok(())
     /// }

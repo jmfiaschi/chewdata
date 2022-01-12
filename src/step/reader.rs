@@ -1,4 +1,5 @@
-use crate::document::DocumentType;
+use crate::connector::Connector;
+use crate::document::{Document, DocumentType};
 use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, StepContext};
@@ -24,6 +25,8 @@ pub struct Reader {
     pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
+    #[serde(alias = "threads")]
+    pub thread_number: usize,
 }
 
 impl Default for Reader {
@@ -35,6 +38,7 @@ impl Default for Reader {
             name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
+            thread_number: 1,
         }
     }
 }
@@ -79,7 +83,7 @@ impl Step for Reader {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                for mut step_context_received in receiver {
+                for step_context_received in receiver {
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
@@ -93,63 +97,49 @@ impl Step for Reader {
                     }
 
                     connector.set_parameters(step_context_received.to_value()?);
-                    let mut data = connector.pull_data(document.clone()).await?;
 
-                    while let Some(data_result) = data.next().await {
-                        step_context_received.insert_step_result(self.name(), data_result)?;
-                        self.send(step_context_received.clone(), &sender)?;
-                    }
+                    exec_connector(
+                        self,
+                        &mut connector,
+                        &document,
+                        &sender,
+                        &Some(step_context_received),
+                    )
+                    .await?
                 }
 
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
-                    let mut data = connector.pull_data(document.clone()).await?;
-
-                    while let Some(data_result) = data.next().await {
-                        let step_context = StepContext::new(self.name(), data_result)?;
-                        self.send(step_context, &sender)?;
-                    }
+                    exec_connector(self, &mut connector, &document, &sender, &None).await?
                 }
             }
             (Some(receiver), false) => {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                for mut step_context_received in receiver {
+                for step_context_received in receiver {
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
 
-                    // TODO: See if we can use stream::cycle and remove the pull_data from the loop.
-                    // Useless to loop on the same document
-                    let mut data = connector.pull_data(document.clone()).await?;
-
-                    while let Some(data_result) = data.next().await {
-                        step_context_received.insert_step_result(self.name(), data_result)?;
-                        self.send(step_context_received.clone(), &sender)?;
-                    }
+                    exec_connector(
+                        self,
+                        &mut connector,
+                        &document,
+                        &sender,
+                        &Some(step_context_received),
+                    )
+                    .await?
                 }
 
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
-                    let mut data = connector.pull_data(document.clone()).await?;
-
-                    while let Some(data_result) = data.next().await {
-                        let step_context = StepContext::new(self.name(), data_result)?;
-                        self.send(step_context, &sender)?;
-                    }
+                    exec_connector(self, &mut connector, &document, &sender, &None).await?
                 }
             }
-            (None, _) => {
-                let mut data = connector.pull_data(document.clone()).await?;
-
-                while let Some(data_result) = data.next().await {
-                    let step_context = StepContext::new(self.name(), data_result)?;
-                    self.send(step_context, &sender)?;
-                }
-            }
+            (None, _) => exec_connector(self, &mut connector, &document, &sender, &None).await?,
         };
 
         drop(sender);
@@ -160,4 +150,91 @@ impl Step for Reader {
     fn name(&self) -> String {
         self.name.clone()
     }
+}
+
+async fn exec_connector<'step>(
+    step: &'step Reader,
+    connector: &'step mut Box<dyn Connector>,
+    document: &'step Box<dyn Document>,
+    pipe: &'step Sender<StepContext>,
+    context: &'step Option<StepContext>,
+) -> io::Result<()> {
+    // todo: remove paginator mutability
+    let mut paginator = connector.paginator().await?;
+    let mut stream = paginator.stream().await?;
+
+    match paginator.is_parallelizable() {
+        true => {
+            // Concurrency stream
+            // The loop cross the paginator never stop. The paginator mustn't return indefinitely a connector.
+            stream.for_each_concurrent(step.thread_number, |connector_result| async move {
+                    let mut connector = match connector_result {
+                        Ok(connector) => connector,
+                        Err(e) => {
+                            warn!(error = e.to_string().as_str(), "Pagination througth the paginator failed. The concurrency loop in the paginator continue");
+                            return;
+                        }
+                    };
+                    match send_data_into_pipe(step, &mut connector, document, pipe, context).await
+                    {
+                        Ok(Some(_)) => trace!("All data pushed into the pipe"),
+                        Ok(None) => trace!("Connector doesn't have any data to pushed into the pipe. The concurrency loop in the paginator continue"),
+                        Err(e) => warn!(error = e.to_string().as_str(), "Impossible to push data into the pipe. The concurrency loop in the paginator continue")
+                    };
+                })
+                .await;
+        }
+        false => {
+            // Iterative stream
+            // The loop cross the paginator stop if
+            //  * An error raised
+            //  * The current connector is empty: [], {}, "", etc...
+            while let Some(ref mut connector_result) = stream.next().await {
+                let connector = match connector_result {
+                    Ok(connector) => connector,
+                    Err(e) => {
+                        warn!(error = e.to_string().as_str(), "Pagination througth the paginator failed. The iterative loop in the paginator is stoped");
+                        break;
+                    }
+                };
+                match send_data_into_pipe(step, connector, document, pipe, context).await? {
+                    Some(_) => trace!("All data pushed into the pipe"),
+                    None => {
+                        trace!("Connector doesn't have any data to pushed into the pipe. The iterative loop in the paginator is stoped");
+                        break;
+                    }
+                };
+            }
+        }
+    };
+    Ok(())
+}
+
+async fn send_data_into_pipe<'step>(
+    step: &'step Reader,
+    connector: &'step mut Box<dyn Connector>,
+    document: &'step Box<dyn Document>,
+    pipe: &'step Sender<StepContext>,
+    context: &'step Option<StepContext>,
+) -> io::Result<Option<()>> {
+    connector.fetch().await?;
+
+    let mut dataset = match connector.pull_dataset(document.clone()).await? {
+        Some(dataset) => dataset,
+        None => return Ok(None),
+    };
+
+    while let Some(data_result) = dataset.next().await {
+        let context = match context.clone() {
+            Some(ref mut context) => {
+                context.insert_step_result(step.name(), data_result)?;
+                context.clone()
+            }
+            None => StepContext::new(step.name(), data_result)?,
+        };
+
+        step.send(context, pipe)?;
+    }
+
+    Ok(Some(()))
 }
