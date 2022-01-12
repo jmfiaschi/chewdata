@@ -115,7 +115,7 @@ impl Step for Writer {
                                 data = String::from_utf8_lossy(connector.inner())
                                     .to_string()
                                     .as_str(),
-                                "Can't send the data througth the connector"
+                                "Can't send the data through the connector"
                             )
                         }
                     };

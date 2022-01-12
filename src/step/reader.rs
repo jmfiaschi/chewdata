@@ -171,7 +171,7 @@ async fn exec_connector<'step>(
                     let mut connector = match connector_result {
                         Ok(connector) => connector,
                         Err(e) => {
-                            warn!(error = e.to_string().as_str(), "Pagination througth the paginator failed. The concurrency loop in the paginator continue");
+                            warn!(error = e.to_string().as_str(), "Pagination through the paginator failed. The concurrency loop in the paginator continue");
                             return;
                         }
                     };
@@ -193,7 +193,7 @@ async fn exec_connector<'step>(
                 let connector = match connector_result {
                     Ok(connector) => connector,
                     Err(e) => {
-                        warn!(error = e.to_string().as_str(), "Pagination througth the paginator failed. The iterative loop in the paginator is stoped");
+                        warn!(error = e.to_string().as_str(), "Pagination through the paginator failed. The iterative loop in the paginator is stoped");
                         break;
                     }
                 };
