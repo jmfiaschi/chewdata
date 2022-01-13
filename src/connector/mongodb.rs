@@ -593,6 +593,7 @@ impl Default for PaginatorType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(default)]
 pub struct OffsetPaginator {
     pub limit: usize,
     pub skip: usize,
@@ -786,6 +787,7 @@ impl Paginator for OffsetPaginator {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(default)]
 pub struct CursorPaginator {
     pub limit: usize,
     pub skip: usize,
