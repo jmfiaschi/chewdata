@@ -5,7 +5,7 @@ pub mod validator;
 pub mod writer;
 
 use crate::{DataResult, StepContext};
-use async_std::task;
+use async_std::{task, stream};
 use async_stream::stream;
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender, TryRecvError, TrySendError};
@@ -77,9 +77,7 @@ impl StepType {
 #[async_trait]
 pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     async fn exec(
-        &self,
-        receiver_option: Option<Receiver<StepContext>>,
-        sender_option: Option<Sender<StepContext>>,
+        &self
     ) -> io::Result<()>;
     fn thread_number(&self) -> usize {
         1
@@ -92,13 +90,22 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     fn sleep(&self) -> u64 {
         100
     }
+    fn set_receiver(&mut self, receiver: Receiver<StepContext>);
+    fn receiver(&self) -> Option<&Receiver<StepContext>>;
+    fn set_sender(&mut self, sender: Sender<StepContext>);
+    fn sender(&self) -> Option<&Sender<StepContext>>;
 }
 
 // Send a step_context through a step and a pipe
-async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext, pipe: &'step Sender<StepContext>) -> io::Result<()> {
+async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext) -> io::Result<()> {
     trace!("Send step context to the queue");
 
-    while let Err(e) = pipe.try_send(step_context.clone()) {
+    let sender = match step.sender() {
+        Some(sender) => sender,
+        None => return Ok(()),
+    };
+
+    while let Err(e) = sender.try_send(step_context.clone()) {
         match e {
             TrySendError::Full(_) => {
                 trace!(step = format!("{:?}", step).as_str(), sleep = step.sleep(), "The step can't send any data, the pipe is full. It tries later");
@@ -114,14 +121,18 @@ async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext, pi
     Ok(())
 }
 // Receive a step_context through a step and a pipe
+// It return a stream of step_context
 async fn receive<'step>(
-    step: &'step dyn Step,
-    pipe: &'step Receiver<StepContext>,
+    step: &'step dyn Step
 ) -> io::Result<Pin<Box<dyn Stream<Item = StepContext> + Send + 'step>>> {
+    let receiver = match step.receiver() {
+        Some(receiver) => receiver,
+        None => return Ok(Box::pin(stream::empty::<StepContext>())),
+    };
     let sleep_time = step.sleep();
     let stream = Box::pin(stream! {
         loop {
-            match pipe.try_recv() {
+            match receiver.try_recv() {
                 Ok(step_context_received) => {
                     yield step_context_received.clone();
                 },

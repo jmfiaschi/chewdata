@@ -38,7 +38,7 @@ pub async fn exec(
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
         let (sender, receiver) = crossbeam::channel::unbounded();
-        let step = step_type.step_inner().clone();
+        let mut step = step_type.step_inner().clone();
         let thread_number = step.thread_number();
 
         let mut sender_option = None;
@@ -48,19 +48,23 @@ pub async fn exec(
             sender_option = Some(external_sender.clone());
         }
 
+        if let Some(receiver) = previous_step_receiver {
+            step.set_receiver(receiver.clone());
+        }
+
+        if let Some(sender) = sender_option {
+            step.set_sender(sender.clone());
+        }
+
         for _pos in 0..thread_number {
-            steps.push((
-                step.clone(),
-                previous_step_receiver.clone(),
-                sender_option.clone(),
-            ));
+            steps.push(step.clone());
         }
         previous_step_receiver = Some(receiver);
     }
 
-    for (step, inbound, outbound) in steps {
+    for step in steps {
         handles.push(task::spawn(
-            async move { step.exec(inbound, outbound).await }.with_current_subscriber(),
+            async move { step.exec().await }.with_current_subscriber(),
         ));
     }
 

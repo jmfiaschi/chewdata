@@ -35,6 +35,10 @@ pub struct Validator {
     #[serde(alias = "output")]
     pub output_name: String,
     pub error_separator: String,
+    #[serde(skip)]
+    receiver: Option<Receiver<StepContext>>,
+    #[serde(skip)]
+    sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Validator {
@@ -51,6 +55,8 @@ impl Default for Validator {
             input_name: "input".to_string(),
             output_name: "output".to_string(),
             error_separator: "\r\n".to_string(),
+            receiver: None,
+            sender: None,
         }
     }
 }
@@ -70,6 +76,22 @@ impl fmt::Display for Validator {
 
 #[async_trait]
 impl Step for Validator {
+    /// See [`Step::set_receiver`] for more details.
+    fn set_receiver(&mut self, receiver: Receiver<StepContext>) {
+        self.receiver = Some(receiver);
+    }
+    /// See [`Step::receiver`] for more details.
+    fn receiver(&self) -> Option<&Receiver<StepContext>> {
+        self.receiver.as_ref()
+    }
+    /// See [`Step::set_sender`] for more details.
+    fn set_sender(&mut self, sender: Sender<StepContext>) {
+        self.sender = Some(sender);
+    }
+    /// See [`Step::sender`] for more details.
+    fn sender(&self) -> Option<&Sender<StepContext>> {
+        self.sender.as_ref()
+    }
     /// This step validate the values of a dataset.
     ///
     /// # Example: simple validations
@@ -176,27 +198,9 @@ impl Step for Validator {
     /// ```
     #[instrument]
     async fn exec(
-        &self,
-        receiver_option: Option<Receiver<StepContext>>,
-        sender_option: Option<Sender<StepContext>>,
+        &self
     ) -> io::Result<()> {
         info!("Start");
-
-        let sender = match sender_option {
-            Some(sender) => sender,
-            None => {
-                info!("This step is skipped. Need a step after or a sender");
-                return Ok(());
-            }
-        };
-
-        let receiver = match receiver_option {
-            Some(receiver) => receiver,
-            None => {
-                info!("This step is skipped. Need a step before or a receiver");
-                return Ok(());
-            }
-        };
 
         let referentials = match self.referentials.clone() {
             Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
@@ -214,7 +218,7 @@ impl Step for Validator {
             })
             .collect();
 
-        let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+        let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(ref mut step_context_received) = receiver_stream.next().await {
             
             let data_result = step_context_received.data_result();
@@ -288,10 +292,8 @@ impl Step for Validator {
             };
 
             step_context_received.insert_step_result(self.name(), new_data_result)?;
-            super::send(self as &dyn Step, &step_context_received.clone(), &sender).await?;
+            super::send(self as &dyn Step, &step_context_received.clone()).await?;
         }
-
-        drop(sender);
 
         info!("End");
         Ok(())

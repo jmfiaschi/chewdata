@@ -28,6 +28,10 @@ pub struct Writer {
     pub dataset_size: usize,
     #[serde(alias = "threads")]
     pub thread_number: usize,
+    #[serde(skip)]
+    receiver: Option<Receiver<StepContext>>,
+    #[serde(skip)]
+    sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Writer {
@@ -41,6 +45,8 @@ impl Default for Writer {
             data_type: DataResult::OK.to_string(),
             dataset_size: 1000,
             thread_number: 1,
+            receiver: None,
+            sender: None,
         }
     }
 }
@@ -61,23 +67,30 @@ impl fmt::Display for Writer {
 // This Step write data from somewhere into another stream.
 #[async_trait]
 impl Step for Writer {
+    /// See [`Step::set_receiver`] for more details.
+    fn set_receiver(&mut self, receiver: Receiver<StepContext>) {
+        self.receiver = Some(receiver);
+    }
+    /// See [`Step::receiver`] for more details.
+    fn receiver(&self) -> Option<&Receiver<StepContext>> {
+        self.receiver.as_ref()
+    }
+    /// See [`Step::set_sender`] for more details.
+    fn set_sender(&mut self, sender: Sender<StepContext>) {
+        self.sender = Some(sender);
+    }
+    /// See [`Step::sender`] for more details.
+    fn sender(&self) -> Option<&Sender<StepContext>> {
+        self.sender.as_ref()
+    }
     #[instrument]
     async fn exec(
-        &self,
-        receiver_option: Option<Receiver<StepContext>>,
-        sender_option: Option<Sender<StepContext>>,
+        &self
     ) -> io::Result<()> {
         info!("Start");
 
         let mut current_dataset_size = 0;
 
-        let receiver = match receiver_option {
-            Some(receiver) => receiver,
-            None => {
-                info!("This step is skipped. Need a step before or a receiver");
-                return Ok(());
-            }
-        };
 
         let mut connector = self.connector_type.clone().connector();
         let document = self.document_type.document();
@@ -88,12 +101,10 @@ impl Step for Writer {
         // Use to init the connector during the loop
         let default_connector = connector.clone();
 
-        let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+        let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(step_context_received) = receiver_stream.next().await {
             
-            if let Some(ref sender) = sender_option {
-                super::send(self as &dyn Step, &step_context_received.clone(), sender).await?;
-            }
+            super::send(self as &dyn Step, &step_context_received.clone()).await?;
 
             if !step_context_received
                 .data_result()
@@ -178,10 +189,6 @@ impl Step for Writer {
                     )
                 }
             };
-        }
-
-        if let Some(sender) = sender_option {
-            drop(sender);
         }
 
         info!("End");

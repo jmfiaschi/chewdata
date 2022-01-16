@@ -24,7 +24,11 @@ pub struct Reader {
     #[serde(alias = "desc")]
     pub description: Option<String>,
     #[serde(alias = "data")]
-    pub data_type: String
+    pub data_type: String,
+    #[serde(skip)]
+    receiver: Option<Receiver<StepContext>>,
+    #[serde(skip)]
+    sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Reader {
@@ -36,6 +40,8 @@ impl Default for Reader {
             name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
+            receiver: None,
+            sender: None,
         }
     }
 }
@@ -55,32 +61,38 @@ impl fmt::Display for Reader {
 
 #[async_trait]
 impl Step for Reader {
+    /// See [`Step::set_receiver`] for more details.
+    fn set_receiver(&mut self, receiver: Receiver<StepContext>) {
+        self.receiver = Some(receiver);
+    }
+    /// See [`Step::receiver`] for more details.
+    fn receiver(&self) -> Option<&Receiver<StepContext>> {
+        self.receiver.as_ref()
+    }
+    /// See [`Step::set_sender`] for more details.
+    fn set_sender(&mut self, sender: Sender<StepContext>) {
+        self.sender = Some(sender);
+    }
+    /// See [`Step::sender`] for more details.
+    fn sender(&self) -> Option<&Sender<StepContext>> {
+        self.sender.as_ref()
+    }
     #[instrument]
     async fn exec(
-        &self,
-        receiver_option: Option<Receiver<StepContext>>,
-        sender_option: Option<Sender<StepContext>>,
+        &self
     ) -> io::Result<()> {
         info!("Start");
-        
-        let sender = match sender_option {
-            Some(sender) => sender,
-            None => {
-                info!("This step is skipped. Need a step after or a sender");
-                return Ok(());
-            }
-        };
 
         let mut connector = self.connector_type.clone().connector();
         let document = self.document_type.clone().document_inner();
         connector.set_metadata(connector.metadata().merge(document.metadata()));
 
-        match (receiver_option, connector.is_variable()) {
-            (Some(receiver), true) => {
+        match connector.is_variable() {
+            true => {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+                let mut receiver_stream = super::receive(self as &dyn Step).await?;
                 while let Some(step_context_received) = receiver_stream.next().await {
 
                     if !has_data_been_received {
@@ -101,7 +113,6 @@ impl Step for Reader {
                         self,
                         &mut connector,
                         &document,
-                        &sender,
                         &Some(step_context_received),
                     )
                     .await?
@@ -110,14 +121,14 @@ impl Step for Reader {
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
-                    exec_connector(self, &mut connector, &document, &sender, &None).await?
+                    exec_connector(self, &mut connector, &document, &None).await?
                 }
             }
-            (Some(receiver), false) => {
+            false => {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+                let mut receiver_stream = super::receive(self as &dyn Step).await?;
                 while let Some(step_context_received) = receiver_stream.next().await {
 
                     if !has_data_been_received {
@@ -128,7 +139,6 @@ impl Step for Reader {
                         self,
                         &mut connector,
                         &document,
-                        &sender,
                         &Some(step_context_received),
                     )
                     .await?
@@ -137,13 +147,10 @@ impl Step for Reader {
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
-                    exec_connector(self, &mut connector, &document, &sender, &None).await?
+                    exec_connector(self, &mut connector, &document, &None).await?
                 }
             }
-            (None, _) => exec_connector(self, &mut connector, &document, &sender, &None).await?,
         };
-
-        drop(sender);
 
         info!("End");
         Ok(())
@@ -157,7 +164,6 @@ async fn exec_connector<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
     document: &'step Box<dyn Document>,
-    pipe: &'step Sender<StepContext>,
     context: &'step Option<StepContext>,
 ) -> io::Result<()> {
     // todo: remove paginator mutability
@@ -176,7 +182,7 @@ async fn exec_connector<'step>(
                             return;
                         }
                     };
-                    match send_data_into_pipe(step, &mut connector, document, pipe, context).await
+                    match send_data_into_pipe(step, &mut connector, document, context).await
                     {
                         Ok(Some(_)) => trace!("All data has been pushed into the pipe. The concurrency loop in the paginator continue"),
                         Ok(None) => trace!("Connector doesn't have any data to pushed into the pipe. The concurrency loop in the paginator continue"),
@@ -198,7 +204,7 @@ async fn exec_connector<'step>(
                         break;
                     }
                 };
-                match send_data_into_pipe(step, connector, document, pipe, context).await? {
+                match send_data_into_pipe(step, connector, document, context).await? {
                     Some(_) => trace!("All data has been pushed into the pipe. The iterative loop in the paginator continue"),
                     None => {
                         trace!("Connector doesn't have any data to pushed into the pipe. The iterative loop in the paginator is stoped");
@@ -215,7 +221,6 @@ async fn send_data_into_pipe<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
     document: &'step Box<dyn Document>,
-    pipe: &'step Sender<StepContext>,
     context: &'step Option<StepContext>,
 ) -> io::Result<Option<()>> {
     connector.fetch().await?;
@@ -234,7 +239,7 @@ async fn send_data_into_pipe<'step>(
             None => StepContext::new(step.name(), data_result)?,
         };
 
-        super::send(step as &dyn Step, &context, pipe).await?;
+        super::send(step as &dyn Step, &context).await?;
     }
 
     Ok(Some(()))
