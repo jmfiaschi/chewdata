@@ -29,9 +29,9 @@ pub struct Writer {
     #[serde(alias = "threads")]
     pub thread_number: usize,
     #[serde(skip)]
-    receiver: Option<Receiver<StepContext>>,
+    pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
-    sender: Option<Sender<StepContext>>,
+    pub sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Writer {

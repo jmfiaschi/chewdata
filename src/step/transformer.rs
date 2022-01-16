@@ -33,9 +33,9 @@ pub struct Transformer {
     #[serde(alias = "output")]
     pub output_name: String,
     #[serde(skip)]
-    receiver: Option<Receiver<StepContext>>,
+    pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
-    sender: Option<Sender<StepContext>>,
+    pub sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Transformer {
@@ -90,9 +90,7 @@ impl Step for Transformer {
         self.sender.as_ref()
     }
     #[instrument]
-    async fn exec(
-        &self
-    ) -> io::Result<()> {
+    async fn exec(&self) -> io::Result<()> {
         info!("Start");
 
         let referentials = match self.referentials.clone() {
@@ -102,7 +100,6 @@ impl Step for Transformer {
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(ref mut step_context_received) = receiver_stream.next().await {
-            
             let data_result = step_context_received.data_result();
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");

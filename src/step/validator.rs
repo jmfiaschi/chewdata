@@ -36,9 +36,9 @@ pub struct Validator {
     pub output_name: String,
     pub error_separator: String,
     #[serde(skip)]
-    receiver: Option<Receiver<StepContext>>,
+    pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
-    sender: Option<Sender<StepContext>>,
+    pub sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Validator {
@@ -129,18 +129,20 @@ impl Step for Validator {
     ///     let validator = Validator {
     ///         rules: rules,
     ///         error_separator: " & ".to_string(),
+    ///         receiver: Some(receiver_input),
+    ///         sender: Some(sender_output),
     ///         ..Default::default()
     ///     };
     ///
     ///     thread::spawn(move || {
     ///         let data = serde_json::from_str(r#"{"number_1":"my_string","number_2":100,"text":"120"}"#).unwrap();
     ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-    ///         sender_input.send(step_context).unwrap();
+    ///         sender_input.try_send(step_context).unwrap();
     ///     });
     ///     
-    ///     validator.exec(Some(receiver_input), Some(sender_output)).await?;
+    ///     validator.exec().await?;
     ///
-    ///     for step_context in receiver_output {
+    ///     for step_context in receiver_output.try_recv() {
     ///         let error_result = step_context.data_result().to_value().search("/_error").unwrap().unwrap();
     ///         let error_result_expected = Value::String("Err N.1 & Err N.2 & Err T.1".to_string());
     ///         assert_eq!(error_result_expected, error_result);
@@ -176,18 +178,20 @@ impl Step for Validator {
     ///     let validator = Validator {
     ///         rules: rules,
     ///         error_separator: " & ".to_string(),
+    ///         receiver: Some(receiver_input),
+    ///         sender: Some(sender_output),
     ///         ..Default::default()
     ///     };
     ///
     ///     thread::spawn(move || {
     ///         let data = serde_json::from_str(r#"{"number":100}"#).unwrap();
     ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-    ///         sender_input.send(step_context).unwrap();
+    ///         sender_input.try_send(step_context).unwrap();
     ///     });
     ///     
-    ///     validator.exec(Some(receiver_input), Some(sender_output)).await?;
+    ///     validator.exec().await?;
     ///
-    ///     for step_context in receiver_output {
+    ///     for step_context in receiver_output.try_recv() {
     ///         let error_result = step_context.data_result().to_value().search("/_error").unwrap().unwrap();
     ///         let error_result_expected = Value::String("Failed to render the field 'rule_exception'. Tester `matching` was called on an undefined variable.".to_string());
     ///         assert_eq!(error_result_expected, error_result);

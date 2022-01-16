@@ -26,9 +26,9 @@ pub struct Reader {
     #[serde(alias = "data")]
     pub data_type: String,
     #[serde(skip)]
-    receiver: Option<Receiver<StepContext>>,
+    pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
-    sender: Option<Sender<StepContext>>,
+    pub sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Reader {
@@ -78,9 +78,7 @@ impl Step for Reader {
         self.sender.as_ref()
     }
     #[instrument]
-    async fn exec(
-        &self
-    ) -> io::Result<()> {
+    async fn exec(&self) -> io::Result<()> {
         info!("Start");
 
         let mut connector = self.connector_type.clone().connector();
@@ -94,7 +92,6 @@ impl Step for Reader {
 
                 let mut receiver_stream = super::receive(self as &dyn Step).await?;
                 while let Some(step_context_received) = receiver_stream.next().await {
-
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
@@ -130,7 +127,6 @@ impl Step for Reader {
 
                 let mut receiver_stream = super::receive(self as &dyn Step).await?;
                 while let Some(step_context_received) = receiver_stream.next().await {
-
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }

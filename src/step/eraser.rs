@@ -22,9 +22,9 @@ pub struct Eraser {
     #[serde(alias = "exclude")]
     pub exclude_paths: Vec<String>,
     #[serde(skip)]
-    receiver: Option<Receiver<StepContext>>,
+    pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
-    sender: Option<Sender<StepContext>>,
+    pub sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Eraser {
@@ -74,9 +74,7 @@ impl Step for Eraser {
         self.sender.as_ref()
     }
     #[instrument]
-    async fn exec(
-        &self
-    ) -> io::Result<()> {
+    async fn exec(&self) -> io::Result<()> {
         info!("Start");
 
         let connector_type = self.connector_type.clone();
@@ -90,7 +88,6 @@ impl Step for Eraser {
 
                 let mut receiver_stream = super::receive(self as &dyn Step).await?;
                 while let Some(ref mut step_context_received) = receiver_stream.next().await {
-
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
@@ -105,14 +102,15 @@ impl Step for Eraser {
 
                     connector.set_parameters(step_context_received.to_value()?);
                     let path = connector.path();
-                    
+
                     if !exclude_paths.contains(&path) {
                         connector.erase().await?;
 
                         exclude_paths.push(path);
                     }
 
-                    step_context_received.insert_step_result(self.name(), step_context_received.data_result())?;
+                    step_context_received
+                        .insert_step_result(self.name(), step_context_received.data_result())?;
                     super::send(self as &dyn Step, &step_context_received.clone()).await?;
                 }
 

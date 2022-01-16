@@ -88,7 +88,7 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     }
     // It the pipe doesn't contain any data to fetch or no receiver is ready, the step sleep before to retry
     fn sleep(&self) -> u64 {
-        100
+        10
     }
     fn set_receiver(&mut self, receiver: Receiver<StepContext>);
     fn receiver(&self) -> Option<&Receiver<StepContext>>;
