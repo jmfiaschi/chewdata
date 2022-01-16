@@ -28,6 +28,9 @@ pub struct Writer {
     pub dataset_size: usize,
     #[serde(alias = "threads")]
     pub thread_number: usize,
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    #[serde(alias = "sleep")]
+    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
@@ -47,6 +50,7 @@ impl Default for Writer {
             thread_number: 1,
             receiver: None,
             sender: None,
+            wait: 10,
         }
     }
 }
@@ -82,6 +86,10 @@ impl Step for Writer {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<StepContext>> {
         self.sender.as_ref()
+    }
+    /// See [`Step::sleep`] for more details.
+    fn sleep(&self) -> u64 {
+        self.wait
     }
     #[instrument]
     async fn exec(

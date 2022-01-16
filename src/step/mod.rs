@@ -86,7 +86,7 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     fn name(&self) -> String {
         "default".to_string()
     }
-    // It the pipe doesn't contain any data to fetch or no receiver is ready, the step sleep before to retry
+    // It the pipe doesn't contain any data to fetch or no receiver is ready, the step sleep before to retry without blocking the thread.
     fn sleep(&self) -> u64 {
         10
     }

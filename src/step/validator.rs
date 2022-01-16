@@ -34,7 +34,11 @@ pub struct Validator {
     pub input_name: String,
     #[serde(alias = "output")]
     pub output_name: String,
+    #[serde(alias = "separator")]
     pub error_separator: String,
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    #[serde(alias = "sleep")]
+    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
@@ -57,6 +61,7 @@ impl Default for Validator {
             error_separator: "\r\n".to_string(),
             receiver: None,
             sender: None,
+            wait: 10,
         }
     }
 }
@@ -91,6 +96,10 @@ impl Step for Validator {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<StepContext>> {
         self.sender.as_ref()
+    }
+    /// See [`Step::sleep`] for more details.
+    fn sleep(&self) -> u64 {
+        self.wait
     }
     /// This step validate the values of a dataset.
     ///

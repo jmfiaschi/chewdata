@@ -21,6 +21,9 @@ pub struct Eraser {
     pub data_type: String,
     #[serde(alias = "exclude")]
     pub exclude_paths: Vec<String>,
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    #[serde(alias = "sleep")]
+    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
@@ -38,6 +41,7 @@ impl Default for Eraser {
             exclude_paths: Vec::default(),
             receiver: None,
             sender: None,
+            wait: 10,
         }
     }
 }
@@ -72,6 +76,10 @@ impl Step for Eraser {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<StepContext>> {
         self.sender.as_ref()
+    }
+    /// See [`Step::sleep`] for more details.
+    fn sleep(&self) -> u64 {
+        self.wait
     }
     #[instrument]
     async fn exec(&self) -> io::Result<()> {

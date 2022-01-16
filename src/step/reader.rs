@@ -25,6 +25,9 @@ pub struct Reader {
     pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    #[serde(alias = "sleep")]
+    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<StepContext>>,
     #[serde(skip)]
@@ -42,6 +45,7 @@ impl Default for Reader {
             data_type: DataResult::OK.to_string(),
             receiver: None,
             sender: None,
+            wait: 10,
         }
     }
 }
@@ -76,6 +80,10 @@ impl Step for Reader {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<StepContext>> {
         self.sender.as_ref()
+    }
+    /// See [`Step::sleep`] for more details.
+    fn sleep(&self) -> u64 {
+        self.wait
     }
     #[instrument]
     async fn exec(&self) -> io::Result<()> {
