@@ -12,6 +12,7 @@ include = ["src/*", "LICENSE-APACHE", "LICENSE-MIT", "README.md"]
 categories = ["encoding","network-programming","data-structures"]
 
 [dependencies]
+# Logs
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features= ["fmt", "env-filter"] }
 tracing-futures = "0.2"
@@ -35,6 +36,8 @@ base64 = "0.13"
 regex = "1.5"
 clap = { version = "3.0", features = ["yaml"] }
 serde_yaml = { version = "0.8" }
+# Lock local files
+fs2 = { version = "0.4" }
 # For Templates
 tera = "1.12"
 uuid = { version = "0.8", features = ["serde", "v4"] }
@@ -51,7 +54,6 @@ surf = { version = "2.3", default-features = false, features = ["h1-client-rustl
 surf_bucket_select = { version = "0.2", optional = true }
 http-types = { version = "2.12", optional = true}
 mongodb = { version = "2.1", default-features = false, features = ["async-std-runtime"], optional = true }
-parallel-stream = { version = "2.1" }
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["stable"] }

@@ -6,6 +6,7 @@ use crate::updater::{Action, UpdaterType};
 use crate::StepContext;
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
+use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::HashMap, fmt, io};
@@ -95,7 +96,9 @@ impl Step for Transformer {
             None => None,
         };
 
-        for mut step_context_received in receiver {
+        let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+        while let Some(ref mut step_context_received) = receiver_stream.next().await {
+            
             let data_result = step_context_received.data_result();
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
@@ -127,7 +130,7 @@ impl Step for Transformer {
             };
 
             step_context_received.insert_step_result(self.name(), new_data_result)?;
-            self.send(step_context_received.clone(), &sender)?;
+            super::send(self as &dyn Step, &step_context_received.clone(), &sender).await?;
         }
 
         drop(sender);

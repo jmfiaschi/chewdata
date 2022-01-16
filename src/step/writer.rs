@@ -4,6 +4,7 @@ use crate::step::{DataResult, Step};
 use crate::StepContext;
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};
 use uuid::Uuid;
@@ -87,9 +88,11 @@ impl Step for Writer {
         // Use to init the connector during the loop
         let default_connector = connector.clone();
 
-        for step_context_received in receiver {
+        let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+        while let Some(step_context_received) = receiver_stream.next().await {
+            
             if let Some(ref sender) = sender_option {
-                self.send(step_context_received.clone(), sender)?;
+                super::send(self as &dyn Step, &step_context_received.clone(), sender).await?;
             }
 
             if !step_context_received

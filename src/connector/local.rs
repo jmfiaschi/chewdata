@@ -16,6 +16,7 @@ use std::{
     io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write},
 };
 use std::{fs, fs::OpenOptions};
+use fs2::FileExt;
 
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
@@ -234,6 +235,8 @@ impl Connector for Local {
             .truncate(false)
             .open(self.path().as_str())?;
 
+        file.lock_exclusive()?;
+
         let resource_len = self.len().await?;
 
         match position {
@@ -245,6 +248,8 @@ impl Connector for Local {
         }?;
 
         file.write_all(self.inner.get_ref())?;
+
+        file.unlock()?;
 
         self.clear();
 

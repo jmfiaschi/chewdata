@@ -13,6 +13,7 @@ use serde_json::Value;
 use std::io::{Error, ErrorKind};
 use std::{collections::{BTreeMap,HashMap}, fmt, io};
 use uuid::Uuid;
+use futures::StreamExt;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -213,7 +214,9 @@ impl Step for Validator {
             })
             .collect();
 
-        for mut step_context_received in receiver {
+        let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+        while let Some(ref mut step_context_received) = receiver_stream.next().await {
+            
             let data_result = step_context_received.data_result();
 
             if !data_result.is_type(self.data_type.as_ref()) {
@@ -285,7 +288,7 @@ impl Step for Validator {
             };
 
             step_context_received.insert_step_result(self.name(), new_data_result)?;
-            self.send(step_context_received.clone(), &sender)?;
+            super::send(self as &dyn Step, &step_context_received.clone(), &sender).await?;
         }
 
         drop(sender);

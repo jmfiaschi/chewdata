@@ -24,9 +24,7 @@ pub struct Reader {
     #[serde(alias = "desc")]
     pub description: Option<String>,
     #[serde(alias = "data")]
-    pub data_type: String,
-    #[serde(alias = "threads")]
-    pub thread_number: usize,
+    pub data_type: String
 }
 
 impl Default for Reader {
@@ -38,7 +36,6 @@ impl Default for Reader {
             name: uuid.to_simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
-            thread_number: 5,
         }
     }
 }
@@ -65,7 +62,7 @@ impl Step for Reader {
         sender_option: Option<Sender<StepContext>>,
     ) -> io::Result<()> {
         info!("Start");
-
+        
         let sender = match sender_option {
             Some(sender) => sender,
             None => {
@@ -83,7 +80,9 @@ impl Step for Reader {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                for step_context_received in receiver {
+                let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+                while let Some(step_context_received) = receiver_stream.next().await {
+
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
@@ -118,7 +117,9 @@ impl Step for Reader {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                for step_context_received in receiver {
+                let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+                while let Some(step_context_received) = receiver_stream.next().await {
+
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
@@ -167,7 +168,7 @@ async fn exec_connector<'step>(
         true => {
             // Concurrency stream
             // The loop cross the paginator never stop. The paginator mustn't return indefinitely a connector.
-            stream.for_each_concurrent(step.thread_number, |connector_result| async move {
+            stream.for_each_concurrent(None, |connector_result| async move {
                     let mut connector = match connector_result {
                         Ok(connector) => connector,
                         Err(e) => {
@@ -233,7 +234,7 @@ async fn send_data_into_pipe<'step>(
             None => StepContext::new(step.name(), data_result)?,
         };
 
-        step.send(context, pipe)?;
+        super::send(step as &dyn Step, &context, pipe).await?;
     }
 
     Ok(Some(()))

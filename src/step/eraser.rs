@@ -3,6 +3,7 @@ use crate::DataResult;
 use crate::{connector::ConnectorType, StepContext};
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
+use futures::StreamExt;
 use serde::Deserialize;
 use std::{fmt, io};
 use uuid::Uuid;
@@ -67,7 +68,9 @@ impl Step for Eraser {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                for mut step_context_received in receiver {
+                let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+                while let Some(ref mut step_context_received) = receiver_stream.next().await {
+
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
@@ -82,7 +85,7 @@ impl Step for Eraser {
 
                     connector.set_parameters(step_context_received.to_value()?);
                     let path = connector.path();
-
+                    
                     if !exclude_paths.contains(&path) {
                         connector.erase().await?;
 
@@ -90,12 +93,10 @@ impl Step for Eraser {
                     }
 
                     if let Some(ref sender) = sender_option {
-                        step_context_received.insert_step_result(
-                            self.name(),
-                            step_context_received.data_result(),
-                        )?;
+                        step_context_received
+                            .insert_step_result(self.name(), step_context_received.data_result())?;
 
-                        self.send(step_context_received, sender)?;
+                        super::send(self as &dyn Step, &step_context_received.clone(), sender).await?;
                     }
                 }
 
@@ -108,13 +109,14 @@ impl Step for Eraser {
                 // Used to check if one data has been received.
                 let mut has_data_been_received = false;
 
-                for step_result_received in receiver {
+                let mut receiver_stream = super::receive(self as &dyn Step, &receiver).await?;
+                while let Some(step_context_received) = receiver_stream.next().await {
                     if !has_data_been_received {
                         has_data_been_received = true;
                     }
                     let path = connector.path();
 
-                    if !step_result_received
+                    if !step_context_received
                         .data_result()
                         .is_type(self.data_type.as_ref())
                     {
@@ -130,7 +132,7 @@ impl Step for Eraser {
                     }
 
                     if let Some(ref sender) = sender_option {
-                        self.send(step_result_received, sender)?;
+                        super::send(self as &dyn Step, &step_context_received, sender).await?;
                     }
                 }
 
