@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1640771755016,
+  "lastUpdate": 1642352020398,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1738,6 +1738,66 @@ window.BENCHMARK_DATA = {
           {
             "name": "read_yaml/",
             "value": 472,
+            "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "ceef80b6ad2622b0225503a10b528f54d197a519",
+          "message": "feat(step): add wait/sleep field. The step wait/sleep is the pipe is not ready without blocking the thread",
+          "timestamp": "2022-01-16T17:30:52+01:00",
+          "tree_id": "b8de477affb141fb5e3741be6736b38d98795e0b",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/ceef80b6ad2622b0225503a10b528f54d197a519"
+        },
+        "date": 1642352019789,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 147,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 147,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 144823,
+            "range": "± 1255",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 20622,
+            "range": "± 103",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 245,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 394,
             "range": "± 2",
             "unit": "ns/iter"
           }
