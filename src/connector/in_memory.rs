@@ -223,8 +223,6 @@ impl Connector for InMemory {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         let inner = self.inner().clone();
         let resource_len = self.len().await?;
         self.clear();

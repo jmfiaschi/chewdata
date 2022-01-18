@@ -660,8 +660,6 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        trace!("Start");
-
         let mut connector = self.clone();
         connector.query = format!(
             "{} {}",
@@ -744,8 +742,6 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        trace!("Start");
-
         if let (Some(true), Some("csv")) = (
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),

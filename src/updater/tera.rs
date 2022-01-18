@@ -34,8 +34,6 @@ impl Updater for Tera {
         input_name: String,
         output_name: String,
     ) -> io::Result<Value> {
-        trace!("Start");
-
         let mut engine = Tera::engine();
         let mut tera_context = tera::Context::new();
         tera_context.insert(input_name, &object);

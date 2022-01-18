@@ -247,7 +247,6 @@ impl Connector for Mongodb {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        info!("Start");
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
