@@ -3,6 +3,7 @@ use crate::helper::mustache::Mustache;
 use crate::Metadata;
 use async_stream::stream;
 use async_trait::async_trait;
+use fs2::FileExt;
 use futures::Stream;
 use glob::glob;
 use regex::Regex;
@@ -16,7 +17,6 @@ use std::{
     io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write},
 };
 use std::{fs, fs::OpenOptions};
-use fs2::FileExt;
 
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default)]
@@ -96,6 +96,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn len(&mut self) -> Result<usize> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
@@ -105,10 +106,20 @@ impl Connector for Local {
             ));
         }
 
-        match fs::metadata(self.path()) {
-            Ok(metadata) => Ok(metadata.len() as usize),
-            Err(_) => Ok(0),
-        }
+        let len = match fs::metadata(self.path()) {
+            Ok(metadata) => {
+                let len = metadata.len() as usize;
+                info!(len = len, "The connector found data in the file");
+                len
+            }
+            Err(_) => {
+                let len = 0;
+                info!(len = len, "The connector not found data in the file");
+                len
+            }
+        };
+
+        Ok(len)
     }
     /// See [`Connector::is_empty`] for more details.
     /// Not work for wildcard path.
@@ -129,6 +140,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn is_empty(&mut self) -> Result<bool> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
@@ -141,14 +153,19 @@ impl Connector for Local {
         match fs::metadata(self.path()) {
             Ok(metadata) => {
                 if 0 < metadata.len() {
+                    info!("The connector checked a file with data");
                     return Ok(false);
                 }
             }
             Err(_) => {
+                info!(
+                    "The connector checked an empty file, impossible to reach the file's metadata"
+                );
                 return Ok(true);
             }
         };
 
+        info!("The connector checked an empty file");
         Ok(true)
     }
     /// See [`Connector::set_parameters`] for more details.
@@ -226,8 +243,6 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         let mut file = OpenOptions::new()
             .read(true)
             .create(true)
@@ -236,6 +251,7 @@ impl Connector for Local {
             .open(self.path().as_str())?;
 
         file.lock_exclusive()?;
+        trace!("The connector lock the file");
 
         let resource_len = self.len().await?;
 
@@ -248,11 +264,14 @@ impl Connector for Local {
         }?;
 
         file.write_all(self.inner.get_ref())?;
+        trace!("The connector write data into the file");
 
         file.unlock()?;
+        trace!("The connector unlock the file");
 
         self.clear();
 
+        info!("The connector send data into the file with success");
         Ok(())
     }
     /// See [`Connector::is_resource_will_change`] for more details.
@@ -271,8 +290,10 @@ impl Connector for Local {
     /// connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
     /// assert_eq!(true, connector.is_resource_will_change(params).unwrap());
     /// ```
+    #[instrument]
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
+            trace!("The connector stay link to the same file");
             return Ok(false);
         }
 
@@ -283,9 +304,11 @@ impl Connector for Local {
         new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
+            trace!("The connector stay link to the same file");
             return Ok(false);
         }
 
+        info!("The connector will use another file, regarding the new parameters");
         Ok(true)
     }
     /// See [`Connector::inner`] for more details.
@@ -315,8 +338,6 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
-
         let mut buff = Vec::default();
         OpenOptions::new()
             .read(true)
@@ -328,6 +349,7 @@ impl Connector for Local {
             .read_to_end(&mut buff)?;
         self.inner = Cursor::new(buff);
 
+        info!("The connector fetch data with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -354,8 +376,6 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        info!("Start");
-
         OpenOptions::new()
             .read(false)
             .create(true)
@@ -364,6 +384,7 @@ impl Connector for Local {
             .truncate(true)
             .open(self.path().as_str())?;
 
+        info!("The connector erase the file with success");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -371,8 +392,10 @@ impl Connector for Local {
         Ok(Box::pin(LocalPaginator::new(self.clone())?))
     }
     /// See [`Connector::clear`] for more details.
+    #[instrument]
     fn clear(&mut self) {
         self.inner = Default::default();
+        trace!("The connector is cleaned");
     }
 }
 
@@ -519,13 +542,13 @@ impl Paginator for LocalPaginator {
 
         let stream = Box::pin(stream! {
             while let Some(path) = paths.next() {
-                trace!(next_path = path.as_str(), "Next path");
-
                 let mut new_connector = connector.clone();
                 new_connector.path = path.clone();
 
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
                 yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
+            trace!("The stream stop to return new connectors");
         });
 
         Ok(stream)

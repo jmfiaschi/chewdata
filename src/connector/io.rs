@@ -89,8 +89,6 @@ impl Connector for Io {
     /// See [`Connector::fetch`] for more details.
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
-
         let stdin = BufReader::new(stdin());
 
         trace!("Fetch lines");
@@ -109,13 +107,12 @@ impl Connector for Io {
         trace!("Save lines into the inner buffer");
         self.inner = Cursor::new(buf.into_bytes());
 
+        info!("The connector fetch data with success");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
     #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         trace!("Write data into stdout");
         stdout().write_all(self.inner.get_ref()).await?;
         // Force to send data
@@ -123,6 +120,7 @@ impl Connector for Io {
         stdout().flush().await?;
         self.clear();
 
+        info!("The connector send data into the resource with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -216,11 +214,13 @@ impl Paginator for IoPaginator {
     async fn stream(
         &mut self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = self.connector.clone();
+        let new_connector = self.connector.clone();
         let stream = Box::pin(stream! {
             while true {
-                yield Ok(Box::new(connector.clone()) as Box<dyn Connector>);
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
+                yield Ok(Box::new(new_connector.clone()) as Box<dyn Connector>);
             }
+            trace!("The stream stop to return a new connectors");
         });
 
         Ok(stream)

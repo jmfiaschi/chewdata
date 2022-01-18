@@ -95,11 +95,7 @@ impl Step for Writer {
     async fn exec(
         &self
     ) -> io::Result<()> {
-        info!("Start");
-
         let mut current_dataset_size = 0;
-
-
         let mut connector = self.connector_type.clone().connector();
         let document = self.document_type.document();
         let position = -(document.entry_point_path_end().len() as isize);
@@ -130,7 +126,7 @@ impl Step for Writer {
                 {
                     document.close(&mut *connector).await?;
                     match connector.send(Some(position)).await {
-                        Ok(_) => (),
+                        Ok(_) => info!("Dataset sended with success into the connector"),
                         Err(e) => {
                             warn!(
                                 error = e.to_string().as_str(),
@@ -180,7 +176,7 @@ impl Step for Writer {
         if 0 < current_dataset_size {
             info!(
                 dataset_size = current_dataset_size,
-                "Send data before to end the step"
+                "Last send data into the connector"
             );
 
             document.close(&mut *connector).await?;
@@ -199,7 +195,6 @@ impl Step for Writer {
             };
         }
 
-        info!("End");
         Ok(())
     }
     fn thread_number(&self) -> usize {

@@ -83,8 +83,6 @@ impl Step for Eraser {
     }
     #[instrument]
     async fn exec(&self) -> io::Result<()> {
-        info!("Start");
-
         let connector_type = self.connector_type.clone();
         let mut connector = connector_type.connector();
         let mut exclude_paths = self.exclude_paths.clone();
@@ -162,8 +160,7 @@ impl Step for Eraser {
                 }
             }
         };
-
-        info!("End");
+        
         Ok(())
     }
     fn name(&self) -> String {

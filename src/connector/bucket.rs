@@ -208,6 +208,7 @@ impl Connector for Bucket {
     /// ```
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
@@ -218,9 +219,11 @@ impl Connector for Bucket {
         new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
+        info!("The connector will use another resource, regarding the new parameters");
         Ok(true)
     }
     /// See [`Connector::path`] for more details.
@@ -272,8 +275,6 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        info!("Start");
-
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
             return Err(Error::new(
@@ -312,6 +313,7 @@ impl Connector for Bucket {
             }
         })?;
 
+        info!(len = len, "The connector found data in the resource");
         Ok(len)
     }
     /// See [`Connector::is_empty`] for more details.
@@ -369,8 +371,6 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
-
         let connector = self.clone();
         let s3_client = connector.s3_client()?;
         let request = GetObjectRequest {
@@ -400,6 +400,7 @@ impl Connector for Bucket {
 
         self.inner = Cursor::new(result?.as_bytes().to_vec());
 
+        info!("The connector fetch data into the resource with success");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -443,8 +444,6 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty()
         {
             warn!(
@@ -461,7 +460,7 @@ impl Connector for Bucket {
         if !self.is_empty().await? {
             info!(
                 path = path_resolved.to_string().as_str(),
-                "Fetch previous data into S3"
+                "Fetch existing data into S3"
             );
             {
                 let mut connector_clone = self.clone();
@@ -509,6 +508,7 @@ impl Connector for Bucket {
 
         self.clear();
 
+        info!("The connector send data into the resource with success");
         Ok(())
     }
     fn set_metadata(&mut self, metadata: Metadata) {
@@ -521,8 +521,6 @@ impl Connector for Bucket {
     /// See [`Connector::erase`] for more details.
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        info!("Start");
-
         let path_resolved = self.path();
         let s3_client = self.s3_client()?;
         let put_request = PutObjectRequest {
@@ -540,6 +538,7 @@ impl Connector for Bucket {
             }
         })?;
 
+        info!("The connector erase data in the resource with success");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -796,8 +795,10 @@ impl Paginator for BucketPaginator {
                 let mut new_connector = connector.clone();
                 new_connector.path = path;
 
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
                 yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
+            trace!("The stream stop to return new connectors");
         });
 
         Ok(stream)

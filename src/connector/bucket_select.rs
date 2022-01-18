@@ -582,6 +582,7 @@ impl Connector for BucketSelect {
     /// ```
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
@@ -592,9 +593,11 @@ impl Connector for BucketSelect {
         new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
+        info!("The connector will use another resource, regarding the new parameters");
         Ok(true)
     }
     /// See [`Connector::path`] for more details.
@@ -670,8 +673,10 @@ impl Connector for BucketSelect {
                 .unwrap(),
             "limit 1"
         );
+        let len = connector.fetch_length().await.unwrap_or_default();
 
-        Ok(connector.fetch_length().await.unwrap_or_default())
+        info!(len = len, "The connector found data in the resource");
+        Ok(len)
     }
     /// See [`Connector::is_empty`] for more details.
     ///
@@ -772,6 +777,7 @@ impl Connector for BucketSelect {
         // initialize the position of the cursors
         self.inner.set_position(0);
 
+        info!("The connector fetch data into the resource with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -943,8 +949,10 @@ impl Paginator for BucketSelectPaginator {
                 let mut new_connector = connector.clone();
                 new_connector.path = path;
 
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
                 yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
+            trace!("The stream stop to return new connectors");
         });
 
         Ok(stream)

@@ -87,8 +87,6 @@ impl Step for Reader {
     }
     #[instrument]
     async fn exec(&self) -> io::Result<()> {
-        info!("Start");
-
         let mut connector = self.connector_type.clone().connector();
         let document = self.document_type.clone().document_inner();
         connector.set_metadata(connector.metadata().merge(document.metadata()));
@@ -156,7 +154,6 @@ impl Step for Reader {
             }
         };
 
-        info!("End");
         Ok(())
     }
     fn name(&self) -> String {

@@ -189,8 +189,6 @@ impl Connector for Mongodb {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
-
         // Avoid to fetch two times the same data in the same connector
         if !self.inner.get_ref().is_empty() {
             return Ok(());
@@ -219,6 +217,7 @@ impl Connector for Mongodb {
 
         self.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
 
+        info!("The connector fetch data with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -264,6 +263,7 @@ impl Connector for Mongodb {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
+        info!("The connector erase data with success");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -372,8 +372,6 @@ impl Connector for Mongodb {
     /// ```
     #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
@@ -406,8 +404,7 @@ impl Connector for Mongodb {
             trace!(
                 query = format!("{:?}", &query_update).as_str(),
                 update = format!("{:?}", doc! {"$set": &doc_without_id}).as_str(),
-                options = format!("{:?}", &update_options).as_str(),
-                "update_many"
+                "Query to update the collection"
             );
 
             let result = collection
@@ -422,14 +419,12 @@ impl Connector for Mongodb {
             if 0 < result.matched_count {
                 trace!(
                     result = format!("{:?}", result).as_str(),
-                    connector = format!("{}", self).as_str(),
                     "Document(s) updated into the connection"
                 );
             }
             if result.upserted_id.is_some() {
                 trace!(
                     result = format!("{:?}", result).as_str(),
-                    connector = format!("{}", self).as_str(),
                     "Document(s) inserted into the connection"
                 );
             }
@@ -437,6 +432,7 @@ impl Connector for Mongodb {
 
         self.clear();
 
+        info!("The connector send data into the collection with success");
         Ok(())
     }
     /// See [`Connector::clear`] for more details.
@@ -552,8 +548,6 @@ impl ScanCounter {
     /// ```
     #[instrument]
     pub async fn count(&self, connector: Mongodb) -> Result<Option<usize>> {
-        info!("Start");
-
         let hostname = connector.endpoint.clone();
         let database = connector.database.clone();
         let collection = connector.collection.clone();
@@ -573,6 +567,7 @@ impl ScanCounter {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
+        info!(count = count, "The counter count with success");
         Ok(Some(count as usize))
     }
 }
@@ -642,7 +637,6 @@ impl Paginator for OffsetPaginator {
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     connector.counter_type = Some(CounterType::Scan(ScanCounter::default()));
     ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator::default());
     ///
     ///     let mut paginator = connector.paginator().await?;
@@ -653,13 +647,27 @@ impl Paginator for OffsetPaginator {
     /// }
     /// ```
     async fn count(&mut self) -> Result<Option<usize>> {
-        if let Some(connector) = self.connector.clone() {
-            if let Some(counter_type) = connector.counter_type.clone() {
-                self.count = counter_type.count(*connector, None).await?;
-                return Ok(self.count);
-            }
+        let connector = match self.connector {
+            Some(ref mut connector) => Ok(connector),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't count the number of element in the collection without a connector",
+            )),
+        }?;
+
+        let mut counter_type = None;
+        if let None = connector.counter_type {
+            counter_type = Some(CounterType::Scan(ScanCounter::default()));
+        }
+        
+        if let Some(counter_type) = counter_type {
+            self.count = counter_type.count(*connector.clone(), None).await?;
+
+            info!(size = self.count, "The connector's counter count elements in the collection with success");
+            return Ok(self.count);
         }
 
+        trace!(size = self.count, "The connector's counter not exist or can't count the number of elements in the collection");
         Ok(None)
     }
     /// See [`Paginator::stream`] for more details.
@@ -774,8 +782,10 @@ impl Paginator for OffsetPaginator {
 
                 skip += limit;
 
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
                 yield Ok(new_connector as Box<dyn Connector>);
             }
+            trace!("The stream stop to return new connectors");
         });
 
         Ok(stream)
@@ -881,7 +891,6 @@ impl Paginator for CursorPaginator {
     ///     let mut stream = paginator.stream().await?;
     ///
     ///     let connector = stream.next().await.transpose()?;
-    ///     println!("connector {:?}", connector);
     ///     assert!(connector.is_some());
     ///
     ///     let connector = stream.next().await.transpose()?;
@@ -929,11 +938,11 @@ impl Paginator for CursorPaginator {
         let stream = Box::pin(stream! {
             let mut docs: Vec<_> = Vec::default();
             while let Some(doc) = cursor.next().await {
-                println!("coucou");
                 match doc {
                     Ok(doc) => docs.push(doc.clone()),
-                    Err(_e) => {
-                        println!("error")
+                    Err(e) => {
+                        warn!(error = e.to_string().as_str(), "Document in error");
+                        continue;
                     },
                 };
 
@@ -951,6 +960,7 @@ impl Paginator for CursorPaginator {
                     new_connector.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
                     docs = Vec::default();
 
+                    trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
                     yield Ok(new_connector as Box<dyn Connector>);
                 }
             }
@@ -966,6 +976,7 @@ impl Paginator for CursorPaginator {
                 let data = serde_json::to_string(&docs)?;
                 new_connector.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
 
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
                 yield Ok(new_connector as Box<dyn Connector>);
             }
 

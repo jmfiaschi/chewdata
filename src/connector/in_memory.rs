@@ -155,11 +155,10 @@ impl Connector for InMemory {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
-
         let resource = self.memory.lock().await;
         self.inner = io::Cursor::new(resource.get_ref().clone());
 
+        info!("The connector fetch data with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -183,11 +182,10 @@ impl Connector for InMemory {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> io::Result<()> {
-        info!("Start");
-
         let mut memory = self.memory.lock().await;
         *memory = Cursor::default();
 
+        info!("The connector erase data into the memory with success");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -244,6 +242,7 @@ impl Connector for InMemory {
         memory.write_all(&inner)?;
         memory.set_position(0);
 
+        info!("The connector send data into the memory with success");
         Ok(())
     }
     /// See [`Connector::inner`] for more details.
@@ -335,9 +334,10 @@ impl Paginator for InMemoryPaginator {
     async fn stream(
         &mut self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = self.connector.clone();
+        let new_connector = self.connector.clone();
         let stream = Box::pin(stream! {
-            yield Ok(Box::new(connector.clone()) as Box<dyn Connector>);
+            trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector and stop");
+            yield Ok(Box::new(new_connector.clone()) as Box<dyn Connector>);
         });
 
         Ok(stream)

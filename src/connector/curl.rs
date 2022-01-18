@@ -129,6 +129,7 @@ impl Connector for Curl {
     /// ```
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
@@ -139,9 +140,11 @@ impl Connector for Curl {
         new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
+        info!("The connector will use another resource, regarding the new parameters");
         Ok(true)
     }
     /// See [`Connector::fetch`] for more details.
@@ -167,8 +170,6 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        trace!("Start");
-
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -215,7 +216,7 @@ impl Connector for Curl {
 
         self.inner = Box::new(Cursor::new(data));
 
-        trace!("End");
+        info!("The connector fetch data into the resource with success");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -309,8 +310,6 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        info!("Start");
-
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -341,7 +340,7 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         if !res.status().is_success() {
-            warn!(
+            trace!(
                 connector = format!("{:?}", self).as_str(),
                 status = res.status().to_string().as_str(),
                 "Can't get the len of the remote document with method HEAD"
@@ -359,6 +358,7 @@ impl Connector for Curl {
             .parse::<usize>()
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
+        info!(len = content_length, "The connector found data in the resource");
         Ok(content_length)
     }
     /// See [`Connector::send`] for more details.
@@ -390,8 +390,6 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         let client = surf::client();
         // initialize the position of the cursor
         self.inner.set_position(0);
@@ -446,6 +444,7 @@ impl Connector for Curl {
             self.inner.set_position(0);
         }
 
+        info!("The connector send data into the resource with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -468,8 +467,6 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        info!("Start");
-
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -511,6 +508,7 @@ impl Connector for Curl {
             ));
         }
 
+        info!("The connector erase data in the resource with success");
         Ok(())
     }
     /// See [`Writer::inner`] for more details.
@@ -713,8 +711,14 @@ impl HeaderCounter {
         }
 
         Ok(match header_value.to_string().parse::<usize>() {
-            Ok(count) => Some(count),
-            Err(_) => None,
+            Ok(count) => {
+                trace!(size = count, "The counter count elements in the resource with success");
+                Some(count)
+            },
+            Err(_) => {
+                trace!("The counter can't count elements in the resource");
+                None
+            },
         })
     }
 }
@@ -826,6 +830,7 @@ impl BodyCounter {
             _ => None,
         };
 
+        trace!(size = count, "The counter count elements in the resource with success");
         Ok(count)
     }
 }
@@ -904,13 +909,22 @@ impl Paginator for OffsetPaginator {
     /// ```
     #[instrument]
     async fn count(&mut self) -> Result<Option<usize>> {
-        if let Some(connector) = self.connector.clone() {
-            if let Some(counter_type) = connector.counter_type.clone() {
-                self.count = counter_type.count(*connector, None).await?;
-                return Ok(self.count);
-            }
+        let connector = match self.connector {
+            Some(ref mut connector) => Ok(connector),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't count the number of element in the resource without a connector",
+            )),
+        }?;
+        
+        if let Some(counter_type) = connector.counter_type.clone() {
+            self.count = counter_type.count(*connector.clone(), None).await?;
+
+            info!(size = self.count, "The connector's counter count elements in the resource with success");
+            return Ok(self.count);
         }
 
+        trace!(size = self.count, "The connector's counter not exist or can't count the number of elements in the resource");
         Ok(None)
     }
     /// See [`Paginator::stream`] for more details.
@@ -1060,8 +1074,10 @@ impl Paginator for OffsetPaginator {
 
                 skip += limit;
 
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
                 yield Ok(new_connector as Box<dyn Connector>);
             }
+            trace!("The stream stop to return new connectors");
         });
 
         Ok(stream)
@@ -1213,10 +1229,11 @@ impl Paginator for CursorPaginator {
                 if next_token_opt.is_none() {
                     has_next = false;
                 }
-                println!("has_next {:?} {:?} ", has_next, next_token_opt);
 
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
                 yield Ok(new_connector.clone() as Box<dyn Connector>);
             }
+            trace!("The stream stop to return a new connectors");
         });
 
         Ok(stream)

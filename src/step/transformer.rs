@@ -99,8 +99,6 @@ impl Step for Transformer {
     }
     #[instrument]
     async fn exec(&self) -> io::Result<()> {
-        info!("Start");
-
         let referentials = match self.referentials.clone() {
             Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
             None => None,
@@ -142,7 +140,6 @@ impl Step for Transformer {
             super::send(self as &dyn Step, &step_context_received.clone()).await?;
         }
 
-        info!("End");
         Ok(())
     }
     fn thread_number(&self) -> usize {
