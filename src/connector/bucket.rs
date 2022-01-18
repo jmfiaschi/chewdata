@@ -371,6 +371,11 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
+
         let connector = self.clone();
         let s3_client = connector.s3_client()?;
         let request = GetObjectRequest {
@@ -431,6 +436,7 @@ impl Connector for Bucket {
     ///     let mut buffer = String::default();
     ///     connector_read.read_to_string(&mut buffer).await?;
     ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
+    ///     connector_read.clear();
     ///
     ///     connector.write(r#",{"column1":"value2"}]"#.as_bytes()).await?;
     ///     connector.send(Some(-1)).await?;
@@ -464,6 +470,7 @@ impl Connector for Bucket {
             );
             {
                 let mut connector_clone = self.clone();
+                connector_clone.clear();
                 connector_clone.fetch().await?;
                 connector_clone.read_to_end(&mut content_file).await?;
             }

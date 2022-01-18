@@ -338,6 +338,11 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
+        
         let mut buff = Vec::default();
         OpenOptions::new()
             .read(true)

@@ -742,6 +742,11 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
+        
         if let (Some(true), Some("csv")) = (
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),

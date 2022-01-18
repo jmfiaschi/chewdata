@@ -170,6 +170,11 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
+        
         let client = surf::client();
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
