@@ -30,9 +30,6 @@ async fn main() -> io::Result<()> {
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
                 "db": "tests",
                 "collection": "bigdata",
-                "counter": {
-                    "type": "scan"
-                },
                 "paginator": {
                     "type": "offset",
                     "limit": 1000

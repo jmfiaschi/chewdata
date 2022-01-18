@@ -29,11 +29,15 @@ async fn main() -> io::Result<()> {
                 "type": "mongodb",
                 "endpoint": "{{ MONGODB_ENDPOINT }}",
                 "db": "tests",
-                "collection": "bigdata"
+                "collection": "bigdata",
+                "paginator": {
+                    "type": "cursor",
+                    "limit": 1000
+                }
             }
         },{
             "type": "w",
-            "thread_number":5,
+            "thread_number":10,
             "connector":{
                 "type": "local",
                 "path": "./data/out/test_write_iterative.jsonl"
