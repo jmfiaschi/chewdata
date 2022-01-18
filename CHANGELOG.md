@@ -1,3 +1,23 @@
+# [1.10.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.3...v1.10.0-beta.4) (2022-01-16)
+
+
+### Bug Fixes
+
+* **clap:** last version ([b4ad056](https://github.com/jmfiaschi/chewdata/commit/b4ad056c4144bdc521935029717339ff3a63ef6a))
+* **log:** messages ([921e226](https://github.com/jmfiaschi/chewdata/commit/921e226f82f432e5ecded7a5e4c8fbee6303031b))
+* **log:** messages ([fd22a9a](https://github.com/jmfiaschi/chewdata/commit/fd22a9ad2e75d58ef73e79fe292ef6489ee902de))
+* **test:** no blocking sender/receiver ([0f7ed10](https://github.com/jmfiaschi/chewdata/commit/0f7ed1047cfb30e9b571c3a3af4e1731528a459c))
+
+
+### Features
+
+* **connector:** replace next_page by a stream() for the paginator ([e16ce3d](https://github.com/jmfiaschi/chewdata/commit/e16ce3d6822540b87321ae6cd2851ce62c63a0ee))
+* **curl:** add offset/cursor base paginator ([ebf85b7](https://github.com/jmfiaschi/chewdata/commit/ebf85b7b766af1c0c00631266af6a1c6e859660f))
+* **mongo&curl:** default value ([b6dad4c](https://github.com/jmfiaschi/chewdata/commit/b6dad4cbb7cc7d5f27cfc6d11b6ac11780ce2c5d))
+* **parallel:** Possibility to read  in parallel data with offset pagination and  multi files with same structure of data ([2b2009d](https://github.com/jmfiaschi/chewdata/commit/2b2009d206fc92950642936a5f58326e6170e24e))
+* **quality:** forbid unsafe code ([da1c317](https://github.com/jmfiaschi/chewdata/commit/da1c317a9c7f2fff0127c3a3fe4b4f7250e5867a))
+* **step:** add wait/sleep field. The step wait/sleep is the pipe is not ready without blocking the thread ([ceef80b](https://github.com/jmfiaschi/chewdata/commit/ceef80b6ad2622b0225503a10b528f54d197a519))
+
 # [1.10.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.2...v1.10.0-beta.3) (2021-12-26)
 
 
