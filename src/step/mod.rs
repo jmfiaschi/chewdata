@@ -98,8 +98,6 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
 
 // Send a step_context through a step and a pipe
 async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext) -> io::Result<()> {
-    trace!("Send step context to the queue");
-
     let sender = match step.sender() {
         Some(sender) => sender,
         None => return Ok(()),
@@ -118,6 +116,7 @@ async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext) ->
         }
     }
 
+    trace!("Step context sended into the pipe");
     Ok(())
 }
 // Receive a step_context through a step and a pipe
