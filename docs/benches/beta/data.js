@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1642611299172,
+  "lastUpdate": 1642613504495,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -2039,6 +2039,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 586,
             "range": "± 88",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "c268cdf8bee4d5cb32c91f71da60753c3eb303a8",
+          "message": "fix(test): mongodb",
+          "timestamp": "2022-01-19T18:04:31+01:00",
+          "tree_id": "bea1c0014fd330e2d843892cda5f690f666466ea",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/c268cdf8bee4d5cb32c91f71da60753c3eb303a8"
+        },
+        "date": 1642613503716,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 187,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 171,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 195670,
+            "range": "± 845",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 28966,
+            "range": "± 92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 327,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 531,
+            "range": "± 3",
             "unit": "ns/iter"
           }
         ]
