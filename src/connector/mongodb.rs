@@ -684,7 +684,7 @@ impl Paginator for OffsetPaginator {
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
     ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
-    ///         skip: 1,
+    ///         skip: 0,
     ///         limit: 1,
     ///         ..Default::default()
     ///     });
@@ -723,15 +723,12 @@ impl Paginator for OffsetPaginator {
     ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
     ///         skip: 0,
     ///         limit: 1,
-    ///         count: Some(3),
+    ///         count: Some(2),
     ///         ..Default::default()
     ///     });
     ///     let mut paginator = connector.paginator().await?;
     ///     assert!(paginator.is_parallelizable());
     ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     let connector = stream.next().await.transpose()?;
-    ///     assert!(connector.is_some());
     ///
     ///     let connector = stream.next().await.transpose()?;
     ///     assert!(connector.is_some());
@@ -760,6 +757,7 @@ impl Paginator for OffsetPaginator {
         let mut has_next = true;
         let limit = self.limit;
         let mut skip = self.skip;
+
         let count_opt = match self.count {
             Some(count) => Some(count),
             None => self.count().await?,
