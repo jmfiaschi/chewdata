@@ -1,3 +1,16 @@
+# [1.10.0-beta.5](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.4...v1.10.0-beta.5) (2022-01-19)
+
+
+### Bug Fixes
+
+* **test:** mongodb ([c268cdf](https://github.com/jmfiaschi/chewdata/commit/c268cdf8bee4d5cb32c91f71da60753c3eb303a8))
+* **test:** mongodb ([c190888](https://github.com/jmfiaschi/chewdata/commit/c1908883c6b66589081ce92bac49405028400c26))
+
+
+### Features
+
+* **example:** add sub command ([b1ded94](https://github.com/jmfiaschi/chewdata/commit/b1ded94d73d46b11d0f970f49bc6baef3547bc71))
+
 # [1.10.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.3...v1.10.0-beta.4) (2022-01-16)
 
 
