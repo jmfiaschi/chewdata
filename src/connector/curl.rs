@@ -1053,6 +1053,7 @@ impl Paginator for OffsetPaginator {
         let mut has_next = true;
         let limit = self.limit;
         let mut skip = self.skip;
+        
         let count_opt = match self.count {
             Some(count) => Some(count),
             None => self.count().await?,
