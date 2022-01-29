@@ -8,6 +8,13 @@ env:
   CHEWDATA_TAG: latest
 
 jobs:
+  security_audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -47,12 +54,6 @@ jobs:
         with:
           sharedKey: build
       - run: make unit-tests
-      - uses: codecov/codecov-action@v2
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-          flags: unittests # optional
-          fail_ci_if_error: true # optional (default = false)
-          verbose: true # optional (default = false)
   integration-tests:
     needs: [build,lint]
     runs-on: ubuntu-latest
@@ -68,6 +69,25 @@ jobs:
         with:
           sharedKey: build
       - run: make integration-tests
+  coverage:
+    needs: [build,lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v0.2.6
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
+      - uses: codecov/codecov-action@v1
+        with:
+          flags: unittests # optional
+          fail_ci_if_error: true # optional (default = false)
+          verbose: true # optional (default = false)
   benchmark:
     needs: [build,lint]
     runs-on: ubuntu-latest
