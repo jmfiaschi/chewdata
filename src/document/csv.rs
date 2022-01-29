@@ -440,7 +440,7 @@ impl Document for Csv {
                 let mut values = Vec::<Value>::new();
                 let mut keys = Vec::<String>::new();
 
-                for (key, value) in object.clone() {
+                for (key, value) in object {
                     keys.push(key);
                     values.push(value);
                 }

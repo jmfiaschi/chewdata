@@ -33,7 +33,7 @@ jobs:
       - run: cargo clean
       - run: make build
   unit-tests:
-    needs: [build,lint]
+    needs: [build, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -47,14 +47,8 @@ jobs:
         with:
           sharedKey: build
       - run: make unit-tests
-      - uses: codecov/codecov-action@v2
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-          flags: unittests # optional
-          fail_ci_if_error: true # optional (default = false)
-          verbose: true # optional (default = false)
   integration-tests:
-    needs: [build,lint]
+    needs: [build, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -69,7 +63,7 @@ jobs:
           sharedKey: build
       - run: make integration-tests
   benchmark:
-    needs: [build,lint]
+    needs: [build, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -88,17 +82,17 @@ jobs:
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
-          tool: 'cargo'
+          tool: "cargo"
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          alert-threshold: '200%'
+          alert-threshold: "200%"
           comment-on-alert: true
           fail-on-alert: true
-          alert-comment-cc-users: '@jmfiaschi'
-          benchmark-data-dir-path: 'docs/benches/${{ env.BRANCH_NAME }}'
+          alert-comment-cc-users: "@jmfiaschi"
+          benchmark-data-dir-path: "docs/benches/${{ env.BRANCH_NAME }}"
   release:
-    needs: [benchmark,integration-tests,unit-tests]
+    needs: [benchmark, integration-tests, unit-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -115,22 +109,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-  docker:
-    needs: [benchmark,integration-tests,unit-tests]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: docker/login-action@v1
-        with:
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-      - run: cp .env.ci .env
-      - run: CHEWDATA_TAG=$(make version) && echo "CHEWDATA_TAG=$CHEWDATA_TAG" >> $GITHUB_ENV
-      - uses: docker/setup-buildx-action@v1
-      - uses: docker/build-push-action@v2
-        with:
-          context: ./
-          file: ./Dockerfile
-          push: true
-          tags: ${{ github.repository_owner }}/chewdata:${{ env.CHEWDATA_TAG }}
-      - run: echo ${{ steps.docker_build.outputs.digest }}

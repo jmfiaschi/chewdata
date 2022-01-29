@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version ="1.11.0"
+version ="1.11.1-beta.1"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2018"
 description = "Extract Transform and Load data"
@@ -10,6 +10,11 @@ homepage = "https://www.chewdata.org"
 repository = "https://github.com/jmfiaschi/chewdata"
 include = ["src/*", "LICENSE-APACHE", "LICENSE-MIT", "README.md"]
 categories = ["encoding","network-programming","data-structures"]
+
+[[bench]]
+name = "benchmark"
+path = "benches/reader_benchmark.rs"
+harness = false
 
 [dependencies]
 # Logs
@@ -68,7 +73,7 @@ use_curl_connector = ["surf","jsonwebtoken","http-types"]
 use_mongodb_connector = ["mongodb"]
 default = [
     'use_xml_document',
-    'use_csv_document', 
+    'use_csv_document',
     'use_toml_document',
     'use_bucket_connector',
     'use_curl_connector',
@@ -76,11 +81,6 @@ default = [
     'tracing/max_level_trace',
     'tracing/release_max_level_info'
 ]
-
-[[bench]]
-name = "reader_benchmark"
-harness = false
-path = "benches/reader_benchmark.rs"
 
 [profile.release]
 lto = true

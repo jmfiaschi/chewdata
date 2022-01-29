@@ -1,4 +1,87 @@
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-02)
+
+
+### Bug Fixes
+
+* **ci:** use build-release and cache the bin for the docker step ([030f019](https://github.com/jmfiaschi/chewdata/commit/030f0195678c1b9509dd2e33f125094435576b2b))
+* **ci:** use build-release and cache the bin for the docker step ([7f04e2f](https://github.com/jmfiaschi/chewdata/commit/7f04e2f1c7b9f5c19bd7f5064c72a1043bb1bc5c))
+* **ci:** use build-release and cache the bin for the docker step ([dc2752c](https://github.com/jmfiaschi/chewdata/commit/dc2752c4676c468564a92d6d46a4c301313598e7))
+* **ci:** use build-release and cache the bin for the docker step ([06680db](https://github.com/jmfiaschi/chewdata/commit/06680db604069d8b707a688ac1e5976f996b17b9))
+* **ci:** use build-release and cache the bin for the docker step ([3af1b39](https://github.com/jmfiaschi/chewdata/commit/3af1b39296f4caed68be5c413a942205cdcff36b))
+* **ci:** use build-release and cache the bin for the docker step ([6425ed7](https://github.com/jmfiaschi/chewdata/commit/6425ed74c58b19b9e3328d500f5cba23efa20673))
+* **ci:** use build-release and cache the bin for the docker step ([36ef090](https://github.com/jmfiaschi/chewdata/commit/36ef090e24f455eb85395da8ec47f6e63db03e85))
+* **ci:** use build-release and cache the bin for the docker step ([b662f07](https://github.com/jmfiaschi/chewdata/commit/b662f07edcc1e4003bce67356f96f89956f1c1da))
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-01)
+
+
+### Bug Fixes
+
+* **ci:** use build-release and cache the bin for the docker step ([dc2752c](https://github.com/jmfiaschi/chewdata/commit/dc2752c4676c468564a92d6d46a4c301313598e7))
+* **ci:** use build-release and cache the bin for the docker step ([06680db](https://github.com/jmfiaschi/chewdata/commit/06680db604069d8b707a688ac1e5976f996b17b9))
+* **ci:** use build-release and cache the bin for the docker step ([3af1b39](https://github.com/jmfiaschi/chewdata/commit/3af1b39296f4caed68be5c413a942205cdcff36b))
+* **ci:** use build-release and cache the bin for the docker step ([6425ed7](https://github.com/jmfiaschi/chewdata/commit/6425ed74c58b19b9e3328d500f5cba23efa20673))
+* **ci:** use build-release and cache the bin for the docker step ([36ef090](https://github.com/jmfiaschi/chewdata/commit/36ef090e24f455eb85395da8ec47f6e63db03e85))
+* **ci:** use build-release and cache the bin for the docker step ([b662f07](https://github.com/jmfiaschi/chewdata/commit/b662f07edcc1e4003bce67356f96f89956f1c1da))
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-01)
+
+
+### Bug Fixes
+
+* **ci:** use build-release and cache the bin for the docker step ([6425ed7](https://github.com/jmfiaschi/chewdata/commit/6425ed74c58b19b9e3328d500f5cba23efa20673))
+* **ci:** use build-release and cache the bin for the docker step ([36ef090](https://github.com/jmfiaschi/chewdata/commit/36ef090e24f455eb85395da8ec47f6e63db03e85))
+* **ci:** use build-release and cache the bin for the docker step ([b662f07](https://github.com/jmfiaschi/chewdata/commit/b662f07edcc1e4003bce67356f96f89956f1c1da))
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-01)
+
+
+### Bug Fixes
+
+* **ci:** use build-release and cache the bin for the docker step ([36ef090](https://github.com/jmfiaschi/chewdata/commit/36ef090e24f455eb85395da8ec47f6e63db03e85))
+* **ci:** use build-release and cache the bin for the docker step ([b662f07](https://github.com/jmfiaschi/chewdata/commit/b662f07edcc1e4003bce67356f96f89956f1c1da))
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-01)
+
+
+### Bug Fixes
+
+* **ci:** use build-release and cache the bin for the docker step ([b662f07](https://github.com/jmfiaschi/chewdata/commit/b662f07edcc1e4003bce67356f96f89956f1c1da))
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-01)
+
+
+### Bug Fixes
+
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-01-30)
+
+
+### Bug Fixes
+
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
 # [1.11.0](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0) (2022-01-29)
+
+
+### Features
+
+* **reader:** use offset/cursor paginator with iterative/concurrency mode ([#22](https://github.com/jmfiaschi/chewdata/issues/22)) ([f8b2cad](https://github.com/jmfiaschi/chewdata/commit/f8b2cadfb11f0b42fdd69e92b2669d3fdbdff3fd))
+
+# [1.11.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0-beta.1) (2022-01-29)
+
+
+### Features
+
+* **reader:** use offset/cursor paginator with iterative/concurrency mode ([#22](https://github.com/jmfiaschi/chewdata/issues/22)) ([f8b2cad](https://github.com/jmfiaschi/chewdata/commit/f8b2cadfb11f0b42fdd69e92b2669d3fdbdff3fd))
+
+# [1.11.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0-beta.1) (2022-01-29)
 
 
 ### Features
