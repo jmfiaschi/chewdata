@@ -82,7 +82,6 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     fn thread_number(&self) -> usize {
         1
     }
-    
     fn name(&self) -> String {
         "default".to_string()
     }
