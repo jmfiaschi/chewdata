@@ -1,7 +1,9 @@
 use super::{Connector, Paginator};
 use crate::Metadata;
 use async_std::sync::Mutex;
+use async_stream::stream;
 use async_trait::async_trait;
+use futures::Stream;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{Cursor, Result, Seek, SeekFrom, Write};
@@ -153,11 +155,15 @@ impl Connector for InMemory {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
-
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
+        
         let resource = self.memory.lock().await;
         self.inner = io::Cursor::new(resource.get_ref().clone());
-        
+
+        info!("The connector fetch data with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -181,11 +187,10 @@ impl Connector for InMemory {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> io::Result<()> {
-        info!("Start");
-
         let mut memory = self.memory.lock().await;
         *memory = Cursor::default();
 
+        info!("The connector erase data into the memory with success");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -223,25 +228,24 @@ impl Connector for InMemory {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         let inner = self.inner().clone();
         let resource_len = self.len().await?;
         self.clear();
-        
+
         let mut memory = self.memory.lock().await;
 
         match position {
             Some(pos) => match resource_len as isize + pos {
                 start if start > 0 => memory.seek(SeekFrom::Start(start as u64)),
-                _ => memory.seek(SeekFrom::Start(0))
+                _ => memory.seek(SeekFrom::Start(0)),
             },
             None => memory.seek(SeekFrom::End(0)),
         }?;
-        
+
         memory.write_all(&inner)?;
         memory.set_position(0);
 
+        info!("The connector send data into the memory with success");
         Ok(())
     }
     /// See [`Connector::inner`] for more details.
@@ -293,21 +297,21 @@ impl async_std::io::Write for InMemory {
 #[derive(Debug)]
 pub struct InMemoryPaginator {
     connector: InMemory,
-    has_next: bool,
 }
 
 impl InMemoryPaginator {
     pub fn new(connector: InMemory) -> Result<Self> {
-        Ok(InMemoryPaginator {
-            connector,
-            has_next: true,
-        })
+        Ok(InMemoryPaginator { connector })
     }
 }
 
 #[async_trait]
 impl Paginator for InMemoryPaginator {
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(None)
+    }
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
     /// ```rust
@@ -320,25 +324,29 @@ impl Paginator for InMemoryPaginator {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = InMemory::default();
     ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        info!("Start");
-        
-        let mut connector = self.connector.clone();
-        Ok(match self.has_next {
-            true => {
-                self.has_next = false;
-                connector.fetch().await?;
-                Some(Box::new(connector))
-            }
-            false => None,
-        })
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let new_connector = self.connector.clone();
+        let stream = Box::pin(stream! {
+            trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector and stop");
+            yield Ok(Box::new(new_connector.clone()) as Box<dyn Connector>);
+        });
+
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        false
     }
 }

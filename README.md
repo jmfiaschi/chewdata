@@ -4,28 +4,29 @@
 [![Coverage](https://codecov.io/gh/jmfiaschi/chewdata/branch/main/graph/badge.svg?token=EI62L7XQAH)](https://codecov.io/gh/jmfiaschi/chewdata)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
 
-This application is an simple ETL in rust that can be used as a connector between systems
+This application is a light ETL in rust that can be used as a connector between systems
 
 | Available | Feature              | Values                                                      | Description                        |
 | --------- | -------------------- | ----------------------------------------------------------- | ---------------------------------- |
-| x         | Supported format     | `Json` , `Jsonl` , `CSV` , `Toml` , `XML` , `Yaml` , `Text` | Read and Write in these format     |
-| x         | Object Databases     | `mongodb`                                                   | Read / Write / Clean data          |
-| -         | Relational Databases | `psql`                                                      | Read / Write / Clean data          |
-| x         | Bucket               | `s3` , `minio`                                              | Read / Write / Clean / Select data |
+| x         | Supported formats    | `Json` , `Jsonl` , `CSV` , `Toml` , `XML` , `Yaml` , `Text` | Read and Write in these formats    |
+| x         | Object Databases     | `Mongodb`                                                   | Read / Write / Clean data          |
+| -         | Relational Databases | `Psql`                                                      | Read / Write / Clean data          |
+| x         | Bucket               | `S3` , `Minio`                                              | Read / Write / Clean / Select data |
 | x         | Curl                 | `*`                                                         | Read / Write / Clean data          |
-| x         | Curl auth            | `basic` , `bearer` , `jwt`                                  | Read / Write / Clean data          |
-| -         | Message brocker      | `rabbitMQ` , `kafka`                                        | Read / Write / Clean data          |
+| x         | Curl auth            | `Basic` , `Bearer` , `Jwt`                                  | Read / Write / Clean data          |
+| -         | Message brocker      | `RabbitMQ`                                                  | Read / Write / Clean data          |
 | x         | Transform data       | [tera template](https://tera.netlify.app/docs)              | Transform the data in the fly      |
 
 More useful information:
 
 * It need only rustup
 * No garbage collector
-* Parallel work
-* Multi platforms
+* Parallel works
+* Cross-platform
+* Use async/await for concurrent threads
+* Read data with Cursor/Offset paginator
 
-the target of this project is to simplify the work of developers and simplify the connection between system.
-The work is not finished but I hope it will be useful for you.
+The target of this project is to simplify the developer's works and simplify the connection between systems.
 
 ## Getting started
 
@@ -50,7 +51,7 @@ make integration-tests
 
 If all the test pass, the project is ready. read the Makefile in order to see, what kind of shortcut you can use.
 
-If you want some examples to discover this project, go in this section [./examples](./examples/README.md)
+If you want some examples to discover this project, go in this section [./examples](./examples/)
 
 ### Run the ETL
 

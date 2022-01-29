@@ -13,6 +13,7 @@ use serde_json::Value;
 use std::io::{Error, ErrorKind};
 use std::{collections::{BTreeMap,HashMap}, fmt, io};
 use uuid::Uuid;
+use futures::StreamExt;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -33,7 +34,15 @@ pub struct Validator {
     pub input_name: String,
     #[serde(alias = "output")]
     pub output_name: String,
+    #[serde(alias = "separator")]
     pub error_separator: String,
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    #[serde(alias = "sleep")]
+    pub wait: u64,
+    #[serde(skip)]
+    pub receiver: Option<Receiver<StepContext>>,
+    #[serde(skip)]
+    pub sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Validator {
@@ -50,6 +59,9 @@ impl Default for Validator {
             input_name: "input".to_string(),
             output_name: "output".to_string(),
             error_separator: "\r\n".to_string(),
+            receiver: None,
+            sender: None,
+            wait: 10,
         }
     }
 }
@@ -69,7 +81,26 @@ impl fmt::Display for Validator {
 
 #[async_trait]
 impl Step for Validator {
-    #[instrument]
+    /// See [`Step::set_receiver`] for more details.
+    fn set_receiver(&mut self, receiver: Receiver<StepContext>) {
+        self.receiver = Some(receiver);
+    }
+    /// See [`Step::receiver`] for more details.
+    fn receiver(&self) -> Option<&Receiver<StepContext>> {
+        self.receiver.as_ref()
+    }
+    /// See [`Step::set_sender`] for more details.
+    fn set_sender(&mut self, sender: Sender<StepContext>) {
+        self.sender = Some(sender);
+    }
+    /// See [`Step::sender`] for more details.
+    fn sender(&self) -> Option<&Sender<StepContext>> {
+        self.sender.as_ref()
+    }
+    /// See [`Step::sleep`] for more details.
+    fn sleep(&self) -> u64 {
+        self.wait
+    }
     /// This step validate the values of a dataset.
     ///
     /// # Example: simple validations
@@ -107,18 +138,20 @@ impl Step for Validator {
     ///     let validator = Validator {
     ///         rules: rules,
     ///         error_separator: " & ".to_string(),
+    ///         receiver: Some(receiver_input),
+    ///         sender: Some(sender_output),
     ///         ..Default::default()
     ///     };
     ///
     ///     thread::spawn(move || {
     ///         let data = serde_json::from_str(r#"{"number_1":"my_string","number_2":100,"text":"120"}"#).unwrap();
     ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-    ///         sender_input.send(step_context).unwrap();
+    ///         sender_input.try_send(step_context).unwrap();
     ///     });
     ///     
-    ///     validator.exec(Some(receiver_input), Some(sender_output)).await?;
+    ///     validator.exec().await?;
     ///
-    ///     for step_context in receiver_output {
+    ///     for step_context in receiver_output.try_recv() {
     ///         let error_result = step_context.data_result().to_value().search("/_error").unwrap().unwrap();
     ///         let error_result_expected = Value::String("Err N.1 & Err N.2 & Err T.1".to_string());
     ///         assert_eq!(error_result_expected, error_result);
@@ -154,18 +187,20 @@ impl Step for Validator {
     ///     let validator = Validator {
     ///         rules: rules,
     ///         error_separator: " & ".to_string(),
+    ///         receiver: Some(receiver_input),
+    ///         sender: Some(sender_output),
     ///         ..Default::default()
     ///     };
     ///
     ///     thread::spawn(move || {
     ///         let data = serde_json::from_str(r#"{"number":100}"#).unwrap();
     ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-    ///         sender_input.send(step_context).unwrap();
+    ///         sender_input.try_send(step_context).unwrap();
     ///     });
     ///     
-    ///     validator.exec(Some(receiver_input), Some(sender_output)).await?;
+    ///     validator.exec().await?;
     ///
-    ///     for step_context in receiver_output {
+    ///     for step_context in receiver_output.try_recv() {
     ///         let error_result = step_context.data_result().to_value().search("/_error").unwrap().unwrap();
     ///         let error_result_expected = Value::String("Failed to render the field 'rule_exception'. Tester `matching` was called on an undefined variable.".to_string());
     ///         assert_eq!(error_result_expected, error_result);
@@ -174,29 +209,10 @@ impl Step for Validator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn exec(
-        &self,
-        receiver_option: Option<Receiver<StepContext>>,
-        sender_option: Option<Sender<StepContext>>,
+        &self
     ) -> io::Result<()> {
-        info!("Start");
-
-        let sender = match sender_option {
-            Some(sender) => sender,
-            None => {
-                info!("This step is skipped. Need a step after or a sender");
-                return Ok(());
-            }
-        };
-
-        let receiver = match receiver_option {
-            Some(receiver) => receiver,
-            None => {
-                info!("This step is skipped. Need a step before or a receiver");
-                return Ok(());
-            }
-        };
-
         let referentials = match self.referentials.clone() {
             Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
             None => None,
@@ -213,7 +229,9 @@ impl Step for Validator {
             })
             .collect();
 
-        for mut step_context_received in receiver {
+        let mut receiver_stream = super::receive(self as &dyn Step).await?;
+        while let Some(ref mut step_context_received) = receiver_stream.next().await {
+            
             let data_result = step_context_received.data_result();
 
             if !data_result.is_type(self.data_type.as_ref()) {
@@ -285,12 +303,9 @@ impl Step for Validator {
             };
 
             step_context_received.insert_step_result(self.name(), new_data_result)?;
-            self.send(step_context_received.clone(), &sender)?;
+            super::send(self as &dyn Step, &step_context_received.clone()).await?;
         }
 
-        drop(sender);
-
-        info!("End");
         Ok(())
     }
     fn thread_number(&self) -> usize {

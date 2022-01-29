@@ -4,6 +4,7 @@ use crate::step::{DataResult, Step};
 use crate::StepContext;
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};
 use uuid::Uuid;
@@ -27,6 +28,13 @@ pub struct Writer {
     pub dataset_size: usize,
     #[serde(alias = "threads")]
     pub thread_number: usize,
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    #[serde(alias = "sleep")]
+    pub wait: u64,
+    #[serde(skip)]
+    pub receiver: Option<Receiver<StepContext>>,
+    #[serde(skip)]
+    pub sender: Option<Sender<StepContext>>,
 }
 
 impl Default for Writer {
@@ -40,6 +48,9 @@ impl Default for Writer {
             data_type: DataResult::OK.to_string(),
             dataset_size: 1000,
             thread_number: 1,
+            receiver: None,
+            sender: None,
+            wait: 10,
         }
     }
 }
@@ -60,24 +71,31 @@ impl fmt::Display for Writer {
 // This Step write data from somewhere into another stream.
 #[async_trait]
 impl Step for Writer {
+    /// See [`Step::set_receiver`] for more details.
+    fn set_receiver(&mut self, receiver: Receiver<StepContext>) {
+        self.receiver = Some(receiver);
+    }
+    /// See [`Step::receiver`] for more details.
+    fn receiver(&self) -> Option<&Receiver<StepContext>> {
+        self.receiver.as_ref()
+    }
+    /// See [`Step::set_sender`] for more details.
+    fn set_sender(&mut self, sender: Sender<StepContext>) {
+        self.sender = Some(sender);
+    }
+    /// See [`Step::sender`] for more details.
+    fn sender(&self) -> Option<&Sender<StepContext>> {
+        self.sender.as_ref()
+    }
+    /// See [`Step::sleep`] for more details.
+    fn sleep(&self) -> u64 {
+        self.wait
+    }
     #[instrument]
     async fn exec(
-        &self,
-        receiver_option: Option<Receiver<StepContext>>,
-        sender_option: Option<Sender<StepContext>>,
+        &self
     ) -> io::Result<()> {
-        info!("Start");
-
         let mut current_dataset_size = 0;
-
-        let receiver = match receiver_option {
-            Some(receiver) => receiver,
-            None => {
-                info!("This step is skipped. Need a step before or a receiver");
-                return Ok(());
-            }
-        };
-
         let mut connector = self.connector_type.clone().connector();
         let document = self.document_type.document();
         let position = -(document.entry_point_path_end().len() as isize);
@@ -87,10 +105,10 @@ impl Step for Writer {
         // Use to init the connector during the loop
         let default_connector = connector.clone();
 
-        for step_context_received in receiver {
-            if let Some(ref sender) = sender_option {
-                self.send(step_context_received.clone(), sender)?;
-            }
+        let mut receiver_stream = super::receive(self as &dyn Step).await?;
+        while let Some(step_context_received) = receiver_stream.next().await {
+            
+            super::send(self as &dyn Step, &step_context_received.clone()).await?;
 
             if !step_context_received
                 .data_result()
@@ -108,14 +126,14 @@ impl Step for Writer {
                 {
                     document.close(&mut *connector).await?;
                     match connector.send(Some(position)).await {
-                        Ok(_) => (),
+                        Ok(_) => info!("Dataset sended with success into the connector"),
                         Err(e) => {
                             warn!(
                                 error = e.to_string().as_str(),
                                 data = String::from_utf8_lossy(connector.inner())
                                     .to_string()
                                     .as_str(),
-                                "Can't send the data througth the connector"
+                                "Can't send the data through the connector"
                             )
                         }
                     };
@@ -158,7 +176,7 @@ impl Step for Writer {
         if 0 < current_dataset_size {
             info!(
                 dataset_size = current_dataset_size,
-                "Send data before to end the step"
+                "Last send data into the connector"
             );
 
             document.close(&mut *connector).await?;
@@ -177,11 +195,6 @@ impl Step for Writer {
             };
         }
 
-        if let Some(sender) = sender_option {
-            drop(sender);
-        }
-
-        info!("End");
         Ok(())
     }
     fn thread_number(&self) -> usize {

@@ -145,7 +145,6 @@ impl Jwt {
     /// ```
     #[instrument]
     pub async fn refresh(&mut self) -> Result<()> {
-        trace!("Start");
         if let Some(refresh_connector_type) = self.refresh_connector.clone() {
             let mut payload = self.payload.clone();
             let parameters = self.parameters.clone();

@@ -1,7 +1,7 @@
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::{Dataset, DataResult};
 use crate::Metadata;
+use crate::{DataResult, Dataset};
 use async_std::io::{prelude::WriteExt, ReadExt};
 use async_stream::stream;
 use async_trait::async_trait;
@@ -40,8 +40,13 @@ impl Default for Jsonl {
 
 #[async_trait]
 impl Document for Jsonl {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Jsonl::default().metadata.merge(self.metadata.clone())
+    }
+    /// See [`Document::set_entry_path`] for more details.
+    fn set_entry_path(&mut self, entry_path: String) {
+        self.entry_path = Some(entry_path);
     }
     /// See [`Document::read_data`] for more details.
     ///

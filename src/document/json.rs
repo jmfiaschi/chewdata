@@ -1,7 +1,7 @@
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::{Dataset, DataResult};
 use crate::Metadata;
+use crate::{DataResult, Dataset};
 use async_std::io::prelude::WriteExt;
 use async_std::io::ReadExt;
 use async_stream::stream;
@@ -39,8 +39,13 @@ impl Default for Json {
 
 #[async_trait]
 impl Document for Json {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Json::default().metadata.merge(self.metadata.clone())
+    }
+    /// See [`Document::set_entry_path`] for more details.
+    fn set_entry_path(&mut self, entry_path: String) {
+        self.entry_path = Some(entry_path);
     }
     /// See [`Document::read_data`] for more details.
     ///
@@ -168,8 +173,6 @@ impl Document for Json {
     /// ```
     #[instrument]
     async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
-        info!("Start");
-        
         let mut buf = Vec::new();
         connector.read_to_end(&mut buf).await?;
 
@@ -245,7 +248,6 @@ impl Document for Json {
     /// ```
     #[instrument]
     async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        trace!("Start");
         if !connector.inner().is_empty() {
             connector.write_all(b",").await?;
         }
@@ -332,8 +334,6 @@ impl Document for Json {
     /// ```
     #[instrument]
     async fn close(&self, connector: &mut dyn Connector) -> io::Result<()> {
-        info!("Start");
-        
         let remote_len = connector.len().await?;
         let buff = String::from_utf8(connector.inner().to_vec())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;

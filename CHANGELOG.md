@@ -1,9 +1,65 @@
-# [1.10.0](https://github.com/jmfiaschi/chewdata/compare/v1.9.1...v1.10.0) (2021-12-29)
+# [1.11.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0-beta.1) (2022-01-29)
+
+
+### Bug Fixes
+
+* **clap:** last version ([b4ad056](https://github.com/jmfiaschi/chewdata/commit/b4ad056c4144bdc521935029717339ff3a63ef6a))
+* **log:** messages ([921e226](https://github.com/jmfiaschi/chewdata/commit/921e226f82f432e5ecded7a5e4c8fbee6303031b))
+* **log:** messages ([fd22a9a](https://github.com/jmfiaschi/chewdata/commit/fd22a9ad2e75d58ef73e79fe292ef6489ee902de))
+* **step_context:** add step_context to avoid variable names collision ([c05e80b](https://github.com/jmfiaschi/chewdata/commit/c05e80ba2a7e5131ccd77695f1b097a9170619c2))
+* **test:** mongodb ([c268cdf](https://github.com/jmfiaschi/chewdata/commit/c268cdf8bee4d5cb32c91f71da60753c3eb303a8))
+* **test:** mongodb ([c190888](https://github.com/jmfiaschi/chewdata/commit/c1908883c6b66589081ce92bac49405028400c26))
+* **test:** no blocking sender/receiver ([0f7ed10](https://github.com/jmfiaschi/chewdata/commit/0f7ed1047cfb30e9b571c3a3af4e1731528a459c))
 
 
 ### Features
 
-* **validator:** Add a validator step ([895ef86](https://github.com/jmfiaschi/chewdata/commit/895ef8689034cd5c22ee85c12c0690aecfa4f937))
+* **connector:** replace next_page by a stream() for the paginator ([e16ce3d](https://github.com/jmfiaschi/chewdata/commit/e16ce3d6822540b87321ae6cd2851ce62c63a0ee))
+* **curl:** add offset/cursor base paginator ([ebf85b7](https://github.com/jmfiaschi/chewdata/commit/ebf85b7b766af1c0c00631266af6a1c6e859660f))
+* **example:** add sub command ([b1ded94](https://github.com/jmfiaschi/chewdata/commit/b1ded94d73d46b11d0f970f49bc6baef3547bc71))
+* **mongo&curl:** default value ([b6dad4c](https://github.com/jmfiaschi/chewdata/commit/b6dad4cbb7cc7d5f27cfc6d11b6ac11780ce2c5d))
+* **parallel:** Possibility to read  in parallel data with offset pagination and  multi files with same structure of data ([2b2009d](https://github.com/jmfiaschi/chewdata/commit/2b2009d206fc92950642936a5f58326e6170e24e))
+* **quality:** forbid unsafe code ([da1c317](https://github.com/jmfiaschi/chewdata/commit/da1c317a9c7f2fff0127c3a3fe4b4f7250e5867a))
+* **step:** add wait/sleep field. The step wait/sleep is the pipe is not ready without blocking the thread ([ceef80b](https://github.com/jmfiaschi/chewdata/commit/ceef80b6ad2622b0225503a10b528f54d197a519))
+* **step:** replace alias by name to identify a step ([443fd43](https://github.com/jmfiaschi/chewdata/commit/443fd4392e325006ab48753777fc03b0ae93cf69))
+* **step:** replace alias by name to identify a step ([55e2fdc](https://github.com/jmfiaschi/chewdata/commit/55e2fdc1ea66bd3670f4116d36d81c3dfc93a1c2))
+* **validator:** Add a validator step ([09bbeb7](https://github.com/jmfiaschi/chewdata/commit/09bbeb7ff44daba445027777e374826c8cffead3))
+* **validator:** Add a validator step ([697aecc](https://github.com/jmfiaschi/chewdata/commit/697aecc36698c07ec1953dcd0add3877aa3ba3f0))
+* **validator:** Add tests and docs ([f1986df](https://github.com/jmfiaschi/chewdata/commit/f1986df515531641469d02fe5e8a27115aacca1c))
+* **validator:** Add tests and docs ([4107e41](https://github.com/jmfiaschi/chewdata/commit/4107e41f792416e16153e7a5ecb02a177f2f97cd))
+
+# [1.10.0-beta.5](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.4...v1.10.0-beta.5) (2022-01-19)
+
+
+### Bug Fixes
+
+* **test:** mongodb ([c268cdf](https://github.com/jmfiaschi/chewdata/commit/c268cdf8bee4d5cb32c91f71da60753c3eb303a8))
+* **test:** mongodb ([c190888](https://github.com/jmfiaschi/chewdata/commit/c1908883c6b66589081ce92bac49405028400c26))
+
+
+### Features
+
+* **example:** add sub command ([b1ded94](https://github.com/jmfiaschi/chewdata/commit/b1ded94d73d46b11d0f970f49bc6baef3547bc71))
+
+# [1.10.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.3...v1.10.0-beta.4) (2022-01-16)
+
+
+### Bug Fixes
+
+* **clap:** last version ([b4ad056](https://github.com/jmfiaschi/chewdata/commit/b4ad056c4144bdc521935029717339ff3a63ef6a))
+* **log:** messages ([921e226](https://github.com/jmfiaschi/chewdata/commit/921e226f82f432e5ecded7a5e4c8fbee6303031b))
+* **log:** messages ([fd22a9a](https://github.com/jmfiaschi/chewdata/commit/fd22a9ad2e75d58ef73e79fe292ef6489ee902de))
+* **test:** no blocking sender/receiver ([0f7ed10](https://github.com/jmfiaschi/chewdata/commit/0f7ed1047cfb30e9b571c3a3af4e1731528a459c))
+
+
+### Features
+
+* **connector:** replace next_page by a stream() for the paginator ([e16ce3d](https://github.com/jmfiaschi/chewdata/commit/e16ce3d6822540b87321ae6cd2851ce62c63a0ee))
+* **curl:** add offset/cursor base paginator ([ebf85b7](https://github.com/jmfiaschi/chewdata/commit/ebf85b7b766af1c0c00631266af6a1c6e859660f))
+* **mongo&curl:** default value ([b6dad4c](https://github.com/jmfiaschi/chewdata/commit/b6dad4cbb7cc7d5f27cfc6d11b6ac11780ce2c5d))
+* **parallel:** Possibility to read  in parallel data with offset pagination and  multi files with same structure of data ([2b2009d](https://github.com/jmfiaschi/chewdata/commit/2b2009d206fc92950642936a5f58326e6170e24e))
+* **quality:** forbid unsafe code ([da1c317](https://github.com/jmfiaschi/chewdata/commit/da1c317a9c7f2fff0127c3a3fe4b4f7250e5867a))
+* **step:** add wait/sleep field. The step wait/sleep is the pipe is not ready without blocking the thread ([ceef80b](https://github.com/jmfiaschi/chewdata/commit/ceef80b6ad2622b0225503a10b528f54d197a519))
 
 # [1.10.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.2...v1.10.0-beta.3) (2021-12-26)
 

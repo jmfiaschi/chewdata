@@ -30,11 +30,11 @@ async fn main() -> io::Result<()> {
     thread::spawn(move || {
         let data = serde_json::from_str(r#"{"field_1":"value_1","field_2":"value_1"}"#).unwrap();
         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-        sender_input.send(step_context).unwrap();
+        sender_input.try_send(step_context).unwrap();
 
         let data = serde_json::from_str(r#"{"field_1":"value_2","field_2":"value_2"}"#).unwrap();
         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-        sender_input.send(step_context).unwrap();
+        sender_input.try_send(step_context).unwrap();
     });
 
     let config = serde_json::from_str(config.to_string().as_str())?;

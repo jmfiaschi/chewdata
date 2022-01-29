@@ -1,7 +1,10 @@
 use super::{Connector, Paginator};
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
+use async_stream::stream;
 use async_trait::async_trait;
+use fs2::FileExt;
+use futures::Stream;
 use glob::glob;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -71,7 +74,7 @@ impl Connector for Local {
                 let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
-            },
+            }
             _ => self.path.clone(),
         }
     }
@@ -93,6 +96,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn len(&mut self) -> Result<usize> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
@@ -102,10 +106,20 @@ impl Connector for Local {
             ));
         }
 
-        match fs::metadata(self.path()) {
-            Ok(metadata) => Ok(metadata.len() as usize),
-            Err(_) => Ok(0),
-        }
+        let len = match fs::metadata(self.path()) {
+            Ok(metadata) => {
+                let len = metadata.len() as usize;
+                info!(len = len, "The connector found data in the file");
+                len
+            }
+            Err(_) => {
+                let len = 0;
+                info!(len = len, "The connector not found data in the file");
+                len
+            }
+        };
+
+        Ok(len)
     }
     /// See [`Connector::is_empty`] for more details.
     /// Not work for wildcard path.
@@ -126,6 +140,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument]
     async fn is_empty(&mut self) -> Result<bool> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
@@ -138,14 +153,19 @@ impl Connector for Local {
         match fs::metadata(self.path()) {
             Ok(metadata) => {
                 if 0 < metadata.len() {
+                    info!("The connector checked a file with data");
                     return Ok(false);
                 }
             }
             Err(_) => {
+                info!(
+                    "The connector checked an empty file, impossible to reach the file's metadata"
+                );
                 return Ok(true);
             }
         };
 
+        info!("The connector checked an empty file");
         Ok(true)
     }
     /// See [`Connector::set_parameters`] for more details.
@@ -223,8 +243,6 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         let mut file = OpenOptions::new()
             .read(true)
             .create(true)
@@ -232,20 +250,28 @@ impl Connector for Local {
             .truncate(false)
             .open(self.path().as_str())?;
 
+        file.lock_exclusive()?;
+        trace!("The connector lock the file");
+
         let resource_len = self.len().await?;
 
         match position {
             Some(pos) => match resource_len as isize + pos {
                 start if start > 0 => file.seek(SeekFrom::Start(start as u64)),
-                _ => file.seek(SeekFrom::Start(0))
+                _ => file.seek(SeekFrom::Start(0)),
             },
             None => file.seek(SeekFrom::End(0)),
         }?;
 
         file.write_all(self.inner.get_ref())?;
+        trace!("The connector write data into the file");
+
+        file.unlock()?;
+        trace!("The connector unlock the file");
 
         self.clear();
 
+        info!("The connector send data into the file with success");
         Ok(())
     }
     /// See [`Connector::is_resource_will_change`] for more details.
@@ -264,21 +290,25 @@ impl Connector for Local {
     /// connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
     /// assert_eq!(true, connector.is_resource_will_change(params).unwrap());
     /// ```
+    #[instrument]
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
+            trace!("The connector stay link to the same file");
             return Ok(false);
         }
 
         let mut actuel_path = self.path.clone();
         actuel_path.replace_mustache(self.parameters.clone());
-        
+
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
+            trace!("The connector stay link to the same file");
             return Ok(false);
         }
 
+        info!("The connector will use another file, regarding the new parameters");
         Ok(true)
     }
     /// See [`Connector::inner`] for more details.
@@ -308,8 +338,11 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
-
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
+        
         let mut buff = Vec::default();
         OpenOptions::new()
             .read(true)
@@ -321,6 +354,7 @@ impl Connector for Local {
             .read_to_end(&mut buff)?;
         self.inner = Cursor::new(buff);
 
+        info!("The connector fetch data with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -347,8 +381,6 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        info!("Start");
-
         OpenOptions::new()
             .read(false)
             .create(true)
@@ -357,6 +389,7 @@ impl Connector for Local {
             .truncate(true)
             .open(self.path().as_str())?;
 
+        info!("The connector erase the file with success");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -364,8 +397,10 @@ impl Connector for Local {
         Ok(Box::pin(LocalPaginator::new(self.clone())?))
     }
     /// See [`Connector::clear`] for more details.
+    #[instrument]
     fn clear(&mut self) {
         self.inner = Default::default();
+        trace!("The connector is cleaned");
     }
 }
 
@@ -403,8 +438,8 @@ impl async_std::io::Write for Local {
 
 #[derive(Debug)]
 pub struct LocalPaginator {
-    connector: Local,
-    paths: IntoIter<String>,
+    pub connector: Local,
+    pub paths: IntoIter<String>,
 }
 
 impl LocalPaginator {
@@ -422,9 +457,10 @@ impl LocalPaginator {
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/one_line.*".to_string();
     ///     let mut paginator = LocalPaginator::new(connector)?;
+    ///     let mut stream = paginator.stream().await?;
     ///     
-    ///     assert_eq!(r#"data/one_line.csv"#, paginator.next_page().await?.unwrap().path());
-    ///     assert_eq!(r#"data/one_line.json"#, paginator.next_page().await?.unwrap().path());
+    ///     assert_eq!(r#"data/one_line.csv"#, stream.next().await.transpose()?.unwrap().path());
+    ///     assert_eq!(r#"data/one_line.json"#, stream.next().await.transpose()?.unwrap().path());
     ///
     ///     Ok(())
     /// }
@@ -464,7 +500,11 @@ impl LocalPaginator {
 
 #[async_trait]
 impl Paginator for LocalPaginator {
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(Some(self.paths.clone().count()))
+    }
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
     /// ```rust
@@ -477,14 +517,19 @@ impl Paginator for LocalPaginator {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/one_line.*".to_string();
-    ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     let mut connector = paginator.next_page().await?.unwrap();     
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     let mut connector = stream.next().await.transpose()?.unwrap();
+    ///     connector.fetch().await?;     
     ///     let mut buffer1 = String::default();
     ///     let len1 = connector.read_to_string(&mut buffer1).await?;
     ///     assert!(0 < len1, "Can't read the content of the file.");
     ///
-    ///     let mut connector = paginator.next_page().await?.unwrap();     
+    ///     let mut connector = stream.next().await.transpose()?.unwrap();  
+    ///     connector.fetch().await?;     
     ///     let mut buffer2 = String::default();
     ///     let len2 = connector.read_to_string(&mut buffer2).await?;
     ///     assert!(0 < len2, "Can't read the content of the file.");
@@ -494,18 +539,27 @@ impl Paginator for LocalPaginator {
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        info!("Start");
-        
-        let mut connector = Local::default();
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = self.connector.clone();
+        let mut paths = self.paths.clone();
 
-        Ok(match self.paths.next() {
-            Some(path) => {
-                connector.path = path;
-                connector.fetch().await?;
-                Some(Box::new(connector))
+        let stream = Box::pin(stream! {
+            while let Some(path) = paths.next() {
+                let mut new_connector = connector.clone();
+                new_connector.path = path.clone();
+
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
+                yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
-            None => None,
-        })
+            trace!("The stream stop to return new connectors");
+        });
+
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        true
     }
 }

@@ -4,6 +4,7 @@ use crate::connector::Connector;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
 use async_std::prelude::*;
+use async_stream::stream;
 use async_trait::async_trait;
 use regex::Regex;
 use rusoto_core::credential::ProvideAwsCredentials;
@@ -581,6 +582,7 @@ impl Connector for BucketSelect {
     /// ```
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
@@ -591,9 +593,11 @@ impl Connector for BucketSelect {
         new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
+        info!("The connector will use another resource, regarding the new parameters");
         Ok(true)
     }
     /// See [`Connector::path`] for more details.
@@ -656,8 +660,6 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        trace!("Start");
-        
         let mut connector = self.clone();
         connector.query = format!(
             "{} {}",
@@ -669,8 +671,10 @@ impl Connector for BucketSelect {
                 .unwrap(),
             "limit 1"
         );
+        let len = connector.fetch_length().await.unwrap_or_default();
 
-        Ok(connector.fetch_length().await.unwrap_or_default())
+        info!(len = len, "The connector found data in the resource");
+        Ok(len)
     }
     /// See [`Connector::is_empty`] for more details.
     ///
@@ -738,8 +742,11 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        trace!("Start");
-
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
+        
         if let (Some(true), Some("csv")) = (
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),
@@ -771,6 +778,7 @@ impl Connector for BucketSelect {
         // initialize the position of the cursors
         self.inner.set_position(0);
 
+        info!("The connector fetch data into the resource with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
@@ -855,7 +863,11 @@ impl BucketSelectPaginator {
 
 #[async_trait]
 impl Paginator for BucketSelectPaginator {
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(Some(self.paths.clone().count()))
+    }
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
     /// ```rust
@@ -863,6 +875,7 @@ impl Paginator for BucketSelectPaginator {
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -878,10 +891,13 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
+    /// 
     ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
     ///
     ///     Ok(())
     /// }
@@ -892,6 +908,7 @@ impl Paginator for BucketSelectPaginator {
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -908,35 +925,41 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
+    /// 
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/multi_lines.json".to_string(), paginator.next_page().await?.unwrap().path());
-    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     assert_eq!("data/multi_lines.json".to_string(), stream.next().await.transpose()?.unwrap().path());
+    ///     assert_eq!("data/one_line.json".to_string(), stream.next().await.transpose()?.unwrap().path());
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        trace!("Start");
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = self.connector.clone();
+        let mut paths = self.paths.clone();
 
-        let mut connector = self.connector.clone();
+        let stream = Box::pin(stream! {
+            while let Some(path) = paths.next() {
+                trace!(next_path = path.as_str(), "Next path");
 
-        for path in &mut self.paths {
-            connector.path = path;
-            match connector.fetch().await {
-                Ok(_) => (),
-                Err(e) => {
-                    warn!(
-                        error = e.to_string().as_str(),
-                        connector = format!("{:?}", connector).as_str(),
-                        "The paginator skip the resource due to an error"
-                    );
-                    continue;
-                }
-            };
-            return Ok(Some(Box::new(connector)));
-        }
+                let mut new_connector = connector.clone();
+                new_connector.path = path;
 
-        Ok(None)
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
+                yield Ok(Box::new(new_connector) as Box<dyn Connector>);
+            }
+            trace!("The stream stop to return new connectors");
+        });
+
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        true
     }
 }

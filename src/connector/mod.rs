@@ -27,9 +27,8 @@ use crate::document::Document;
 use crate::Dataset;
 use crate::Metadata;
 use async_std::io::{Read, Write};
-use async_stream::stream;
 use async_trait::async_trait;
-use futures::StreamExt;
+use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -90,61 +89,20 @@ impl ConnectorType {
 pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Read + Write {
     // Fetch data from the resource and set the inner of the connector.
     async fn fetch(&mut self) -> Result<()>;
-    // Pull the data from the inner connector, transform the data with the document type and return data as a stream.
+    // Transform the data with the document and return the dataset.
+    // Return None if the connector contain no data.
     #[instrument]
-    async fn pull_data(&mut self, document: Box<dyn Document>) -> std::io::Result<Dataset> {
-        trace!("Start");
+    async fn pull_dataset(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<Dataset>> {
+        let mut connector = self.clone_box();
+        let inner = std::str::from_utf8(self.inner())
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
-        let mut paginator = self.paginator().await?;
+        match document.has_data(inner)? {
+            false => return Ok(None),
+            true => ()
+        };
 
-        let stream = Box::pin(stream! {
-            trace!("Start to paginate");
-            while let Some(ref mut connector_reader) = match paginator.next_page().await {
-                Ok(connector_option) => connector_option,
-                Err(e) => {
-                    error!(error = e.to_string().as_str(), "Can't get the next paginator");
-                    None
-                }
-            } {
-                // If the data in the connector contain empty data like "{}" or "<entry_path></entry_path>" stop the loop.
-                let inner = match std::str::from_utf8(connector_reader.inner()) {
-                    Ok(inner) => inner,
-                    Err(e) => {
-                        error!(error = e.to_string().as_str(),  "Can't decode the connector inner");
-                        break;
-                    }
-                };
-
-                match document.has_data(inner) {
-                    Ok(false) => {
-                        info!("The connector contain empty data. The pagination stop");
-                        break;
-                    }
-                    Err(e) => {
-                        warn!(error = e.to_string().as_str(), "Can't check if the document contains data");
-                        break;
-                    }
-                    _ => {
-                        trace!("The connector contain data");
-                    }
-                };
-
-                let mut dataset = match document.read_data(connector_reader).await {
-                    Ok(dataset) => dataset,
-                    Err(e) => {
-                        error!(error = e.to_string().as_str(),  "Can't pull the data");
-                        break;
-                    }
-                };
-
-                while let Some(data_result) = dataset.next().await {
-                    yield data_result;
-                }
-            }
-        });
-
-        trace!("End");
-        Ok(stream)
+        Ok(Some(document.read_data(&mut connector).await?))
     }
     // Send the data from the inner connector to the remote resource.
     async fn send(&mut self, position: Option<isize>) -> Result<()>;
@@ -207,5 +165,14 @@ impl Clone for Box<dyn Connector> {
 
 #[async_trait]
 pub trait Paginator: std::fmt::Debug + Unpin {
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>>;
+    /// Update the document in the paginator. Used to find the total of items in a payload
+    fn set_document(&mut self, _document: Box<dyn Document>) {}
+    /// Get the stream of connectors
+    async fn stream(&mut self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>>;
+    /// Try to fetch the number of item in the connector.
+    /// None: Can't retrieve the total of item for any reason.
+    /// Some(count): Retrieve the total of item and store the value in the paginator.
+    async fn count(&mut self) -> Result<Option<usize>>;
+    /// Test if the paginator can be parallelizable.
+    fn is_parallelizable(&mut self) -> bool;
 }

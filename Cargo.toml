@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version ="1.10.0"
+version ="1.11.0-beta.1"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2018"
 description = "Extract Transform and Load data"
@@ -12,6 +12,7 @@ include = ["src/*", "LICENSE-APACHE", "LICENSE-MIT", "README.md"]
 categories = ["encoding","network-programming","data-structures"]
 
 [dependencies]
+# Logs
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features= ["fmt", "env-filter"] }
 tracing-futures = "0.2"
@@ -33,8 +34,10 @@ mime = "0.3"
 crossbeam = "0.8"
 base64 = "0.13"
 regex = "1.5"
-clap = { version = "2.33", features = ["yaml"] }
+clap = { version = "3.0", features = ["yaml"] }
 serde_yaml = { version = "0.8" }
+# Lock local files
+fs2 = { version = "0.4" }
 # For Templates
 tera = "1.12"
 uuid = { version = "0.8", features = ["serde", "v4"] }
@@ -50,7 +53,7 @@ jsonwebtoken = { version = "7.2", optional = true }
 surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
 surf_bucket_select = { version = "0.2", optional = true }
 http-types = { version = "2.12", optional = true}
-mongodb = { version = "1.2", default-features = false, features = ["async-std-runtime"], optional = true }
+mongodb = { version = "2.1", default-features = false, features = ["async-std-runtime"], optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["stable"] }

@@ -3,6 +3,7 @@ use crate::Metadata;
 use async_std::io::BufReader;
 use async_std::io::{stdin, stdout};
 use async_std::prelude::*;
+use async_stream::stream;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -88,7 +89,10 @@ impl Connector for Io {
     /// See [`Connector::fetch`] for more details.
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
         
         let stdin = BufReader::new(stdin());
 
@@ -100,21 +104,20 @@ impl Connector for Io {
         while let Some(line) = lines.next().await {
             let current_line: String = line?;
             if current_line.eq(self.eoi.as_str()) {
-                break
+                break;
             };
             buf = format!("{}{}\n", buf, current_line);
         }
 
         trace!("Save lines into the inner buffer");
         self.inner = Cursor::new(buf.into_bytes());
-        
+
+        info!("The connector fetch data with success");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
     #[instrument]
     async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         trace!("Write data into stdout");
         stdout().write_all(self.inner.get_ref()).await?;
         // Force to send data
@@ -122,11 +125,14 @@ impl Connector for Io {
         stdout().flush().await?;
         self.clear();
 
+        info!("The connector send data into the resource with success");
         Ok(())
     }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
-        unimplemented!("IO connector can't erase data to the remote document. Use other connector type")
+        unimplemented!(
+            "IO connector can't erase data to the remote document. Use other connector type"
+        )
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
@@ -172,45 +178,60 @@ impl async_std::io::Write for Io {
 
 #[derive(Debug)]
 pub struct IoPaginator {
-    connector: Io
+    connector: Io,
 }
 
 impl IoPaginator {
     pub fn new(connector: Io) -> Result<Self> {
-        Ok(IoPaginator {
-            connector
-        })
+        Ok(IoPaginator { connector })
     }
 }
 
 #[async_trait]
 impl Paginator for IoPaginator {
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(None)
+    }
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
     /// ```rust
     /// use chewdata::connector::io::Io;
     /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Io::default();
     ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(!paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the second reader.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        info!("Start");
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let new_connector = self.connector.clone();
+        let stream = Box::pin(stream! {
+            while true {
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
+                yield Ok(Box::new(new_connector.clone()) as Box<dyn Connector>);
+            }
+            trace!("The stream stop to return a new connectors");
+        });
 
-        let mut connector = self.connector.clone();
-        connector.fetch().await?;
-
-        Ok(Some(Box::new(connector)))
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        false
     }
 }

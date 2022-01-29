@@ -3,6 +3,7 @@ use crate::connector::Connector;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
 use async_std::prelude::*;
+use async_stream::stream;
 use async_trait::async_trait;
 use regex::Regex;
 use rusoto_core::credential::DefaultCredentialsProvider;
@@ -207,6 +208,7 @@ impl Connector for Bucket {
     /// ```
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
@@ -217,9 +219,11 @@ impl Connector for Bucket {
         new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
+            trace!("The connector stay link to the same resource");
             return Ok(false);
         }
 
+        info!("The connector will use another resource, regarding the new parameters");
         Ok(true)
     }
     /// See [`Connector::path`] for more details.
@@ -271,8 +275,6 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        info!("Start");
-
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
             return Err(Error::new(
@@ -311,6 +313,7 @@ impl Connector for Bucket {
             }
         })?;
 
+        info!(len = len, "The connector found data in the resource");
         Ok(len)
     }
     /// See [`Connector::is_empty`] for more details.
@@ -368,7 +371,10 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        info!("Start");
+        // Avoid to fetch two times the same data in the same connector
+        if !self.inner.get_ref().is_empty() {
+            return Ok(());
+        }
 
         let connector = self.clone();
         let s3_client = connector.s3_client()?;
@@ -399,6 +405,7 @@ impl Connector for Bucket {
 
         self.inner = Cursor::new(result?.as_bytes().to_vec());
 
+        info!("The connector fetch data into the resource with success");
         Ok(())
     }
     /// See [`Connector::send`] for more details.
@@ -429,6 +436,7 @@ impl Connector for Bucket {
     ///     let mut buffer = String::default();
     ///     connector_read.read_to_string(&mut buffer).await?;
     ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
+    ///     connector_read.clear();
     ///
     ///     connector.write(r#",{"column1":"value2"}]"#.as_bytes()).await?;
     ///     connector.send(Some(-1)).await?;
@@ -442,8 +450,6 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        info!("Start");
-
         if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty()
         {
             warn!(
@@ -460,10 +466,11 @@ impl Connector for Bucket {
         if !self.is_empty().await? {
             info!(
                 path = path_resolved.to_string().as_str(),
-                "Fetch previous data into S3"
+                "Fetch existing data into S3"
             );
             {
                 let mut connector_clone = self.clone();
+                connector_clone.clear();
                 connector_clone.fetch().await?;
                 connector_clone.read_to_end(&mut content_file).await?;
             }
@@ -508,6 +515,7 @@ impl Connector for Bucket {
 
         self.clear();
 
+        info!("The connector send data into the resource with success");
         Ok(())
     }
     fn set_metadata(&mut self, metadata: Metadata) {
@@ -520,8 +528,6 @@ impl Connector for Bucket {
     /// See [`Connector::erase`] for more details.
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        info!("Start");
-
         let path_resolved = self.path();
         let s3_client = self.s3_client()?;
         let put_request = PutObjectRequest {
@@ -539,6 +545,7 @@ impl Connector for Bucket {
             }
         })?;
 
+        info!("The connector erase data in the resource with success");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -695,12 +702,17 @@ impl BucketPaginator {
 
 #[async_trait]
 impl Paginator for BucketPaginator {
-    /// See [`Paginator::next_page`] for more details.
+    /// See [`Paginator::count`] for more details.
+    async fn count(&mut self) -> Result<Option<usize>> {
+        Ok(Some(self.paths.clone().count()))
+    }
+    /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -711,10 +723,13 @@ impl Paginator for BucketPaginator {
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
-    ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_none(), "Can't paginate more than one time.");
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
     ///
     ///     Ok(())
     /// }
@@ -723,6 +738,7 @@ impl Paginator for BucketPaginator {
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -733,10 +749,13 @@ impl Paginator for BucketPaginator {
     ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/*.json*".to_string();
-    ///     let mut paginator = connector.paginator().await?;
     ///
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the first reader.");
-    ///     assert!(paginator.next_page().await?.is_some(), "Can't get the second reader.");
+    ///     let mut paginator = connector.paginator().await?;
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
     ///     Ok(())
     /// }
@@ -745,6 +764,7 @@ impl Paginator for BucketPaginator {
     /// ```rust
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -757,26 +777,41 @@ impl Paginator for BucketPaginator {
     ///     connector.path = "data/*.json*".to_string();
     ///     connector.limit = Some(5);
     ///     connector.skip = 2;
+    ///
     ///     let mut paginator = connector.paginator().await?;
-    ///     assert_eq!("data/multi_lines.jsonl".to_string(), paginator.next_page().await?.unwrap().path());
-    ///     assert_eq!("data/one_line.json".to_string(), paginator.next_page().await?.unwrap().path());
+    ///     assert!(paginator.is_parallelizable());
+    ///     let mut stream = paginator.stream().await?;
+    ///
+    ///     assert_eq!("data/multi_lines.jsonl".to_string(), stream.next().await.transpose()?.unwrap().path());
+    ///     assert_eq!("data/one_line.json".to_string(), stream.next().await.transpose()?.unwrap().path());
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn next_page(&mut self) -> Result<Option<Box<dyn Connector>>> {
-        info!("Start");
+    async fn stream(
+        &mut self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = self.connector.clone();
+        let mut paths = self.paths.clone();
 
-        let mut connector = self.connector.clone();
+        let stream = Box::pin(stream! {
+            while let Some(path) = paths.next() {
+                trace!(next_path = path.as_str(), "Next path");
 
-        Ok(match self.paths.next() {
-            Some(path) => {
-                connector.path = path;
-                connector.fetch().await?;
-                Some(Box::new(connector))
+                let mut new_connector = connector.clone();
+                new_connector.path = path;
+
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
+                yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
-            None => None,
-        })
+            trace!("The stream stop to return new connectors");
+        });
+
+        Ok(stream)
+    }
+    /// See [`Paginator::is_parallelizable`] for more details.
+    fn is_parallelizable(&mut self) -> bool {
+        true
     }
 }

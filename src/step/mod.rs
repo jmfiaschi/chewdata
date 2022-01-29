@@ -5,16 +5,18 @@ pub mod validator;
 pub mod writer;
 
 use crate::{DataResult, StepContext};
+use async_std::{task, stream};
+use async_stream::stream;
+use async_trait::async_trait;
+use crossbeam::channel::{Receiver, Sender, TryRecvError, TrySendError};
 use eraser::Eraser;
+use futures::Stream;
 use reader::Reader;
 use serde::Deserialize;
+use std::{io, pin::Pin, time::Duration};
 use transformer::Transformer;
 use validator::Validator;
 use writer::Writer;
-
-use async_trait::async_trait;
-use crossbeam::channel::{Receiver, Sender};
-use std::io;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -75,24 +77,76 @@ impl StepType {
 #[async_trait]
 pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     async fn exec(
-        &self,
-        receiver_option: Option<Receiver<StepContext>>,
-        sender_option: Option<Sender<StepContext>>,
+        &self
     ) -> io::Result<()>;
     fn thread_number(&self) -> usize {
         1
     }
-    #[instrument]
-    fn send(&self, step_context: StepContext, pipe: &Sender<StepContext>) -> io::Result<()> {
-        trace!("Send context to the queue");
-        pipe.send(step_context)
-            .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
-
-        Ok(())
-    }
     fn name(&self) -> String {
         "default".to_string()
     }
+    // It the pipe doesn't contain any data to fetch or no receiver is ready, the step sleep before to retry without blocking the thread.
+    fn sleep(&self) -> u64 {
+        10
+    }
+    fn set_receiver(&mut self, receiver: Receiver<StepContext>);
+    fn receiver(&self) -> Option<&Receiver<StepContext>>;
+    fn set_sender(&mut self, sender: Sender<StepContext>);
+    fn sender(&self) -> Option<&Sender<StepContext>>;
+}
+
+// Send a step_context through a step and a pipe
+async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext) -> io::Result<()> {
+    let sender = match step.sender() {
+        Some(sender) => sender,
+        None => return Ok(()),
+    };
+
+    while let Err(e) = sender.try_send(step_context.clone()) {
+        match e {
+            TrySendError::Full(_) => {
+                trace!(step = format!("{:?}", step).as_str(), sleep = step.sleep(), "The step can't send any data, the pipe is full. It tries later");
+                task::sleep(Duration::from_millis(step.sleep())).await;
+            }
+            TrySendError::Disconnected(_) => return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                format!("The step '{}' has been disconnected from the pipe. the step can't send any data", step.name()),
+            )),
+        }
+    }
+
+    trace!("Step context sended into the pipe");
+    Ok(())
+}
+// Receive a step_context through a step and a pipe
+// It return a stream of step_context
+async fn receive<'step>(
+    step: &'step dyn Step
+) -> io::Result<Pin<Box<dyn Stream<Item = StepContext> + Send + 'step>>> {
+    let receiver = match step.receiver() {
+        Some(receiver) => receiver,
+        None => return Ok(Box::pin(stream::empty::<StepContext>())),
+    };
+    let sleep_time = step.sleep();
+    let stream = Box::pin(stream! {
+        loop {
+            match receiver.try_recv() {
+                Ok(step_context_received) => {
+                    yield step_context_received.clone();
+                },
+                Err(TryRecvError::Empty) => {
+                    trace!(step = format!("{:?}", step).as_str(), sleep = step.sleep(), "The pipe is empty. The step tries later");
+                    task::sleep(Duration::from_millis(sleep_time)).await;
+                    continue;
+                },
+                Err(TryRecvError::Disconnected) => {
+                    break;
+                },
+            };
+        }
+    });
+
+    Ok(stream)
 }
 
 pub trait StepClone {
