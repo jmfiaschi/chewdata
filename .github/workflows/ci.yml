@@ -8,13 +8,6 @@ env:
   CHEWDATA_TAG: latest
 
 jobs:
-  security_audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -83,6 +76,10 @@ jobs:
       - uses: Swatinem/rust-cache@v1
         with:
           sharedKey: build
+      - uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: '0.15.0'
+          args: '-- --test-threads 1'
       - uses: codecov/codecov-action@v1
         with:
           flags: unittests # optional
