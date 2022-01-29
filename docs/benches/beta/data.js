@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643484253609,
+  "lastUpdate": 1643487771935,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -2399,6 +2399,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 537,
             "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "committer": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "distinct": true,
+          "id": "ed76b2d3b873aee0c859b6d0b851c9eadeae0ada",
+          "message": "Merge branch 'beta' of github.com:jmfiaschi/chewdata into beta",
+          "timestamp": "2022-01-29T20:56:28+01:00",
+          "tree_id": "1cb004610f2d408043f4392e170d1029404ecd13",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/ed76b2d3b873aee0c859b6d0b851c9eadeae0ada"
+        },
+        "date": 1643487771379,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 152,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 135,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 137004,
+            "range": "± 1949",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 20533,
+            "range": "± 247",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 244,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 394,
+            "range": "± 5",
             "unit": "ns/iter"
           }
         ]
