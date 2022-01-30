@@ -62,29 +62,6 @@ jobs:
         with:
           sharedKey: build
       - run: make integration-tests
-  coverage:
-    needs: [build,lint]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - run: cp .env.ci .env
-      - uses: falti/dotenv-action@v0.2.6
-      - uses: Swatinem/rust-cache@v1
-        with:
-          sharedKey: build
-      - run: cargo install cargo-tarpaulin
-      - run: make start
-      - run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
-      - uses: codecov/codecov-action@v2
-        with:
-          flags: unittests # optional
-          fail_ci_if_error: true # optional (default = false)
-          verbose: true # optional (default = false)
-          files: cobertura.xml
   benchmark:
     needs: [build,lint]
     runs-on: ubuntu-latest

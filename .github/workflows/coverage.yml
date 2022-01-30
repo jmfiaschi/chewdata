@@ -1,0 +1,29 @@
+---
+name: cov
+
+on: push
+
+env:
+  CARGO_TERM_COLOR: always
+  CHEWDATA_TAG: latest
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v0.2.6
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
+      - run: make coverage-ut
+      - uses: codecov/codecov-action@v1
+        with:
+          flags: unittests # optional
+          fail_ci_if_error: true # optional (default = false)
+          verbose: true # optional (default = false)
