@@ -18,9 +18,6 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6
-      - uses: Swatinem/rust-cache@v1
-        with:
-          sharedKey: build
       - run: make coverage-ut
       - uses: codecov/codecov-action@v1
         with:

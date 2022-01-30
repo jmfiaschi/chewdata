@@ -34,7 +34,7 @@ example:
 release: ## Released the script in local
 	@cargo build --release
 
-test: start unit-tests integration-tests	
+test: start unit-tests integration-tests
 
 unit-tests: start
 unit-tests: ## Launch all tests in local
@@ -42,7 +42,7 @@ unit-tests: ## Launch all tests in local
 	@cargo test --lib -- ${name}
 
 integration-tests: start
-integration-tests: 
+integration-tests:
 	@cargo test --tests -- ${name}
 
 lint:
@@ -52,14 +52,14 @@ coverage-ut: start
 coverage-ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --out Xml --verbose --doc --lib --skip-clean --timeout 1200
+	@cargo +nightly tarpaulin --out Xml --verbose --doc --lib --skip-clean --timeout 1200 -- --test-threads 1
 
 coverage-it: start
 coverage-it:
 	@cargo install cargo-tarpaulin
-	@cargo tarpaulin --out Xml --verbose --tests --skip-clean --timeout 1200
+	@cargo tarpaulin --out Xml --verbose --tests --skip-clean --timeout 1200 -- --test-threads 1
 
-bench: 
+bench:
 	@cargo install cargo-criterion
 	@cargo criterion --output-format bencher --plotting-backend disabled 2>&1
 
@@ -91,7 +91,7 @@ semantic-release:
 
 start: minio minio\:install httpbin mongo
 
-stop: 
+stop:
 	@docker-compose down
 
 clean:
