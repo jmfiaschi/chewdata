@@ -74,7 +74,7 @@ impl Updater for Tera {
                                         }
                                     }
                                     None =>
-                                        format!("Please fix the pattern `{}`", pattern.to_string()),
+                                        format!("Please fix the pattern `{}`", pattern),
                                 }
                                 .replace(" '__tera_one_off'", "")
                             ),
