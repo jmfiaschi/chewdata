@@ -1,3 +1,10 @@
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-01-30)
+
+
+### Bug Fixes
+
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
 # [1.11.0](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0) (2022-01-29)
 
 
