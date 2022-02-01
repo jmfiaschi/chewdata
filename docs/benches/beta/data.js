@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643738447306,
+  "lastUpdate": 1643748666483,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -2759,6 +2759,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 454,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "committer": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "distinct": true,
+          "id": "4e47912003eccb4b8d33afbc6372d387b70d337b",
+          "message": "Merge branch 'beta' of github.com:jmfiaschi/chewdata into beta",
+          "timestamp": "2022-02-01T21:23:09+01:00",
+          "tree_id": "cb0698d321e1f2c1c3792df97352004a6dd5d678",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/4e47912003eccb4b8d33afbc6372d387b70d337b"
+        },
+        "date": 1643748665722,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 191,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 173,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 204146,
+            "range": "± 23727",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 28007,
+            "range": "± 145",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 334,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 543,
+            "range": "± 26",
             "unit": "ns/iter"
           }
         ]
