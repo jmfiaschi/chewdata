@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643757597701,
+  "lastUpdate": 1643758256854,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -2938,6 +2938,66 @@ window.BENCHMARK_DATA = {
           {
             "name": "read_yaml/",
             "value": 442,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "committer": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "distinct": true,
+          "id": "dc2752c4676c468564a92d6d46a4c301313598e7",
+          "message": "fix(ci): use build-release and cache the bin for the docker step",
+          "timestamp": "2022-02-02T00:06:16+01:00",
+          "tree_id": "5c1a398bc8fa20beecabe539b475b19afeb1d995",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/dc2752c4676c468564a92d6d46a4c301313598e7"
+        },
+        "date": 1643758256224,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 159,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 138,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 167174,
+            "range": "± 310",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 24589,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 289,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 445,
             "range": "± 0",
             "unit": "ns/iter"
           }
