@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643736035096,
+  "lastUpdate": 1643738447306,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -2699,6 +2699,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 535,
             "range": "± 12",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "committer": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "distinct": true,
+          "id": "3a95fd27e5f6b73abaf461ed79bf7cba9865e5dd",
+          "message": "Merge branch 'beta' of github.com:jmfiaschi/chewdata into beta",
+          "timestamp": "2022-02-01T18:37:08+01:00",
+          "tree_id": "1e0075414e30e679055a2f4413bbb4dabd480aca",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/3a95fd27e5f6b73abaf461ed79bf7cba9865e5dd"
+        },
+        "date": 1643738446739,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 168,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 140,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 165553,
+            "range": "± 322",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 23401,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 297,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 454,
+            "range": "± 0",
             "unit": "ns/iter"
           }
         ]
