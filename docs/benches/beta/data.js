@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643764975390,
+  "lastUpdate": 1643767653254,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3059,6 +3059,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 444,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "committer": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "distinct": true,
+          "id": "1c52968c816679abdb1a9721863faae195dfdacc",
+          "message": "chore(ci): add codecov ignore file",
+          "timestamp": "2022-02-02T02:37:30+01:00",
+          "tree_id": "5289d20bb0cff18df59725167f344b5d5a344cd5",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/1c52968c816679abdb1a9721863faae195dfdacc"
+        },
+        "date": 1643767652609,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 194,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 175,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 198772,
+            "range": "± 36805",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 28937,
+            "range": "± 3470",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 368,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 552,
+            "range": "± 22",
             "unit": "ns/iter"
           }
         ]
