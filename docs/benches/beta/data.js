@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643821845713,
+  "lastUpdate": 1643866119301,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3179,6 +3179,64 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 561,
             "range": "± 33",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "--get-all",
+            "name": "jmfiaschi"
+          },
+          "committer": {
+            "email": "--get-all",
+            "name": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "3ca4ab39dbfc5385b86d69257969a7cbe3c33e14",
+          "message": "Merge branch 'beta' of github.com:jmfiaschi/chewdata into beta",
+          "timestamp": "2022-02-03T06:04:52+01:00",
+          "tree_id": "ee30db3737a7b2ad7668a006d7180d2f25288957",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/3ca4ab39dbfc5385b86d69257969a7cbe3c33e14"
+        },
+        "date": 1643866118193,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 170,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 145,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 194522,
+            "range": "± 11468",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 27260,
+            "range": "± 1909",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 305,
+            "range": "± 26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 519,
+            "range": "± 31",
             "unit": "ns/iter"
           }
         ]
