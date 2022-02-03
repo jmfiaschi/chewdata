@@ -1,3 +1,10 @@
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-02)
+
+
+### Bug Fixes
+
+* **release:** build release bin and publish it ([156112b](https://github.com/jmfiaschi/chewdata/commit/156112b01b931ff2c231b3b88b27a63c265b88ec))
+
 ## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-01)
 
 ### Bug Fixes
