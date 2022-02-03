@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
 
 fn application() -> App<'static> {
     App::new("chewdata")
-        .version("1.10.0")
+        .version("1.11.1")
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
         .about("Light and chainable ETL")
         .arg(

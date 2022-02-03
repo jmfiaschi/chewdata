@@ -1,8 +1,8 @@
 use chrono::Utc;
-use std::path::PathBuf;
-use std::env;
 use json_value_resolve::Resolve;
 use serde_json::Value;
+use std::env;
+use std::path::PathBuf;
 use std::process::Command;
 
 const APP_NAME: &str = "chewdata";
@@ -90,7 +90,7 @@ fn it_should_apply_simple_transformation() {
     ];
     let configs = [(
         "tera",
-        r#"[{"type":"r", "connector":{"type":"local","path":"./data/one_line.json"}},{"type": "t","updater": {"type":"{{ TEMPLATE_ENGINE }}"},"actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]},{"type": "w"}]"#,
+        r#"[{"type":"r", "connector":{"type":"local","path":"./data/one_line.json"}},{"type": "t","updater":{"type":"{{ TEMPLATE_ENGINE }}"},"actions":[{"field":"{{ FIELD_NAME }}","pattern":"{{ FIELD_PATTERN_TERA }}"}]},{"type": "w"}]"#,
     )];
     patterns
         .iter()

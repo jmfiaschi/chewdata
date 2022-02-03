@@ -1,19 +1,24 @@
 use super::super::helper::referentials_reader_into_value;
 use super::DataResult;
 use crate::helper::json_pointer::JsonPointer;
+use crate::helper::mustache::Mustache;
 use crate::step::Step;
 use crate::updater::{ActionType, UpdaterType};
 use crate::StepContext;
 use crate::{step::reader::Reader, updater::Action};
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender};
+use futures::StreamExt;
+use json_value_merge::Merge;
 use json_value_search::Search;
 use serde::Deserialize;
 use serde_json::Value;
 use std::io::{Error, ErrorKind};
-use std::{collections::{BTreeMap,HashMap}, fmt, io};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt, io,
+};
 use uuid::Uuid;
-use futures::StreamExt;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default)]
@@ -36,7 +41,7 @@ pub struct Validator {
     pub output_name: String,
     #[serde(alias = "separator")]
     pub error_separator: String,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
     #[serde(alias = "sleep")]
     pub wait: u64,
     #[serde(skip)]
@@ -148,7 +153,7 @@ impl Step for Validator {
     ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
     ///         sender_input.try_send(step_context).unwrap();
     ///     });
-    ///     
+    ///
     ///     validator.exec().await?;
     ///
     ///     for step_context in receiver_output.try_recv() {
@@ -197,7 +202,7 @@ impl Step for Validator {
     ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
     ///         sender_input.try_send(step_context).unwrap();
     ///     });
-    ///     
+    ///
     ///     validator.exec().await?;
     ///
     ///     for step_context in receiver_output.try_recv() {
@@ -210,9 +215,7 @@ impl Step for Validator {
     /// }
     /// ```
     #[instrument]
-    async fn exec(
-        &self
-    ) -> io::Result<()> {
+    async fn exec(&self) -> io::Result<()> {
         let referentials = match self.referentials.clone() {
             Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
             None => None,
@@ -231,7 +234,6 @@ impl Step for Validator {
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(ref mut step_context_received) = receiver_stream.next().await {
-            
             let data_result = step_context_received.data_result();
 
             if !data_result.is_type(self.data_type.as_ref()) {
@@ -266,7 +268,7 @@ impl Step for Validator {
                         let value_result =
                             value.clone().search(rule_name.to_json_pointer().as_str());
 
-                        let error = match value_result {
+                        let mut error = match value_result {
                             Ok(Some(Value::Bool(true))) => continue,
                             Ok(Some(Value::Bool(false))) => {
                                 rule.message.unwrap_or(format!("The rule '{}' failed", rule_name))
@@ -283,10 +285,17 @@ impl Step for Validator {
                             ),
                             Err(e) => e.to_string(),
                         };
-                        
+
                         if !errors.is_empty() {
                             errors.push_str(self.error_separator.as_str());
                         }
+
+                        let mut params = Value::default();
+                        params.merge_in(&format!("/{}", self.input_name.clone()), record.clone())?;
+                        params.merge_in("/rule/name", Value::String(rule_name))?;
+
+                        error.replace_mustache(params);
+
                         errors.push_str(error.as_str());
                     }
 
