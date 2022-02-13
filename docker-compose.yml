@@ -9,6 +9,7 @@ x-minio-common: &minio-common
     environment:
         MINIO_ROOT_USER: ${BUCKET_ACCESS_KEY_ID}
         MINIO_ROOT_PASSWORD: ${BUCKET_SECRET_ACCESS_KEY}
+        MINIO_API_SELECT_PARQUET: "on"
     healthcheck:
         test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
         interval: 30s

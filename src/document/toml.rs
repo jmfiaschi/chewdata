@@ -119,7 +119,7 @@ impl Document for Toml {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         // Transform serde_json::Value to toml::Value
         let toml_value = toml::value::Value::try_from(&value)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;

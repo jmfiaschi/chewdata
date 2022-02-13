@@ -28,7 +28,7 @@ pub struct Writer {
     pub dataset_size: usize,
     #[serde(alias = "threads")]
     pub thread_number: usize,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
     #[serde(alias = "sleep")]
     pub wait: u64,
     #[serde(skip)]
@@ -96,9 +96,8 @@ impl Step for Writer {
         &self
     ) -> io::Result<()> {
         let mut current_dataset_size = 0;
-        let mut connector = self.connector_type.clone().connector();
-        let document = self.document_type.document();
-        let position = -(document.entry_point_path_end().len() as isize);
+        let mut connector = self.connector_type.clone().boxed_inner();
+        let mut document = self.document_type.clone().boxed_inner();
 
         connector.set_metadata(connector.metadata().merge(document.metadata()));
 
@@ -107,7 +106,6 @@ impl Step for Writer {
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(step_context_received) = receiver_stream.next().await {
-            
             super::send(self as &dyn Step, &step_context_received.clone()).await?;
 
             if !step_context_received
@@ -125,6 +123,8 @@ impl Step for Writer {
                     && !connector.inner().is_empty()
                 {
                     document.close(&mut *connector).await?;
+                    let position = -(document.footer(&mut *connector).await?.len() as isize);
+
                     match connector.send(Some(position)).await {
                         Ok(_) => info!("Dataset sended with success into the connector"),
                         Err(e) => {
@@ -155,6 +155,7 @@ impl Step for Writer {
 
             if self.dataset_size <= current_dataset_size {
                 document.close(&mut *connector).await?;
+                let position = -(document.footer(&mut *connector).await?.len() as isize);
 
                 match connector.send(Some(position)).await {
                     Ok(_) => (),
@@ -180,6 +181,7 @@ impl Step for Writer {
             );
 
             document.close(&mut *connector).await?;
+            let position = -(document.footer(&mut *connector).await?.len() as isize);
 
             match connector.send(Some(position)).await {
                 Ok(_) => (),

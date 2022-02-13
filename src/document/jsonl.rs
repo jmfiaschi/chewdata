@@ -221,7 +221,7 @@ impl Document for Jsonl {
     ///     Ok(())
     /// }
     /// ```
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         let mut buf = Vec::new();
         match self.is_pretty {
             true => serde_json::to_writer_pretty(&mut buf, &value),

@@ -130,7 +130,7 @@ impl Document for Yaml {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         let mut buf: io::Cursor<Vec<_>> = io::Cursor::default();
 
         serde_yaml::to_writer(&mut buf, &value).map_err(|e| {

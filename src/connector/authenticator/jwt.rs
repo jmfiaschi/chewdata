@@ -43,7 +43,7 @@ impl fmt::Debug for Jwt {
             .clone()
             .unwrap_or_default();
         obfuscate_token.replace_range(0..(obfuscate_token.len()/2), (0..(obfuscate_token.len()/2)).map(|_| "#").collect::<String>().as_str());
-    
+
         f.debug_struct("Jwt")
             .field("algorithm", &self.algorithm)
             .field("refresh_connector", &self.refresh_connector)
@@ -153,7 +153,7 @@ impl Jwt {
                 payload.replace_mustache(*parameters);
             }
 
-            let mut refresh_connector = refresh_connector_type.connector();
+            let mut refresh_connector = refresh_connector_type.boxed_inner();
             self.refresh_document.write_data(&mut *refresh_connector, *payload).await?;
             refresh_connector.set_metadata(refresh_connector.metadata().merge(self.refresh_document.metadata()));
             refresh_connector.send(None).await?;
@@ -440,7 +440,7 @@ impl Authenticator for Jwt {
             }
             None => {
                 warn!(
-                    
+
                     "No Java Web Token found for the authentication"
                 );
                 request_builder

@@ -91,7 +91,7 @@ impl Document for Text {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         connector
             .write_all(value.as_str().unwrap_or("").as_bytes())
             .await

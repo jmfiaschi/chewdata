@@ -2,6 +2,8 @@
 pub mod csv;
 pub mod json;
 pub mod jsonl;
+#[cfg(feature = "use_parquet_document")]
+pub mod parquet;
 pub mod text;
 #[cfg(feature = "use_toml_document")]
 pub mod toml;
@@ -13,19 +15,21 @@ pub mod yaml;
 use self::csv::Csv;
 use self::json::Json;
 use self::jsonl::Jsonl;
+#[cfg(feature = "use_parquet_document")]
+use self::parquet::Parquet;
 use self::text::Text;
 #[cfg(feature = "use_toml_document")]
 use self::toml::Toml;
 #[cfg(feature = "use_xml_document")]
 use self::xml::Xml;
 use self::yaml::Yaml;
+use super::Metadata;
 use crate::connector::Connector;
 use crate::Dataset;
-use serde::{Deserialize, Serialize};
-use std::io;
-use super::Metadata;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(tag = "type")]
@@ -49,6 +53,9 @@ pub enum DocumentType {
     #[serde(rename = "text")]
     #[serde(alias = "txt")]
     Text(Text),
+    #[cfg(feature = "use_parquet_document")]
+    #[serde(rename = "parquet")]
+    Parquet(Parquet),
 }
 
 impl Default for DocumentType {
@@ -58,7 +65,7 @@ impl Default for DocumentType {
 }
 
 impl DocumentType {
-    pub fn document_inner(self) -> Box<dyn Document> {
+    pub fn boxed_inner(self) -> Box<dyn Document> {
         match self {
             #[cfg(feature = "use_csv_document")]
             DocumentType::Csv(document) => Box::new(document),
@@ -70,9 +77,11 @@ impl DocumentType {
             #[cfg(feature = "use_toml_document")]
             DocumentType::Toml(document) => Box::new(document),
             DocumentType::Text(document) => Box::new(document),
+            #[cfg(feature = "use_parquet_document")]
+            DocumentType::Parquet(document) => Box::new(document),
         }
     }
-    pub fn document(&self) -> &dyn Document {
+    pub fn ref_inner(&self) -> &dyn Document {
         match self {
             #[cfg(feature = "use_csv_document")]
             DocumentType::Csv(document) => document,
@@ -84,9 +93,11 @@ impl DocumentType {
             #[cfg(feature = "use_toml_document")]
             DocumentType::Toml(document) => document,
             DocumentType::Text(document) => document,
+            #[cfg(feature = "use_parquet_document")]
+            DocumentType::Parquet(document) => document,
         }
     }
-    pub fn document_mut(&mut self) -> &mut dyn Document {
+    pub fn ref_mut_inner(&mut self) -> &mut dyn Document {
         match self {
             #[cfg(feature = "use_csv_document")]
             DocumentType::Csv(document) => document,
@@ -98,6 +109,8 @@ impl DocumentType {
             #[cfg(feature = "use_toml_document")]
             DocumentType::Toml(document) => document,
             DocumentType::Text(document) => document,
+            #[cfg(feature = "use_parquet_document")]
+            DocumentType::Parquet(document) => document,
         }
     }
 }
@@ -108,13 +121,9 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     /// Apply some actions and read the data though the Connector.
     async fn read_data(&self, reader: &mut Box<dyn Connector>) -> io::Result<Dataset>;
     /// Format the data result into the document format, apply some action and write into the connector.
-    async fn write_data(
-        &self,
-        writer: &mut dyn Connector,
-        value: Value,
-    ) -> io::Result<()>;
+    async fn write_data(&mut self, writer: &mut dyn Connector, value: Value) -> io::Result<()>;
     /// Apply actions to close the document.
-    async fn close(&self, _writer: &mut dyn Connector) -> io::Result<()> {
+    async fn close(&mut self, _writer: &mut dyn Connector) -> io::Result<()> {
         Ok(())
     }
     fn metadata(&self) -> Metadata {
@@ -124,11 +133,19 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     fn has_data(&self, str: &str) -> io::Result<bool> {
         Ok(!matches!(str, ""))
     }
-    fn entry_point_path_start(&self) -> String {
-        "".to_string()
+    /// Return the header data used to identify when the data start
+    ///             |--------|------|--------|
+    /// document => | header | data | footer |
+    ///             |--------|------|--------|
+    async fn header(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
+        Ok(Default::default())
     }
-    fn entry_point_path_end(&self) -> String {
-        "".to_string()
+    /// Return the footer data used to identify when the data end
+    ///             |--------|------|--------|
+    /// document => | header | data | footer |
+    ///             |--------|------|--------|
+    async fn footer(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
+        Ok(Default::default())
     }
     /// Set the entry path
     fn set_entry_path(&mut self, _entry_point: String) {}

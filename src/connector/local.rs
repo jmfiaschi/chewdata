@@ -9,6 +9,7 @@ use glob::glob;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io::{BufReader, BufRead};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::vec::IntoIter;
@@ -213,7 +214,7 @@ impl Connector for Local {
     ///     connector.erase().await?;
     ///     connector.write(r#"{"column1":"value1"}"#.as_bytes()).await?;
     ///     connector.send(None).await?;
-    ///     
+    ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;
     ///     let mut buffer = String::default();
@@ -342,7 +343,7 @@ impl Connector for Local {
         if !self.inner.get_ref().is_empty() {
             return Ok(());
         }
-        
+
         let mut buff = Vec::default();
         OpenOptions::new()
             .read(true)
@@ -402,6 +403,27 @@ impl Connector for Local {
         self.inner = Default::default();
         trace!("The connector is cleaned");
     }
+    /// See [`Connector::chunk`] for more details.
+    async fn chunk(&self, start: usize, end: usize) -> Result<Vec<u8>> {
+        if end < start {
+            return Err(Error::new(ErrorKind::InvalidInput, "The start 'value' parameter must be lower or equal to the 'end' value parameter"));
+        }
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(false)
+            .create(false)
+            .append(false)
+            .truncate(false)
+            .open(self.path())?;
+
+        file.seek(SeekFrom::Start(start as u64))?;
+
+        let mut reader = BufReader::with_capacity(end - start, file);
+        reader.fill_buf()?;
+
+        Ok(reader.buffer().to_vec())
+    }
 }
 
 #[async_trait]
@@ -458,7 +480,7 @@ impl LocalPaginator {
     ///     connector.path = "./data/one_line.*".to_string();
     ///     let mut paginator = LocalPaginator::new(connector)?;
     ///     let mut stream = paginator.stream().await?;
-    ///     
+    ///
     ///     assert_eq!(r#"data/one_line.csv"#, stream.next().await.transpose()?.unwrap().path());
     ///     assert_eq!(r#"data/one_line.json"#, stream.next().await.transpose()?.unwrap().path());
     ///
@@ -523,13 +545,13 @@ impl Paginator for LocalPaginator {
     ///     let mut stream = paginator.stream().await?;
     ///
     ///     let mut connector = stream.next().await.transpose()?.unwrap();
-    ///     connector.fetch().await?;     
+    ///     connector.fetch().await?;
     ///     let mut buffer1 = String::default();
     ///     let len1 = connector.read_to_string(&mut buffer1).await?;
     ///     assert!(0 < len1, "Can't read the content of the file.");
     ///
-    ///     let mut connector = stream.next().await.transpose()?.unwrap();  
-    ///     connector.fetch().await?;     
+    ///     let mut connector = stream.next().await.transpose()?.unwrap();
+    ///     connector.fetch().await?;
     ///     let mut buffer2 = String::default();
     ///     let len2 = connector.read_to_string(&mut buffer2).await?;
     ///     assert!(0 < len2, "Can't read the content of the file.");
