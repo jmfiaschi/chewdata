@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643866119301,
+  "lastUpdate": 1644773162170,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3237,6 +3237,66 @@ window.BENCHMARK_DATA = {
             "name": "read_yaml/",
             "value": 519,
             "range": "± 31",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "3f3b18bd431451df1b99b5a7f816d5879c56ef48",
+          "message": "chor(dev): in progress for parquet",
+          "timestamp": "2022-02-13T17:52:43+01:00",
+          "tree_id": "5ea53ee3f844d30597cf192a06eda39ff4ce8545",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/3f3b18bd431451df1b99b5a7f816d5879c56ef48"
+        },
+        "date": 1644773161430,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 195,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 170,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 191003,
+            "range": "± 1503",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 27764,
+            "range": "± 201",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 320,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 533,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
