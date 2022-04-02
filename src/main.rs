@@ -2,7 +2,7 @@ extern crate clap;
 extern crate env_applier;
 
 use chewdata::step::StepType;
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use env_applier::EnvApply;
 use serde::Deserialize;
 use std::env;
@@ -88,8 +88,8 @@ async fn main() -> Result<()> {
         .await
 }
 
-fn application() -> App<'static> {
-    App::new("chewdata")
+fn application() -> Command<'static> {
+    Command::new("chewdata")
         .version("1.11.1")
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
         .about("Light and chainable ETL")

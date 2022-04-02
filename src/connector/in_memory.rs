@@ -239,7 +239,7 @@ impl Connector for InMemory {
                 start if start > 0 => memory.seek(SeekFrom::Start(start as u64)),
                 _ => memory.seek(SeekFrom::Start(0)),
             },
-            None => memory.seek(SeekFrom::End(0)),
+            None => memory.seek(SeekFrom::Start(0)),
         }?;
 
         memory.write_all(&inner)?;

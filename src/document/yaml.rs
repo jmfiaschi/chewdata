@@ -40,6 +40,7 @@ impl Default for Yaml {
 
 #[async_trait]
 impl Document for Yaml {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Yaml::default().metadata.merge(self.metadata.clone())
     }

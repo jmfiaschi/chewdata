@@ -200,6 +200,7 @@ impl Document for Xml {
 
         Ok(footer.as_bytes().to_vec())
     }
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Xml::default().metadata.merge(self.metadata.clone())
     }

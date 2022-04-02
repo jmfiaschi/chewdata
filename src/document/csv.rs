@@ -286,6 +286,7 @@ impl Csv {
 
 #[async_trait]
 impl Document for Csv {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Csv::default().metadata.merge(self.metadata.clone())
     }

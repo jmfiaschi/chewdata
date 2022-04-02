@@ -32,6 +32,7 @@ impl Default for Text {
 
 #[async_trait]
 impl Document for Text {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Text::default().metadata.merge(self.metadata.clone())
     }

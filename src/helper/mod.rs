@@ -50,7 +50,7 @@ pub async fn referentials_reader_into_value(
         referential.set_sender(sender);
         referential.exec().await?;
 
-        for step_context in receiver.try_recv() {
+        while let Ok(step_context) = receiver.try_recv() {
             values.push(step_context.data_result().to_value());
         }
         referentials_vec.insert(name, values);

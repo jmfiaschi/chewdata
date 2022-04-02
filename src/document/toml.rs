@@ -34,6 +34,7 @@ impl Default for Toml {
 
 #[async_trait]
 impl Document for Toml {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Toml::default().metadata.merge(self.metadata.clone())
     }
