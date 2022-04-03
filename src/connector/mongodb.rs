@@ -19,7 +19,7 @@ use std::{
 };
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Mongodb {
     pub endpoint: String,
     #[serde(alias = "db")]
@@ -587,7 +587,7 @@ impl Default for PaginatorType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct OffsetPaginator {
     pub limit: usize,
     pub skip: usize,
@@ -794,7 +794,7 @@ impl Paginator for OffsetPaginator {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CursorPaginator {
     pub limit: usize,
     pub skip: usize,

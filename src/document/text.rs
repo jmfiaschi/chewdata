@@ -11,7 +11,7 @@ use serde_json::Value;
 use std::io;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Text {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]

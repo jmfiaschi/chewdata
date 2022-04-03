@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Xml {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]

@@ -20,7 +20,7 @@ use std::{
 use std::{fs, fs::OpenOptions};
 
 #[derive(Deserialize, Serialize, Clone, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Local {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -254,14 +254,14 @@ impl Connector for Local {
         file.lock_exclusive()?;
         trace!("The connector lock the file");
 
-        let resource_len = self.len().await?;
+        let file_len = file.metadata()?.len();
 
         match position {
-            Some(pos) => match resource_len as isize + pos {
+            Some(pos) => match file_len as isize + pos {
                 start if start > 0 => file.seek(SeekFrom::Start(start as u64)),
                 _ => file.seek(SeekFrom::Start(0)),
             },
-            None => file.seek(SeekFrom::End(0)),
+            None => file.seek(SeekFrom::Start(0)),
         }?;
 
         file.write_all(self.inner.get_ref())?;
@@ -404,6 +404,7 @@ impl Connector for Local {
         trace!("The connector is cleaned");
     }
     /// See [`Connector::chunk`] for more details.
+    #[instrument]
     async fn chunk(&self, start: usize, end: usize) -> Result<Vec<u8>> {
         if end < start {
             return Err(Error::new(ErrorKind::InvalidInput, "The start 'value' parameter must be lower or equal to the 'end' value parameter"));

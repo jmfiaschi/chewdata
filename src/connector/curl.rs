@@ -17,7 +17,7 @@ use std::{collections::HashMap, fmt};
 use surf::http::{headers, Method, Url};
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Curl {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -856,7 +856,7 @@ impl Default for PaginatorType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct OffsetPaginator {
     pub limit: usize,
     pub skip: usize,
@@ -1095,7 +1095,7 @@ impl Paginator for OffsetPaginator {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CursorPaginator {
     pub limit: usize,
     // The entry path to catch the value in the body

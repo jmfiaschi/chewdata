@@ -12,7 +12,7 @@ use serde_json::Value;
 use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Json {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]

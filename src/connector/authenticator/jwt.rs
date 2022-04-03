@@ -11,7 +11,7 @@ use std::io::{Error, ErrorKind, Result};
 use surf::{http::headers, RequestBuilder};
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Jwt {
     #[serde(alias = "algo")]
     pub algorithm: Algorithm,

@@ -13,7 +13,7 @@ use std::io;
 const DEFAULT_SUBTYPE: &str = "toml";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Toml {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]

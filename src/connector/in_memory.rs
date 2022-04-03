@@ -13,7 +13,7 @@ use std::task::{Context, Poll};
 use std::{fmt, io};
 
 #[derive(Deserialize, Serialize, Clone, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct InMemory {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]

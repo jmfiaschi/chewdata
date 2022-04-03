@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use surf::{RequestBuilder, http::headers};
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Bearer {
     pub token: String,
     pub is_base64: bool,

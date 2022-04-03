@@ -15,7 +15,7 @@ use std::{
 };
 
 #[derive(Deserialize, Serialize, Clone, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Io {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]

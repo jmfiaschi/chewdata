@@ -24,7 +24,7 @@ const DEFAULT_IS_FLEXIBLE: bool = true;
 const DEFAULT_TRIM: &str = "ALL";
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Csv {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]

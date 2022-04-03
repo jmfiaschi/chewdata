@@ -21,7 +21,7 @@ use std::{
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Validator {
     #[serde(rename = "updater")]
     #[serde(alias = "u")]

@@ -27,7 +27,7 @@ use surf_bucket_select::model::{
 };
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct BucketSelect {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -295,7 +295,7 @@ impl BucketSelect {
                 compression_type: metadata.compression,
                 ..Default::default()
             },
-            Some("octet-stream") => InputSerialization {
+            Some("octet-stream") | Some("parquet") => InputSerialization {
                 parquet: Some(ParquetInput {}),
                 compression_type: metadata.compression,
                 ..Default::default()
@@ -361,7 +361,7 @@ impl BucketSelect {
             ..Default::default()
         }
     }
-    async fn fetch_data(&mut self) -> Result<String> {
+    async fn fetch_data(&mut self) -> Result<Vec<u8>> {
         let client = surf::client();
 
         let endpoint = match self.endpoint.to_owned() {
@@ -384,6 +384,7 @@ impl BucketSelect {
             };
 
         let select_object_content_request = self.select_object_content_request();
+
         let req = surf_bucket_select::select_object_content(
             endpoint,
             select_object_content_request,
@@ -416,7 +417,7 @@ impl BucketSelect {
             ));
         }
 
-        let mut buffer = String::default();
+        let mut buffer = Vec::default();
 
         if body_bytes.is_empty() {
             warn!("The response body of the bucket select is empty");
@@ -435,7 +436,7 @@ impl BucketSelect {
             match item_result {
                 Ok(SelectObjectContentEventStreamItem::Records(records_event)) => {
                     if let Some(bytes) = records_event.payload {
-                        buffer.push_str(&String::from_utf8(bytes.to_vec()).unwrap());
+                        buffer.append(&mut bytes.to_vec());
                     };
                 }
                 Ok(SelectObjectContentEventStreamItem::End(_)) => break,
@@ -746,7 +747,7 @@ impl Connector for BucketSelect {
         if !self.inner.get_ref().is_empty() {
             return Ok(());
         }
-        
+
         if let (Some(true), Some("csv")) = (
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),
@@ -769,11 +770,11 @@ impl Connector for BucketSelect {
             );
 
             let headers = connector.fetch_data().await?;
-            self.inner.write_all(headers.as_bytes())?;
+            self.inner.write_all(&headers)?;
         }
 
         let body = self.fetch_data().await?;
-        self.inner.write_all(body.as_bytes())?;
+        self.inner.write_all(&body)?;
 
         // initialize the position of the cursors
         self.inner.set_position(0);
@@ -891,7 +892,7 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
-    /// 
+    ///
     ///     let mut paginator = connector.paginator().await?;
     ///     assert!(paginator.is_parallelizable());
     ///     let mut stream = paginator.stream().await?;
@@ -925,7 +926,7 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
-    /// 
+    ///
     ///     let mut paginator = connector.paginator().await?;
     ///     assert!(paginator.is_parallelizable());
     ///     let mut stream = paginator.stream().await?;

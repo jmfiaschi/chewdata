@@ -13,7 +13,7 @@ use std::io;
 const DEFAULT_MIME_TYPE: &str = "x-ndjson";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Jsonl {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]

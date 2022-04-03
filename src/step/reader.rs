@@ -11,7 +11,7 @@ use std::{fmt, io};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Reader {
     #[serde(rename = "connector")]
     #[serde(alias = "conn")]

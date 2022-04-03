@@ -14,7 +14,7 @@ use std::error::Error as StdError;
 use std::{fmt, io};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Tera {}
 
 impl fmt::Display for Tera {

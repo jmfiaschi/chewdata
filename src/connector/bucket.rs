@@ -26,7 +26,7 @@ use tokio::runtime::Runtime;
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Bucket {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -386,24 +386,24 @@ impl Connector for Bucket {
         };
 
         //TODO: When rusoto will use last version of tokio we should remove the block_on.
-        let result: Result<String> = Runtime::new()?.block_on(async {
+        let result: Result<Vec<u8>> = Runtime::new()?.block_on(async {
             let response = s3_client
                 .get_object(request)
                 .await
                 .map_err(|e| Error::new(ErrorKind::NotFound, e))?;
 
-            match response.body {
+            Ok(match response.body {
                 Some(body) => {
-                    let mut buffer = String::new();
+                    let mut buffer = Vec::default();
                     let mut async_read = body.into_async_read();
-                    async_read.read_to_string(&mut buffer).await?;
-                    Ok(buffer)
+                    async_read.read_to_end(&mut buffer).await?;
+                    buffer
                 }
-                None => Ok(String::default()),
-            }
+                None => Vec::default(),
+            })
         });
 
-        self.inner = Cursor::new(result?.as_bytes().to_vec());
+        self.inner = Cursor::new(result?);
 
         info!("The connector fetch data into the resource with success");
         Ok(())
@@ -483,7 +483,7 @@ impl Connector for Bucket {
                 start if start > 0 => cursor.seek(SeekFrom::Start(start as u64)),
                 _ => cursor.seek(SeekFrom::Start(0)),
             },
-            None => cursor.seek(SeekFrom::End(0)),
+            None => cursor.seek(SeekFrom::Start(0)),
         }?;
 
         cursor.write_all(self.inner.get_ref())?;
