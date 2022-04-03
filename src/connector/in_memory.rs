@@ -206,7 +206,7 @@ impl Connector for InMemory {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
     ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
+    ///     connector.send(Some(0)).await?;
     ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;

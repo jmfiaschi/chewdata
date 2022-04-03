@@ -30,18 +30,20 @@ fn debug_dir() -> PathBuf {
 
 #[test]
 fn it_should_write_file_in_local_with_one_line() {
-    let config = r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#;
-    let mut formats = vec!["json", "jsonl"];
+    let mut formats = vec![
+        ("json", r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#),
+        ("jsonl",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#),
+    ];
     if cfg!(feature = "use_csv_document") {
-        formats.push("csv");
+        formats.push(("csv", r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}"}}]"#));
     }
     if cfg!(feature = "use_yml_document") {
-        formats.push("yml");
+        formats.push(("yml",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}"}}]"#));
     }
     if cfg!(feature = "use_xml_document") {
-        formats.push("xml");
+        formats.push(("xml",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#));
     }
-    for format in &formats {
+    for (format, config) in &formats {
         let output_file_path = format!("{}/{}.{}", "data/out", "one_line", format);
         println!("Try to test this file '{}'.", output_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))

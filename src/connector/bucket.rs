@@ -158,7 +158,7 @@ impl Bucket {
 
         for (k, v) in tags {
             if !tagging.is_empty() {
-                tagging += &"&".to_string();
+                tagging += "&";
             }
             tagging += &format!("{}={}", k, v).to_string();
         }
@@ -623,8 +623,8 @@ impl BucketPaginator {
 
                 let key_pattern = postfix_keys
                     .join(delimiter)
-                    .replace(".", "\\.")
-                    .replace("*", ".*");
+                    .replace('.', "\\.")
+                    .replace('*', ".*");
                 let reg_key = Regex::new(key_pattern.as_str())
                     .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 

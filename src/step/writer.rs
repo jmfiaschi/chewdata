@@ -10,7 +10,7 @@ use std::{fmt, io};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Writer {
     #[serde(rename = "connector")]
     #[serde(alias = "conn")]
@@ -123,9 +123,13 @@ impl Step for Writer {
                     && !connector.inner().is_empty()
                 {
                     document.close(&mut *connector).await?;
-                    let position = -(document.footer(&mut *connector).await?.len() as isize);
+                    
+                    let position = match document.can_append() {
+                        true => Some(-(document.footer(&mut *connector).await?.len() as isize)),
+                        false => None
+                    };
 
-                    match connector.send(Some(position)).await {
+                    match connector.send(position).await {
                         Ok(_) => info!("Dataset sended with success into the connector"),
                         Err(e) => {
                             warn!(
@@ -153,11 +157,15 @@ impl Step for Writer {
 
             current_dataset_size += 1;
 
-            if self.dataset_size <= current_dataset_size {
+            if self.dataset_size <= current_dataset_size && document.can_append() {
                 document.close(&mut *connector).await?;
-                let position = -(document.footer(&mut *connector).await?.len() as isize);
 
-                match connector.send(Some(position)).await {
+                let position = match document.can_append() {
+                    true => Some(-(document.footer(&mut *connector).await?.len() as isize)),
+                    false => None
+                };
+
+                match connector.send(position).await {
                     Ok(_) => (),
                     Err(e) => {
                         warn!(
@@ -181,9 +189,13 @@ impl Step for Writer {
             );
 
             document.close(&mut *connector).await?;
-            let position = -(document.footer(&mut *connector).await?.len() as isize);
 
-            match connector.send(Some(position)).await {
+            let position = match document.can_append() {
+                true => Some(-(document.footer(&mut *connector).await?.len() as isize)),
+                false => None
+            };
+
+            match connector.send(position).await {
                 Ok(_) => (),
                 Err(e) => {
                     warn!(

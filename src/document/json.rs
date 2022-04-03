@@ -91,7 +91,7 @@ impl Document for Json {
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
     ///     let data = dataset.next().await.unwrap().to_value();
-    ///     let expected_data: Value = serde_json::from_str(json_str).unwrap();
+    ///     let expected_data: Value = serde_json::from_str(json_str)?;
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())

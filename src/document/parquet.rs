@@ -2,43 +2,54 @@ use crate::connector::Connector;
 use crate::document::Document;
 use crate::Metadata;
 use crate::{DataResult, Dataset};
+use arrow::datatypes::Schema;
 use arrow::json::reader::{infer_json_schema_from_iterator, Decoder};
 use async_std::io::prelude::WriteExt;
 use async_std::io::ReadExt;
 use async_stream::stream;
 use async_trait::async_trait;
-use byteorder::{LittleEndian, ByteOrder};
 use json_value_search::Search;
-use parquet::arrow::{ArrowWriter, parquet_to_arrow_schema};
+use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, Encoding};
-use parquet::file::footer::parse_metadata;
 use parquet::file::properties::{WriterProperties, WriterVersion};
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::file::serialized_reader::SliceableCursor;
 use parquet::file::writer::InMemoryWriteableCursor;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{self, Seek, SeekFrom, Read};
+use std::io;
 use std::sync::Arc;
-use arrow::datatypes::Schema;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Parquet {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     pub entry_path: Option<String>,
-    pub schema: Option<Schema>,
+    pub schema: Option<Box<Value>>,
+    pub batch_size: usize,
+    pub options: Option<ParquetOptions>,
     // List of temporary values used to write into the connector
     #[serde(skip)]
     pub inner: Vec<Value>,
 }
 
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+pub struct ParquetOptions {
+    version: Option<usize>,
+    data_page_size_limit: Option<usize>,
+    dictionary_page_size_limit: Option<usize>,
+    max_row_group_size: Option<usize>,
+    created_by: Option<String>,
+    encoding: Option<String>,
+    compression: Option<String>,
+    has_dictionary: Option<bool>,
+    has_statistics: Option<bool>,
+    max_statistics_size: Option<usize>,
+}
+
 const DEFAULT_SUBTYPE: &str = "parquet";
-const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
-const DEFAULT_FOOTER_READ_SIZE: usize = 64 * 1024;
-const FOOTER_SIZE: usize = 8;
 
 impl Default for Parquet {
     fn default() -> Self {
@@ -52,6 +63,8 @@ impl Default for Parquet {
             metadata,
             entry_path: None,
             schema: None,
+            batch_size: 1000,
+            options: None,
             inner: Vec::default(),
         }
     }
@@ -67,12 +80,16 @@ impl Document for Parquet {
     fn set_entry_path(&mut self, entry_path: String) {
         self.entry_path = Some(entry_path);
     }
+    /// See [`Document::can_append`] for more details.
+    fn can_append(&self) -> bool {
+        false
+    }
     /// See [`Document::read_data`] for more details.
     ///
     /// # Example: Should read the array input data.
     /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::json::Json;
+    /// use chewdata::connector::{Connector, local::Local};
+    /// use chewdata::document::parquet::Parquet;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
     /// use async_std::prelude::*;
@@ -80,23 +97,24 @@ impl Document for Parquet {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#;
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(&format!("[{}]", json_str.clone())));
+    ///     let mut document = Parquet::default();
+    ///     let mut connector: Box<dyn Connector> = Box::new(Local::new("./data/multi_lines.parquet".to_string()));
     ///     connector.fetch().await?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
     ///     let data = dataset.next().await.unwrap().to_value();
-    ///     let expected_data: Value = serde_json::from_str(json_str)?;
+    ///
+    ///     let json_expected_str = r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove"}"#;
+    ///     let expected_data: Value = serde_json::from_str(json_expected_str)?;
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
     /// }
     /// ```
-    /// # Example: Should read the object input data.
+    /// # Example: Should read specific data in the records and return each data.
     /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::json::Json;
+    /// use chewdata::connector::{Connector, local::Local};
+    /// use chewdata::document::parquet::Parquet;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
     /// use async_std::prelude::*;
@@ -104,64 +122,15 @@ impl Document for Parquet {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#;
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(&format!("{}", json_str.clone())));
+    ///     let mut document = Parquet::default();
+    ///     document.entry_path = Some("/string".to_string());
+    ///     let mut connector: Box<dyn Connector> = Box::new(Local::new("./data/multi_lines.parquet".to_string()));
     ///     connector.fetch().await?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
     ///     let data = dataset.next().await.unwrap().to_value();
-    ///     let expected_data: Value = serde_json::from_str(json_str).unwrap();
-    ///     assert_eq!(expected_data, data);
     ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Should not read the input data.
-    /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::json::Json;
-    /// use chewdata::document::Document;
-    /// use chewdata::DataResult;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"My text"#));
-    ///     connector.fetch().await?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap();
-    ///     match data {
-    ///         DataResult::Ok(_) => assert!(false, "The data readed by the json builder should be in error."),
-    ///         DataResult::Err(_) => ()
-    ///     };
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Should read specific array in the records and return each data.
-    /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::json::Json;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     document.entry_path = Some("/*/array*/*".to_string());
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"[{"array1":[{"field":"value1"},{"field":"value2"}]}]"#));
-    ///     connector.fetch().await?;
-    ///     let expected_data: Value = serde_json::from_str(r#"{"field":"value1"}"#)?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_value();
+    ///     let expected_data = Value::String("value to test".to_string());
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
@@ -169,8 +138,8 @@ impl Document for Parquet {
     /// ```
     /// # Example: Should not found the entry path.
     /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::json::Json;
+    /// use chewdata::connector::{Connector, local::Local};
+    /// use chewdata::document::parquet::Parquet;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
     /// use async_std::prelude::*;
@@ -178,14 +147,15 @@ impl Document for Parquet {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     document.entry_path = Some("/*/not_found/*".to_string());
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"[{"array1":[{"field":"value1"},{"field":"value2"}]}]"#));
+    ///     let mut document = Parquet::default();
+    ///     document.entry_path = Some("/not_found".to_string());
+    ///     let mut connector: Box<dyn Connector> = Box::new(Local::new("./data/multi_lines.parquet".to_string()));
     ///     connector.fetch().await?;
-    ///     let expected_data: Value = serde_json::from_str(r#"[{"array1":[{"field":"value1"},{"field":"value2"}]},{"_error":"Entry path '/*/not_found/*' not found."}]"#)?;
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
     ///     let data = dataset.next().await.unwrap().to_value();
+    ///
+    ///     let expected_data: Value = serde_json::from_str(r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Entry path '/not_found' not found."}"#)?;
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
@@ -203,8 +173,7 @@ impl Document for Parquet {
 
         let rows = read_from_cursor
             .get_row_iter(None)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
-            .into_iter();
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
         let entry_path_option = self.entry_path.clone();
 
@@ -241,34 +210,6 @@ impl Document for Parquet {
         }))
     }
     /// See [`Document::write_data`] for more details.
-    ///
-    /// Write data in jsonl format to append data into the buffer.
-    ///
-    /// # Example
-    /// ```rust
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::json::Json;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     let mut connector = InMemory::new(r#"[]"#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#"{"column_1":"line_1"}"#, &format!("{}", connector));
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#"{"column_1":"line_1"},{"column_1":"line_2"}"#, &format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
     #[instrument]
     async fn write_data(&mut self, _connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         self.inner.push(value);
@@ -276,177 +217,129 @@ impl Document for Parquet {
         Ok(())
     }
     /// See [`Document::close`] for more details.
-    ///
-    /// Read the remote file and append the new data.
-    ///
-    /// # Example: Remote document don't have data.
-    /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::json::Json;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.close(&mut connector).await?;
-    ///     assert_eq!(r#"[{"column_1":"line_1"}]"#, format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Remote document has empty data.
-    /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::json::Json;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     let mut connector = InMemory::new(r#"[]"#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.close(&mut connector).await?;
-    ///     assert_eq!(r#"[{"column_1":"line_1"}]"#, format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Remote document has data.
-    /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::json::Json;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Json::default();
-    ///     let mut connector = InMemory::new(r#"[{"column_1":"line_1"}]"#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
-    ///
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.close(&mut connector).await?;
-    ///     assert_eq!(r#",{"column_1":"line_2"}]"#, format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
     #[instrument]
     async fn close(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        let header = self.header(connector).await?;
-        let footer = self.footer(connector).await?;
+        let connector_is_empty = connector.is_empty().await?;
 
-        let values_schema = infer_json_schema_from_iterator(self.inner.clone().into_iter().map(|value| Ok(value.clone())))
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let mut values = Vec::default();
 
-        let config_schema = self.schema.clone();
-        let mut schema_arrow = config_schema.unwrap_or(values_schema).clone();
+        // In parquet, if the document exist, we need to create another document. A paquet file is immutable.
+        if !connector_is_empty && connector.inner().is_empty() {
+            connector.fetch().await?;
+            let mut buf = Vec::new();
+            connector.read_to_end(&mut buf).await?;
 
-        // If the footer contain metadata, we will merge the previous schema and the new one
-        if PARQUET_MAGIC.len() < footer.len() {
-            println!("merge");
-            let cursor = SliceableCursor::new(footer);
-            let parquet_metadata = parse_metadata(&cursor)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            let file_metadata = parquet_metadata.file_metadata();
-            let old_schema = parquet_to_arrow_schema(file_metadata.schema_descr(), file_metadata.key_value_metadata())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            schema_arrow = arrow::datatypes::Schema::try_merge(vec![schema_arrow, old_schema])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            let cursor = SliceableCursor::new(buf);
+
+            let mut records = SerializedFileReader::new(cursor)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
+                .get_row_iter(None)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
+                .into_iter()
+                .map(|row| row.to_json_value())
+                .collect();
+
+            values.append(&mut records);
+            connector.clear();
         }
+
+        values.append(&mut self.inner.clone());
+
+        let mut arrow_value = values.clone().into_iter().map(Ok);
+
+        let schema = match self.schema.clone() {
+            Some(value) => Schema::from(&value),
+            None => infer_json_schema_from_iterator(arrow_value.clone()),
+        }
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         let cursor_writer = InMemoryWriteableCursor::default();
-        let properties = WriterProperties::builder()
-            .set_dictionary_enabled(false)
-            .set_statistics_enabled(false)
-            .set_writer_version(WriterVersion::PARQUET_1_0)
-            .set_encoding(Encoding::PLAIN)
-            .set_compression(Compression::UNCOMPRESSED)
-            .build();
 
-        let mut writer = ArrowWriter::try_new(cursor_writer.clone(), Arc::new(schema_arrow.clone()), Some(properties))
+        let mut properties_builder = WriterProperties::builder();
+        properties_builder = properties_builder.set_write_batch_size(self.batch_size);
+
+        if let Some(options) = &self.options {
+            if let Some(compression) = &options.compression {
+                properties_builder =
+                    properties_builder.set_compression(match compression.to_uppercase().as_str() {
+                        "UNCOMPRESSED" => Compression::UNCOMPRESSED,
+                        "SNAPPY" => Compression::SNAPPY,
+                        "GZIP" => Compression::GZIP,
+                        "LZO" => Compression::LZO,
+                        "BROTLI" => Compression::BROTLI,
+                        "LZ4" => Compression::LZ4,
+                        "ZSTD" => Compression::ZSTD,
+                        _ => Compression::UNCOMPRESSED,
+                    });
+            }
+            if let Some(by) = &options.created_by {
+                properties_builder = properties_builder.set_created_by(by.clone());
+            }
+            if let Some(limit) = options.data_page_size_limit {
+                properties_builder = properties_builder.set_data_pagesize_limit(limit);
+            }
+            if let Some(limit) = options.dictionary_page_size_limit {
+                properties_builder = properties_builder.set_dictionary_pagesize_limit(limit);
+            }
+            if let Some(encoding) = &options.encoding {
+                properties_builder =
+                    properties_builder.set_encoding(match encoding.to_uppercase().as_str() {
+                        "BIT_PACKED" => Encoding::BIT_PACKED,
+                        "PLAIN" => Encoding::PLAIN,
+                        "PLAIN_DICTIONARY" => Encoding::PLAIN_DICTIONARY,
+                        "RLE" => Encoding::RLE,
+                        "DELTA_BINARY_PACKED" => Encoding::DELTA_BINARY_PACKED,
+                        "DELTA_LENGTH_BYTE_ARRAY" => Encoding::DELTA_LENGTH_BYTE_ARRAY,
+                        "DELTA_BYTE_ARRAY" => Encoding::DELTA_BYTE_ARRAY,
+                        "RLE_DICTIONARY" => Encoding::RLE_DICTIONARY,
+                        "BYTE_STREAM_SPLIT" => Encoding::BYTE_STREAM_SPLIT,
+                        _ => Encoding::PLAIN,
+                    });
+            }
+            if let Some(has_dictionary) = options.has_dictionary {
+                properties_builder = properties_builder.set_dictionary_enabled(has_dictionary);
+            }
+            if let Some(has_statistics) = options.has_statistics {
+                properties_builder = properties_builder.set_statistics_enabled(has_statistics);
+            }
+            if let Some(size) = options.max_row_group_size {
+                properties_builder = properties_builder.set_max_row_group_size(size);
+            }
+            if let Some(size) = options.max_statistics_size {
+                properties_builder = properties_builder.set_max_statistics_size(size);
+            }
+            if let Some(version) = options.version {
+                properties_builder = properties_builder.set_writer_version(match version {
+                    1 => WriterVersion::PARQUET_1_0,
+                    2 => WriterVersion::PARQUET_2_0,
+                    _ => WriterVersion::PARQUET_1_0,
+                });
+            }
+        }
+        let properties = properties_builder.build();
+
+        {
+            let mut writer = ArrowWriter::try_new(
+                cursor_writer.clone(),
+                Arc::new(schema.clone()),
+                Some(properties),
+            )
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let decoder = Decoder::new(Arc::new(schema_arrow.clone()), self.inner.len(), None);
-        let mut value_iter = self.inner.clone().into_iter().map(|value| Ok(value.clone()));
+            let decoder = Decoder::new(Arc::new(schema.clone()), self.batch_size, None);
 
-        while let Ok(Some(batch)) = decoder.next_batch(&mut value_iter) {
-            writer.write(&batch.clone())?;
+            while let Ok(Some(batch)) = decoder.next_batch(&mut arrow_value) {
+                writer.write(&batch.clone())?;
+            }
+
+            writer.close()?;
         }
 
-        writer.close()?;
-
-        let mut buf = cursor_writer.data();
-
-        // remove the header from the cursor if the remote document contain data
-        if !connector.is_empty().await? {
-            println!("append");
-            let mut cursor_reader = std::io::Cursor::new(buf.clone());
-            buf = Default::default();
-            cursor_reader.seek(SeekFrom::Start(header.len() as u64))?;
-            cursor_reader.read_to_end(&mut buf)?;
-        }
-
-        connector.write_all(&buf).await?;
+        connector.write_all(&cursor_writer.data()).await?;
 
         self.inner = Default::default();
 
         Ok(())
-    }
-    /// See [`Document::header`] for more details.
-    async fn header(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
-        Ok(PARQUET_MAGIC.to_vec())
-    }
-    /// See [`Document::footer`] for more details.
-    ///
-    /// If the remote document is not empty, try to fetch the footer bytes.
-    async fn footer(&self, connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
-        if connector.is_empty().await? {
-            return Ok(PARQUET_MAGIC.to_vec());
-        }
-
-        let file_len = connector.len().await?;
-        let default_end_len = std::cmp::min(DEFAULT_FOOTER_READ_SIZE, file_len);
-        let last_chunk = connector.chunk(file_len - default_end_len, file_len).await?;
-
-        // Check last_chunk if it's the latest parquet data in the file
-        if last_chunk[last_chunk.len() - 4..] != PARQUET_MAGIC {
-            return Err(io::Error::new(io::ErrorKind::InvalidData,"Invalid Parquet file. Corrupt footer"));
-        }
-
-        // Get the metadata length from the footer
-        let metadata_len = LittleEndian::read_i32(
-            &last_chunk[last_chunk.len() - 8..last_chunk.len() - 4],
-        ) as i64;
-
-        if metadata_len < 0 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData,
-                format!("Invalid Parquet file. Metadata length is less than zero ({})", metadata_len)
-            ));
-        }
-
-        // Get the footer size
-        let footer_metadata_len = FOOTER_SIZE + metadata_len as usize;
-        let footer = last_chunk[last_chunk.len() - footer_metadata_len..].to_vec();
-
-        Ok(footer)
     }
     /// See [`Document::has_data`] for more details.
     fn has_data(&self, str: &str) -> io::Result<bool> {

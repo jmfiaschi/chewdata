@@ -359,7 +359,7 @@ impl Document for Csv {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Csv::default();
+    ///     let mut document = Csv::default();
     ///     let mut connector = InMemory::new(r#""#);
     ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;

@@ -133,6 +133,13 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     fn has_data(&self, str: &str) -> io::Result<bool> {
         Ok(!matches!(str, ""))
     }
+    /// Check if it's possible to append new data into the end of the document
+    /// 
+    /// True: Append the data to the end of the document
+    /// False: Replace the document
+    fn can_append(&self) -> bool {
+        true
+    }
     /// Return the header data used to identify when the data start
     ///             |--------|------|--------|
     /// document => | header | data | footer |
@@ -147,7 +154,9 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     async fn footer(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
         Ok(Default::default())
     }
-    /// Set the entry path
+    /// Set the entry path. The entry path is the path to reach the data into the document. 
+    /// 
+    /// For example, in json, the entry path for `{"field1":{"sub_field1":10}}` will be `/field1/sub_field1` 
     fn set_entry_path(&mut self, _entry_point: String) {}
 }
 

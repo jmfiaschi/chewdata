@@ -53,6 +53,15 @@ impl fmt::Debug for Local {
     }
 }
 
+impl Local {
+    pub fn new(path: String) -> Self {
+        Local {
+            path,
+            ..Default::default()
+        }
+    }
+}
+
 #[async_trait]
 impl Connector for Local {
     /// See [`Connector::path`] for more details.
@@ -222,7 +231,7 @@ impl Connector for Local {
     ///     assert_eq!(r#"{"column1":"value1"}"#, buffer);
     ///
     ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
+    ///     connector.send(Some(0)).await?;
     ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;

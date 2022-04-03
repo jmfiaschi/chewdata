@@ -72,7 +72,7 @@ fn it_should_apply_simple_validation() {
 
                 let json_result = String::from_utf8_lossy(output.stdout.as_slice());
                 let error_result = String::from_utf8_lossy(output.stderr.as_slice());
-
+                
                 assert!(
                     error_result.is_empty(),
                     "stderr is not empty with this value {}.",
@@ -89,7 +89,6 @@ fn it_should_apply_simple_validation() {
                     .get("_error")
                     .unwrap_or_else(|| panic!("Should have a field '_error'."));
 
-                println!("value {:?}", value.clone());
                 assert_eq!(
                     &Value::resolve(expected_error.to_string()),
                     value,
