@@ -221,7 +221,7 @@ impl Jwt {
                 });
                 decode::<Value>(
                     token,
-                    &DecodingKey::from_rsa_components(modulus.as_str(), exponent.as_str()),
+                    &DecodingKey::from_rsa_components(modulus.as_str(), exponent.as_str())?,
                     &Validation::new(self.algorithm),
                 )
             }
