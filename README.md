@@ -6,16 +6,16 @@
 
 This application is a light ETL in rust that can be used as a connector between systems
 
-| Available | Feature              | Values                                                      | Description                        |
-| --------- | -------------------- | ----------------------------------------------------------- | ---------------------------------- |
-| x         | Supported formats    | `Json` , `Jsonl` , `CSV` , `Toml` , `XML` , `Yaml` , `Text` | Read and Write in these formats    |
-| x         | Object Databases     | `Mongodb`                                                   | Read / Write / Clean data          |
-| -         | Relational Databases | `Psql`                                                      | Read / Write / Clean data          |
-| x         | Bucket               | `S3` , `Minio`                                              | Read / Write / Clean / Select data |
-| x         | Curl                 | `*`                                                         | Read / Write / Clean data          |
-| x         | Curl auth            | `Basic` , `Bearer` , `Jwt`                                  | Read / Write / Clean data          |
-| -         | Message brocker      | `RabbitMQ`                                                  | Read / Write / Clean data          |
-| x         | Transform data       | [tera template](https://tera.netlify.app/docs)              | Transform the data in the fly      |
+| Available | Feature              | Values                                                                 | Description                        |
+| --------- | -------------------- | ---------------------------------------------------------------------- | ---------------------------------- |
+| x         | Supported formats    | `Json` , `Jsonl` , `CSV` , `Toml` , `XML` , `Yaml` , `Text`, `Parquet` | Read and Write in these formats    |
+| x         | Object Databases     | `Mongodb`                                                              | Read / Write / Clean data          |
+| -         | Relational Databases | `Psql`                                                                 | Read / Write / Clean data          |
+| x         | Bucket               | `S3` , `Minio`                                                         | Read / Write / Clean / Select data |
+| x         | Curl                 | `*`                                                                    | Read / Write / Clean data          |
+| x         | Curl auth            | `Basic` , `Bearer` , `Jwt`                                             | Read / Write / Clean data          |
+| -         | Message brocker      | `RabbitMQ`                                                             | Read / Write / Clean data          |
+| x         | Transform data       | [tera template](https://tera.netlify.app/docs)                         | Transform the data in the fly      |
 
 More useful information:
 
