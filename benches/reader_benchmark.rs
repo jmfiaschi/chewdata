@@ -4,6 +4,7 @@ use chewdata::document::json::Json;
 use chewdata::document::jsonl::Jsonl;
 use chewdata::document::toml::Toml;
 use chewdata::document::yaml::Yaml;
+use chewdata::document::parquet::Parquet;
 use chewdata::document::Document;
 use chewdata::{connector::in_memory::InMemory, document::xml::Xml};
 use criterion::async_executor::FuturesExecutor;
@@ -12,13 +13,14 @@ use futures::stream::StreamExt;
 use std::{fs::OpenOptions, io::Read};
 
 fn document_read_benchmark(c: &mut Criterion) {
-    let readers: [(&str, &str, Box<dyn Document>); 6] = [
+    let readers: [(&str, &str, Box<dyn Document>); 7] = [
         ("json", "data/one_line.json", Box::new(Json::default())),
         ("jsonl", "data/one_line.jsonl", Box::new(Jsonl::default())),
         ("xml", "data/one_line.xml", Box::new(Xml::default())),
         ("csv", "data/one_line.csv", Box::new(Csv::default())),
         ("toml", "data/one_line.toml", Box::new(Toml::default())),
         ("yaml", "data/one_line.yml", Box::new(Yaml::default())),
+        ("parquet", "data/one_line.parquet", Box::new(Parquet::default())),
     ];
 
     for (format, file, document) in readers {
