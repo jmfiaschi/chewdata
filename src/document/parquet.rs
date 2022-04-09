@@ -36,6 +36,7 @@ pub struct Parquet {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ParquetOptions {
     version: Option<usize>,
     data_page_size_limit: Option<usize>,
@@ -64,8 +65,25 @@ impl Default for Parquet {
             entry_path: None,
             schema: None,
             batch_size: 1000,
-            options: None,
+            options: Some(ParquetOptions::default()),
             inner: Vec::default(),
+        }
+    }
+}
+
+impl Default for ParquetOptions {
+    fn default() -> Self {
+        ParquetOptions {
+            created_by: Some("chewdata".to_string()),
+            encoding: Some("PLAIN".to_string()),
+            compression: Some("GZIP".to_string()),
+            has_statistics: Some(false),
+            has_dictionary: Some(false),
+            max_statistics_size: None,
+            max_row_group_size: None,
+            dictionary_page_size_limit: None,
+            data_page_size_limit: None,
+            version: Some(2)
         }
     }
 }
@@ -210,14 +228,12 @@ impl Document for Parquet {
         }))
     }
     /// See [`Document::write_data`] for more details.
-    #[instrument]
     async fn write_data(&mut self, _connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         self.inner.push(value);
 
         Ok(())
     }
     /// See [`Document::close`] for more details.
-    #[instrument]
     async fn close(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         let connector_is_empty = connector.is_empty().await?;
 

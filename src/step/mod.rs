@@ -132,6 +132,7 @@ async fn receive<'step>(
         loop {
             match receiver.try_recv() {
                 Ok(step_context_received) => {
+                    trace!(step = format!("{:?}", step).as_str(), step_context = format!("{:?}", step_context_received).as_str(), "A new step context found in the pipe");
                     yield step_context_received.clone();
                 },
                 Err(TryRecvError::Empty) => {
@@ -140,6 +141,7 @@ async fn receive<'step>(
                     continue;
                 },
                 Err(TryRecvError::Disconnected) => {
+                    trace!(step = format!("{:?}", step).as_str(), "The pipe is disconnected, no more step context to handle");
                     break;
                 },
             };

@@ -28,14 +28,7 @@ async fn main() -> io::Result<()> {
         {
             "type": "writer",
             "document": {
-                "type": "parquet",
-                "options": {
-                    "version": 2,
-                    "compression":"UNCOMPRESSED",
-                    "created_by": "chewdata",
-                    "encoding": "PLAIN",
-                    "has_dictionary": false
-                }
+                "type": "parquet"
             },
             "connector": {
                 "type": "bucket",
