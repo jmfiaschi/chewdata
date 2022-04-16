@@ -3,7 +3,7 @@ extern crate tera;
 use super::Updater;
 use super::{Action, ActionType};
 use crate::helper::json_pointer::JsonPointer;
-use crate::updater::tera_helpers::{filters, function};
+use crate::updater::tera_helpers::{filters, function, faker};
 use json_value_merge::Merge;
 use json_value_remove::Remove;
 use json_value_resolve::Resolve;
@@ -133,6 +133,43 @@ impl Tera {
         engine.register_function("base64_encode", function::base64_encode);
         engine.register_function("base64_decode", function::base64_decode);
         engine.register_filter("search", filters::object::search);
+        // faker
+        engine.register_function("fake_words", faker::words);
+        engine.register_function("fake_sentences", faker::sentences);
+        engine.register_function("fake_paragraphs", faker::paragraphs);
+        engine.register_function("fake_first_name", faker::first_name);
+        engine.register_function("fake_last_name", faker::last_name);
+        engine.register_function("fake_title", faker::title);
+        engine.register_function("fake_job_seniority", faker::job_seniority);
+        engine.register_function("fake_job_field", faker::job_field);
+        engine.register_function("fake_job_position", faker::job_position);
+        engine.register_function("fake_city", faker::city);
+        engine.register_function("fake_country_name", faker::country_name);
+        engine.register_function("fake_country_code", faker::country_code);
+        engine.register_function("fake_street_name", faker::street_name);
+        engine.register_function("fake_state_name", faker::state_name);
+        engine.register_function("fake_state_code", faker::state_code);
+        engine.register_function("fake_zipcode", faker::zipcode);
+        engine.register_function("fake_postcode", faker::postcode);
+        engine.register_function("fake_timezone", faker::timezone);
+        engine.register_function("fake_latitude", faker::latitude);
+        engine.register_function("fake_longitude", faker::longitude);
+        engine.register_function("fake_profession", faker::profession);
+        engine.register_function("fake_industry", faker::industry);
+        engine.register_function("fake_email", faker::email);
+        engine.register_function("fake_ipv4", faker::ipv4);
+        engine.register_function("fake_ipv6", faker::ipv6);
+        engine.register_function("fake_mac_address", faker::mac_address);
+        engine.register_function("fake_color_hex", faker::color_hex);
+        engine.register_function("fake_user_agent", faker::user_agent);
+        engine.register_function("fake_digit", faker::digit);
+        engine.register_function("fake_phone_number", faker::phone_number);
+        engine.register_function("fake_currency_name", faker::currency_name);
+        engine.register_function("fake_currency_code", faker::currency_code);
+        engine.register_function("fake_currency_symbol", faker::currency_symbol);
+        engine.register_function("fake_credit_card", faker::credit_card);
+        engine.register_function("fake_barecode", faker::barecode);
+        engine.register_function("fake_password", faker::password);
 
         engine
     }

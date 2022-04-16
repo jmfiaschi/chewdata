@@ -39,6 +39,8 @@ mime = "0.3"
 crossbeam = "0.8"
 base64 = "0.13"
 regex = "1.5"
+fake = { version = "2.4" }
+rand = "0.8"
 clap = { version = "3.0", features = ["yaml"] }
 serde_yaml = { version = "0.8" }
 # Lock local files

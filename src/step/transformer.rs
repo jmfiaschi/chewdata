@@ -32,7 +32,7 @@ pub struct Transformer {
     pub input_name: String,
     #[serde(alias = "output")]
     pub output_name: String,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
     #[serde(alias = "sleep")]
     pub wait: u64,
     #[serde(skip)]
@@ -133,7 +133,14 @@ impl Step for Transformer {
 
                     DataResult::Ok(new_record)
                 }
-                Err(e) => DataResult::Err((record, e)),
+                Err(e) => {
+                    warn!(
+                        record = format!("{}", record).as_str(),
+                        error = format!("{}", e).as_str(),
+                        "The transformer's updater raise an error"
+                    );
+                    DataResult::Err((record, e))
+                }
             };
 
             step_context_received.insert_step_result(self.name(), new_data_result)?;
