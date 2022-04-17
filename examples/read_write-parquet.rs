@@ -20,7 +20,7 @@ async fn main() -> io::Result<()> {
             "type": "reader",
             "connector":{
                 "type": "local",
-                "path": "./data/multi_lines.json"
+                "path": "./data/multi_lines.{{ metadata.mime_subtype }}"
             }
         },
         {
@@ -48,7 +48,7 @@ async fn main() -> io::Result<()> {
             },
             "connector": {
                 "type":"local",
-                "path": "./data/out/parquet_test_local.parquet"
+                "path": "./data/out/parquet_test_local.{{ metadata.mime_subtype }}"
             }
         }
     ]

@@ -9,7 +9,7 @@ use futures::{Stream, StreamExt};
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, Map};
 use std::io::{Cursor, Error, ErrorKind, Result, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -103,13 +103,18 @@ impl Connector for Curl {
     /// assert_eq!("/resource/value", connector.path());
     /// ```
     fn path(&self) -> String {
+        let mut path = self.path.clone();
+        let mut metadata = Map::default();
+        
+        metadata.insert("metadata".to_string(), self.metadata().into());
+        path.replace_mustache(Value::Object(metadata));
+
         match (self.is_variable(), self.parameters.clone()) {
             (true, params) => {
-                let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
             }
-            _ => self.path.clone(),
+            _ => path,
         }
     }
     /// See [`Connector::is_resource_will_change`] for more details.

@@ -11,7 +11,7 @@ use rusoto_core::{credential::StaticProvider, Region, RusotoError};
 use rusoto_s3::ListObjectsV2Request;
 use rusoto_s3::{GetObjectRequest, HeadObjectRequest, PutObjectRequest, S3Client, S3 as RusotoS3};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, Map};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -241,13 +241,18 @@ impl Connector for Bucket {
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
+        let mut path = self.path.clone();
+        let mut metadata = Map::default();
+        
+        metadata.insert("metadata".to_string(), self.metadata().into());
+        path.replace_mustache(Value::Object(metadata));
+        
         match (self.is_variable(), *self.parameters.clone()) {
             (true, params) => {
-                let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
             }
-            _ => self.path.clone(),
+            _ => path,
         }
     }
     /// See [`Connector::len`] for more details.
