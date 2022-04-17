@@ -1,3 +1,16 @@
+# [1.12.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.12.0-beta.1) (2022-04-17)
+
+
+### Bug Fixes
+
+* **generator:** rustdoc ([3c36755](https://github.com/jmfiaschi/chewdata/commit/3c36755832eaa795281854e4ca9ee7026301c615))
+* **release:** build release bin and publish it ([156112b](https://github.com/jmfiaschi/chewdata/commit/156112b01b931ff2c231b3b88b27a63c265b88ec))
+
+
+### Features
+
+* **generator:** add generator step & faker helper ([c1b3a76](https://github.com/jmfiaschi/chewdata/commit/c1b3a76d57f696d9d0823a3b0006134b9a541ecb))
+
 ## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-04-04)
 
 
