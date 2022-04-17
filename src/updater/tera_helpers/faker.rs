@@ -229,7 +229,7 @@ pub fn title(_args: &HashMap<String, Value>) -> Result<Value> {
 /// # Example
 /// ```
 /// use std::collections::HashMap;
-/// use chewdata::updater::tera_helpers::faker::seniority;
+/// use chewdata::updater::tera_helpers::faker::job_seniority;
 ///
 /// let args = HashMap::new();
 /// let job_seniority = job_seniority(&args);
