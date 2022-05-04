@@ -357,8 +357,4 @@ impl Document for Parquet {
 
         Ok(())
     }
-    /// See [`Document::has_data`] for more details.
-    fn has_data(&self, str: &str) -> io::Result<bool> {
-        Ok(!matches!(str, ""))
-    }
 }

@@ -59,14 +59,27 @@ where
     Ok(Arc::new(Mutex::new(Cursor::new(s.into_bytes()))))
 }
 
-impl InMemory {
-    /// Creates a new document type `InMemory`.
-    pub fn new(str: &str) -> InMemory {
+impl Into<InMemory> for Vec<u8> {
+    fn into(self) -> InMemory {
         InMemory {
-            memory: Arc::new(Mutex::new(Cursor::new(str.to_string().into_bytes()))),
+            memory: Arc::new(Mutex::new(Cursor::new(self))),
             ..Default::default()
         }
     }
+}
+
+impl Into<InMemory> for &str {
+    /// Can fail for non UTF-8 str. use  `str.into()` instead.
+    fn into(self) -> InMemory {
+        InMemory {
+            memory: Arc::new(Mutex::new(Cursor::new(self.to_string().into_bytes()))),
+            ..Default::default()
+        }
+    }
+}
+
+impl InMemory {    
+    pub fn new(str: &str) -> InMemory { str.into() }
 }
 
 #[async_trait]

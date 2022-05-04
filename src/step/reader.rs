@@ -226,7 +226,7 @@ async fn send_data_into_pipe<'step>(
 ) -> io::Result<Option<()>> {
     connector.fetch().await?;
 
-    let mut dataset = match connector.pull_dataset(document.clone()).await? {
+    let mut dataset = match connector.dataset(document.clone()).await? {
         Some(dataset) => dataset,
         None => return Ok(None),
     };

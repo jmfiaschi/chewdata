@@ -129,9 +129,9 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     fn metadata(&self) -> Metadata {
         Metadata::default()
     }
-    /// Check if the str in argument has an empty data
-    fn has_data(&self, str: &str) -> io::Result<bool> {
-        Ok(!matches!(str, ""))
+    /// Check if the buf has data
+    fn has_data(&self, buf: &Vec<u8>) -> io::Result<bool> {
+        Ok(!buf.is_empty())
     }
     /// Check if it's possible to append new data into the end of the document
     /// 

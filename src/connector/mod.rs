@@ -89,15 +89,12 @@ impl ConnectorType {
 pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Read + Write {
     // Fetch data from the resource and set the inner of the connector.
     async fn fetch(&mut self) -> Result<()>;
-    // Transform the data with the document and return the dataset.
-    // Return None if the connector contain no data.
+    // Return the dataset that contain a stream of data.
     #[instrument]
-    async fn pull_dataset(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<Dataset>> {
+    async fn dataset(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<Dataset>> {
         let mut connector = self.clone_box();
-        let inner = std::str::from_utf8(self.inner())
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-
-        match document.has_data(inner)? {
+    
+        match document.has_data(self.inner())? {
             false => return Ok(None),
             true => ()
         };

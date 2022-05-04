@@ -486,17 +486,17 @@ impl Document for Xml {
     ///     connector.fetch().await?;
     ///     document.entry_path = "/root/*/item".to_string();
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
+    ///     let mut buffer = Vec::default();
+    ///     connector.read_to_end(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(&buffer).unwrap());
     ///
     ///     let mut connector = InMemory::new(r#"<root/>"#);
     ///     connector.fetch().await?;
     ///     document.entry_path = "/root/*/item".to_string();
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
+    ///     let mut buffer = Vec::default();
+    ///     connector.read_to_end(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(&buffer).unwrap());
     ///     Ok(())
     /// }
     /// ```
@@ -515,9 +515,9 @@ impl Document for Xml {
     ///     connector.fetch().await?;
     ///     document.entry_path = "/root/*/item".to_string();
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
+    ///     let mut buffer = Vec::default();
+    ///     connector.read_to_end(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(&buffer).unwrap());
     ///
     ///     Ok(())
     /// }
@@ -537,14 +537,17 @@ impl Document for Xml {
     ///     connector.fetch().await?;
     ///     document.entry_path = "/root/*/item".to_string();
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(true, document.has_data(buffer.as_str()).unwrap());
+    ///     let mut buffer = Vec::default();
+    ///     connector.read_to_end(&mut buffer).await?;
+    ///     assert_eq!(true, document.has_data(&buffer).unwrap());
     ///
     ///     Ok(())
     /// }
     /// ```
-    fn has_data(&self, str: &str) -> io::Result<bool> {
+    fn has_data(&self, buf: &Vec<u8>) -> io::Result<bool> {
+        let str = std::str::from_utf8(buf)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            
         let data_value = jxon::xml_to_json(str)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
@@ -552,6 +555,6 @@ impl Document for Xml {
             return Ok(false);
         }
 
-        Ok(!matches!(str, ""))
+        Ok(!buf.is_empty())
     }
 }
