@@ -13,7 +13,6 @@ categories = ["encoding","network-programming","data-structures"]
 
 [[bench]]
 name = "benchmark"
-path = "benches/reader_benchmark.rs"
 harness = false
 
 [dependencies]
@@ -55,8 +54,8 @@ toml = { version = "0.5", optional = true }
 # For Connectors
 rusoto_core = { version = "0.47", optional = true }
 rusoto_s3 = { version = "0.47", optional = true }
-parquet = { version = "11.1.0", optional = true, features = ["cli"] }
-arrow = { version = "11.1.0", optional = true }
+parquet = { version = "13.0", optional = true, features = ["cli"] }
+arrow = { version = "13.0", optional = true }
 byteorder = { version = "1.4", optional = true }
 tokio = { version = "1.17", optional = true }
 jsonwebtoken = { version = "8.1", optional = true }
