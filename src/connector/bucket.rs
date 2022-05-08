@@ -5,6 +5,7 @@ use crate::Metadata;
 use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
+use json_value_merge::Merge;
 use regex::Regex;
 use rusoto_core::credential::DefaultCredentialsProvider;
 use rusoto_core::{credential::StaticProvider, Region, RusotoError};
@@ -212,8 +213,17 @@ impl Connector for Bucket {
             return Ok(false);
         }
 
+        let mut metadata_kv = Map::default();
+        metadata_kv.insert("metadata".to_string(), self.metadata().into());
+        let metadata = Value::Object(metadata_kv);
+
+        let mut new_parameters = new_parameters.clone();
+        new_parameters.merge(metadata.clone());
+        let mut old_parameters = *self.parameters.clone();
+        old_parameters.merge(metadata);
+
         let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(*self.parameters.clone());
+        actuel_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);

@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use fs2::FileExt;
 use futures::Stream;
 use glob::glob;
+use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, Map};
@@ -312,8 +313,17 @@ impl Connector for Local {
             return Ok(false);
         }
 
+        let mut metadata_kv = Map::default();
+        metadata_kv.insert("metadata".to_string(), self.metadata().into());
+        let metadata = Value::Object(metadata_kv);
+
+        let mut new_parameters = new_parameters.clone();
+        new_parameters.merge(metadata.clone());
+        let mut old_parameters = self.parameters.clone();
+        old_parameters.merge(metadata);
+
         let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(self.parameters.clone());
+        actuel_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);

@@ -138,8 +138,17 @@ impl Connector for Curl {
             return Ok(false);
         }
 
+        let mut metadata_kv = Map::default();
+        metadata_kv.insert("metadata".to_string(), self.metadata().into());
+        let metadata = Value::Object(metadata_kv);
+
+        let mut new_parameters = new_parameters.clone();
+        new_parameters.merge(metadata.clone());
+        let mut old_parameters = self.parameters.clone();
+        old_parameters.merge(metadata);
+
         let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(self.parameters.clone());
+        actuel_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);

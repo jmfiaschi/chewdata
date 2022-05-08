@@ -3,7 +3,7 @@ use crate::document::Document;
 use crate::Metadata;
 use crate::{DataResult, Dataset};
 use arrow::datatypes::Schema;
-use arrow::json::reader::{infer_json_schema_from_iterator, Decoder};
+use arrow::json::reader::{infer_json_schema_from_iterator, Decoder, DecoderOptions};
 use async_std::io::prelude::WriteExt;
 use async_std::io::ReadExt;
 use async_stream::stream;
@@ -185,7 +185,7 @@ impl Document for Parquet {
         connector.read_to_end(&mut buf).await?;
 
         let cursor = SliceableCursor::new(buf);
-
+        
         let read_from_cursor = SerializedFileReader::new(cursor)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
@@ -342,7 +342,10 @@ impl Document for Parquet {
             )
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-            let decoder = Decoder::new(Arc::new(schema.clone()), self.batch_size, None);
+            let decoder_options = DecoderOptions::new()
+                .with_batch_size(self.batch_size.clone());
+
+            let decoder = Decoder::new(Arc::new(schema.clone()), decoder_options);
 
             while let Ok(Some(batch)) = decoder.next_batch(&mut arrow_value) {
                 writer.write(&batch.clone())?;
