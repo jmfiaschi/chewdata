@@ -1,3 +1,10 @@
+# [1.12.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.1...v1.12.0-beta.2) (2022-05-09)
+
+
+### Bug Fixes
+
+* **project:** use Vec<u8> instead of str to avoid UTF8 error and simply the code ([6d37154](https://github.com/jmfiaschi/chewdata/commit/6d371540127eab74da7e70907a5232a34105dd3d))
+
 # [1.12.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.12.0-beta.1) (2022-04-17)
 
 
