@@ -1,3 +1,10 @@
+# [1.12.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.2...v1.12.0-beta.3) (2022-05-09)
+
+
+### Features
+
+* **version:** use version to detect the app version for clap with cargo.toml ([42f5fb1](https://github.com/jmfiaschi/chewdata/commit/42f5fb184fd9d58af4f65d1eb20d18355980a049))
+
 # [1.12.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.1...v1.12.0-beta.2) (2022-05-09)
 
 
