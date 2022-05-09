@@ -41,6 +41,7 @@ regex = "1.5"
 fake = { version = "2.4" }
 rand = "0.8"
 clap = { version = "3.1", features = ["yaml"] }
+version = "3.0"
 serde_yaml = { version = "0.8" }
 # Lock local files
 fs2 = { version = "0.4" }

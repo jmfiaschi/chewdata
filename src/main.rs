@@ -1,5 +1,7 @@
 extern crate clap;
 extern crate env_applier;
+#[macro_use]
+extern crate version;
 
 use chewdata::step::StepType;
 use clap::{Command, Arg};
@@ -90,7 +92,7 @@ async fn main() -> Result<()> {
 
 fn application() -> Command<'static> {
     Command::new("chewdata")
-        .version("1.12.0")
+        .version(version!())
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
         .about("Light and chainable ETL")
         .arg(
