@@ -1,3 +1,10 @@
+# [1.12.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.3...v1.12.0-beta.4) (2022-05-10)
+
+
+### Bug Fixes
+
+* **make:** fetch the first line with version ([0a1b853](https://github.com/jmfiaschi/chewdata/commit/0a1b853af704603d5d80e7dd271db1bd634fb3f8))
+
 # [1.12.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.2...v1.12.0-beta.3) (2022-05-09)
 
 
