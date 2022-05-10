@@ -111,7 +111,7 @@ docs:
 	@cd docs && zola build
 
 version:
-	@grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml
+	@grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml | head -1
 
 docker\:build:
 	@docker build -t chewdata .
