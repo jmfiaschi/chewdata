@@ -9,7 +9,7 @@ use std::{fmt, io};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Eraser {
     #[serde(rename = "connector")]
     #[serde(alias = "conn")]
@@ -21,7 +21,7 @@ pub struct Eraser {
     pub data_type: String,
     #[serde(alias = "exclude")]
     pub exclude_paths: Vec<String>,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
     #[serde(alias = "sleep")]
     pub wait: u64,
     #[serde(skip)]
@@ -84,7 +84,7 @@ impl Step for Eraser {
     #[instrument]
     async fn exec(&self) -> io::Result<()> {
         let connector_type = self.connector_type.clone();
-        let mut connector = connector_type.connector();
+        let mut connector = connector_type.boxed_inner();
         let mut exclude_paths = self.exclude_paths.clone();
 
         match connector.is_variable() {
@@ -160,7 +160,7 @@ impl Step for Eraser {
                 }
             }
         };
-        
+
         Ok(())
     }
     fn name(&self) -> String {

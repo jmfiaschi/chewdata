@@ -6,16 +6,15 @@
 
 This application is a light ETL in rust that can be used as a connector between systems
 
-| Available | Feature              | Values                                                      | Description                        |
-| --------- | -------------------- | ----------------------------------------------------------- | ---------------------------------- |
-| x         | Supported formats    | `Json` , `Jsonl` , `CSV` , `Toml` , `XML` , `Yaml` , `Text` | Read and Write in these formats    |
-| x         | Object Databases     | `Mongodb`                                                   | Read / Write / Clean data          |
-| -         | Relational Databases | `Psql`                                                      | Read / Write / Clean data          |
-| x         | Bucket               | `S3` , `Minio`                                              | Read / Write / Clean / Select data |
-| x         | Curl                 | `*`                                                         | Read / Write / Clean data          |
-| x         | Curl auth            | `Basic` , `Bearer` , `Jwt`                                  | Read / Write / Clean data          |
-| -         | Message brocker      | `RabbitMQ`                                                  | Read / Write / Clean data          |
-| x         | Transform data       | [tera template](https://tera.netlify.app/docs)              | Transform the data in the fly      |
+| Feature                                  | Values                                                                  | Description                                                        |
+| ---------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Generate data                            | -                                                                       | Generate data for testing                                          |
+| Supported formats                        | `Json` , `Jsonl` , `CSV` , `Toml` , `XML` , `Yaml` , `Text` , `Parquet` | Read and Write in these formats                                    |
+| Multi Connectors                         | `Mongodb` , `S3` , `Minio` , `APIs`                                     | Read / Write / Clean data                                          |
+| Multi Http auths                         | `Basic` , `Bearer` , `Jwt`                                              | Read / Write / Clean data                                          |
+| Transform data                           | [tera template](https://tera.netlify.app/docs)                          | Transform the data in the fly                                      |
+| Multi Configuration formats              | `Json` , `Yaml`                                                         | The project need a jobs configuration in input                     |
+| Read data in parallel or sequential mode | `Cursor` , `Offset`                                                     | With this type of paginator, the data can be read in different way |
 
 More useful information:
 
@@ -23,10 +22,13 @@ More useful information:
 * No garbage collector
 * Parallel works
 * Cross-platform
-* Use async/await for concurrent threads
-* Read data with Cursor/Offset paginator
-
-The target of this project is to simplify the developer's works and simplify the connection between systems.
+* Use async/await for concurrent threads with zero-cost
+* Read multi files in parallel into the local or in a bucket
+* Search data into multi csv/json/parquet files with S3 select
+* Can be deployed into AWS Lambda
+* The configuration easly versionable
+* Can generate data in the fly for testing purpose
+* Control and validate the data. Handle bad and valid data in a dedicated stream
 
 ## Getting started
 

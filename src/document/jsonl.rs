@@ -13,7 +13,7 @@ use std::io;
 const DEFAULT_MIME_TYPE: &str = "x-ndjson";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Jsonl {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -221,7 +221,7 @@ impl Document for Jsonl {
     ///     Ok(())
     /// }
     /// ```
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         let mut buf = Vec::new();
         match self.is_pretty {
             true => serde_json::to_writer_pretty(&mut buf, &value),
@@ -231,7 +231,10 @@ impl Document for Jsonl {
         connector.write_all(b"\n").await
     }
     /// See [`Document::has_data`] for more details.
-    fn has_data(&self, str: &str) -> io::Result<bool> {
-        Ok(!matches!(str, "{}" | ""))
+    fn has_data(&self, buf: &Vec<u8>) -> io::Result<bool> {
+        if buf.clone() == br#"{}"#.to_vec() {
+            return Ok(false);
+        }
+        Ok(!buf.is_empty())
     }
 }

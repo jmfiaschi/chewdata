@@ -19,7 +19,7 @@ use std::{
 };
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Mongodb {
     pub endpoint: String,
     #[serde(alias = "db")]
@@ -308,7 +308,7 @@ impl Connector for Mongodb {
     ///
     ///     assert_eq!("value1", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
     ///     assert_eq!("value2", docs[1].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
-    ///    
+    ///
     ///     Ok(())
     /// }
     /// ```
@@ -587,7 +587,7 @@ impl Default for PaginatorType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct OffsetPaginator {
     pub limit: usize,
     pub skip: usize,
@@ -655,10 +655,10 @@ impl Paginator for OffsetPaginator {
         }?;
 
         let mut counter_type = None;
-        if let None = connector.counter_type {
+        if connector.counter_type.is_none() {
             counter_type = Some(CounterType::Scan(ScanCounter::default()));
         }
-        
+
         if let Some(counter_type) = counter_type {
             self.count = counter_type.count(*connector.clone(), None).await?;
 
@@ -699,7 +699,7 @@ impl Paginator for OffsetPaginator {
     ///     assert!(true, "Can't read the content of the file.");
     ///
     ///     let mut connector = stream.next().await.transpose()?.unwrap();
-    ///     connector.fetch().await?;     
+    ///     connector.fetch().await?;
     ///     let mut buffer2 = String::default();
     ///     let len2 = connector.read_to_string(&mut buffer2).await?;
     ///     assert!(0 < len2, "Can't read the content of the file.");
@@ -794,7 +794,7 @@ impl Paginator for OffsetPaginator {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CursorPaginator {
     pub limit: usize,
     pub skip: usize,

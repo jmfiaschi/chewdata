@@ -67,7 +67,7 @@ impl Default for ConnectorType {
 }
 
 impl ConnectorType {
-    pub fn connector(self) -> Box<dyn Connector> {
+    pub fn boxed_inner(self) -> Box<dyn Connector> {
         match self {
             ConnectorType::InMemory(connector) => Box::new(connector),
             ConnectorType::Io(connector) => Box::new(connector),
@@ -89,15 +89,12 @@ impl ConnectorType {
 pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Read + Write {
     // Fetch data from the resource and set the inner of the connector.
     async fn fetch(&mut self) -> Result<()>;
-    // Transform the data with the document and return the dataset.
-    // Return None if the connector contain no data.
+    // Return the dataset that contain a stream of data.
     #[instrument]
-    async fn pull_dataset(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<Dataset>> {
+    async fn dataset(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<Dataset>> {
         let mut connector = self.clone_box();
-        let inner = std::str::from_utf8(self.inner())
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-
-        match document.has_data(inner)? {
+    
+        match document.has_data(self.inner())? {
             false => return Ok(None),
             true => ()
         };
@@ -119,11 +116,11 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     fn is_variable(&self) -> bool;
     /// Check if the resource is empty.
     async fn is_empty(&mut self) -> Result<bool> {
-        Err(Error::new(ErrorKind::NotFound, "function not implemented"))
+        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
     }
     /// Get the resource size of the current path.
     async fn len(&mut self) -> Result<usize> {
-        Err(Error::new(ErrorKind::NotFound, "function not implemented"))
+        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
     }
     /// Path of the document
     fn path(&self) -> String;
@@ -131,12 +128,16 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>>;
     /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
-        Err(Error::new(ErrorKind::NotFound, "function not implemented"))
+        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
     }
     /// clear the inner
     fn clear(&mut self);
     /// Get the connect buffer inner reference.
     fn inner(&self) -> &Vec<u8>;
+    /// Return a chunk of bytes with a start and end position in the document.
+    async fn chunk(&self, _start: usize, _end: usize) -> Result<Vec<u8>> {
+        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
+    }
 }
 
 impl fmt::Display for dyn Connector {

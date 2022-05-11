@@ -20,7 +20,7 @@ use crossbeam::channel::{Receiver, Sender};
 use futures::stream::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, Map};
+use serde_json::{Map, Value};
 use std::io::Result;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
@@ -76,7 +76,7 @@ pub async fn exec(
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Metadata {
     pub has_headers: Option<bool>,
     pub delimiter: Option<String>,
@@ -156,6 +156,44 @@ impl Metadata {
     }
 }
 
+impl Into<Value> for Metadata {
+    fn into(self) -> Value {
+        let mut options = Map::default();
+        if let Some(has_headers) = self.has_headers.clone() {
+            options.insert("has_headers".to_string(), Value::Bool(has_headers));
+        }
+        if let Some(delimiter) = self.delimiter.clone() {
+            options.insert("delimiter".to_string(), Value::String(delimiter));
+        }
+        if let Some(quote) = self.quote.clone() {
+            options.insert("quote".to_string(), Value::String(quote));
+        }
+        if let Some(escape) = self.escape.clone() {
+            options.insert("escape".to_string(), Value::String(escape));
+        }
+        if let Some(comment) = self.comment.clone() {
+            options.insert("comment".to_string(), Value::String(comment));
+        }
+        if let Some(compression) = self.compression.clone() {
+            options.insert("compression".to_string(), Value::String(compression));
+        }
+        if let Some(mime_type) = self.mime_type.clone() {
+            options.insert("mime_type".to_string(), Value::String(mime_type));
+        }
+        if let Some(mime_subtype) = self.mime_subtype.clone() {
+            options.insert("mime_subtype".to_string(), Value::String(mime_subtype));
+        }
+        if let Some(charset) = self.charset.clone() {
+            options.insert("charset".to_string(), Value::String(charset));
+        }
+        if let Some(language) = self.language.clone() {
+            options.insert("language".to_string(), Value::String(language));
+        }
+
+        Value::Object(options)
+    }
+}
+
 #[derive(Debug)]
 pub enum DataResult {
     Ok(Value),
@@ -214,10 +252,10 @@ impl DataResult {
         match self {
             DataResult::Ok(value) => {
                 value.merge(new_json_value);
-            },
+            }
             DataResult::Err((value, _e)) => {
                 value.merge(new_json_value);
-            },
+            }
         };
     }
 }
@@ -232,7 +270,7 @@ impl StepContext {
     pub fn new(step_name: String, data_result: DataResult) -> Result<Self> {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
-        
+
         let mut steps_result = Value::default();
         steps_result.merge_in("/steps", Value::Object(map))?;
 
@@ -260,7 +298,7 @@ impl StepContext {
         let mut value = self.data_result.to_value();
         let steps_result: Value = self.steps_result.clone();
         value.merge_in("steps", steps_result)?;
-        
+
         Ok(value)
     }
 }

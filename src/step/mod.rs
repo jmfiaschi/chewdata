@@ -1,11 +1,12 @@
 pub mod eraser;
+pub mod generator;
 pub mod reader;
 pub mod transformer;
 pub mod validator;
 pub mod writer;
 
 use crate::{DataResult, StepContext};
-use async_std::{task, stream};
+use async_std::{stream, task};
 use async_stream::stream;
 use async_trait::async_trait;
 use crossbeam::channel::{Receiver, Sender, TryRecvError, TrySendError};
@@ -17,6 +18,8 @@ use std::{io, pin::Pin, time::Duration};
 use transformer::Transformer;
 use validator::Validator;
 use writer::Writer;
+
+use self::generator::Generator;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -42,6 +45,9 @@ pub enum StepType {
     #[serde(alias = "validate")]
     #[serde(alias = "v")]
     Validator(Validator),
+    #[serde(rename = "generator")]
+    #[serde(alias = "g")]
+    Generator(Generator),
 }
 
 impl StepType {
@@ -52,6 +58,7 @@ impl StepType {
             StepType::Transformer(step) => Box::new(step),
             StepType::Eraser(step) => Box::new(step),
             StepType::Validator(step) => Box::new(step),
+            StepType::Generator(step) => Box::new(step),
         }
     }
     pub fn step(&self) -> &dyn Step {
@@ -61,6 +68,7 @@ impl StepType {
             StepType::Transformer(ref step) => step,
             StepType::Eraser(ref step) => step,
             StepType::Validator(ref step) => step,
+            StepType::Generator(ref step) => step,
         }
     }
     pub fn step_mut(&mut self) -> &mut dyn Step {
@@ -70,15 +78,14 @@ impl StepType {
             StepType::Transformer(ref mut step) => step,
             StepType::Eraser(ref mut step) => step,
             StepType::Validator(ref mut step) => step,
+            StepType::Generator(ref mut step) => step,
         }
     }
 }
 
 #[async_trait]
 pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
-    async fn exec(
-        &self
-    ) -> io::Result<()>;
+    async fn exec(&self) -> io::Result<()>;
     fn thread_number(&self) -> usize {
         1
     }
@@ -121,7 +128,7 @@ async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext) ->
 // Receive a step_context through a step and a pipe
 // It return a stream of step_context
 async fn receive<'step>(
-    step: &'step dyn Step
+    step: &'step dyn Step,
 ) -> io::Result<Pin<Box<dyn Stream<Item = StepContext> + Send + 'step>>> {
     let receiver = match step.receiver() {
         Some(receiver) => receiver,
@@ -132,6 +139,7 @@ async fn receive<'step>(
         loop {
             match receiver.try_recv() {
                 Ok(step_context_received) => {
+                    trace!(step = format!("{:?}", step).as_str(), step_context = format!("{:?}", step_context_received).as_str(), "A new step context found in the pipe");
                     yield step_context_received.clone();
                 },
                 Err(TryRecvError::Empty) => {
@@ -140,6 +148,7 @@ async fn receive<'step>(
                     continue;
                 },
                 Err(TryRecvError::Disconnected) => {
+                    trace!(step = format!("{:?}", step).as_str(), "The pipe is disconnected, no more step context to handle");
                     break;
                 },
             };

@@ -19,7 +19,7 @@ async fn main() -> io::Result<()> {
         "type": "read",
         "connector":{
             "type": "local",
-            "path": "./data/multi_lines.csv"
+            "path": "./data/multi_lines.{{ metadata.mime_subtype }}"
         },
         "document":{
             "type":"csv"

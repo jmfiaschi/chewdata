@@ -11,7 +11,7 @@ use serde_json::Value;
 use std::io;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Text {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -32,6 +32,7 @@ impl Default for Text {
 
 #[async_trait]
 impl Document for Text {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Text::default().metadata.merge(self.metadata.clone())
     }
@@ -91,7 +92,7 @@ impl Document for Text {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         connector
             .write_all(value.as_str().unwrap_or("").as_bytes())
             .await

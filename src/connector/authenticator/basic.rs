@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use surf::{RequestBuilder, http::headers};
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Basic {
     #[serde(alias = "usr")]
     #[serde(alias = "user")]

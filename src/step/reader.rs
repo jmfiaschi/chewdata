@@ -11,7 +11,7 @@ use std::{fmt, io};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Reader {
     #[serde(rename = "connector")]
     #[serde(alias = "conn")]
@@ -25,7 +25,7 @@ pub struct Reader {
     pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe. 
+    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
     #[serde(alias = "sleep")]
     pub wait: u64,
     #[serde(skip)]
@@ -87,8 +87,8 @@ impl Step for Reader {
     }
     #[instrument]
     async fn exec(&self) -> io::Result<()> {
-        let mut connector = self.connector_type.clone().connector();
-        let document = self.document_type.clone().document_inner();
+        let mut connector = self.connector_type.clone().boxed_inner();
+        let document = self.document_type.clone().boxed_inner();
         connector.set_metadata(connector.metadata().merge(document.metadata()));
 
         match connector.is_variable() {
@@ -153,7 +153,7 @@ impl Step for Reader {
                 }
             }
         };
-      
+
         Ok(())
     }
     fn name(&self) -> String {
@@ -226,7 +226,7 @@ async fn send_data_into_pipe<'step>(
 ) -> io::Result<Option<()>> {
     connector.fetch().await?;
 
-    let mut dataset = match connector.pull_dataset(document.clone()).await? {
+    let mut dataset = match connector.dataset(document.clone()).await? {
         Some(dataset) => dataset,
         None => return Ok(None),
     };

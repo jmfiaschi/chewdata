@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version ="1.11.0"
+version ="1.12.0-beta.4"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2018"
 description = "Extract Transform and Load data"
@@ -10,6 +10,10 @@ homepage = "https://www.chewdata.org"
 repository = "https://github.com/jmfiaschi/chewdata"
 include = ["src/*", "LICENSE-APACHE", "LICENSE-MIT", "README.md"]
 categories = ["encoding","network-programming","data-structures"]
+
+[[bench]]
+name = "benchmark"
+harness = false
 
 [dependencies]
 # Logs
@@ -27,33 +31,39 @@ json_value_search = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde-with-expand-env = "1.1"
 futures = "0.3"
-async-std = { version = "1.10", features = ["attributes"] }
+async-std = { version = "1.11", features = ["attributes"] }
 async-trait = "0.1"
 async-stream = { version = "0.3" }
 mime = "0.3"
 crossbeam = "0.8"
 base64 = "0.13"
 regex = "1.5"
-clap = { version = "3.0", features = ["yaml"] }
+fake = { version = "2.4" }
+rand = "0.8"
+clap = { version = "3.1", features = ["yaml"] }
+version = "3.0"
 serde_yaml = { version = "0.8" }
 # Lock local files
 fs2 = { version = "0.4" }
 # For Templates
-tera = "1.12"
+tera = "1.15"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 # For readers
-jxon = { version = "0.8", optional = true }
+jxon = { version = "0.9", optional = true }
 csv = { version = "1.1", optional = true }
 toml = { version = "0.5", optional = true }
 # For Connectors
 rusoto_core = { version = "0.47", optional = true }
 rusoto_s3 = { version = "0.47", optional = true }
-tokio = { version = "1.12", optional = true }
-jsonwebtoken = { version = "7.2", optional = true }
+parquet = { version = "13.0", optional = true, features = ["cli"] }
+arrow = { version = "13.0", optional = true }
+byteorder = { version = "1.4", optional = true }
+tokio = { version = "1.17", optional = true }
+jsonwebtoken = { version = "8.1", optional = true }
 surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
 surf_bucket_select = { version = "0.2", optional = true }
-http-types = { version = "2.12", optional = true}
-mongodb = { version = "2.1", default-features = false, features = ["async-std-runtime"], optional = true }
+http-types = { version = "2.12", optional = true }
+mongodb = { version = "2.2", default-features = false, features = ["async-std-runtime"], optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["stable"] }
@@ -63,24 +73,21 @@ chrono = { version = "0.4" }
 use_xml_document = ["jxon"]
 use_csv_document = ["csv"]
 use_toml_document = ["toml"]
+use_parquet_document = ["parquet","byteorder","arrow"]
 use_bucket_connector = ["rusoto_core","rusoto_s3","surf_bucket_select","surf","tokio"]
 use_curl_connector = ["surf","jsonwebtoken","http-types"]
 use_mongodb_connector = ["mongodb"]
 default = [
     'use_xml_document',
-    'use_csv_document', 
+    'use_csv_document',
     'use_toml_document',
+    'use_parquet_document',
     'use_bucket_connector',
     'use_curl_connector',
     'use_mongodb_connector',
     'tracing/max_level_trace',
     'tracing/release_max_level_info'
 ]
-
-[[bench]]
-name = "reader_benchmark"
-harness = false
-path = "benches/reader_benchmark.rs"
 
 [profile.release]
 lto = true

@@ -20,9 +20,9 @@ impl JsonPointer for String {
     fn to_json_pointer(&self) -> String {
         format!("/{}", self)
             .replace("][", "/")
-            .replace("]", "")
-            .replace("[", "/")
-            .replace(".", "/")
+            .replace(']', "")
+            .replace('[', "/")
+            .replace('.', "/")
             .replace("///", "/")
             .replace("//", "/")
     }

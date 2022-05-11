@@ -6,9 +6,11 @@ use async_trait::async_trait;
 use fs2::FileExt;
 use futures::Stream;
 use glob::glob;
+use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, Map};
+use std::io::{BufReader, BufRead};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::vec::IntoIter;
@@ -19,7 +21,7 @@ use std::{
 use std::{fs, fs::OpenOptions};
 
 #[derive(Deserialize, Serialize, Clone, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Local {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -52,6 +54,15 @@ impl fmt::Debug for Local {
     }
 }
 
+impl Local {
+    pub fn new(path: String) -> Self {
+        Local {
+            path,
+            ..Default::default()
+        }
+    }
+}
+
 #[async_trait]
 impl Connector for Local {
     /// See [`Connector::path`] for more details.
@@ -69,13 +80,18 @@ impl Connector for Local {
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
+        let mut path = self.path.clone();
+        let mut metadata = Map::default();
+        
+        metadata.insert("metadata".to_string(), self.metadata().into());
+        path.replace_mustache(Value::Object(metadata));
+
         match (self.is_variable(), self.parameters.clone()) {
             (true, params) => {
-                let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
             }
-            _ => self.path.clone(),
+            _ => path,
         }
     }
     /// See [`Connector::len`] for more details.
@@ -213,7 +229,7 @@ impl Connector for Local {
     ///     connector.erase().await?;
     ///     connector.write(r#"{"column1":"value1"}"#.as_bytes()).await?;
     ///     connector.send(None).await?;
-    ///     
+    ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;
     ///     let mut buffer = String::default();
@@ -221,7 +237,7 @@ impl Connector for Local {
     ///     assert_eq!(r#"{"column1":"value1"}"#, buffer);
     ///
     ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
+    ///     connector.send(Some(0)).await?;
     ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;
@@ -253,14 +269,14 @@ impl Connector for Local {
         file.lock_exclusive()?;
         trace!("The connector lock the file");
 
-        let resource_len = self.len().await?;
+        let file_len = file.metadata()?.len();
 
         match position {
-            Some(pos) => match resource_len as isize + pos {
+            Some(pos) => match file_len as isize + pos {
                 start if start > 0 => file.seek(SeekFrom::Start(start as u64)),
                 _ => file.seek(SeekFrom::Start(0)),
             },
-            None => file.seek(SeekFrom::End(0)),
+            None => file.seek(SeekFrom::Start(0)),
         }?;
 
         file.write_all(self.inner.get_ref())?;
@@ -297,8 +313,17 @@ impl Connector for Local {
             return Ok(false);
         }
 
+        let mut metadata_kv = Map::default();
+        metadata_kv.insert("metadata".to_string(), self.metadata().into());
+        let metadata = Value::Object(metadata_kv);
+
+        let mut new_parameters = new_parameters.clone();
+        new_parameters.merge(metadata.clone());
+        let mut old_parameters = self.parameters.clone();
+        old_parameters.merge(metadata);
+
         let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(self.parameters.clone());
+        actuel_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
@@ -342,7 +367,7 @@ impl Connector for Local {
         if !self.inner.get_ref().is_empty() {
             return Ok(());
         }
-        
+
         let mut buff = Vec::default();
         OpenOptions::new()
             .read(true)
@@ -402,6 +427,28 @@ impl Connector for Local {
         self.inner = Default::default();
         trace!("The connector is cleaned");
     }
+    /// See [`Connector::chunk`] for more details.
+    #[instrument]
+    async fn chunk(&self, start: usize, end: usize) -> Result<Vec<u8>> {
+        if end < start {
+            return Err(Error::new(ErrorKind::InvalidInput, "The start 'value' parameter must be lower or equal to the 'end' value parameter"));
+        }
+
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(false)
+            .create(false)
+            .append(false)
+            .truncate(false)
+            .open(self.path())?;
+
+        file.seek(SeekFrom::Start(start as u64))?;
+
+        let mut reader = BufReader::with_capacity(end - start, file);
+        reader.fill_buf()?;
+
+        Ok(reader.buffer().to_vec())
+    }
 }
 
 #[async_trait]
@@ -458,7 +505,7 @@ impl LocalPaginator {
     ///     connector.path = "./data/one_line.*".to_string();
     ///     let mut paginator = LocalPaginator::new(connector)?;
     ///     let mut stream = paginator.stream().await?;
-    ///     
+    ///
     ///     assert_eq!(r#"data/one_line.csv"#, stream.next().await.transpose()?.unwrap().path());
     ///     assert_eq!(r#"data/one_line.json"#, stream.next().await.transpose()?.unwrap().path());
     ///
@@ -523,13 +570,13 @@ impl Paginator for LocalPaginator {
     ///     let mut stream = paginator.stream().await?;
     ///
     ///     let mut connector = stream.next().await.transpose()?.unwrap();
-    ///     connector.fetch().await?;     
+    ///     connector.fetch().await?;
     ///     let mut buffer1 = String::default();
     ///     let len1 = connector.read_to_string(&mut buffer1).await?;
     ///     assert!(0 < len1, "Can't read the content of the file.");
     ///
-    ///     let mut connector = stream.next().await.transpose()?.unwrap();  
-    ///     connector.fetch().await?;     
+    ///     let mut connector = stream.next().await.transpose()?.unwrap();
+    ///     connector.fetch().await?;
     ///     let mut buffer2 = String::default();
     ///     let len2 = connector.read_to_string(&mut buffer2).await?;
     ///     assert!(0 < len2, "Can't read the content of the file.");

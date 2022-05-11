@@ -13,7 +13,7 @@ use std::{fmt, io};
 const DEFAULT_SUBTYPE: &str = "x-yaml";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Yaml {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -40,6 +40,7 @@ impl Default for Yaml {
 
 #[async_trait]
 impl Document for Yaml {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Yaml::default().metadata.merge(self.metadata.clone())
     }
@@ -130,7 +131,7 @@ impl Document for Yaml {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         let mut buf: io::Cursor<Vec<_>> = io::Cursor::default();
 
         serde_yaml::to_writer(&mut buf, &value).map_err(|e| {

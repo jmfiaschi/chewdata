@@ -1,5 +1,71 @@
-# [1.11.0](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0) (2022-01-29)
+# [1.12.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.3...v1.12.0-beta.4) (2022-05-10)
 
+
+### Bug Fixes
+
+* **make:** fetch the first line with version ([0a1b853](https://github.com/jmfiaschi/chewdata/commit/0a1b853af704603d5d80e7dd271db1bd634fb3f8))
+
+# [1.12.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.2...v1.12.0-beta.3) (2022-05-09)
+
+
+### Features
+
+* **version:** use version to detect the app version for clap with cargo.toml ([42f5fb1](https://github.com/jmfiaschi/chewdata/commit/42f5fb184fd9d58af4f65d1eb20d18355980a049))
+
+# [1.12.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.1...v1.12.0-beta.2) (2022-05-09)
+
+
+### Bug Fixes
+
+* **project:** use Vec<u8> instead of str to avoid UTF8 error and simply the code ([6d37154](https://github.com/jmfiaschi/chewdata/commit/6d371540127eab74da7e70907a5232a34105dd3d))
+
+# [1.12.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.12.0-beta.1) (2022-04-17)
+
+
+### Bug Fixes
+
+* **generator:** rustdoc ([3c36755](https://github.com/jmfiaschi/chewdata/commit/3c36755832eaa795281854e4ca9ee7026301c615))
+* **release:** build release bin and publish it ([156112b](https://github.com/jmfiaschi/chewdata/commit/156112b01b931ff2c231b3b88b27a63c265b88ec))
+
+
+### Features
+
+* **generator:** add generator step & faker helper ([c1b3a76](https://github.com/jmfiaschi/chewdata/commit/c1b3a76d57f696d9d0823a3b0006134b9a541ecb))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-04-04)
+
+
+### Bug Fixes
+
+* **release:** build release bin and publish it ([156112b](https://github.com/jmfiaschi/chewdata/commit/156112b01b931ff2c231b3b88b27a63c265b88ec))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-03)
+
+
+### Bug Fixes
+
+* **release:** build release bin and publish it ([156112b](https://github.com/jmfiaschi/chewdata/commit/156112b01b931ff2c231b3b88b27a63c265b88ec))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-02)
+
+
+### Bug Fixes
+
+* **release:** build release bin and publish it ([156112b](https://github.com/jmfiaschi/chewdata/commit/156112b01b931ff2c231b3b88b27a63c265b88ec))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-02-01)
+
+### Bug Fixes
+
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
+## [1.11.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.11.1-beta.1) (2022-01-30)
+
+### Bug Fixes
+
+* **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
+# [1.11.0](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0) (2022-01-29)
 
 ### Features
 
@@ -7,17 +73,13 @@
 
 # [1.11.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0-beta.1) (2022-01-29)
 
-
 ### Bug Fixes
 
 * **clap:** last version ([b4ad056](https://github.com/jmfiaschi/chewdata/commit/b4ad056c4144bdc521935029717339ff3a63ef6a))
 * **log:** messages ([921e226](https://github.com/jmfiaschi/chewdata/commit/921e226f82f432e5ecded7a5e4c8fbee6303031b))
-* **log:** messages ([fd22a9a](https://github.com/jmfiaschi/chewdata/commit/fd22a9ad2e75d58ef73e79fe292ef6489ee902de))
 * **step_context:** add step_context to avoid variable names collision ([c05e80b](https://github.com/jmfiaschi/chewdata/commit/c05e80ba2a7e5131ccd77695f1b097a9170619c2))
-* **test:** mongodb ([c268cdf](https://github.com/jmfiaschi/chewdata/commit/c268cdf8bee4d5cb32c91f71da60753c3eb303a8))
 * **test:** mongodb ([c190888](https://github.com/jmfiaschi/chewdata/commit/c1908883c6b66589081ce92bac49405028400c26))
 * **test:** no blocking sender/receiver ([0f7ed10](https://github.com/jmfiaschi/chewdata/commit/0f7ed1047cfb30e9b571c3a3af4e1731528a459c))
-
 
 ### Features
 
@@ -29,11 +91,8 @@
 * **quality:** forbid unsafe code ([da1c317](https://github.com/jmfiaschi/chewdata/commit/da1c317a9c7f2fff0127c3a3fe4b4f7250e5867a))
 * **step:** add wait/sleep field. The step wait/sleep is the pipe is not ready without blocking the thread ([ceef80b](https://github.com/jmfiaschi/chewdata/commit/ceef80b6ad2622b0225503a10b528f54d197a519))
 * **step:** replace alias by name to identify a step ([443fd43](https://github.com/jmfiaschi/chewdata/commit/443fd4392e325006ab48753777fc03b0ae93cf69))
-* **step:** replace alias by name to identify a step ([55e2fdc](https://github.com/jmfiaschi/chewdata/commit/55e2fdc1ea66bd3670f4116d36d81c3dfc93a1c2))
 * **validator:** Add a validator step ([09bbeb7](https://github.com/jmfiaschi/chewdata/commit/09bbeb7ff44daba445027777e374826c8cffead3))
-* **validator:** Add a validator step ([697aecc](https://github.com/jmfiaschi/chewdata/commit/697aecc36698c07ec1953dcd0add3877aa3ba3f0))
 * **validator:** Add tests and docs ([f1986df](https://github.com/jmfiaschi/chewdata/commit/f1986df515531641469d02fe5e8a27115aacca1c))
-* **validator:** Add tests and docs ([4107e41](https://github.com/jmfiaschi/chewdata/commit/4107e41f792416e16153e7a5ecb02a177f2f97cd))
 
 # [1.10.0-beta.5](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.4...v1.10.0-beta.5) (2022-01-19)
 
@@ -41,7 +100,6 @@
 ### Bug Fixes
 
 * **test:** mongodb ([c268cdf](https://github.com/jmfiaschi/chewdata/commit/c268cdf8bee4d5cb32c91f71da60753c3eb303a8))
-* **test:** mongodb ([c190888](https://github.com/jmfiaschi/chewdata/commit/c1908883c6b66589081ce92bac49405028400c26))
 
 
 ### Features
@@ -55,7 +113,6 @@
 
 * **clap:** last version ([b4ad056](https://github.com/jmfiaschi/chewdata/commit/b4ad056c4144bdc521935029717339ff3a63ef6a))
 * **log:** messages ([921e226](https://github.com/jmfiaschi/chewdata/commit/921e226f82f432e5ecded7a5e4c8fbee6303031b))
-* **log:** messages ([fd22a9a](https://github.com/jmfiaschi/chewdata/commit/fd22a9ad2e75d58ef73e79fe292ef6489ee902de))
 * **test:** no blocking sender/receiver ([0f7ed10](https://github.com/jmfiaschi/chewdata/commit/0f7ed1047cfb30e9b571c3a3af4e1731528a459c))
 
 
@@ -124,7 +181,6 @@
 ### Bug Fixes
 
 * **ci:** use specific key ([1770fd0](https://github.com/jmfiaschi/chewdata/commit/1770fd02c842388ba9efc884ef2ccedfbe2c9e07))
-* **ci:** use specific key ([d97c7e3](https://github.com/jmfiaschi/chewdata/commit/d97c7e3068c1141b1fa07ca75a38f290df64e7d5))
 
 # [1.9.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.9.0-beta.1...v1.9.0-beta.2) (2021-12-19)
 

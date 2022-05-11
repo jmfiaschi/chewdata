@@ -12,7 +12,7 @@ use serde_json::Value;
 use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Json {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -91,7 +91,7 @@ impl Document for Json {
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
     ///     let data = dataset.next().await.unwrap().to_value();
-    ///     let expected_data: Value = serde_json::from_str(json_str).unwrap();
+    ///     let expected_data: Value = serde_json::from_str(json_str)?;
     ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
@@ -247,7 +247,7 @@ impl Document for Json {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         if !connector.inner().is_empty() {
             connector.write_all(b",").await?;
         }
@@ -333,43 +333,44 @@ impl Document for Json {
     /// }
     /// ```
     #[instrument]
-    async fn close(&self, connector: &mut dyn Connector) -> io::Result<()> {
+    async fn close(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         let remote_len = connector.len().await?;
-        let buff = String::from_utf8(connector.inner().to_vec())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let buff = connector.inner().clone();
+
         connector.clear();
 
-        let entry_point_path_start = self.entry_point_path_start();
-        let entry_point_path_end = self.entry_point_path_end();
+        let header = self.header(connector).await?;
+        let footer = self.footer(connector).await?;
 
         if remote_len == 0
-            || remote_len == entry_point_path_start.len() + entry_point_path_end.len()
+            || remote_len == header.len() + footer.len()
         {
-            connector
-                .write_all(entry_point_path_start.as_bytes())
-                .await?;
-            connector.write_all(buff.as_bytes()).await?;
-            connector.write_all(entry_point_path_end.as_bytes()).await?;
+            connector.write_all(&header).await?;
+            connector.write_all(&buff).await?;
+            connector.write_all(&footer).await?;
         }
 
-        if remote_len > entry_point_path_start.len() + entry_point_path_end.len() {
+        if remote_len > header.len() + footer.len() {
             connector.write_all(",".as_bytes()).await?;
-            connector.write_all(buff.as_bytes()).await?;
-            connector.write_all(entry_point_path_end.as_bytes()).await?;
+            connector.write_all(&buff).await?;
+            connector.write_all(&footer).await?;
         }
 
         Ok(())
     }
-    /// See [`Document::entry_point_path_start`] for more details.
-    fn entry_point_path_start(&self) -> String {
-        "[".to_string()
+    /// See [`Document::header`] for more details.
+    async fn header(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
+        Ok("[".as_bytes().to_vec())
     }
-    /// See [`Document::entry_point_path_end`] for more details.
-    fn entry_point_path_end(&self) -> String {
-        "]".to_string()
+    /// See [`Document::footer`] for more details.
+    async fn footer(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
+        Ok("]".as_bytes().to_vec())
     }
     /// See [`Document::has_data`] for more details.
-    fn has_data(&self, str: &str) -> io::Result<bool> {
-        Ok(!matches!(str, "[]" | ""))
+    fn has_data(&self, buf: &Vec<u8>) -> io::Result<bool> {
+        if buf.clone() == br#"[]"#.to_vec() {
+            return Ok(false);
+        }
+        Ok(!buf.is_empty())
     }
 }

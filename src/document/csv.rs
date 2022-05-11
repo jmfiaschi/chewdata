@@ -24,7 +24,7 @@ const DEFAULT_IS_FLEXIBLE: bool = true;
 const DEFAULT_TRIM: &str = "ALL";
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Csv {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -286,6 +286,7 @@ impl Csv {
 
 #[async_trait]
 impl Document for Csv {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Csv::default().metadata.merge(self.metadata.clone())
     }
@@ -358,7 +359,7 @@ impl Document for Csv {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Csv::default();
+    ///     let mut document = Csv::default();
     ///     let mut connector = InMemory::new(r#""#);
     ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
@@ -417,7 +418,7 @@ impl Document for Csv {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         let write_header = connector.metadata().has_headers.unwrap_or_else(|| self.metadata().has_headers.unwrap_or(false));
         // Use a buffer here because the csv builder flush everytime it write something.
         let mut builder_writer = self.writer_builder().from_writer(vec![]);
@@ -440,7 +441,7 @@ impl Document for Csv {
                 let mut values = Vec::<Value>::new();
                 let mut keys = Vec::<String>::new();
 
-                for (key, value) in object.clone() {
+                for (key, value) in object {
                     keys.push(key);
                     values.push(value);
                 }

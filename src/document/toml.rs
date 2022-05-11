@@ -13,7 +13,7 @@ use std::io;
 const DEFAULT_SUBTYPE: &str = "toml";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Toml {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -34,6 +34,7 @@ impl Default for Toml {
 
 #[async_trait]
 impl Document for Toml {
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Toml::default().metadata.merge(self.metadata.clone())
     }
@@ -119,7 +120,7 @@ impl Document for Toml {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
         // Transform serde_json::Value to toml::Value
         let toml_value = toml::value::Value::try_from(&value)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;

@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Xml {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -156,8 +156,8 @@ impl Document for Xml {
     fn set_entry_path(&mut self, entry_path: String) {
         self.entry_path = entry_path;
     }
-    /// See [`Document::entry_point_path_start`] for more details.
-    fn entry_point_path_start(&self) -> String {
+    /// See [`Document::header`] for more details.
+    async fn header(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
         let xml_entry_path = match self.xml_entry_path() {
             Ok(xml) => xml,
             Err(e) => {
@@ -170,16 +170,16 @@ impl Document for Xml {
             }
         };
 
-        let xml_entry_path_begin: String = xml_entry_path
+        let header: String = xml_entry_path
             .split('<')
             .filter(|node| !node.contains('/') && !node.is_empty())
             .map(|node| format!("<{}", node))
             .collect();
 
-        xml_entry_path_begin
+        Ok(header.as_bytes().to_vec())
     }
-    /// See [`Document::entry_point_path_end`] for more details.
-    fn entry_point_path_end(&self) -> String {
+    /// See [`Document::footer`] for more details.
+    async fn footer(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
         let xml_entry_path = match self.xml_entry_path() {
             Ok(xml) => xml,
             Err(e) => {
@@ -192,14 +192,15 @@ impl Document for Xml {
             }
         };
 
-        let xml_entry_path_end: String = xml_entry_path
+        let footer: String = xml_entry_path
             .split('>')
             .filter(|node| node.contains("</") && !node.is_empty())
             .map(|node| format!("{}>", node))
             .collect();
 
-        xml_entry_path_end
+        Ok(footer.as_bytes().to_vec())
     }
+    /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Xml::default().metadata.merge(self.metadata.clone())
     }
@@ -355,9 +356,9 @@ impl Document for Xml {
     /// }
     /// ```
     #[instrument]
-    async fn write_data(&self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        let xml_entry_path_begin: String = self.entry_point_path_start();
-        let xml_entry_path_end: String = self.entry_point_path_end();
+    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+        let header = self.header(connector).await?;
+        let footer = self.footer(connector).await?;
 
         let mut new_value = self.value_entry_path(value)?;
         Xml::convert_numeric_to_string(&mut new_value);
@@ -365,9 +366,9 @@ impl Document for Xml {
 
         let mut xml_new_value = self.value_to_xml(&new_value)?;
 
-        if !xml_entry_path_begin.is_empty() && !xml_entry_path_end.is_empty() {
-            xml_new_value = xml_new_value.replace(xml_entry_path_begin.as_str(), "");
-            xml_new_value = xml_new_value.replace(xml_entry_path_end.as_str(), "");
+        if !header.is_empty() && !footer.is_empty() {
+            xml_new_value = xml_new_value.replace(std::str::from_utf8(&header).unwrap(), "");
+            xml_new_value = xml_new_value.replace(std::str::from_utf8(&footer).unwrap(), "");
         }
 
         connector.write_all(xml_new_value.as_bytes()).await
@@ -444,28 +445,26 @@ impl Document for Xml {
     /// }
     /// ```
     #[instrument]
-    async fn close(&self, connector: &mut dyn Connector) -> io::Result<()> {
+    async fn close(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         let remote_len = connector.len().await?;
-        let buff = String::from_utf8(connector.inner().to_vec())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let buff = connector.inner().clone();
+
         connector.clear();
 
-        let entry_point_path_start = self.entry_point_path_start();
-        let entry_point_path_end = self.entry_point_path_end();
+        let header = self.header(connector).await?;
+        let footer = self.footer(connector).await?;
 
         if remote_len == 0
-            || remote_len == entry_point_path_start.len() + entry_point_path_end.len()
+            || remote_len == header.len() + footer.len()
         {
-            connector
-                .write_all(entry_point_path_start.as_bytes())
-                .await?;
-            connector.write_all(buff.as_bytes()).await?;
-            connector.write_all(entry_point_path_end.as_bytes()).await?;
+            connector.write_all(&header).await?;
+            connector.write_all(&buff).await?;
+            connector.write_all(&footer).await?;
         }
 
-        if remote_len > entry_point_path_start.len() + entry_point_path_end.len() {
-            connector.write_all(buff.as_bytes()).await?;
-            connector.write_all(entry_point_path_end.as_bytes()).await?;
+        if remote_len > header.len() + footer.len() {
+            connector.write_all(&buff).await?;
+            connector.write_all(&footer).await?;
         }
 
         Ok(())
@@ -487,17 +486,17 @@ impl Document for Xml {
     ///     connector.fetch().await?;
     ///     document.entry_path = "/root/*/item".to_string();
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
+    ///     let mut buffer = Vec::default();
+    ///     connector.read_to_end(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(&buffer).unwrap());
     ///
     ///     let mut connector = InMemory::new(r#"<root/>"#);
     ///     connector.fetch().await?;
     ///     document.entry_path = "/root/*/item".to_string();
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
+    ///     let mut buffer = Vec::default();
+    ///     connector.read_to_end(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(&buffer).unwrap());
     ///     Ok(())
     /// }
     /// ```
@@ -516,9 +515,9 @@ impl Document for Xml {
     ///     connector.fetch().await?;
     ///     document.entry_path = "/root/*/item".to_string();
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(buffer.as_str()).unwrap());
+    ///     let mut buffer = Vec::default();
+    ///     connector.read_to_end(&mut buffer).await?;
+    ///     assert_eq!(false, document.has_data(&buffer).unwrap());
     ///
     ///     Ok(())
     /// }
@@ -538,14 +537,17 @@ impl Document for Xml {
     ///     connector.fetch().await?;
     ///     document.entry_path = "/root/*/item".to_string();
     ///
-    ///     let mut buffer = String::default();
-    ///     connector.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(true, document.has_data(buffer.as_str()).unwrap());
+    ///     let mut buffer = Vec::default();
+    ///     connector.read_to_end(&mut buffer).await?;
+    ///     assert_eq!(true, document.has_data(&buffer).unwrap());
     ///
     ///     Ok(())
     /// }
     /// ```
-    fn has_data(&self, str: &str) -> io::Result<bool> {
+    fn has_data(&self, buf: &Vec<u8>) -> io::Result<bool> {
+        let str = std::str::from_utf8(buf)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            
         let data_value = jxon::xml_to_json(str)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
@@ -553,6 +555,6 @@ impl Document for Xml {
             return Ok(false);
         }
 
-        Ok(!matches!(str, ""))
+        Ok(!buf.is_empty())
     }
 }

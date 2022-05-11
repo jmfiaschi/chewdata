@@ -13,7 +13,7 @@ use std::task::{Context, Poll};
 use std::{fmt, io};
 
 #[derive(Deserialize, Serialize, Clone, Default)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct InMemory {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -59,14 +59,27 @@ where
     Ok(Arc::new(Mutex::new(Cursor::new(s.into_bytes()))))
 }
 
-impl InMemory {
-    /// Creates a new document type `InMemory`.
-    pub fn new(str: &str) -> InMemory {
+impl Into<InMemory> for Vec<u8> {
+    fn into(self) -> InMemory {
         InMemory {
-            memory: Arc::new(Mutex::new(Cursor::new(str.to_string().into_bytes()))),
+            memory: Arc::new(Mutex::new(Cursor::new(self))),
             ..Default::default()
         }
     }
+}
+
+impl Into<InMemory> for &str {
+    /// Can fail for non UTF-8 str. use  `str.into()` instead.
+    fn into(self) -> InMemory {
+        InMemory {
+            memory: Arc::new(Mutex::new(Cursor::new(self.to_string().into_bytes()))),
+            ..Default::default()
+        }
+    }
+}
+
+impl InMemory {    
+    pub fn new(str: &str) -> InMemory { str.into() }
 }
 
 #[async_trait]
@@ -206,7 +219,7 @@ impl Connector for InMemory {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
     ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
+    ///     connector.send(Some(0)).await?;
     ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.fetch().await?;
@@ -239,7 +252,7 @@ impl Connector for InMemory {
                 start if start > 0 => memory.seek(SeekFrom::Start(start as u64)),
                 _ => memory.seek(SeekFrom::Start(0)),
             },
-            None => memory.seek(SeekFrom::End(0)),
+            None => memory.seek(SeekFrom::Start(0)),
         }?;
 
         memory.write_all(&inner)?;

@@ -34,32 +34,41 @@ example:
 release: ## Released the script in local
 	@cargo build --release
 
-test: start unit-tests integration-tests	
+test: start unit-tests integration-tests
 
-unit-tests: start
-unit-tests: ## Launch all tests in local
-	@cargo test --doc -- ${name}
-	@cargo test --lib -- ${name}
+test\:docs:
+	@cargo test --doc
 
-integration-tests: start
-integration-tests: 
-	@cargo test --tests -- ${name}
+test\:libs:
+	@cargo test --lib
+
+test\:integration:
+	@cargo test --tests
+
+unit-tests: start test\:libs
+
+integration-tests: start test\:docs test\:integration
 
 lint:
 	@cargo clippy
 
-coverage-ut: start
-coverage-ut:
+coverage: start
+coverage:
+	@cargo install cargo-tarpaulin
+	@cargo tarpaulin --out Xml --verbose --skip-clean --timeout 1200
+
+coverage\:ut: start
+coverage\:ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --out Xml --verbose --doc --lib --skip-clean --timeout 1200
+	@cargo +nightly tarpaulin --out Xml --verbose --lib --skip-clean --timeout 1200 --jobs 1
 
-coverage-it: start
-coverage-it:
+coverage\:it: start
+coverage\:it:
 	@cargo install cargo-tarpaulin
-	@cargo tarpaulin --out Xml --verbose --tests --skip-clean --timeout 1200
+	@cargo tarpaulin --out Xml --verbose --doc --tests --skip-clean --timeout 1200
 
-bench: 
+bench:
 	@cargo install cargo-criterion
 	@cargo criterion --output-format bencher --plotting-backend disabled 2>&1
 
@@ -91,7 +100,7 @@ semantic-release:
 
 start: minio minio\:install httpbin mongo
 
-stop: 
+stop:
 	@docker-compose down
 
 clean:
@@ -102,7 +111,7 @@ docs:
 	@cd docs && zola build
 
 version:
-	@grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml
+	@grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml | head -1
 
 docker\:build:
 	@docker build -t chewdata .

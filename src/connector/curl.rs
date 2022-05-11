@@ -9,7 +9,7 @@ use futures::{Stream, StreamExt};
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, Map};
 use std::io::{Cursor, Error, ErrorKind, Result, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -17,7 +17,7 @@ use std::{collections::HashMap, fmt};
 use surf::http::{headers, Method, Url};
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Curl {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -103,13 +103,18 @@ impl Connector for Curl {
     /// assert_eq!("/resource/value", connector.path());
     /// ```
     fn path(&self) -> String {
+        let mut path = self.path.clone();
+        let mut metadata = Map::default();
+        
+        metadata.insert("metadata".to_string(), self.metadata().into());
+        path.replace_mustache(Value::Object(metadata));
+
         match (self.is_variable(), self.parameters.clone()) {
             (true, params) => {
-                let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
             }
-            _ => self.path.clone(),
+            _ => path,
         }
     }
     /// See [`Connector::is_resource_will_change`] for more details.
@@ -133,8 +138,17 @@ impl Connector for Curl {
             return Ok(false);
         }
 
+        let mut metadata_kv = Map::default();
+        metadata_kv.insert("metadata".to_string(), self.metadata().into());
+        let metadata = Value::Object(metadata_kv);
+
+        let mut new_parameters = new_parameters.clone();
+        new_parameters.merge(metadata.clone());
+        let mut old_parameters = self.parameters.clone();
+        old_parameters.merge(metadata);
+
         let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(self.parameters.clone());
+        actuel_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
@@ -856,7 +870,7 @@ impl Default for PaginatorType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct OffsetPaginator {
     pub limit: usize,
     pub skip: usize,
@@ -1095,7 +1109,7 @@ impl Paginator for OffsetPaginator {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct CursorPaginator {
     pub limit: usize,
     // The entry path to catch the value in the body

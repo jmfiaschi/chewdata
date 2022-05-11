@@ -5,13 +5,14 @@ use crate::Metadata;
 use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
+use json_value_merge::Merge;
 use regex::Regex;
 use rusoto_core::credential::DefaultCredentialsProvider;
 use rusoto_core::{credential::StaticProvider, Region, RusotoError};
 use rusoto_s3::ListObjectsV2Request;
 use rusoto_s3::{GetObjectRequest, HeadObjectRequest, PutObjectRequest, S3Client, S3 as RusotoS3};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, Map};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -26,7 +27,7 @@ use tokio::runtime::Runtime;
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 
 #[derive(Deserialize, Serialize, Clone)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Bucket {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
@@ -158,7 +159,7 @@ impl Bucket {
 
         for (k, v) in tags {
             if !tagging.is_empty() {
-                tagging += &"&".to_string();
+                tagging += "&";
             }
             tagging += &format!("{}={}", k, v).to_string();
         }
@@ -212,8 +213,17 @@ impl Connector for Bucket {
             return Ok(false);
         }
 
+        let mut metadata_kv = Map::default();
+        metadata_kv.insert("metadata".to_string(), self.metadata().into());
+        let metadata = Value::Object(metadata_kv);
+
+        let mut new_parameters = new_parameters.clone();
+        new_parameters.merge(metadata.clone());
+        let mut old_parameters = *self.parameters.clone();
+        old_parameters.merge(metadata);
+
         let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(*self.parameters.clone());
+        actuel_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
@@ -241,13 +251,18 @@ impl Connector for Bucket {
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
+        let mut path = self.path.clone();
+        let mut metadata = Map::default();
+        
+        metadata.insert("metadata".to_string(), self.metadata().into());
+        path.replace_mustache(Value::Object(metadata));
+        
         match (self.is_variable(), *self.parameters.clone()) {
             (true, params) => {
-                let mut path = self.path.clone();
                 path.replace_mustache(params);
                 path
             }
-            _ => self.path.clone(),
+            _ => path,
         }
     }
     /// See [`Connector::len`] for more details.
@@ -386,24 +401,24 @@ impl Connector for Bucket {
         };
 
         //TODO: When rusoto will use last version of tokio we should remove the block_on.
-        let result: Result<String> = Runtime::new()?.block_on(async {
+        let result: Result<Vec<u8>> = Runtime::new()?.block_on(async {
             let response = s3_client
                 .get_object(request)
                 .await
                 .map_err(|e| Error::new(ErrorKind::NotFound, e))?;
 
-            match response.body {
+            Ok(match response.body {
                 Some(body) => {
-                    let mut buffer = String::new();
+                    let mut buffer = Vec::default();
                     let mut async_read = body.into_async_read();
-                    async_read.read_to_string(&mut buffer).await?;
-                    Ok(buffer)
+                    async_read.read_to_end(&mut buffer).await?;
+                    buffer
                 }
-                None => Ok(String::default()),
-            }
+                None => Vec::default(),
+            })
         });
 
-        self.inner = Cursor::new(result?.as_bytes().to_vec());
+        self.inner = Cursor::new(result?);
 
         info!("The connector fetch data into the resource with success");
         Ok(())
@@ -483,7 +498,7 @@ impl Connector for Bucket {
                 start if start > 0 => cursor.seek(SeekFrom::Start(start as u64)),
                 _ => cursor.seek(SeekFrom::Start(0)),
             },
-            None => cursor.seek(SeekFrom::End(0)),
+            None => cursor.seek(SeekFrom::Start(0)),
         }?;
 
         cursor.write_all(self.inner.get_ref())?;
@@ -623,8 +638,8 @@ impl BucketPaginator {
 
                 let key_pattern = postfix_keys
                     .join(delimiter)
-                    .replace(".", "\\.")
-                    .replace("*", ".*");
+                    .replace('.', "\\.")
+                    .replace('*', ".*");
                 let reg_key = Regex::new(key_pattern.as_str())
                     .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
