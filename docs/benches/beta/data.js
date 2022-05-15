@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1652624336460,
+  "lastUpdate": 1652626508983,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -4077,6 +4077,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 24073,
             "range": "± 32",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "31545bf6670e70373bbac13bb942991ab976ee61",
+          "message": "feat(asw_sdk): replace rusoto and remove hardcoding credentials",
+          "timestamp": "2022-05-15T16:20:44+02:00",
+          "tree_id": "1f8d694ba6d9feb7dba52e6668ffb60c7de25535",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/31545bf6670e70373bbac13bb942991ab976ee61"
+        },
+        "date": 1652626508285,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5166,
+            "range": "± 200",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5037,
+            "range": "± 275",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 299261,
+            "range": "± 13746",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 33011,
+            "range": "± 1561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 16969,
+            "range": "± 1152",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 17910,
+            "range": "± 1329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 376543,
+            "range": "± 14684",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 26392,
+            "range": "± 941",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 26275,
+            "range": "± 701",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 26397,
+            "range": "± 779",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 26361,
+            "range": "± 855",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 26487,
+            "range": "± 740",
             "unit": "ns/iter"
           }
         ]
