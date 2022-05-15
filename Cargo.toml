@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version ="1.12.0-beta.4"
+version ="1.12.0-beta.3"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2018"
 description = "Extract Transform and Load data"
@@ -53,15 +53,14 @@ jxon = { version = "0.9", optional = true }
 csv = { version = "1.1", optional = true }
 toml = { version = "0.5", optional = true }
 # For Connectors
-rusoto_core = { version = "0.47", optional = true }
-rusoto_s3 = { version = "0.47", optional = true }
+aws-config = { version = "0.12", optional = true }
+aws-sdk-s3 = { version = "0.12", optional = true }
 parquet = { version = "13.0", optional = true, features = ["cli"] }
 arrow = { version = "13.0", optional = true }
 byteorder = { version = "1.4", optional = true }
-tokio = { version = "1.17", optional = true }
+tokio = { version = "1.18", optional = true }
 jsonwebtoken = { version = "8.1", optional = true }
 surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
-surf_bucket_select = { version = "0.2", optional = true }
 http-types = { version = "2.12", optional = true }
 mongodb = { version = "2.2", default-features = false, features = ["async-std-runtime"], optional = true }
 
@@ -74,7 +73,7 @@ use_xml_document = ["jxon"]
 use_csv_document = ["csv"]
 use_toml_document = ["toml"]
 use_parquet_document = ["parquet","byteorder","arrow"]
-use_bucket_connector = ["rusoto_core","rusoto_s3","surf_bucket_select","surf","tokio"]
+use_bucket_connector = ["aws-sdk-s3","aws-config","tokio"]
 use_curl_connector = ["surf","jsonwebtoken","http-types"]
 use_mongodb_connector = ["mongodb"]
 default = [

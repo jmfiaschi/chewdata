@@ -5,14 +5,13 @@ use crate::Metadata;
 use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
+use aws_config::meta::credentials::CredentialsProviderChain;
+use aws_sdk_s3::types::DateTime;
+use aws_sdk_s3::{Client, Endpoint, Region};
 use json_value_merge::Merge;
 use regex::Regex;
-use rusoto_core::credential::DefaultCredentialsProvider;
-use rusoto_core::{credential::StaticProvider, Region, RusotoError};
-use rusoto_s3::ListObjectsV2Request;
-use rusoto_s3::{GetObjectRequest, HeadObjectRequest, PutObjectRequest, S3Client, S3 as RusotoS3};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, Map};
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -21,8 +20,6 @@ use std::{
     fmt,
     io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write},
 };
-use tokio::io::AsyncReadExt;
-use tokio::runtime::Runtime;
 
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 
@@ -33,8 +30,6 @@ pub struct Bucket {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     pub endpoint: Option<String>,
-    pub access_key_id: Option<String>,
-    pub secret_access_key: Option<String>,
     pub region: String,
     pub bucket: String,
     #[serde(alias = "key")]
@@ -46,7 +41,8 @@ pub struct Bucket {
     pub version: Option<String>,
     pub tags: HashMap<String, String>,
     pub cache_control: Option<String>,
-    pub expires: Option<String>,
+    // in seconds since the Unix epoch
+    pub expires: Option<i64>,
     #[serde(skip)]
     inner: Cursor<Vec<u8>>,
 }
@@ -62,9 +58,7 @@ impl Default for Bucket {
         Bucket {
             metadata: Metadata::default(),
             endpoint: None,
-            access_key_id: None,
-            secret_access_key: None,
-            region: rusoto_core::Region::default().name().to_string(),
+            region: "us-west-2".to_string(),
             bucket: String::default(),
             path: String::default(),
             parameters: Box::new(Value::default()),
@@ -92,19 +86,9 @@ impl fmt::Display for Bucket {
 // Not display the inner for better performance with big data
 impl fmt::Debug for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut secret_access_key = self.secret_access_key.clone().unwrap_or_default();
-        secret_access_key.replace_range(
-            0..(secret_access_key.len() / 2),
-            (0..(secret_access_key.len() / 2))
-                .map(|_| "#")
-                .collect::<String>()
-                .as_str(),
-        );
         f.debug_struct("Bucket")
             .field("metadata", &self.metadata)
             .field("endpoint", &self.endpoint)
-            .field("access_key_id", &self.access_key_id)
-            .field("secret_access_key", &secret_access_key)
             .field("region", &self.region)
             .field("bucket", &self.bucket)
             .field("path", &self.path)
@@ -120,37 +104,25 @@ impl fmt::Debug for Bucket {
 }
 
 impl Bucket {
-    fn s3_client(&self) -> Result<S3Client> {
-        Ok(
-            match (self.access_key_id.as_ref(), self.secret_access_key.as_ref()) {
-                (Some(access_key_id), Some(secret_access_key)) => S3Client::new_with(
-                    rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
-                    StaticProvider::new_minimal(
-                        access_key_id.to_owned(),
-                        secret_access_key.to_owned(),
-                    ),
-                    Region::Custom {
-                        name: self.region.to_owned(),
-                        endpoint: match self.endpoint.to_owned() {
-                            Some(endpoint) => endpoint,
-                            None => format!("https://s3-{}.amazonaws.com", self.region),
-                        },
-                    },
-                ),
-                (_, _) => S3Client::new_with(
-                    rusoto_core::request::HttpClient::new().expect("Failed to create HTTP client"),
-                    DefaultCredentialsProvider::new()
-                        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?,
-                    Region::Custom {
-                        name: self.region.to_owned(),
-                        endpoint: match self.endpoint.to_owned() {
-                            Some(endpoint) => endpoint,
-                            None => format!("https://s3-{}.amazonaws.com", self.region),
-                        },
-                    },
-                ),
-            },
-        )
+    async fn client(&self) -> Result<Client> {
+        let mut config_loader = aws_config::from_env();
+        config_loader = match self.endpoint.clone() {
+            Some(endpoint) => {
+                let endpoint = Endpoint::immutable(
+                    endpoint
+                        .parse()
+                        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
+                );
+                config_loader.endpoint_resolver(endpoint)
+            }
+            None => config_loader,
+        }
+        .region(Region::new(self.region.clone()));
+        config_loader =
+            config_loader.credentials_provider(CredentialsProviderChain::default_provider().await);
+        let config = config_loader.load().await;
+
+        Ok(Client::new(&config))
     }
     fn tagging(&self) -> String {
         let mut tagging = String::default();
@@ -253,10 +225,10 @@ impl Connector for Bucket {
     fn path(&self) -> String {
         let mut path = self.path.clone();
         let mut metadata = Map::default();
-        
+
         metadata.insert("metadata".to_string(), self.metadata().into());
         path.replace_mustache(Value::Object(metadata));
-        
+
         match (self.is_variable(), *self.parameters.clone()) {
             (true, params) => {
                 path.replace_mustache(params);
@@ -277,8 +249,6 @@ impl Connector for Bucket {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0");
@@ -298,35 +268,17 @@ impl Connector for Bucket {
             ));
         }
 
-        let s3_client = self.s3_client()?;
-        let request = HeadObjectRequest {
-            bucket: self.bucket.clone(),
-            key: self.path(),
-            version_id: self.version.clone(),
-            ..Default::default()
-        };
-
-        //TODO: When rusoto will use last version of tokio we should remove the block_on.
-        let len = Runtime::new()?.block_on(async {
-            match s3_client.head_object(request).await {
-                Ok(response) => match response.content_length {
-                    Some(len) => Ok(len as usize),
-                    None => Ok(0_usize),
-                },
-                Err(e) => {
-                    let error = format!("{:?}", e);
-                    match e {
-                        RusotoError::Unknown(http_response) => {
-                            match http_response.status.as_u16() {
-                                404 => Ok(0),
-                                _ => Err(Error::new(ErrorKind::Interrupted, error)),
-                            }
-                        }
-                        _ => Err(Error::new(ErrorKind::Interrupted, e)),
-                    }
-                }
-            }
-        })?;
+        let len = self
+            .client()
+            .await?
+            .head_object()
+            .key(self.path())
+            .bucket(self.bucket.clone())
+            .set_version_id(self.version.clone())
+            .send()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
+            .content_length() as usize;
 
         info!(len = len, "The connector found data in the resource");
         Ok(len)
@@ -343,8 +295,6 @@ impl Connector for Bucket {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     assert_eq!(false, connector.is_empty().await?);
@@ -375,8 +325,6 @@ impl Connector for Bucket {
     ///     assert_eq!(0, connector.inner().len());
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.fetch().await?;
     ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
@@ -391,34 +339,26 @@ impl Connector for Bucket {
             return Ok(());
         }
 
-        let connector = self.clone();
-        let s3_client = connector.s3_client()?;
-        let request = GetObjectRequest {
-            bucket: connector.bucket.clone(),
-            key: connector.path(),
-            version_id: connector.version,
-            ..Default::default()
-        };
+        let get_object = self
+            .client()
+            .await?
+            .get_object()
+            .bucket(self.bucket.clone())
+            .key(self.path())
+            .set_version_id(self.version.clone())
+            .send()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        //TODO: When rusoto will use last version of tokio we should remove the block_on.
-        let result: Result<Vec<u8>> = Runtime::new()?.block_on(async {
-            let response = s3_client
-                .get_object(request)
-                .await
-                .map_err(|e| Error::new(ErrorKind::NotFound, e))?;
+        let result = get_object
+            .body
+            .collect()
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+            .into_bytes()
+            .to_vec();
 
-            Ok(match response.body {
-                Some(body) => {
-                    let mut buffer = Vec::default();
-                    let mut async_read = body.into_async_read();
-                    async_read.read_to_end(&mut buffer).await?;
-                    buffer
-                }
-                None => Vec::default(),
-            })
-        });
-
-        self.inner = Cursor::new(result?);
+        self.inner = Cursor::new(result);
 
         info!("The connector fetch data into the resource with success");
         Ok(())
@@ -437,8 +377,6 @@ impl Connector for Bucket {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/out/test_bucket_send".to_string();
     ///     connector.erase().await?;
@@ -502,31 +440,27 @@ impl Connector for Bucket {
         }?;
 
         cursor.write_all(self.inner.get_ref())?;
+        let buf = cursor.into_inner();
 
-        let s3_client = self.s3_client()?;
-        let put_request = PutObjectRequest {
-            bucket: self.bucket.to_owned(),
-            key: path_resolved,
-            body: Some(cursor.into_inner().into()),
-            tagging: Some(self.tagging()),
-            content_type: Some(self.metadata().content_type()),
-            metadata: Some(self.metadata().to_hashmap()),
-            cache_control: self.cache_control.to_owned(),
-            content_language: match self.metadata().content_language().is_empty() {
+        self.client()
+            .await?
+            .put_object()
+            .bucket(self.bucket.clone())
+            .key(path_resolved)
+            .tagging(self.tagging())
+            .content_type(self.metadata().content_type())
+            .set_metadata(Some(self.metadata().to_hashmap()))
+            .set_cache_control(self.cache_control.to_owned())
+            .set_content_language(match self.metadata().content_language().is_empty() {
                 true => None,
                 false => Some(self.metadata().content_language()),
-            },
-            expires: self.expires.to_owned(),
-            ..Default::default()
-        };
-
-        //TODO: When rusoto will use last version of tokio we should remove the block_on.
-        Runtime::new()?.block_on(async {
-            match s3_client.put_object(put_request).await {
-                Ok(_) => Ok(()),
-                Err(e) => Err(Error::new(ErrorKind::NotFound, e)),
-            }
-        })?;
+            })
+            .content_length(buf.len() as i64)
+            .set_expires(self.expires.map(|expires| DateTime::from_secs(expires)))
+            .body(buf.into())
+            .send()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         self.clear();
 
@@ -543,29 +477,22 @@ impl Connector for Bucket {
     /// See [`Connector::erase`] for more details.
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        let path_resolved = self.path();
-        let s3_client = self.s3_client()?;
-        let put_request = PutObjectRequest {
-            bucket: self.bucket.to_owned(),
-            key: path_resolved,
-            body: Some(Vec::default().into()),
-            ..Default::default()
-        };
-
-        //TODO: When rusoto will use last version of tokio we should remove the block_on.
-        Runtime::new()?.block_on(async {
-            match s3_client.put_object(put_request).await {
-                Ok(_) => Ok(()),
-                Err(e) => Err(Error::new(ErrorKind::NotFound, e)),
-            }
-        })?;
+        self.client()
+            .await?
+            .put_object()
+            .bucket(self.bucket.clone())
+            .key(self.path())
+            .body(Vec::default().into())
+            .send()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         info!("The connector erase data in the resource with success");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
-        Ok(Box::pin(BucketPaginator::new(self.clone())?))
+        Ok(Box::pin(BucketPaginator::new(self.clone()).await?))
     }
     /// See [`Connector::clear`] for more details.
     fn clear(&mut self) {
@@ -613,7 +540,7 @@ pub struct BucketPaginator {
 }
 
 impl BucketPaginator {
-    pub fn new(connector: Bucket) -> Result<Self> {
+    pub async fn new(connector: Bucket) -> Result<Self> {
         let mut paths = Vec::default();
 
         let reg_path_contain_wildcard =
@@ -646,41 +573,42 @@ impl BucketPaginator {
                 let mut is_truncated = true;
                 let mut next_token: Option<String> = None;
                 while is_truncated {
-                    let s3_client = connector.s3_client()?;
-                    let request = ListObjectsV2Request {
-                        bucket: connector.bucket.clone(),
-                        delimiter: Some(delimiter.to_string()),
-                        prefix: Some(format!("{}/", prefix_keys.join("/"))),
-                        continuation_token: next_token,
-                        ..Default::default()
-                    };
-                    //TODO: When rusoto will use last version of tokio we should remove the block_on.
-                    let (mut paths_tmp, is_truncated_tmp, next_token_tmp) = Runtime::new()?
-                        .block_on(async {
-                            match s3_client.list_objects_v2(request).await {
-                                Ok(response) => (
-                                    response
-                                        .contents
-                                        .unwrap_or_default()
-                                        .into_iter()
-                                        .filter(|object| match object.key {
-                                            Some(ref path) => reg_key.is_match(path.as_str()),
-                                            None => false,
-                                        })
-                                        .map(|object| object.key.unwrap())
-                                        .collect(),
-                                    response.is_truncated.unwrap_or(false),
-                                    response.next_continuation_token,
-                                ),
-                                Err(e) => {
-                                    warn!(
-                                        error = e.to_string().as_str(),
-                                        "Can't fetch the list of keys"
-                                    );
-                                    (Vec::default(), false, None)
-                                }
+                    let mut list_object_v2 = connector
+                        .client()
+                        .await?
+                        .list_objects_v2()
+                        .bucket(connector.bucket.clone())
+                        .delimiter(delimiter.to_string())
+                        .prefix(format!("{}/", prefix_keys.join("/")));
+
+                    if let Some(next_token) = next_token {
+                        list_object_v2 = list_object_v2.continuation_token(next_token);
+                    }
+
+                    let (mut paths_tmp, is_truncated_tmp, next_token_tmp) =
+                        match list_object_v2.send().await {
+                            Ok(response) => (
+                                response
+                                    .contents()
+                                    .unwrap_or_default()
+                                    .into_iter()
+                                    .filter(|object| match object.key {
+                                        Some(ref path) => reg_key.is_match(path.as_str()),
+                                        None => false,
+                                    })
+                                    .map(|object| object.key.clone().unwrap())
+                                    .collect(),
+                                response.is_truncated(),
+                                response.next_continuation_token().map(|t| t.to_string()),
+                            ),
+                            Err(e) => {
+                                warn!(
+                                    error = e.to_string().as_str(),
+                                    "Can't fetch the list of keys"
+                                );
+                                (Vec::default(), false, None)
                             }
-                        });
+                        };
 
                     is_truncated = is_truncated_tmp;
                     next_token = next_token_tmp;
@@ -734,8 +662,6 @@ impl Paginator for BucketPaginator {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///
@@ -760,8 +686,6 @@ impl Paginator for BucketPaginator {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/*.json*".to_string();
     ///
@@ -786,8 +710,6 @@ impl Paginator for BucketPaginator {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/*.json*".to_string();
     ///     connector.limit = Some(5);
