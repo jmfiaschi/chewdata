@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1652218308148,
+  "lastUpdate": 1652624336460,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3981,6 +3981,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 29866,
             "range": "± 359",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "8df3cdc55f04b24184fc08ab057a83aa8d9cbb93",
+          "message": "feat(asw_sdk): replace rusoto and remove hardcoding credentials",
+          "timestamp": "2022-05-15T15:29:42+02:00",
+          "tree_id": "b9176b8d0e4d83a51f543f2f6ff0aed2eae86aa2",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/8df3cdc55f04b24184fc08ab057a83aa8d9cbb93"
+        },
+        "date": 1652624335886,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 4549,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 4396,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 271572,
+            "range": "± 716",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 30936,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 15506,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 15559,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 309145,
+            "range": "± 1283",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 24018,
+            "range": "± 42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 24082,
+            "range": "± 33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 24219,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 24057,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 24073,
+            "range": "± 32",
             "unit": "ns/iter"
           }
         ]
