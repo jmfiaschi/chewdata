@@ -189,7 +189,7 @@ impl Connector for Bucket {
         metadata_kv.insert("metadata".to_string(), self.metadata().into());
         let metadata = Value::Object(metadata_kv);
 
-        let mut new_parameters = new_parameters.clone();
+        let mut new_parameters = new_parameters;
         new_parameters.merge(metadata.clone());
         let mut old_parameters = *self.parameters.clone();
         old_parameters.merge(metadata);
@@ -456,7 +456,7 @@ impl Connector for Bucket {
                 false => Some(self.metadata().content_language()),
             })
             .content_length(buf.len() as i64)
-            .set_expires(self.expires.map(|expires| DateTime::from_secs(expires)))
+            .set_expires(self.expires.map(DateTime::from_secs))
             .body(buf.into())
             .send()
             .await
@@ -491,7 +491,7 @@ impl Connector for Bucket {
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         Ok(Box::pin(BucketPaginator::new(self.clone()).await?))
     }
     /// See [`Connector::clear`] for more details.
@@ -591,7 +591,7 @@ impl BucketPaginator {
                                 response
                                     .contents()
                                     .unwrap_or_default()
-                                    .into_iter()
+                                    .iter()
                                     .filter(|object| match object.key {
                                         Some(ref path) => reg_key.is_match(path.as_str()),
                                         None => false,
@@ -748,7 +748,7 @@ impl Paginator for BucketPaginator {
         Ok(stream)
     }
     /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&mut self) -> bool {
+    fn is_parallelizable(&self) -> bool {
         true
     }
 }

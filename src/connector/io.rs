@@ -135,7 +135,7 @@ impl Connector for Io {
         )
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         Ok(Box::pin(IoPaginator::new(self.clone())?))
     }
     /// See [`Connector::clear`] for more details.
@@ -231,7 +231,7 @@ impl Paginator for IoPaginator {
         Ok(stream)
     }
     /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&mut self) -> bool {
+    fn is_parallelizable(&self) -> bool {
         false
     }
 }

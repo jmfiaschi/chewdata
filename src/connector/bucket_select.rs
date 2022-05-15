@@ -141,7 +141,7 @@ impl BucketSelect {
                 .json(JsonInput::builder().r#type(JsonType::Lines).build()),
         }
         .compression_type(CompressionType::from(
-            metadata.compression.unwrap_or("NONE".to_string()).as_str(),
+            metadata.compression.unwrap_or_else(|| "NONE".to_string()).as_str(),
         ))
         .build();
 
@@ -152,7 +152,7 @@ impl BucketSelect {
                     .set_quote_character(metadata.quote)
                     .set_quote_escape_character(metadata.escape)
                     .record_delimiter(
-                        match metadata.terminator.unwrap_or("\n".to_string()).as_str() {
+                        match metadata.terminator.unwrap_or_else(|| "\n".to_string()).as_str() {
                             "CRLF" => "\n\r".to_string(),
                             "CR" => "\n".to_string(),
                             terminal => terminal.to_string(),
@@ -344,7 +344,7 @@ impl Connector for BucketSelect {
         metadata_kv.insert("metadata".to_string(), self.metadata().into());
         let metadata = Value::Object(metadata_kv);
 
-        let mut new_parameters = new_parameters.clone();
+        let mut new_parameters = new_parameters;
         new_parameters.merge(metadata.clone());
         let mut old_parameters = *self.parameters.clone();
         old_parameters.merge(metadata);
@@ -560,7 +560,7 @@ impl Connector for BucketSelect {
         unimplemented!("Can't send data to the remote document. Use the bucket connector instead of this connector")
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         Ok(Box::pin(BucketSelectPaginator::new(self.clone()).await?))
     }
     /// See [`Connector::clear`] for more details.
@@ -725,7 +725,7 @@ impl Paginator for BucketSelectPaginator {
         Ok(stream)
     }
     /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&mut self) -> bool {
+    fn is_parallelizable(&self) -> bool {
         true
     }
 }

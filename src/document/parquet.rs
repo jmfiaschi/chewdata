@@ -343,7 +343,7 @@ impl Document for Parquet {
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
             let decoder_options = DecoderOptions::new()
-                .with_batch_size(self.batch_size.clone());
+                .with_batch_size(self.batch_size);
 
             let decoder = Decoder::new(Arc::new(schema.clone()), decoder_options);
 

@@ -57,10 +57,7 @@ pub fn words(args: &HashMap<String, Value>) -> Result<Value> {
         None => Value::default(),
     };
 
-    let separator = match separator_value.as_str() {
-        Some(separator) => separator,
-        None => " ",
-    };
+    let separator = separator_value.as_str().unwrap_or(" ");
 
     let words = Words(min..max).fake::<Vec<String>>().join(separator);
 
@@ -111,10 +108,7 @@ pub fn sentences(args: &HashMap<String, Value>) -> Result<Value> {
         None => Value::default(),
     };
 
-    let separator = match separator_value.as_str() {
-        Some(separator) => separator,
-        None => " ",
-    };
+    let separator = separator_value.as_str().unwrap_or(" ");
 
     let words = Sentences(min..max).fake::<Vec<String>>().join(separator);
 
@@ -165,10 +159,7 @@ pub fn paragraphs(args: &HashMap<String, Value>) -> Result<Value> {
         None => Value::default(),
     };
 
-    let separator = match separator_value.as_str() {
-        Some(separator) => separator,
-        None => "\n",
-    };
+    let separator = separator_value.as_str().unwrap_or("\n");
 
     let words = Paragraphs(min..max).fake::<Vec<String>>().join(separator);
 

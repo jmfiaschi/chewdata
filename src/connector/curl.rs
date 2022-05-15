@@ -142,7 +142,7 @@ impl Connector for Curl {
         metadata_kv.insert("metadata".to_string(), self.metadata().into());
         let metadata = Value::Object(metadata_kv);
 
-        let mut new_parameters = new_parameters.clone();
+        let mut new_parameters = new_parameters;
         new_parameters.merge(metadata.clone());
         let mut old_parameters = self.parameters.clone();
         old_parameters.merge(metadata);
@@ -239,19 +239,19 @@ impl Connector for Curl {
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         let paginator = match self.paginator_type {
             PaginatorType::Offset(ref offset_paginator) => {
                 let mut offset_paginator = offset_paginator.clone();
                 offset_paginator.set_connector(self.clone());
 
-                Box::new(offset_paginator) as Box<dyn Paginator + Send>
+                Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
             }
             PaginatorType::Cursor(ref cursor_paginator) => {
                 let mut cursor_paginator = cursor_paginator.clone();
                 cursor_paginator.set_connector(self.clone());
 
-                Box::new(cursor_paginator) as Box<dyn Paginator + Send>
+                Box::new(cursor_paginator) as Box<dyn Paginator + Send + Sync>
             }
         };
 
@@ -1103,7 +1103,7 @@ impl Paginator for OffsetPaginator {
         Ok(stream)
     }
     /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&mut self) -> bool {
+    fn is_parallelizable(&self) -> bool {
         self.count.is_some()
     }
 }
@@ -1259,7 +1259,7 @@ impl Paginator for CursorPaginator {
         Ok(stream)
     }
     /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&mut self) -> bool {
+    fn is_parallelizable(&self) -> bool {
         false
     }
 }

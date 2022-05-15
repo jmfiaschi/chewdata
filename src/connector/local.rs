@@ -317,7 +317,7 @@ impl Connector for Local {
         metadata_kv.insert("metadata".to_string(), self.metadata().into());
         let metadata = Value::Object(metadata_kv);
 
-        let mut new_parameters = new_parameters.clone();
+        let mut new_parameters = new_parameters;
         new_parameters.merge(metadata.clone());
         let mut old_parameters = self.parameters.clone();
         old_parameters.merge(metadata);
@@ -418,7 +418,7 @@ impl Connector for Local {
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>> {
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         Ok(Box::pin(LocalPaginator::new(self.clone())?))
     }
     /// See [`Connector::clear`] for more details.
@@ -606,7 +606,7 @@ impl Paginator for LocalPaginator {
         Ok(stream)
     }
     /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&mut self) -> bool {
+    fn is_parallelizable(&self) -> bool {
         true
     }
 }

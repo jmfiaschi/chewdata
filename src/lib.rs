@@ -159,7 +159,7 @@ impl Metadata {
 impl Into<Value> for Metadata {
     fn into(self) -> Value {
         let mut options = Map::default();
-        if let Some(has_headers) = self.has_headers.clone() {
+        if let Some(has_headers) = self.has_headers {
             options.insert("has_headers".to_string(), Value::Bool(has_headers));
         }
         if let Some(delimiter) = self.delimiter.clone() {
@@ -186,7 +186,7 @@ impl Into<Value> for Metadata {
         if let Some(charset) = self.charset.clone() {
             options.insert("charset".to_string(), Value::String(charset));
         }
-        if let Some(language) = self.language.clone() {
+        if let Some(language) = self.language {
             options.insert("language".to_string(), Value::String(language));
         }
 
