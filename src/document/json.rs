@@ -367,8 +367,8 @@ impl Document for Json {
         Ok("]".as_bytes().to_vec())
     }
     /// See [`Document::has_data`] for more details.
-    fn has_data(&self, buf: &Vec<u8>) -> io::Result<bool> {
-        if buf.clone() == br#"[]"#.to_vec() {
+    fn has_data(&self, buf: &[u8]) -> io::Result<bool> {
+        if buf == br#"[]"#.to_vec() {
             return Ok(false);
         }
         Ok(!buf.is_empty())

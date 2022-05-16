@@ -544,7 +544,7 @@ impl Document for Xml {
     ///     Ok(())
     /// }
     /// ```
-    fn has_data(&self, buf: &Vec<u8>) -> io::Result<bool> {
+    fn has_data(&self, buf: &[u8]) -> io::Result<bool> {
         let str = std::str::from_utf8(buf)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
             

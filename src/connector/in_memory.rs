@@ -59,20 +59,19 @@ where
     Ok(Arc::new(Mutex::new(Cursor::new(s.into_bytes()))))
 }
 
-impl Into<InMemory> for Vec<u8> {
-    fn into(self) -> InMemory {
+impl From<Vec<u8>> for InMemory {
+    fn from(v: Vec<u8>) -> InMemory {
         InMemory {
-            memory: Arc::new(Mutex::new(Cursor::new(self))),
+            memory: Arc::new(Mutex::new(Cursor::new(v))),
             ..Default::default()
         }
     }
 }
 
-impl Into<InMemory> for &str {
-    /// Can fail for non UTF-8 str. use  `str.into()` instead.
-    fn into(self) -> InMemory {
+impl From<&str> for InMemory {
+    fn from(s: &str) -> InMemory {
         InMemory {
-            memory: Arc::new(Mutex::new(Cursor::new(self.to_string().into_bytes()))),
+            memory: Arc::new(Mutex::new(Cursor::new(s.to_string().into_bytes()))),
             ..Default::default()
         }
     }
