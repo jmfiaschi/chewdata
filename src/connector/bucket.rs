@@ -2,6 +2,7 @@ use super::Paginator;
 use crate::connector::Connector;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
+use async_compat::Compat;
 use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -13,6 +14,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
+use std::env;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::vec::IntoIter;
@@ -29,7 +31,8 @@ pub struct Bucket {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    pub endpoint: Option<String>,
+    pub endpoint: String,
+    pub profile: String,
     pub region: String,
     pub bucket: String,
     #[serde(alias = "key")]
@@ -57,7 +60,8 @@ impl Default for Bucket {
 
         Bucket {
             metadata: Metadata::default(),
-            endpoint: None,
+            endpoint: "http://localhost:9000".to_string(),
+            profile: "default".to_string(),
             region: "us-west-2".to_string(),
             bucket: String::default(),
             path: String::default(),
@@ -91,6 +95,7 @@ impl fmt::Debug for Bucket {
             .field("endpoint", &self.endpoint)
             .field("region", &self.region)
             .field("bucket", &self.bucket)
+            .field("profile", &self.profile)
             .field("path", &self.path)
             .field("parameters", &self.parameters)
             .field("limit", &self.limit)
@@ -105,22 +110,20 @@ impl fmt::Debug for Bucket {
 
 impl Bucket {
     async fn client(&self) -> Result<Client> {
-        let mut config_loader = aws_config::from_env();
-        config_loader = match self.endpoint.clone() {
-            Some(endpoint) => {
-                let endpoint = Endpoint::immutable(
-                    endpoint
-                        .parse()
-                        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
-                );
-                config_loader.endpoint_resolver(endpoint)
-            }
-            None => config_loader,
+        if let Ok(key) = env::var("BUCKET_ACCESS_KEY_ID") {
+            env::set_var("AWS_ACCESS_KEY_ID", key);
         }
-        .region(Region::new(self.region.clone()));
-        config_loader =
-            config_loader.credentials_provider(CredentialsProviderChain::default_provider().await);
-        let config = config_loader.load().await;
+        if let Ok(secret) = env::var("BUCKET_SECRET_ACCESS_KEY") {
+            env::set_var("AWS_SECRET_ACCESS_KEY", secret);
+        }
+        let provider = CredentialsProviderChain::default_provider().await;
+        let endpoint = Endpoint::immutable(self.endpoint.parse().map_err(|e| Error::new(ErrorKind::InvalidInput, e))?);
+        let config = aws_config::from_env()
+            .endpoint_resolver(endpoint)
+            .region(Region::new(self.region.clone()))
+            .credentials_provider(provider)
+            .load()
+            .await;
 
         Ok(Client::new(&config))
     }
@@ -245,10 +248,10 @@ impl Connector for Bucket {
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// #[tokio::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0");
@@ -260,28 +263,31 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        let reg = Regex::new("[*]").unwrap();
-        if reg.is_match(self.path.as_ref()) {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "len() method not available for wildcard path.",
-            ));
-        }
+        Compat::new(async {
+            let reg = Regex::new("[*]").unwrap();
+            if reg.is_match(self.path.as_ref()) {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "len() method not available for wildcard path.",
+                ));
+            }
 
-        let len = self
-            .client()
-            .await?
-            .head_object()
-            .key(self.path())
-            .bucket(self.bucket.clone())
-            .set_version_id(self.version.clone())
-            .send()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
-            .content_length() as usize;
+            let len = self
+                .client()
+                .await?
+                .head_object()
+                .key(self.path())
+                .bucket(self.bucket.clone())
+                .set_version_id(self.version.clone())
+                .send()
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
+                .content_length() as usize;
 
-        info!(len = len, "The connector found data in the resource");
-        Ok(len)
+            info!(len = len, "The connector found data in the resource");
+            Ok(len)
+        })
+        .await
     }
     /// See [`Connector::is_empty`] for more details.
     ///
@@ -291,10 +297,10 @@ impl Connector for Bucket {
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// #[tokio::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     assert_eq!(false, connector.is_empty().await?);
@@ -324,7 +330,7 @@ impl Connector for Bucket {
     ///     let mut connector = Bucket::default();
     ///     assert_eq!(0, connector.inner().len());
     ///     connector.path = "data/one_line.json".to_string();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.fetch().await?;
     ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
@@ -334,34 +340,37 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn fetch(&mut self) -> Result<()> {
-        // Avoid to fetch two times the same data in the same connector
-        if !self.inner.get_ref().is_empty() {
-            return Ok(());
-        }
+        Compat::new(async {
+            // Avoid to fetch two times the same data in the same connector
+            if !self.inner.get_ref().is_empty() {
+                return Ok(());
+            }
 
-        let get_object = self
-            .client()
-            .await?
-            .get_object()
-            .bucket(self.bucket.clone())
-            .key(self.path())
-            .set_version_id(self.version.clone())
-            .send()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            let get_object = self
+                .client()
+                .await?
+                .get_object()
+                .bucket(self.bucket.clone())
+                .key(self.path())
+                .set_version_id(self.version.clone())
+                .send()
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        let result = get_object
-            .body
-            .collect()
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-            .into_bytes()
-            .to_vec();
+            let result = get_object
+                .body
+                .collect()
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                .into_bytes()
+                .to_vec();
 
-        self.inner = Cursor::new(result);
+            self.inner = Cursor::new(result);
 
-        info!("The connector fetch data into the resource with success");
-        Ok(())
+            info!("The connector fetch data into the resource with success");
+            Ok(())
+        })
+        .await
     }
     /// See [`Connector::send`] for more details.
     ///
@@ -376,7 +385,7 @@ impl Connector for Bucket {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/out/test_bucket_send".to_string();
     ///     connector.erase().await?;
@@ -403,69 +412,74 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        if self.is_variable() && *self.parameters == Value::Null && self.inner.get_ref().is_empty()
-        {
-            warn!(
-                path = self.path.clone().as_str(),
-                parameters = self.parameters.to_string().as_str(),
-                "Can't flush with variable path and without parameters"
-            );
-            return Ok(());
-        }
-
-        let mut content_file = Vec::default();
-        let path_resolved = self.path();
-
-        if !self.is_empty().await? {
-            info!(
-                path = path_resolved.to_string().as_str(),
-                "Fetch existing data into S3"
-            );
+        Compat::new(async {
+            if self.is_variable()
+                && *self.parameters == Value::Null
+                && self.inner.get_ref().is_empty()
             {
-                let mut connector_clone = self.clone();
-                connector_clone.clear();
-                connector_clone.fetch().await?;
-                connector_clone.read_to_end(&mut content_file).await?;
+                warn!(
+                    path = self.path.clone().as_str(),
+                    parameters = self.parameters.to_string().as_str(),
+                    "Can't flush with variable path and without parameters"
+                );
+                return Ok(());
             }
-        }
 
-        let mut cursor = Cursor::new(content_file.clone());
+            let mut content_file = Vec::default();
+            let path_resolved = self.path();
 
-        match position {
-            Some(pos) => match content_file.len() as isize + pos {
-                start if start > 0 => cursor.seek(SeekFrom::Start(start as u64)),
-                _ => cursor.seek(SeekFrom::Start(0)),
-            },
-            None => cursor.seek(SeekFrom::Start(0)),
-        }?;
+            if !self.is_empty().await? {
+                info!(
+                    path = path_resolved.to_string().as_str(),
+                    "Fetch existing data into S3"
+                );
+                {
+                    let mut connector_clone = self.clone();
+                    connector_clone.clear();
+                    connector_clone.fetch().await?;
+                    connector_clone.read_to_end(&mut content_file).await?;
+                }
+            }
 
-        cursor.write_all(self.inner.get_ref())?;
-        let buf = cursor.into_inner();
+            let mut cursor = Cursor::new(content_file.clone());
 
-        self.client()
-            .await?
-            .put_object()
-            .bucket(self.bucket.clone())
-            .key(path_resolved)
-            .tagging(self.tagging())
-            .content_type(self.metadata().content_type())
-            .set_metadata(Some(self.metadata().to_hashmap()))
-            .set_cache_control(self.cache_control.to_owned())
-            .set_content_language(match self.metadata().content_language().is_empty() {
-                true => None,
-                false => Some(self.metadata().content_language()),
-            })
-            .content_length(buf.len() as i64)
-            .set_expires(self.expires.map(DateTime::from_secs))
-            .body(buf.into())
-            .send()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            match position {
+                Some(pos) => match content_file.len() as isize + pos {
+                    start if start > 0 => cursor.seek(SeekFrom::Start(start as u64)),
+                    _ => cursor.seek(SeekFrom::Start(0)),
+                },
+                None => cursor.seek(SeekFrom::Start(0)),
+            }?;
 
-        self.clear();
+            cursor.write_all(self.inner.get_ref())?;
+            let buf = cursor.into_inner();
 
-        info!("The connector send data into the resource with success");
-        Ok(())
+            self.client()
+                .await?
+                .put_object()
+                .bucket(self.bucket.clone())
+                .key(path_resolved)
+                .tagging(self.tagging())
+                .content_type(self.metadata().content_type())
+                .set_metadata(Some(self.metadata().to_hashmap()))
+                .set_cache_control(self.cache_control.to_owned())
+                .set_content_language(match self.metadata().content_language().is_empty() {
+                    true => None,
+                    false => Some(self.metadata().content_language()),
+                })
+                .content_length(buf.len() as i64)
+                .set_expires(self.expires.map(DateTime::from_secs))
+                .body(buf.into())
+                .send()
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+            self.clear();
+
+            info!("The connector send data into the resource with success");
+            Ok(())
+        })
+        .await
     }
     fn set_metadata(&mut self, metadata: Metadata) {
         self.metadata = metadata;
@@ -477,18 +491,21 @@ impl Connector for Bucket {
     /// See [`Connector::erase`] for more details.
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        self.client()
-            .await?
-            .put_object()
-            .bucket(self.bucket.clone())
-            .key(self.path())
-            .body(Vec::default().into())
-            .send()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        Compat::new(async {
+            self.client()
+                .await?
+                .put_object()
+                .bucket(self.bucket.clone())
+                .key(self.path())
+                .body(Vec::default().into())
+                .send()
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        info!("The connector erase data in the resource with success");
-        Ok(())
+            info!("The connector erase data in the resource with success");
+            Ok(())
+        })
+        .await
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
@@ -541,105 +558,108 @@ pub struct BucketPaginator {
 
 impl BucketPaginator {
     pub async fn new(connector: Bucket) -> Result<Self> {
-        let mut paths = Vec::default();
+        Compat::new(async {
+            let mut paths = Vec::default();
 
-        let reg_path_contain_wildcard =
-            Regex::new("[*]").map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-        let path = connector.path();
+            let reg_path_contain_wildcard =
+                Regex::new("[*]").map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+            let path = connector.path();
 
-        match reg_path_contain_wildcard.is_match(path.as_str()) {
-            true => {
-                let delimiter = "/";
+            match reg_path_contain_wildcard.is_match(path.as_str()) {
+                true => {
+                    let delimiter = "/";
 
-                let directories: Vec<&str> = path.split_terminator(delimiter).collect();
-                let prefix_keys: Vec<&str> = directories
-                    .clone()
-                    .into_iter()
-                    .take_while(|item| !item.contains('*'))
-                    .collect();
-                let postfix_keys: Vec<&str> = directories
-                    .clone()
-                    .into_iter()
-                    .filter(|item| !prefix_keys.contains(item))
-                    .collect();
+                    let directories: Vec<&str> = path.split_terminator(delimiter).collect();
+                    let prefix_keys: Vec<&str> = directories
+                        .clone()
+                        .into_iter()
+                        .take_while(|item| !item.contains('*'))
+                        .collect();
+                    let postfix_keys: Vec<&str> = directories
+                        .clone()
+                        .into_iter()
+                        .filter(|item| !prefix_keys.contains(item))
+                        .collect();
 
-                let key_pattern = postfix_keys
-                    .join(delimiter)
-                    .replace('.', "\\.")
-                    .replace('*', ".*");
-                let reg_key = Regex::new(key_pattern.as_str())
-                    .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+                    let key_pattern = postfix_keys
+                        .join(delimiter)
+                        .replace('.', "\\.")
+                        .replace('*', ".*");
+                    let reg_key = Regex::new(key_pattern.as_str())
+                        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
-                let mut is_truncated = true;
-                let mut next_token: Option<String> = None;
-                while is_truncated {
-                    let mut list_object_v2 = connector
-                        .client()
-                        .await?
-                        .list_objects_v2()
-                        .bucket(connector.bucket.clone())
-                        .delimiter(delimiter.to_string())
-                        .prefix(format!("{}/", prefix_keys.join("/")));
+                    let mut is_truncated = true;
+                    let mut next_token: Option<String> = None;
+                    while is_truncated {
+                        let mut list_object_v2 = connector
+                            .client()
+                            .await?
+                            .list_objects_v2()
+                            .bucket(connector.bucket.clone())
+                            .delimiter(delimiter.to_string())
+                            .prefix(format!("{}/", prefix_keys.join("/")));
 
-                    if let Some(next_token) = next_token {
-                        list_object_v2 = list_object_v2.continuation_token(next_token);
+                        if let Some(next_token) = next_token {
+                            list_object_v2 = list_object_v2.continuation_token(next_token);
+                        }
+
+                        let (mut paths_tmp, is_truncated_tmp, next_token_tmp) =
+                            match list_object_v2.send().await {
+                                Ok(response) => (
+                                    response
+                                        .contents()
+                                        .unwrap_or_default()
+                                        .iter()
+                                        .filter(|object| match object.key {
+                                            Some(ref path) => reg_key.is_match(path.as_str()),
+                                            None => false,
+                                        })
+                                        .map(|object| object.key.clone().unwrap())
+                                        .collect(),
+                                    response.is_truncated(),
+                                    response.next_continuation_token().map(|t| t.to_string()),
+                                ),
+                                Err(e) => {
+                                    warn!(
+                                        error = e.to_string().as_str(),
+                                        "Can't fetch the list of keys"
+                                    );
+                                    (Vec::default(), false, None)
+                                }
+                            };
+
+                        is_truncated = is_truncated_tmp;
+                        next_token = next_token_tmp;
+                        paths.append(&mut paths_tmp);
                     }
 
-                    let (mut paths_tmp, is_truncated_tmp, next_token_tmp) =
-                        match list_object_v2.send().await {
-                            Ok(response) => (
-                                response
-                                    .contents()
-                                    .unwrap_or_default()
-                                    .iter()
-                                    .filter(|object| match object.key {
-                                        Some(ref path) => reg_key.is_match(path.as_str()),
-                                        None => false,
-                                    })
-                                    .map(|object| object.key.clone().unwrap())
-                                    .collect(),
-                                response.is_truncated(),
-                                response.next_continuation_token().map(|t| t.to_string()),
-                            ),
-                            Err(e) => {
-                                warn!(
-                                    error = e.to_string().as_str(),
-                                    "Can't fetch the list of keys"
-                                );
-                                (Vec::default(), false, None)
-                            }
+                    if let Some(limit) = connector.limit {
+                        let paths_range_start = if paths.len() < connector.skip {
+                            paths.len()
+                        } else {
+                            connector.skip
+                        };
+                        let paths_range_end = if paths.len() < connector.skip + limit {
+                            paths.len()
+                        } else {
+                            connector.skip + limit
                         };
 
-                    is_truncated = is_truncated_tmp;
-                    next_token = next_token_tmp;
-                    paths.append(&mut paths_tmp);
+                        paths = paths[paths_range_start..paths_range_end].to_vec();
+                    }
                 }
-
-                if let Some(limit) = connector.limit {
-                    let paths_range_start = if paths.len() < connector.skip {
-                        paths.len()
-                    } else {
-                        connector.skip
-                    };
-                    let paths_range_end = if paths.len() < connector.skip + limit {
-                        paths.len()
-                    } else {
-                        connector.skip + limit
-                    };
-
-                    paths = paths[paths_range_start..paths_range_end].to_vec();
+                false => {
+                    paths.append(&mut vec![path]);
                 }
             }
-            false => {
-                paths.append(&mut vec![path]);
-            }
-        }
 
-        Ok(BucketPaginator {
-            skip: connector.skip,
-            paths: paths.into_iter(),
-            connector,
+            Ok(BucketPaginator {
+                skip: connector.skip,
+                paths: paths.into_iter(),
+                connector,
+            })
         })
+        .await
     }
 }
 
@@ -661,7 +681,7 @@ impl Paginator for BucketPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///
@@ -685,7 +705,7 @@ impl Paginator for BucketPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/*.json*".to_string();
     ///
@@ -709,7 +729,7 @@ impl Paginator for BucketPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/*.json*".to_string();
     ///     connector.limit = Some(5);

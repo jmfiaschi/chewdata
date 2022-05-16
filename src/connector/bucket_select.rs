@@ -3,6 +3,7 @@ use super::Paginator;
 use crate::connector::Connector;
 use crate::helper::mustache::Mustache;
 use crate::Metadata;
+use async_compat::Compat;
 use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -13,11 +14,12 @@ use aws_sdk_s3::model::{
     JsonInput, JsonOutput, JsonType, OutputSerialization, ParquetInput,
     SelectObjectContentEventStream,
 };
-use aws_sdk_s3::{Client, Endpoint, Region};
+use aws_sdk_s3::{Client, Region, Endpoint};
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::env;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -33,7 +35,8 @@ pub struct BucketSelect {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    pub endpoint: Option<String>,
+    pub endpoint: String,
+    pub profile: String,
     pub region: String,
     pub bucket: String,
     #[serde(alias = "key")]
@@ -53,7 +56,8 @@ impl Default for BucketSelect {
         BucketSelect {
             metadata: Metadata::default(),
             query: "select * from s3object".to_string(),
-            endpoint: None,
+            endpoint: "http://localhost:9000".to_string(),
+            profile: "default".to_string(),
             region: "us-west-2".to_string(),
             bucket: String::default(),
             path: String::default(),
@@ -84,6 +88,7 @@ impl fmt::Debug for BucketSelect {
             .field("endpoint", &self.endpoint)
             .field("region", &self.region)
             .field("bucket", &self.bucket)
+            .field("profile", &self.profile)
             .field("path", &self.path)
             .field("parameters", &self.parameters)
             .field("limit", &self.limit)
@@ -94,22 +99,20 @@ impl fmt::Debug for BucketSelect {
 
 impl BucketSelect {
     async fn client(&self) -> Result<Client> {
-        let mut config_loader = aws_config::from_env();
-        config_loader = match self.endpoint.clone() {
-            Some(endpoint) => {
-                let endpoint = Endpoint::immutable(
-                    endpoint
-                        .parse()
-                        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
-                );
-                config_loader.endpoint_resolver(endpoint)
-            }
-            None => config_loader,
+        if let Ok(key) = env::var("BUCKET_ACCESS_KEY_ID") {
+            env::set_var("AWS_ACCESS_KEY_ID", key);
         }
-        .region(Region::new(self.region.clone()));
-        config_loader =
-            config_loader.credentials_provider(CredentialsProviderChain::default_provider().await);
-        let config = config_loader.load().await;
+        if let Ok(secret) = env::var("BUCKET_SECRET_ACCESS_KEY") {
+            env::set_var("AWS_SECRET_ACCESS_KEY", secret);
+        }
+        let provider = CredentialsProviderChain::default_provider().await;
+        let endpoint = Endpoint::immutable(self.endpoint.parse().map_err(|e| Error::new(ErrorKind::InvalidInput, e))?);
+        let config = aws_config::from_env()
+            .endpoint_resolver(endpoint)
+            .region(Region::new(self.region.clone()))
+            .credentials_provider(provider)
+            .load()
+            .await;
 
         Ok(Client::new(&config))
     }
@@ -141,7 +144,10 @@ impl BucketSelect {
                 .json(JsonInput::builder().r#type(JsonType::Lines).build()),
         }
         .compression_type(CompressionType::from(
-            metadata.compression.unwrap_or_else(|| "NONE".to_string()).as_str(),
+            metadata
+                .compression
+                .unwrap_or_else(|| "NONE".to_string())
+                .as_str(),
         ))
         .build();
 
@@ -152,7 +158,11 @@ impl BucketSelect {
                     .set_quote_character(metadata.quote)
                     .set_quote_escape_character(metadata.escape)
                     .record_delimiter(
-                        match metadata.terminator.unwrap_or_else(|| "\n".to_string()).as_str() {
+                        match metadata
+                            .terminator
+                            .unwrap_or_else(|| "\n".to_string())
+                            .as_str()
+                        {
                             "CRLF" => "\n\r".to_string(),
                             "CR" => "\n".to_string(),
                             terminal => terminal.to_string(),
@@ -180,110 +190,116 @@ impl BucketSelect {
             .output_serialization(output_serialization))
     }
     async fn fetch_data(&mut self) -> Result<Vec<u8>> {
-        let mut event_stream = self
-            .select_object_content()
-            .await?
-            .send()
-            .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
+        Compat::new(async {
+            let mut event_stream = self
+                .select_object_content()
+                .await?
+                .send()
+                .await
+                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
 
-        let mut buffer = Vec::default();
+            let mut buffer = Vec::default();
 
-        while let Some(event) = event_stream
-            .payload
-            .recv()
-            .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
-        {
-            match event {
-                SelectObjectContentEventStream::Records(records) => {
-                    trace!("records Event");
-                    if let Some(bytes) = records.payload() {
-                        buffer.append(&mut bytes.clone().into_inner());
-                    };
-                }
-                SelectObjectContentEventStream::Stats(stats) => {
-                    trace!(
-                        stats = format!("{:?}", stats.details()).as_str(),
-                        "Stats Event"
-                    );
-                }
-                SelectObjectContentEventStream::End(_) => {
-                    trace!("End Event");
-                    break;
-                }
-                SelectObjectContentEventStream::Progress(progress) => {
-                    trace!(
-                        details = format!("{:?}", progress.details()).as_str(),
-                        "Progress Event"
-                    );
-                }
-                SelectObjectContentEventStream::Cont(_) => {
-                    trace!("Continuation Event");
-                }
-                otherwise => {
-                    return Err(Error::new(
-                        ErrorKind::Interrupted,
-                        format!("{:?}", otherwise),
-                    ))
+            while let Some(event) = event_stream
+                .payload
+                .recv()
+                .await
+                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
+            {
+                match event {
+                    SelectObjectContentEventStream::Records(records) => {
+                        trace!("records Event");
+                        if let Some(bytes) = records.payload() {
+                            buffer.append(&mut bytes.clone().into_inner());
+                        };
+                    }
+                    SelectObjectContentEventStream::Stats(stats) => {
+                        trace!(
+                            stats = format!("{:?}", stats.details()).as_str(),
+                            "Stats Event"
+                        );
+                    }
+                    SelectObjectContentEventStream::End(_) => {
+                        trace!("End Event");
+                        break;
+                    }
+                    SelectObjectContentEventStream::Progress(progress) => {
+                        trace!(
+                            details = format!("{:?}", progress.details()).as_str(),
+                            "Progress Event"
+                        );
+                    }
+                    SelectObjectContentEventStream::Cont(_) => {
+                        trace!("Continuation Event");
+                    }
+                    otherwise => {
+                        return Err(Error::new(
+                            ErrorKind::Interrupted,
+                            format!("{:?}", otherwise),
+                        ))
+                    }
                 }
             }
-        }
 
-        Ok(buffer)
+            Ok(buffer)
+        })
+        .await
     }
     async fn fetch_length(&mut self) -> Result<usize> {
-        let mut event_stream = self
-            .select_object_content()
-            .await?
-            .send()
-            .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
+        Compat::new(async {
+            let mut event_stream = self
+                .select_object_content()
+                .await?
+                .send()
+                .await
+                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
 
-        let mut buffer: usize = 0;
+            let mut buffer: usize = 0;
 
-        while let Some(event) = event_stream
-            .payload
-            .recv()
-            .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
-        {
-            match event {
-                SelectObjectContentEventStream::Records(_) => {
-                    trace!("records Event");
-                }
-                SelectObjectContentEventStream::Stats(stats) => {
-                    trace!(
-                        stats = format!("{:?}", stats.details()).as_str(),
-                        "Stats Event"
-                    );
-                    if let Some(stats) = stats.details {
-                        buffer += stats.bytes_scanned() as usize;
-                    };
-                }
-                SelectObjectContentEventStream::End(_) => {
-                    trace!("End Event");
-                    break;
-                }
-                SelectObjectContentEventStream::Progress(progress) => {
-                    trace!(
-                        details = format!("{:?}", progress.details()).as_str(),
-                        "Progress Event"
-                    );
-                }
-                SelectObjectContentEventStream::Cont(_) => {
-                    trace!("Continuation Event");
-                }
-                otherwise => {
-                    return Err(Error::new(
-                        ErrorKind::Interrupted,
-                        format!("{:?}", otherwise),
-                    ))
+            while let Some(event) = event_stream
+                .payload
+                .recv()
+                .await
+                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
+            {
+                match event {
+                    SelectObjectContentEventStream::Records(_) => {
+                        trace!("records Event");
+                    }
+                    SelectObjectContentEventStream::Stats(stats) => {
+                        trace!(
+                            stats = format!("{:?}", stats.details()).as_str(),
+                            "Stats Event"
+                        );
+                        if let Some(stats) = stats.details {
+                            buffer += stats.bytes_scanned() as usize;
+                        };
+                    }
+                    SelectObjectContentEventStream::End(_) => {
+                        trace!("End Event");
+                        break;
+                    }
+                    SelectObjectContentEventStream::Progress(progress) => {
+                        trace!(
+                            details = format!("{:?}", progress.details()).as_str(),
+                            "Progress Event"
+                        );
+                    }
+                    SelectObjectContentEventStream::Cont(_) => {
+                        trace!("Continuation Event");
+                    }
+                    otherwise => {
+                        return Err(Error::new(
+                            ErrorKind::Interrupted,
+                            format!("{:?}", otherwise),
+                        ))
+                    }
                 }
             }
-        }
 
-        Ok(buffer)
+            Ok(buffer)
+        })
+        .await
     }
 }
 
@@ -409,9 +425,7 @@ impl Connector for BucketSelect {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
@@ -457,9 +471,7 @@ impl Connector for BucketSelect {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
@@ -496,9 +508,7 @@ impl Connector for BucketSelect {
     ///         ..Json::default().metadata
     ///     };
     ///     connector.path = "data/one_line.json".to_string();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.region = "us-east-1".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
@@ -648,9 +658,7 @@ impl Paginator for BucketSelectPaginator {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
     ///     connector.path = "data/multi_lines.json".to_string();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.region = "us-east-1".to_string();
@@ -680,9 +688,7 @@ impl Paginator for BucketSelectPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.access_key_id = Some("minio_access_key".to_string());
-    ///     connector.secret_access_key = Some("minio_secret_key".to_string());
+    ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/*.json$".to_string();
     ///     connector.query = "select * from s3object".to_string();

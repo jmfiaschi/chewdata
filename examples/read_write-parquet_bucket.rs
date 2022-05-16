@@ -35,8 +35,6 @@ async fn main() -> io::Result<()> {
                 "bucket": "my-bucket",
                 "path": "data/out/parquet_test_bucket.parquet",
                 "endpoint":"{{ BUCKET_ENDPOINT }}",
-                "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
-                "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
                 "region": "{{ BUCKET_REGION }}"
             }
         }
