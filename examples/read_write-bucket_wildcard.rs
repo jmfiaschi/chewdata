@@ -6,7 +6,7 @@ use tracing_subscriber;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
-#[tokio::main]
+#[async_std::main]
 async fn main() -> io::Result<()> {
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let subscriber = tracing_subscriber::fmt()

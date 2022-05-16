@@ -63,7 +63,7 @@ jsonwebtoken = { version = "8.1", optional = true }
 surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
 http-types = { version = "2.12", optional = true }
 mongodb = { version = "2.2", default-features = false, features = ["async-std-runtime"], optional = true }
-async-compat = { version = "0.2.1", optional = true }
+async-compat = { version = "0.2", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["stable"] }

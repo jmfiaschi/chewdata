@@ -248,7 +248,7 @@ impl Connector for Bucket {
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
-    /// #[tokio::main]
+    /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = "http://localhost:9000".to_string();
@@ -297,7 +297,7 @@ impl Connector for Bucket {
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
-    /// #[tokio::main]
+    /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = "http://localhost:9000".to_string();
