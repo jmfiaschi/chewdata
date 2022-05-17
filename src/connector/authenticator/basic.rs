@@ -70,7 +70,7 @@ impl Basic {
     /// let username = "my_username";
     /// let password = "my_password";
     ///
-    /// let mut auth = Basic::new(username, password);
+    /// let auth = Basic::new(username, password);
     ///
     /// assert_eq!(username, auth.username);
     /// assert_eq!(password, auth.password);
@@ -152,6 +152,14 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn new() {
+        let username = "my_username";
+        let password = "my_password";
+        let auth = Basic::new(username, password);
+        assert_eq!(username, auth.username);
+        assert_eq!(password, auth.password);
+    }
     #[async_std::test]
     async fn authenticate() {
         let username = "my_username";
