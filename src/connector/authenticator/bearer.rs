@@ -1,10 +1,13 @@
 use super::Authenticator;
 use crate::helper::mustache::Mustache;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fmt, io::{Error, ErrorKind, Result}};
-use async_trait::async_trait;
-use surf::{RequestBuilder, http::headers};
+use std::{
+    fmt,
+    io::{Error, ErrorKind, Result},
+};
+use surf::{http::headers, RequestBuilder};
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -16,10 +19,14 @@ pub struct Bearer {
 
 impl fmt::Debug for Bearer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut obfuscate_token = self
-            .token
-            .clone();
-        obfuscate_token.replace_range(0..(obfuscate_token.len()/2), (0..(obfuscate_token.len()/2)).map(|_| "#").collect::<String>().as_str());
+        let mut obfuscate_token = self.token.clone();
+        obfuscate_token.replace_range(
+            0..(obfuscate_token.len() / 2),
+            (0..(obfuscate_token.len() / 2))
+                .map(|_| "#")
+                .collect::<String>()
+                .as_str(),
+        );
 
         f.debug_struct("Bearer")
             .field("token", &obfuscate_token)
@@ -42,13 +49,14 @@ impl Default for Bearer {
 impl Bearer {
     /// Get new bearer.
     ///
-    /// # Example
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::authenticator::bearer::Bearer;
     ///
     /// let token = "my_token";
     ///
-    /// let mut auth = Bearer::new(token);
+    /// let auth = Bearer::new(token);
     ///
     /// assert_eq!(token, auth.token);
     /// assert_eq!(false, auth.is_base64);
@@ -66,8 +74,9 @@ impl Bearer {
 impl Authenticator for Bearer {
     /// See [`Authenticator::authenticate`] for more details.
     ///
-    /// # Example: Should authenticate the http call
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, curl::Curl};
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, bearer::Bearer};
@@ -82,59 +91,6 @@ impl Authenticator for Bearer {
     ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Bearer(Bearer::new(token))));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
-    ///     connector.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     let len = connector.read_to_string(&mut buffer).await?;
-    ///     assert!(0 < len, "Should read one some bytes.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: failed the authentification
-    /// ```
-    /// use chewdata::connector::{Connector, curl::Curl};
-    /// use surf::http::Method;
-    /// use chewdata::connector::authenticator::{AuthenticatorType, bearer::Bearer};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let bad_token = "";
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Bearer(Bearer::new(bad_token))));
-    ///     connector.method = Method::Get;
-    ///     connector.path = "/bearer".to_string();
-    ///     match connector.fetch().await {
-    ///         Ok(_) => assert!(false, "Should generate an error."),
-    ///         Err(_) => assert!(true),
-    ///     };
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Set token with parameters
-    /// ```
-    /// use chewdata::connector::{Connector, curl::Curl};
-    /// use surf::http::Method;
-    /// use chewdata::connector::authenticator::{AuthenticatorType, bearer::Bearer};
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let token = "{{ token }}";
-    /// 
-    ///     let mut parameters: Value = serde_json::from_str(r#"{"token":"my_token"}"#)?;
-    /// 
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Bearer(Bearer::new(token))));
-    ///     connector.method = Method::Get;
-    ///     connector.path = "/bearer".to_string();
-    ///     connector.parameters = parameters;
     ///     connector.fetch().await?;
     ///     let mut buffer = String::default();
     ///     let len = connector.read_to_string(&mut buffer).await?;
@@ -169,5 +125,66 @@ impl Authenticator for Bearer {
     /// See [`Authenticator::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_std::io::ReadExt;
+    use http_types::Method;
+
+    use crate::connector::{authenticator::AuthenticatorType, curl::Curl, Connector};
+
+    use super::*;
+
+    #[test]
+    fn new() {
+        let token = "my_token";
+        let auth = Bearer::new(token);
+        assert_eq!(token, auth.token);
+        assert_eq!(false, auth.is_base64);
+    }
+    #[async_std::test]
+    async fn authenticate() {
+        let token = "abcd1234";
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.authenticator_type =
+            Some(Box::new(AuthenticatorType::Bearer(Bearer::new(token))));
+        connector.method = Method::Get;
+        connector.path = "/bearer".to_string();
+        connector.fetch().await.unwrap();
+        let mut buffer = String::default();
+        let len = connector.read_to_string(&mut buffer).await.unwrap();
+        assert!(0 < len, "Should read one some bytes.");
+    }
+    #[async_std::test]
+    async fn authenticate_fail() {
+        let bad_token = "";
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.authenticator_type =
+            Some(Box::new(AuthenticatorType::Bearer(Bearer::new(bad_token))));
+        connector.method = Method::Get;
+        connector.path = "/bearer".to_string();
+        match connector.fetch().await {
+            Ok(_) => assert!(false, "Should generate an error."),
+            Err(_) => assert!(true),
+        };
+    }
+    #[async_std::test]
+    async fn authenticate_with_token_in_param() {
+        let token = "{{ token }}";
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.authenticator_type =
+            Some(Box::new(AuthenticatorType::Bearer(Bearer::new(token))));
+        connector.method = Method::Get;
+        connector.path = "/bearer".to_string();
+        connector.parameters = serde_json::from_str(r#"{"token":"my_token"}"#).unwrap();
+        connector.fetch().await.unwrap();
+        let mut buffer = String::default();
+        let len = connector.read_to_string(&mut buffer).await.unwrap();
+        assert!(0 < len, "Should read one some bytes.");
     }
 }
