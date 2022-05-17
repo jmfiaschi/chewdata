@@ -14,7 +14,7 @@ use aws_sdk_s3::model::{
     JsonInput, JsonOutput, JsonType, OutputSerialization, ParquetInput,
     SelectObjectContentEventStream,
 };
-use aws_sdk_s3::{Client, Region, Endpoint};
+use aws_sdk_s3::{Client, Endpoint, Region};
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -106,7 +106,11 @@ impl BucketSelect {
             env::set_var("AWS_SECRET_ACCESS_KEY", secret);
         }
         let provider = CredentialsProviderChain::default_provider().await;
-        let endpoint = Endpoint::immutable(self.endpoint.parse().map_err(|e| Error::new(ErrorKind::InvalidInput, e))?);
+        let endpoint = Endpoint::immutable(
+            self.endpoint
+                .parse()
+                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
+        );
         let config = aws_config::from_env()
             .endpoint_resolver(endpoint)
             .region(Region::new(self.region.clone()))
@@ -319,7 +323,8 @@ impl Connector for BucketSelect {
     /// See [`Connector::is_variable`] for more details.
     ///
     /// # Example
-    /// ```rust
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -338,7 +343,8 @@ impl Connector for BucketSelect {
     /// See [`Connector::is_resource_will_change`] for more details.
     ///
     /// # Example
-    /// ```rust
+    ///
+    /// ```no_run
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use serde_json::Value;
     ///
@@ -381,8 +387,9 @@ impl Connector for BucketSelect {
     }
     /// See [`Connector::path`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -414,8 +421,9 @@ impl Connector for BucketSelect {
     }
     /// See [`Connector::len`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -429,7 +437,6 @@ impl Connector for BucketSelect {
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
-    ///     connector.region = "us-east-1".to_string();
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
@@ -460,8 +467,9 @@ impl Connector for BucketSelect {
     }
     /// See [`Connector::is_empty`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -475,7 +483,6 @@ impl Connector for BucketSelect {
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
-    ///     connector.region = "us-east-1".to_string();
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
@@ -492,7 +499,7 @@ impl Connector for BucketSelect {
     /// See [`Connector::fetch`] for more details.
     ///
     /// # Example
-    /// ```rust
+    /// ```no_run
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
@@ -509,7 +516,6 @@ impl Connector for BucketSelect {
     ///     };
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.endpoint = "http://localhost:9000".to_string();
-    ///     connector.region = "us-east-1".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.fetch().await?;
@@ -646,7 +652,7 @@ impl Paginator for BucketSelectPaginator {
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Example
-    /// ```rust
+    /// ```no_run
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -661,49 +667,13 @@ impl Paginator for BucketSelectPaginator {
     ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
-    ///     connector.region = "us-east-1".to_string();
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
     ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
+    ///     let mut stream = connector.paginator().await?.stream().await?;
     ///
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: With wildcard, limit and skip. List results are always returned in UTF-8 binary order
-    /// ```rust
-    /// use chewdata::connector::bucket_select::BucketSelect;
-    /// use chewdata::connector::Connector;
-    /// use chewdata::document::json::Json;
-    /// use chewdata::Metadata;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = BucketSelect::default();
-    ///     connector.endpoint = "http://localhost:9000".to_string();
-    ///     connector.bucket = "my-bucket".to_string();
-    ///     connector.path = "data/*.json$".to_string();
-    ///     connector.query = "select * from s3object".to_string();
-    ///     connector.limit = Some(5);
-    ///     connector.skip = 1;
-    ///     connector.metadata = Metadata {
-    ///         ..Json::default().metadata
-    ///     };
-    ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     assert_eq!("data/multi_lines.json".to_string(), stream.next().await.transpose()?.unwrap().path());
-    ///     assert_eq!("data/one_line.json".to_string(), stream.next().await.transpose()?.unwrap().path());
+    ///     assert!(stream.next().await.is_some(), "Can't get the first reader.");
     ///
     ///     Ok(())
     /// }
@@ -741,8 +711,89 @@ mod tests {
     use super::*;
     use crate::document::{csv::Csv, json::Json, jsonl::Jsonl};
 
-    #[tokio::test]
-    async fn test_select_object_json_document() {
+    #[test]
+    fn is_variable() {
+        let mut connector = BucketSelect::default();
+        assert_eq!(false, connector.is_variable());
+        let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
+        connector.set_parameters(params);
+        connector.path = "/dir/filename_{{ field }}.ext".to_string();
+        assert_eq!(true, connector.is_variable());
+    }
+    #[test]
+    fn is_resource_will_change() {
+        let mut connector = BucketSelect::default();
+        let params = serde_json::from_str(r#"{"field":"test"}"#).unwrap();
+        assert_eq!(
+            false,
+            connector.is_resource_will_change(Value::Null).unwrap()
+        );
+        connector.path = "/dir/static.ext".to_string();
+        assert_eq!(
+            false,
+            connector.is_resource_will_change(Value::Null).unwrap()
+        );
+        connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
+        assert_eq!(true, connector.is_resource_will_change(params).unwrap());
+    }
+    #[test]
+    fn path() {
+        let mut connector = BucketSelect::default();
+        connector.path = "/dir/filename_{{ field }}.ext".to_string();
+        let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
+        connector.set_parameters(params);
+        assert_eq!("/dir/filename_value.ext", connector.path());
+    }
+    #[async_std::test]
+    async fn len() {
+        let mut connector = BucketSelect::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/one_line.json".to_string();
+        connector.query = "select * from s3object".to_string();
+        connector.metadata = Metadata {
+            ..Json::default().metadata
+        };
+        assert!(
+            0 < connector.len().await.unwrap(),
+            "The length of the document is not greather than 0"
+        );
+        connector.path = "data/not-found-file".to_string();
+        assert_eq!(0, connector.len().await.unwrap());
+    }
+    #[async_std::test]
+    async fn is_empty() {
+        let mut connector = BucketSelect::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/one_line.json".to_string();
+        connector.query = "select * from s3object".to_string();
+        connector.metadata = Metadata {
+            ..Json::default().metadata
+        };
+        assert_eq!(false, connector.is_empty().await.unwrap());
+        connector.path = "data/not_found.json".to_string();
+        assert_eq!(true, connector.is_empty().await.unwrap());
+    }
+    #[async_std::test]
+    async fn fetch() {
+        let mut connector = BucketSelect::default();
+        assert_eq!(0, connector.inner().len());
+        connector.metadata = Metadata {
+            ..Json::default().metadata
+        };
+        connector.path = "data/one_line.json".to_string();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.query = "select * from s3object".to_string();
+        connector.fetch().await.unwrap();
+        assert!(
+            0 < connector.inner().len(),
+            "The inner connector should have a size upper than zero"
+        );
+    }
+    #[async_std::test]
+    async fn json_document() {
         let mut connector = BucketSelect::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "my-key".to_string();
@@ -777,8 +828,8 @@ mod tests {
             format!("{:?}", connector.select_object_content().await.unwrap())
         );
     }
-    #[tokio::test]
-    async fn test_select_object_json_lines() {
+    #[async_std::test]
+    async fn json_lines() {
         let mut connector = BucketSelect::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "my-key".to_string();
@@ -813,8 +864,8 @@ mod tests {
             format!("{:?}", connector.select_object_content().await.unwrap())
         );
     }
-    #[tokio::test]
-    async fn test_select_object_csv_with_header() {
+    #[async_std::test]
+    async fn csv_with_header() {
         let mut connector = BucketSelect::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "my-key".to_string();
@@ -863,8 +914,8 @@ mod tests {
             format!("{:?}", connector.select_object_content().await.unwrap())
         );
     }
-    #[tokio::test]
-    async fn test_select_object_csv_without_header() {
+    #[async_std::test]
+    async fn csv_without_header() {
         let mut connector = BucketSelect::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "my-key".to_string();
@@ -912,6 +963,57 @@ mod tests {
         assert_eq!(
             format!("{:?}", select_object_content_expected),
             format!("{:?}", connector.select_object_content().await.unwrap())
+        );
+    }
+    #[async_std::test]
+    async fn paginator_stream() {
+        let mut connector = BucketSelect::default();
+        connector.path = "data/multi_lines.json".to_string();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.query = "select * from s3object".to_string();
+        connector.metadata = Metadata {
+            ..Json::default().metadata
+        };
+
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(paginator.is_parallelizable());
+
+        let mut stream = paginator.stream().await.unwrap();
+        assert!(
+            stream.next().await.transpose().unwrap().is_some(),
+            "Can't get the first reader."
+        );
+        assert!(
+            stream.next().await.transpose().unwrap().is_none(),
+            "Can't paginate more than one time."
+        );
+    }
+    #[async_std::test]
+    async fn paginator_stream_with_wildcard() {
+        let mut connector = BucketSelect::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/*.json$".to_string();
+        connector.query = "select * from s3object".to_string();
+        connector.limit = Some(5);
+        connector.skip = 1;
+        connector.metadata = Metadata {
+            ..Json::default().metadata
+        };
+
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(paginator.is_parallelizable());
+        println!("paginator {:?}", paginator);
+        let mut stream = paginator.stream().await.unwrap();
+
+        assert_eq!(
+            "data/multi_lines.json".to_string(),
+            stream.next().await.transpose().unwrap().unwrap().path()
+        );
+        assert_eq!(
+            "data/one_line.json".to_string(),
+            stream.next().await.transpose().unwrap().unwrap().path()
         );
     }
 }

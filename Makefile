@@ -37,13 +37,13 @@ release: ## Released the script in local
 test: start unit-tests integration-tests
 
 test\:docs:
-	@cargo test --doc
+	@cargo test --doc -- $(name)
 
 test\:libs:
-	@cargo test --lib
+	@cargo test --lib -- $(name)
 
 test\:integration:
-	@cargo test --tests
+	@cargo test --tests -- $(name)
 
 unit-tests: start test\:libs
 

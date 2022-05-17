@@ -117,7 +117,11 @@ impl Bucket {
             env::set_var("AWS_SECRET_ACCESS_KEY", secret);
         }
         let provider = CredentialsProviderChain::default_provider().await;
-        let endpoint = Endpoint::immutable(self.endpoint.parse().map_err(|e| Error::new(ErrorKind::InvalidInput, e))?);
+        let endpoint = Endpoint::immutable(
+            self.endpoint
+                .parse()
+                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
+        );
         let config = aws_config::from_env()
             .endpoint_resolver(endpoint)
             .region(Region::new(self.region.clone()))
@@ -150,8 +154,9 @@ impl Connector for Bucket {
     }
     /// See [`Connector::is_variable_path`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -170,7 +175,8 @@ impl Connector for Bucket {
     /// See [`Connector::is_resource_will_change`] for more details.
     ///
     /// # Example
-    /// ```rust
+    ///
+    /// ```no_run
     /// use chewdata::connector::{bucket::Bucket, Connector};
     /// use serde_json::Value;
     ///
@@ -213,8 +219,9 @@ impl Connector for Bucket {
     }
     /// See [`Connector::path`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -242,8 +249,9 @@ impl Connector for Bucket {
     }
     /// See [`Connector::len`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -271,7 +279,7 @@ impl Connector for Bucket {
                     "len() method not available for wildcard path.",
                 ));
             }
-            
+
             let len = match self
                 .client()
                 .await?
@@ -280,13 +288,17 @@ impl Connector for Bucket {
                 .bucket(self.bucket.clone())
                 .set_version_id(self.version.clone())
                 .send()
-                .await {
-                    Ok(res) => res.content_length() as usize,
-                    Err(e) => {
-                        warn!(error = format!("{:?}", e.to_string()).as_str(), "The connector can't find the length of the document");
-                        0_usize
-                    }
-                };
+                .await
+            {
+                Ok(res) => res.content_length() as usize,
+                Err(e) => {
+                    warn!(
+                        error = format!("{:?}", e.to_string()).as_str(),
+                        "The connector can't find the length of the document"
+                    );
+                    0_usize
+                }
+            };
 
             info!(len = len, "The connector found data in the resource");
             Ok(len)
@@ -295,8 +307,9 @@ impl Connector for Bucket {
     }
     /// See [`Connector::is_empty`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -323,8 +336,9 @@ impl Connector for Bucket {
     }
     /// See [`Connector::fetch`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{bucket::Bucket, Connector};
     /// use surf::http::Method;
     /// use std::io;
@@ -378,8 +392,9 @@ impl Connector for Bucket {
     }
     /// See [`Connector::send`] for more details.
     ///
-    /// # Example:
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use serde_json::{from_str, Value};
@@ -675,8 +690,9 @@ impl Paginator for BucketPaginator {
     }
     /// See [`Paginator::stream`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -689,62 +705,9 @@ impl Paginator for BucketPaginator {
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
+    ///     let mut stream = connector.paginator().await?.stream().await?;
     ///
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: With wildcard. List results are always returned in UTF-8 binary order
-    /// ```rust
-    /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = "http://localhost:9000".to_string();
-    ///     connector.bucket = "my-bucket".to_string();
-    ///     connector.path = "data/*.json*".to_string();
-    ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: With wildcard, limit and skip. List results are always returned in UTF-8 binary order
-    /// ```rust
-    /// use chewdata::connector::bucket::Bucket;
-    /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = "http://localhost:9000".to_string();
-    ///     connector.bucket = "my-bucket".to_string();
-    ///     connector.path = "data/*.json*".to_string();
-    ///     connector.limit = Some(5);
-    ///     connector.skip = 2;
-    ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     assert_eq!("data/multi_lines.jsonl".to_string(), stream.next().await.transpose()?.unwrap().path());
-    ///     assert_eq!("data/one_line.json".to_string(), stream.next().await.transpose()?.unwrap().path());
     ///
     ///     Ok(())
     /// }
@@ -774,5 +737,171 @@ impl Paginator for BucketPaginator {
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::json::Json;
+
+    #[test]
+    fn is_variable() {
+        let mut connector = Bucket::default();
+        assert_eq!(false, connector.is_variable());
+        let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
+        connector.set_parameters(params);
+        connector.path = "/dir/filename_{{ field }}.ext".to_string();
+        assert_eq!(true, connector.is_variable());
+    }
+    #[test]
+    fn is_resource_will_change() {
+        let mut connector = Bucket::default();
+        let params = serde_json::from_str(r#"{"field":"test"}"#).unwrap();
+        assert_eq!(
+            false,
+            connector.is_resource_will_change(Value::Null).unwrap()
+        );
+        connector.path = "/dir/static.ext".to_string();
+        assert_eq!(
+            false,
+            connector.is_resource_will_change(Value::Null).unwrap()
+        );
+        connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
+        assert_eq!(true, connector.is_resource_will_change(params).unwrap());
+    }
+    #[test]
+    fn path() {
+        let mut connector = Bucket::default();
+        connector.path = "/dir/filename_{{ field }}.ext".to_string();
+        let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
+        connector.set_parameters(params);
+        assert_eq!("/dir/filename_value.ext", connector.path());
+    }
+    #[async_std::test]
+    async fn len() {
+        let mut connector = Bucket::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/one_line.json".to_string();
+        connector.metadata = Metadata {
+            ..Json::default().metadata
+        };
+        assert!(
+            0 < connector.len().await.unwrap(),
+            "The length of the document is not greather than 0"
+        );
+        connector.path = "data/not-found-file".to_string();
+        assert_eq!(0, connector.len().await.unwrap());
+    }
+    #[async_std::test]
+    async fn is_empty() {
+        let mut connector = Bucket::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/one_line.json".to_string();
+        assert_eq!(false, connector.is_empty().await.unwrap());
+        connector.path = "data/not_found.json".to_string();
+        assert_eq!(true, connector.is_empty().await.unwrap());
+    }
+    #[async_std::test]
+    async fn fetch() {
+        let mut connector = Bucket::default();
+        assert_eq!(0, connector.inner().len());
+        connector.metadata = Metadata {
+            ..Json::default().metadata
+        };
+        connector.path = "data/one_line.json".to_string();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.fetch().await.unwrap();
+        assert!(
+            0 < connector.inner().len(),
+            "The inner connector should have a size upper than zero"
+        );
+    }
+    #[async_std::test]
+    async fn send() {
+        let mut connector = Bucket::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/out/test_bucket_send".to_string();
+        connector.erase().await.unwrap();
+        connector
+            .write(r#"[{"column1":"value1"}]"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        let mut connector_read = connector.clone();
+        connector_read.fetch().await.unwrap();
+        let mut buffer = String::default();
+        connector_read.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
+        connector_read.clear();
+        connector
+            .write(r#",{"column1":"value2"}]"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(Some(-1)).await.unwrap();
+        connector_read.fetch().await.unwrap();
+        let mut buffer = String::default();
+        connector_read.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
+    }
+    #[async_std::test]
+    async fn paginator_stream() {
+        let mut connector = Bucket::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/one_line.json".to_string();
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        assert!(
+            stream.next().await.transpose().unwrap().is_some(),
+            "Can't get the first reader."
+        );
+        assert!(
+            stream.next().await.transpose().unwrap().is_none(),
+            "Can't paginate more than one time."
+        );
+    }
+    #[async_std::test]
+    async fn paginator_stream_with_wildcard() {
+        let mut connector = Bucket::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/*.json*".to_string();
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        assert!(
+            stream.next().await.transpose().unwrap().is_some(),
+            "Can't get the first reader."
+        );
+        assert!(
+            stream.next().await.transpose().unwrap().is_some(),
+            "Can't get the second reader."
+        );
+    }
+    #[async_std::test]
+    async fn paginator_stream_with_wildcard_limit_skip() {
+        let mut connector = Bucket::default();
+        connector.endpoint = "http://localhost:9000".to_string();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "data/*.json*".to_string();
+        connector.limit = Some(5);
+        connector.skip = 2;
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        assert_eq!(
+            "data/multi_lines.jsonl".to_string(),
+            stream.next().await.transpose().unwrap().unwrap().path()
+        );
+        assert_eq!(
+            "data/one_line.json".to_string(),
+            stream.next().await.transpose().unwrap().unwrap().path()
+        );
     }
 }
