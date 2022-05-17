@@ -271,8 +271,8 @@ impl Connector for Bucket {
                     "len() method not available for wildcard path.",
                 ));
             }
-
-            let len = self
+            
+            let len = match self
                 .client()
                 .await?
                 .head_object()
@@ -280,9 +280,13 @@ impl Connector for Bucket {
                 .bucket(self.bucket.clone())
                 .set_version_id(self.version.clone())
                 .send()
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
-                .content_length() as usize;
+                .await {
+                    Ok(res) => res.content_length() as usize,
+                    Err(e) => {
+                        warn!(error = format!("{:?}", e.to_string()).as_str(), "The connector can't find the length of the document");
+                        0_usize
+                    }
+                };
 
             info!(len = len, "The connector found data in the resource");
             Ok(len)
