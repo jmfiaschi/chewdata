@@ -37,7 +37,7 @@ release: ## Released the script in local
 test: start unit-tests integration-tests
 
 test\:docs:
-	@cargo test --doc --package chewdata
+	@cargo test --doc
 
 test\:libs:
 	@cargo test --lib

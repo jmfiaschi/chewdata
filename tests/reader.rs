@@ -72,7 +72,7 @@ fn it_should_read_file_in_local_with_one_line() {
 #[cfg(feature = "use_bucket_connector")]
 #[test]
 fn it_should_read_file_in_bucket_with_one_line() {
-    let config = r#"[{"type":"r","connector":{"type":"bucket","bucket":"my-bucket","path":"data/one_line.json","endpoint": "{{ BUCKET_ENDPOINT }}","access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}","secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}"}},{"type":"w"}]"#;
+    let config = r#"[{"type":"r","connector":{"type":"bucket","bucket":"my-bucket","path":"data/one_line.json","endpoint": "{{ BUCKET_ENDPOINT }}"}},{"type":"w"}]"#;
     let output = Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
         .env("BUCKET_ENDPOINT", env::var("BUCKET_ENDPOINT").unwrap())
