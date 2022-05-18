@@ -447,7 +447,7 @@ mod tests {
     }
     #[async_std::test]
     async fn authenticate_with_token_in_param() {
-        let mut parameters: Value =
+        let parameters: Value =
             serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
         let mut refresh_connector = Curl::default();
         refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
