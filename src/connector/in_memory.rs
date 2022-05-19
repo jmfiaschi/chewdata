@@ -77,8 +77,10 @@ impl From<&str> for InMemory {
     }
 }
 
-impl InMemory {    
-    pub fn new(str: &str) -> InMemory { str.into() }
+impl InMemory {
+    pub fn new(str: &str) -> InMemory {
+        str.into()
+    }
 }
 
 #[async_trait]
@@ -93,8 +95,9 @@ impl Connector for InMemory {
     }
     /// See [`Connector::is_empty`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -114,8 +117,9 @@ impl Connector for InMemory {
     }
     /// See [`Connector::len`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -147,8 +151,9 @@ impl Connector for InMemory {
     }
     /// See [`Connector::fetch`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use async_std::io::{Read, Write};
@@ -171,7 +176,7 @@ impl Connector for InMemory {
         if !self.inner.get_ref().is_empty() {
             return Ok(());
         }
-        
+
         let resource = self.memory.lock().await;
         self.inner = io::Cursor::new(resource.get_ref().clone());
 
@@ -180,8 +185,9 @@ impl Connector for InMemory {
     }
     /// See [`Connector::erase`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -207,8 +213,9 @@ impl Connector for InMemory {
     }
     /// See [`Connector::send`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -219,21 +226,6 @@ impl Connector for InMemory {
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
     ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
     ///     connector.send(Some(0)).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
-    ///
-    ///     connector.write(r#"{"column1":"value3"}"#.as_bytes()).await?;
-    ///     connector.send(Some(-20)).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column1":"value1"}{"column1":"value3"}"#, buffer);
     ///
     ///     Ok(())
     /// }
@@ -325,8 +317,9 @@ impl Paginator for InMemoryPaginator {
     }
     /// See [`Paginator::stream`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -334,7 +327,7 @@ impl Paginator for InMemoryPaginator {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut connector = InMemory::default();
+    ///     let connector = InMemory::default();
     ///     let mut paginator = connector.paginator().await?;
     ///     assert!(!paginator.is_parallelizable());
     ///     let mut stream = paginator.stream().await?;
@@ -360,5 +353,83 @@ impl Paginator for InMemoryPaginator {
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_std::{io::{ReadExt, WriteExt}, prelude::StreamExt};
+    use super::*;
+
+    #[async_std::test]
+    async fn len() {
+        let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
+        assert!(
+            0 < connector.len().await.unwrap(),
+            "The length of the document is not greather than 0."
+        );
+    }
+    #[async_std::test]
+    async fn is_empty() {
+        let mut connector = InMemory::new("");
+        assert_eq!(true, connector.is_empty().await.unwrap());
+        let mut connector = InMemory::new("My text");
+        assert_eq!(false, connector.is_empty().await.unwrap());
+    }
+    #[async_std::test]
+    async fn fetch() {
+        let mut connector = InMemory::new("My text");
+        assert_eq!(0, connector.inner().len());
+        connector.fetch().await.unwrap();
+        assert!(
+            0 < connector.inner().len(),
+            "The inner connector should have a size upper than zero"
+        );
+    }
+    #[async_std::test]
+    async fn send() {
+        let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+        connector
+            .write(r#"{"column1":"value2"}"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(Some(0)).await.unwrap();
+        let mut connector_read = connector.clone();
+        connector_read.fetch().await.unwrap();
+        let mut buffer = String::default();
+        connector_read.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
+        connector
+            .write(r#"{"column1":"value3"}"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(Some(-20)).await.unwrap();
+        let mut connector_read = connector.clone();
+        connector_read.fetch().await.unwrap();
+        let mut buffer = String::default();
+        connector_read.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(r#"{"column1":"value1"}{"column1":"value3"}"#, buffer);
+    }
+    #[async_std::test]
+    async fn erase() {
+        let mut connector = InMemory::new("My text");
+        connector.erase().await.unwrap();
+        connector.fetch().await.unwrap();
+        assert_eq!(true, connector.inner().is_empty());
+    }
+    #[async_std::test]
+    async fn paginator_stream() {
+        let connector = InMemory::default();
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(!paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        assert!(
+            stream.next().await.transpose().unwrap().is_some(),
+            "Can't get the first reader."
+        );
+        assert!(
+            stream.next().await.transpose().unwrap().is_none(),
+            "Can't paginate more than one time."
+        );
     }
 }

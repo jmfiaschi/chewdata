@@ -93,7 +93,7 @@ impl Connector for Io {
         if !self.inner.get_ref().is_empty() {
             return Ok(());
         }
-        
+
         let stdin = BufReader::new(stdin());
 
         trace!("Fetch lines");
@@ -195,8 +195,9 @@ impl Paginator for IoPaginator {
     }
     /// See [`Paginator::stream`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::io::Io;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -204,11 +205,9 @@ impl Paginator for IoPaginator {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Io::default();
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(!paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
+    ///     let connector = Io::default();
+    /// 
+    ///     let mut stream = connector.paginator().await?.stream().await?;
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
@@ -233,5 +232,29 @@ impl Paginator for IoPaginator {
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_std::{
+        prelude::StreamExt,
+    };
+
+    #[async_std::test]
+    async fn paginator_stream() {
+        let connector = Io::default();
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(!paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        assert!(
+            stream.next().await.transpose().unwrap().is_some(),
+            "Can't get the first reader."
+        );
+        assert!(
+            stream.next().await.transpose().unwrap().is_some(),
+            "Can't get the second reader."
+        );
     }
 }

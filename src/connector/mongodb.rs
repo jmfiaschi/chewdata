@@ -120,8 +120,9 @@ impl Connector for Mongodb {
     }
     /// See [`Connector::is_empty`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -134,6 +135,7 @@ impl Connector for Mongodb {
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
     ///     assert_eq!(true, connector.is_empty().await?);
+    ///
     ///     Ok(())
     /// }
     /// ```
@@ -167,8 +169,9 @@ impl Connector for Mongodb {
     }
     /// See [`Connector::fetch`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -222,8 +225,9 @@ impl Connector for Mongodb {
     }
     /// See [`Connector::erase`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -267,8 +271,9 @@ impl Connector for Mongodb {
     }
     /// See [`Connector::send`] for more details.
     ///
-    /// # Example: Insert new data
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use serde_json::from_str;
@@ -284,87 +289,8 @@ impl Connector for Mongodb {
     ///     connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#)?;
     ///     connector.update_options = serde_json::from_str(r#"{"upsert":true}"#)?;
     ///     connector.erase().await?;
-    ///
     ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
     ///     connector.send(None).await?;
-    ///
-    ///     let mut buffer = String::default();
-    ///     let mut connector_reader = connector.clone();
-    ///     connector_reader.query = Default::default();
-    ///     connector_reader.fetch().await?;
-    ///     connector_reader.read_to_string(&mut buffer).await?;
-    ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
-    ///     assert_eq!("value1", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
-    ///
-    ///     connector.write(r#"[{"column1":"value2"}]"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
-    ///
-    ///     let mut buffer = String::default();
-    ///     let mut connector_reader = connector.clone();
-    ///     connector_reader.query = Default::default();
-    ///     connector_reader.fetch().await?;
-    ///     connector_reader.read_to_string(&mut buffer).await?;
-    ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
-    ///
-    ///     assert_eq!("value1", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
-    ///     assert_eq!("value2", docs[1].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Update old data
-    /// ```rust
-    /// use chewdata::connector::mongodb::Mongodb;
-    /// use chewdata::connector::Connector;
-    /// use serde_json::from_str;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Mongodb::default();
-    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-    ///     connector.database = "tests".into();
-    ///     connector.collection = "send_2".into();
-    ///     connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#)?;
-    ///     connector.update_options = serde_json::from_str(r#"{"upsert":true}"#)?;
-    ///     connector.erase().await?;
-    ///
-    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
-    ///
-    ///     let mut buffer = String::default();
-    ///     let mut connector_reader = connector.clone();
-    ///     connector_reader.query = Default::default();
-    ///     connector_reader.fetch().await?;
-    ///     connector_reader.read_to_string(&mut buffer).await?;
-    ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
-    ///     assert_eq!("value1", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
-    ///
-    ///     connector.query = serde_json::from_str(r#"{"column1":"value1"}"#)?;
-    ///     connector.write(r#"[{"column1":"value2"}]"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
-    ///
-    ///     let mut buffer = String::default();
-    ///     let mut connector_reader = connector.clone();
-    ///     connector_reader.query = Default::default();
-    ///     connector_reader.fetch().await?;
-    ///     connector_reader.read_to_string(&mut buffer).await?;
-    ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
-    ///     assert_eq!("value2", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
-    ///     let id = docs[0].as_document().unwrap().get_object_id("_id").unwrap().to_string();
-    ///
-    ///     connector.query = serde_json::from_str(format!(r#"{{"_id": {{"$oid":"{}"}}}}"#, id).as_str())?;
-    ///     connector.write(r#"[{"column1":"value3"}]"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
-    ///
-    ///     let mut buffer = String::default();
-    ///     let mut connector_reader = connector.clone();
-    ///     connector_reader.query = Default::default();
-    ///     connector_reader.fetch().await?;
-    ///     connector_reader.read_to_string(&mut buffer).await?;
-    ///     let docs: Vec<mongodb::bson::Bson> = from_str(buffer.as_str())?;
-    ///     assert_eq!("value3", docs[0].as_document().unwrap().get("column1").unwrap().as_str().unwrap());
     ///
     ///     Ok(())
     /// }
@@ -507,8 +433,9 @@ pub struct ScanCounter {
 impl ScanCounter {
     /// Get the number of items from the scan
     ///
-    /// # Example: Get the number
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::mongodb::{Mongodb, ScanCounter};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -522,25 +449,6 @@ impl ScanCounter {
     ///
     ///     let counter = ScanCounter::default();
     ///     assert!(counter.count(connector).await?.is_some());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Not get the number
-    /// ```rust
-    /// use chewdata::connector::mongodb::{Mongodb, ScanCounter};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Mongodb::default();
-    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-    ///     connector.database = "not_found".into();
-    ///     connector.collection = "startup_log".into();
-    ///
-    ///     let mut counter = ScanCounter::default();
-    ///     assert_eq!(Some(0), counter.count(connector).await?);
     ///
     ///     Ok(())
     /// }
@@ -624,8 +532,9 @@ impl OffsetPaginator {
 impl Paginator for OffsetPaginator {
     /// See [`Paginator::count`] for more details.
     ///
-    /// # Example: Paginate indefinitely with the offset paginator
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, OffsetPaginator, CounterType, ScanCounter}, Connector};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -639,7 +548,6 @@ impl Paginator for OffsetPaginator {
     ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator::default());
     ///
     ///     let mut paginator = connector.paginator().await?;
-    ///
     ///     assert!(paginator.count().await?.is_some());
     ///
     ///     Ok(())
@@ -662,7 +570,10 @@ impl Paginator for OffsetPaginator {
         if let Some(counter_type) = counter_type {
             self.count = counter_type.count(*connector.clone(), None).await?;
 
-            info!(size = self.count, "The connector's counter count elements in the collection with success");
+            info!(
+                size = self.count,
+                "The connector's counter count elements in the collection with success"
+            );
             return Ok(self.count);
         }
 
@@ -671,8 +582,9 @@ impl Paginator for OffsetPaginator {
     }
     /// See [`Paginator::stream`] for more details.
     ///
-    /// # Example: Paginate indefinitely with the offset paginator
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, OffsetPaginator}, Connector};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -688,56 +600,9 @@ impl Paginator for OffsetPaginator {
     ///         limit: 1,
     ///         ..Default::default()
     ///     });
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(!paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     let mut connector = stream.next().await.transpose()?.unwrap();
-    ///     connector.fetch().await?;
-    ///     let mut buffer1 = String::default();
-    ///     let len1 = connector.read_to_string(&mut buffer1).await?;
-    ///     assert!(true, "Can't read the content of the file.");
-    ///
-    ///     let mut connector = stream.next().await.transpose()?.unwrap();
-    ///     connector.fetch().await?;
-    ///     let mut buffer2 = String::default();
-    ///     let len2 = connector.read_to_string(&mut buffer2).await?;
-    ///     assert!(0 < len2, "Can't read the content of the file.");
-    ///     assert!(buffer1 != buffer2, "The content of this two files is not different.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Paginate three times with the offset paginator and the paginator can return multi connectors in parallel
-    /// ```rust
-    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, OffsetPaginator}, Connector};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Mongodb::default();
-    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
-    ///         skip: 0,
-    ///         limit: 1,
-    ///         count: Some(2),
-    ///         ..Default::default()
-    ///     });
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     let connector = stream.next().await.transpose()?;
-    ///     assert!(connector.is_some());
-    ///
-    ///     let connector = stream.next().await.transpose()?;
-    ///     assert!(connector.is_some());
-    ///
-    ///     let connector = stream.next().await.transpose()?;
-    ///     assert!(connector.is_none());
+    ///     let mut stream = connector.paginator().await?.stream().await?;
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
     ///     Ok(())
     /// }
@@ -837,8 +702,9 @@ impl Paginator for CursorPaginator {
     fn set_document(&mut self, _document: Box<dyn ChewdataDocument>) {}
     /// See [`Paginator::stream`] for more details.
     ///
-    /// # Example: Paginate to the next cursor
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, CursorPaginator}, Connector};
     /// use async_std::prelude::*;
     /// use std::io;
@@ -854,44 +720,9 @@ impl Paginator for CursorPaginator {
     ///         limit: 1,
     ///         ..Default::default()
     ///     });
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(!paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     let connector = stream.next().await.transpose()?;
-    ///     assert!(connector.is_some());
-    ///
-    ///     let connector = stream.next().await.transpose()?;
-    ///     assert!(connector.is_some());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Reach the end of the cursor
-    /// ```rust
-    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, CursorPaginator}, Connector};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Mongodb::default();
-    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
-    ///         skip: 0,
-    ///         ..Default::default()
-    ///     });
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(!paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     let connector = stream.next().await.transpose()?;
-    ///     assert!(connector.is_some());
-    ///
-    ///     let connector = stream.next().await.transpose()?;
-    ///     assert!(connector.is_none());
+    ///     let mut stream = connector.paginator().await?.stream().await?;
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
     ///     Ok(())
     /// }
@@ -983,5 +814,292 @@ impl Paginator for CursorPaginator {
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_std::{
+        io::{ReadExt, WriteExt},
+        prelude::StreamExt,
+    };
+
+    #[async_std::test]
+    async fn is_empty() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+        assert_eq!(true, connector.is_empty().await.unwrap());
+    }
+    #[async_std::test]
+    async fn fetch() {
+        let mut connector = Mongodb::default();
+        assert_eq!(0, connector.inner().len());
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+        connector.fetch().await.unwrap();
+        assert!(
+            0 < connector.inner().len(),
+            "The inner connector should have a size upper than zero"
+        );
+    }
+    #[async_std::test]
+    async fn send_new_data() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "tests".into();
+        connector.collection = "send_1".into();
+        connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#).unwrap();
+        connector.update_options = serde_json::from_str(r#"{"upsert":true}"#).unwrap();
+        connector.erase().await.unwrap();
+        connector
+            .write(r#"[{"column1":"value1"}]"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        let mut buffer = String::default();
+        let mut connector_reader = connector.clone();
+        connector_reader.query = Default::default();
+        connector_reader.fetch().await.unwrap();
+        connector_reader.read_to_string(&mut buffer).await.unwrap();
+        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
+        assert_eq!(
+            "value1",
+            docs[0]
+                .as_document()
+                .unwrap()
+                .get("column1")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        );
+        connector
+            .write(r#"[{"column1":"value2"}]"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        let mut buffer = String::default();
+        let mut connector_reader = connector.clone();
+        connector_reader.query = Default::default();
+        connector_reader.fetch().await.unwrap();
+        connector_reader.read_to_string(&mut buffer).await.unwrap();
+        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
+        assert_eq!(
+            "value1",
+            docs[0]
+                .as_document()
+                .unwrap()
+                .get("column1")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        );
+        assert_eq!(
+            "value2",
+            docs[1]
+                .as_document()
+                .unwrap()
+                .get("column1")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        );
+    }
+    #[async_std::test]
+    async fn send_existing_data() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "tests".into();
+        connector.collection = "send_2".into();
+        connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#).unwrap();
+        connector.update_options = serde_json::from_str(r#"{"upsert":true}"#).unwrap();
+        connector.erase().await.unwrap();
+        connector
+            .write(r#"[{"column1":"value1"}]"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        let mut buffer = String::default();
+        let mut connector_reader = connector.clone();
+        connector_reader.query = Default::default();
+        connector_reader.fetch().await.unwrap();
+        connector_reader.read_to_string(&mut buffer).await.unwrap();
+        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
+        assert_eq!(
+            "value1",
+            docs[0]
+                .as_document()
+                .unwrap()
+                .get("column1")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        );
+        connector.query = serde_json::from_str(r#"{"column1":"value1"}"#).unwrap();
+        connector
+            .write(r#"[{"column1":"value2"}]"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        let mut buffer = String::default();
+        let mut connector_reader = connector.clone();
+        connector_reader.query = Default::default();
+        connector_reader.fetch().await.unwrap();
+        connector_reader.read_to_string(&mut buffer).await.unwrap();
+        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
+        assert_eq!(
+            "value2",
+            docs[0]
+                .as_document()
+                .unwrap()
+                .get("column1")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        );
+        let id = docs[0]
+            .as_document()
+            .unwrap()
+            .get_object_id("_id")
+            .unwrap()
+            .to_string();
+        connector.query =
+            serde_json::from_str(format!(r#"{{"_id": {{"$oid":"{}"}}}}"#, id).as_str()).unwrap();
+        connector
+            .write(r#"[{"column1":"value3"}]"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        let mut buffer = String::default();
+        let mut connector_reader = connector.clone();
+        connector_reader.query = Default::default();
+        connector_reader.fetch().await.unwrap();
+        connector_reader.read_to_string(&mut buffer).await.unwrap();
+        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
+        assert_eq!(
+            "value3",
+            docs[0]
+                .as_document()
+                .unwrap()
+                .get("column1")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        );
+    }
+    #[async_std::test]
+    async fn erase() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "tests".into();
+        connector.collection = "erase".into();
+        connector
+            .write(r#"[{"column1":"value1"}]"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        connector.erase().await.unwrap();
+        connector.fetch().await.unwrap();
+        assert_eq!(
+            "[]".to_string(),
+            String::from_utf8(connector.inner().clone()).unwrap()
+        );
+    }
+    #[async_std::test]
+    async fn paginator_scan_counter_count() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+        let counter = ScanCounter::default();
+        assert!(counter.count(connector).await.unwrap().is_some());
+    }
+    #[async_std::test]
+    async fn paginator_scan_counter_count_none() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "not_found".into();
+        connector.collection = "startup_log".into();
+        let counter = ScanCounter::default();
+        assert_eq!(Some(0), counter.count(connector).await.unwrap());
+    }
+    #[async_std::test]
+    async fn paginator_offset_count() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+        connector.paginator_type = PaginatorType::Offset(OffsetPaginator::default());
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(paginator.count().await.unwrap().is_some());
+    }
+    #[async_std::test]
+    async fn paginator_offset_count_with_skip_and_limit() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+        connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
+            skip: 0,
+            limit: 1,
+            ..Default::default()
+        });
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(!paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        let mut connector = stream.next().await.transpose().unwrap().unwrap();
+        connector.fetch().await.unwrap();
+        let mut buffer1 = String::default();
+        let len1 = connector.read_to_string(&mut buffer1).await.unwrap();
+        assert!(0 < len1, "Can't read the content of the file.");
+        let mut connector = stream.next().await.transpose().unwrap().unwrap();
+        connector.fetch().await.unwrap();
+        let mut buffer2 = String::default();
+        let len2 = connector.read_to_string(&mut buffer2).await.unwrap();
+        assert!(0 < len2, "Can't read the content of the file.");
+        assert!(
+            buffer1 != buffer2,
+            "The content of this two files is not different."
+        );
+    }
+    #[async_std::test]
+    async fn paginator_cursor_stream() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+        connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
+            skip: 0,
+            limit: 1,
+            ..Default::default()
+        });
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(!paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+    }
+    #[async_std::test]
+    async fn paginator_cursor_stream_reach_end() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+        connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
+            skip: 0,
+            ..Default::default()
+        });
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(!paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_none());
     }
 }

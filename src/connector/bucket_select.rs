@@ -672,7 +672,7 @@ impl Paginator for BucketSelectPaginator {
     ///     };
     ///
     ///     let mut stream = connector.paginator().await?.stream().await?;
-    ///
+    ///     assert!(stream.next().await.is_some(), "Can't get the first reader.");
     ///     assert!(stream.next().await.is_some(), "Can't get the first reader.");
     ///
     ///     Ok(())

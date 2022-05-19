@@ -9,8 +9,8 @@ use glob::glob;
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, Map};
-use std::io::{BufReader, BufRead};
+use serde_json::{Map, Value};
+use std::io::{BufRead, BufReader};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::vec::IntoIter;
@@ -67,8 +67,9 @@ impl Local {
 impl Connector for Local {
     /// See [`Connector::path`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -82,7 +83,7 @@ impl Connector for Local {
     fn path(&self) -> String {
         let mut path = self.path.clone();
         let mut metadata = Map::default();
-        
+
         metadata.insert("metadata".to_string(), self.metadata().into());
         path.replace_mustache(Value::Object(metadata));
 
@@ -96,8 +97,9 @@ impl Connector for Local {
     }
     /// See [`Connector::len`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -140,8 +142,9 @@ impl Connector for Local {
     /// See [`Connector::is_empty`] for more details.
     /// Not work for wildcard path.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -190,8 +193,9 @@ impl Connector for Local {
     }
     /// See [`Connector::is_variable_path`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -215,8 +219,9 @@ impl Connector for Local {
     }
     /// See [`Connector::send`] for more details.
     ///
-    /// # Example:
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -229,30 +234,6 @@ impl Connector for Local {
     ///     connector.erase().await?;
     ///     connector.write(r#"{"column1":"value1"}"#.as_bytes()).await?;
     ///     connector.send(None).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column1":"value1"}"#, buffer);
-    ///
-    ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
-    ///     connector.send(Some(0)).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
-    ///
-    ///     connector.write(r#"{"column1":"value3"}"#.as_bytes()).await?;
-    ///     connector.send(Some(-20)).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"{"column1":"value1"}{"column1":"value3"}"#, buffer);
     ///
     ///     Ok(())
     /// }
@@ -292,8 +273,9 @@ impl Connector for Local {
     }
     /// See [`Connector::is_resource_will_change`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -342,8 +324,9 @@ impl Connector for Local {
     }
     /// See [`Connector::fetch`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use async_std::io::{Read, Write};
@@ -384,8 +367,9 @@ impl Connector for Local {
     }
     /// See [`Connector::erase`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -431,7 +415,10 @@ impl Connector for Local {
     #[instrument]
     async fn chunk(&self, start: usize, end: usize) -> Result<Vec<u8>> {
         if end < start {
-            return Err(Error::new(ErrorKind::InvalidInput, "The start 'value' parameter must be lower or equal to the 'end' value parameter"));
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "The start 'value' parameter must be lower or equal to the 'end' value parameter",
+            ));
         }
 
         let mut file = OpenOptions::new()
@@ -490,28 +477,7 @@ pub struct LocalPaginator {
 }
 
 impl LocalPaginator {
-    /// Paginate on each files.
-    ///
-    /// # Example
-    /// ```rust
-    /// use chewdata::connector::local::{Local, LocalPaginator};
-    /// use chewdata::connector::{Connector, Paginator, ConnectorType};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Local::default();
-    ///     connector.path = "./data/one_line.*".to_string();
-    ///     let mut paginator = LocalPaginator::new(connector)?;
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     assert_eq!(r#"data/one_line.csv"#, stream.next().await.transpose()?.unwrap().path());
-    ///     assert_eq!(r#"data/one_line.json"#, stream.next().await.transpose()?.unwrap().path());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
+    /// Create a new LocalPaginator and load in memory all file paths in the connector's path
     pub fn new(connector: Local) -> Result<Self> {
         if connector.path().is_empty() {
             return Err(Error::new(
@@ -553,8 +519,9 @@ impl Paginator for LocalPaginator {
     }
     /// See [`Paginator::stream`] for more details.
     ///
-    /// # Example
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -565,22 +532,9 @@ impl Paginator for LocalPaginator {
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/one_line.*".to_string();
     ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     let mut connector = stream.next().await.transpose()?.unwrap();
-    ///     connector.fetch().await?;
-    ///     let mut buffer1 = String::default();
-    ///     let len1 = connector.read_to_string(&mut buffer1).await?;
-    ///     assert!(0 < len1, "Can't read the content of the file.");
-    ///
-    ///     let mut connector = stream.next().await.transpose()?.unwrap();
-    ///     connector.fetch().await?;
-    ///     let mut buffer2 = String::default();
-    ///     let len2 = connector.read_to_string(&mut buffer2).await?;
-    ///     assert!(0 < len2, "Can't read the content of the file.");
-    ///     assert!(buffer1 != buffer2, "The content of this two files are not different.");
+    ///     let mut stream = connector.paginator().await?.stream().await?;
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
     ///     Ok(())
     /// }
@@ -608,5 +562,147 @@ impl Paginator for LocalPaginator {
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_std::{
+        io::{ReadExt, WriteExt},
+        prelude::StreamExt,
+    };
+
+    #[test]
+    fn is_variable() {
+        let mut connector = Local::default();
+        assert_eq!(false, connector.is_variable());
+        connector.path = "/dir/filename_{{ field }}.ext".to_string();
+        assert_eq!(true, connector.is_variable());
+    }
+    #[test]
+    fn is_resource_will_change() {
+        let mut connector = Local::default();
+        let params = serde_json::from_str(r#"{"field":"test"}"#).unwrap();
+        assert_eq!(
+            false,
+            connector.is_resource_will_change(Value::Null).unwrap()
+        );
+        connector.path = "/dir/static.ext".to_string();
+        assert_eq!(
+            false,
+            connector.is_resource_will_change(Value::Null).unwrap()
+        );
+        connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
+        assert_eq!(true, connector.is_resource_will_change(params).unwrap());
+    }
+    #[test]
+    fn path() {
+        let mut connector = Local::default();
+        connector.path = "/dir/filename_{{ field }}.ext".to_string();
+        let params: Value = serde_json::from_str(r#"{"field":"value"}"#).unwrap();
+        connector.set_parameters(params);
+        assert_eq!("/dir/filename_value.ext", connector.path());
+    }
+    #[async_std::test]
+    async fn len() {
+        let mut connector = Local::default();
+        connector.path = "./Cargo.toml".to_string();
+        assert!(
+            0 < connector.len().await.unwrap(),
+            "The length of the document is not greather than 0"
+        );
+        connector.path = "./not_found_file".to_string();
+        assert_eq!(0, connector.len().await.unwrap());
+    }
+    #[async_std::test]
+    async fn is_empty() {
+        let mut connector = Local::default();
+        connector.path = "./Cargo.toml".to_string();
+        assert_eq!(false, connector.is_empty().await.unwrap());
+        connector.path = "./null_file".to_string();
+        assert_eq!(true, connector.is_empty().await.unwrap());
+    }
+    #[async_std::test]
+    async fn fetch() {
+        let mut connector = Local::default();
+        assert_eq!(0, connector.inner().len());
+        connector.path = "./Cargo.toml".to_string();
+        connector.fetch().await.unwrap();
+        assert!(
+            0 < connector.inner().len(),
+            "The inner connector should have a size upper than zero"
+        );
+    }
+    #[async_std::test]
+    async fn send() {
+        let mut connector = Local::default();
+        connector.path = "./data/out/test_local_send".to_string();
+        connector.erase().await.unwrap();
+        connector
+            .write(r#"{"column1":"value1"}"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        let mut connector_read = connector.clone();
+        connector_read.fetch().await.unwrap();
+        let mut buffer = String::default();
+        connector_read.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(r#"{"column1":"value1"}"#, buffer);
+        connector
+            .write(r#"{"column1":"value2"}"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(Some(0)).await.unwrap();
+        let mut connector_read = connector.clone();
+        connector_read.fetch().await.unwrap();
+        let mut buffer = String::default();
+        connector_read.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
+        connector
+            .write(r#"{"column1":"value3"}"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(Some(-20)).await.unwrap();
+        let mut connector_read = connector.clone();
+        connector_read.fetch().await.unwrap();
+        let mut buffer = String::default();
+        connector_read.read_to_string(&mut buffer).await.unwrap();
+        assert_eq!(r#"{"column1":"value1"}{"column1":"value3"}"#, buffer);
+    }
+    #[async_std::test]
+    async fn erase() {
+        let mut connector = Local::default();
+        connector.path = "./data/out/test_local_erase".to_string();
+        connector
+            .write(r#"{"column1":"value1"}"#.as_bytes())
+            .await
+            .unwrap();
+        connector.send(None).await.unwrap();
+        connector.erase().await.unwrap();
+        connector.fetch().await.unwrap();
+        assert_eq!(true, connector.inner().is_empty());
+    }
+    #[async_std::test]
+    async fn paginator_header_counter_count() {
+        let mut connector = Local::default();
+        connector.path = "./data/one_line.*".to_string();
+        let mut paginator = connector.paginator().await.unwrap();
+        assert!(paginator.is_parallelizable());
+        let mut stream = paginator.stream().await.unwrap();
+        let mut connector = stream.next().await.transpose().unwrap().unwrap();
+        connector.fetch().await.unwrap();
+        let mut buffer1 = String::default();
+        let len1 = connector.read_to_string(&mut buffer1).await.unwrap();
+        assert!(0 < len1, "Can't read the content of the file.");
+        let mut connector = stream.next().await.transpose().unwrap().unwrap();
+        connector.fetch().await.unwrap();
+        let mut buffer2 = String::default();
+        let len2 = connector.read_to_string(&mut buffer2).await.unwrap();
+        assert!(0 < len2, "Can't read the content of the file.");
+        assert!(
+            buffer1 != buffer2,
+            "The content of this two files are not different."
+        );
     }
 }

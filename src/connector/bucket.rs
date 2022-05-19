@@ -408,23 +408,8 @@ impl Connector for Bucket {
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/out/test_bucket_send".to_string();
     ///     connector.erase().await?;
-    ///
     ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
     ///     connector.send(None).await?;
-    ///
-    ///     let mut connector_read = connector.clone();
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"}]"#, buffer);
-    ///     connector_read.clear();
-    ///
-    ///     connector.write(r#",{"column1":"value2"}]"#.as_bytes()).await?;
-    ///     connector.send(Some(-1)).await?;
-    ///     connector_read.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     connector_read.read_to_string(&mut buffer).await?;
-    ///     assert_eq!(r#"[{"column1":"value1"},{"column1":"value2"}]"#, buffer);
     ///
     ///     Ok(())
     /// }
@@ -706,7 +691,7 @@ impl Paginator for BucketPaginator {
     ///     connector.path = "data/one_line.json".to_string();
     ///
     ///     let mut stream = connector.paginator().await?.stream().await?;
-    ///
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///
     ///     Ok(())
