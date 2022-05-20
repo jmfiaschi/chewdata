@@ -2,8 +2,8 @@ extern crate csv;
 
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::{Dataset, DataResult};
 use crate::Metadata;
+use crate::{DataResult, Dataset};
 use async_std::io::prelude::WriteExt;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -146,8 +146,9 @@ impl Csv {
     }
     /// Read csv data with header.
     ///
-    /// # Example: Read csv document.
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
@@ -169,33 +170,6 @@ impl Csv {
     ///     let expected_data_2: Value = serde_json::from_str(r#"{"column1":"B1","column2":"B2"}"#)?;
     ///     assert_eq!(expected_data_1, data_1);
     ///     assert_eq!(expected_data_2, data_2);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Can't read csv document because not same column number.
-    /// ```
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::csv::Csv;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use chewdata::DataResult;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Csv::default();
-    ///     let mut connector = InMemory::new("column1,column2\nA1\n");
-    ///     connector.fetch().await?;
-    ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
-    ///
-    ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
-    ///     let data = dataset.next().await.unwrap();
-    ///     match data {
-    ///         DataResult::Ok(_) => assert!(false, "The line readed by the csv builder should be in error."),
-    ///         DataResult::Err(_) => ()
-    ///     };
     ///
     ///     Ok(())
     /// }
@@ -225,8 +199,9 @@ impl Csv {
     }
     /// Read csv data without header.
     ///
-    /// # Example
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
@@ -292,8 +267,9 @@ impl Document for Csv {
     }
     /// See [`Document::read_data`] for more details.
     ///
-    /// # Example
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
@@ -317,17 +293,7 @@ impl Document for Csv {
     ///     connector.fetch().await?;
     ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
     ///
-    ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_value();
-    ///     let expected_data: Value = serde_json::from_str(r#"{
-    ///     "string":"My text",
-    ///     "string_backspace":"My text with\n backspace",
-    ///     "special_char":"€",
-    ///     "int":10,
-    ///     "float":9.5,
-    ///     "bool":true
-    ///     }"#)?;
-    ///     assert_eq!(expected_data, data);
+    ///     let dataset = document.read_data(&mut boxed_connector).await?;
     ///
     ///     Ok(())
     /// }
@@ -348,8 +314,9 @@ impl Document for Csv {
     }
     /// See [`Document::write_data`] for more details.
     ///
-    /// # Example: Add header if connector data empty.
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::{DocumentType, csv::Csv};
     /// use chewdata::document::Document;
@@ -370,56 +337,16 @@ impl Document for Csv {
     ///
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
     ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#""column_1"
-    /// "line_1"
-    /// "line_2"
-    /// "#, &format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: handle complex csv
-    /// ```
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::{DocumentType, csv::Csv};
-    /// use chewdata::document::Document;
-    /// use chewdata::Metadata;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut metadata = Metadata::default();
-    ///     metadata.delimiter = Some("|".to_string());
-    ///
-    ///     let mut document = Csv::default();
-    ///     document.metadata = metadata;
-    ///
-    ///     let mut connector = InMemory::new(r#""#);
-    ///
-    ///     let complex_value: Value = serde_json::from_str(r#"{
-    ///     "string":"My text",
-    ///     "string_backspace":"My text with\n backspace",
-    ///     "special_char":"€",
-    ///     "int":10,
-    ///     "float":9.5,
-    ///     "bool":true
-    /// }"#).unwrap();
-    ///
-    ///     document.write_data(&mut connector, complex_value).await?;
-    ///     let expected_str = r#""string"|"string_backspace"|"special_char"|"int"|"float"|"bool"
-    /// "My text"|"My text with
-    ///  backspace"|"€"|10|9.5|"true"
-    /// "#;
-    ///     assert_eq!(expected_str, &format!("{}", connector));
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
     async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        let write_header = connector.metadata().has_headers.unwrap_or_else(|| self.metadata().has_headers.unwrap_or(false));
+        let write_header = connector
+            .metadata()
+            .has_headers
+            .unwrap_or_else(|| self.metadata().has_headers.unwrap_or(false));
         // Use a buffer here because the csv builder flush everytime it write something.
         let mut builder_writer = self.writer_builder().from_writer(vec![]);
 
@@ -469,5 +396,119 @@ impl Document for Csv {
                     .as_slice(),
             )
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_std::prelude::StreamExt;
+
+    use crate::connector::in_memory::InMemory;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn read_with_header() {
+        let document = Csv::default();
+        let mut connector = InMemory::new("column1,column2\nA1,A2\nB1,B2\n");
+        connector.fetch().await.unwrap();
+        let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
+        let mut dataset = document.read_data(&mut boxed_connector).await.unwrap();
+        let data_1 = dataset.next().await.unwrap().to_value();
+        let data_2 = dataset.next().await.unwrap().to_value();
+        let expected_data_1: Value =
+            serde_json::from_str(r#"{"column1":"A1","column2":"A2"}"#).unwrap();
+        let expected_data_2: Value =
+            serde_json::from_str(r#"{"column1":"B1","column2":"B2"}"#).unwrap();
+        assert_eq!(expected_data_1, data_1);
+        assert_eq!(expected_data_2, data_2);
+    }
+    #[async_std::test]
+    async fn not_read_with_header() {
+        let document = Csv::default();
+        let mut connector = InMemory::new("column1,column2\nA1\n");
+        connector.fetch().await.unwrap();
+        let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
+        let mut dataset = document.read_data(&mut boxed_connector).await.unwrap();
+        let data = dataset.next().await.unwrap();
+        match data {
+            DataResult::Ok(_) => assert!(
+                false,
+                "The line readed by the csv builder should be in error."
+            ),
+            DataResult::Err(_) => (),
+        };
+    }
+    #[async_std::test]
+    async fn read_without_header() {
+        let mut metadata = Metadata::default();
+        metadata.has_headers = Some(false);
+        let mut document = Csv::default();
+        document.metadata = metadata;
+        let mut connector = InMemory::new("A1,A2\nB1,B2\n");
+        connector.fetch().await.unwrap();
+        let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
+        let mut dataset = document.read_data(&mut boxed_connector).await.unwrap();
+        let data_1 = dataset.next().await.unwrap().to_value();
+        let data_2 = dataset.next().await.unwrap().to_value();
+        let expected_data_1 = Value::Array(vec![
+            Value::String("A1".to_string()),
+            Value::String("A2".to_string()),
+        ]);
+        let expected_data_2 = Value::Array(vec![
+            Value::String("B1".to_string()),
+            Value::String("B2".to_string()),
+        ]);
+        assert_eq!(expected_data_1, data_1);
+        assert_eq!(expected_data_2, data_2);
+    }
+    #[async_std::test]
+    async fn read_data() {
+        let mut metadata = Csv::default().metadata;
+        metadata.delimiter = Some("|".to_string());
+        let mut document = Csv::default();
+        document.metadata = metadata;
+        let mut connector = InMemory::new(
+            r#""string"|"string_backspace"|"special_char"|"int"|"float"|"bool"
+"My text"|"My text with
+ backspace"|"€"|10|9.5|"true"
+        "#,
+        );
+        connector.fetch().await.unwrap();
+        let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
+        let mut dataset = document.read_data(&mut boxed_connector).await.unwrap();
+        let data = dataset.next().await.unwrap().to_value();
+        let expected_data: Value = serde_json::from_str(r#"{
+            "string":"My text",
+            "string_backspace":"My text with\n backspace",
+            "special_char":"€",
+            "int":10,
+            "float":9.5,
+            "bool":true
+        }"#)
+        .unwrap();
+        assert_eq!(expected_data, data);
+    }
+    #[async_std::test]
+    async fn write_data_with_header() {
+        let mut document = Csv::default();
+        let mut connector = InMemory::new(r#""#);
+        let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        assert_eq!(
+            r#""column_1"
+"line_1"
+"#,
+            &format!("{}", connector)
+        );
+        let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        assert_eq!(
+            r#""column_1"
+"line_1"
+"line_2"
+"#,
+            &format!("{}", connector)
+        );
     }
 }
