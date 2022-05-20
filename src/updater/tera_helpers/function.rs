@@ -5,8 +5,9 @@ use uuid::Uuid;
 
 /// Return a generated v4 uuid.
 ///
-/// # Example: Generate default uuid.
-/// ```
+/// # Examples
+///
+/// ```no_run
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::function::uuid_v4;
@@ -16,43 +17,6 @@ use uuid::Uuid;
 /// let second_result = uuid_v4(&args);
 /// assert!(first_result.is_ok());
 /// assert!(second_result.is_ok());
-/// let first_value = first_result.unwrap();
-/// let second_value = second_result.unwrap();
-/// assert_ne!(first_value, second_value);
-/// ```
-/// # Example: Generate urn uuid.
-/// ```
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::uuid_v4;
-///
-/// let mut args = HashMap::new();
-/// args.insert("format".to_string(), Value::String("urn".to_string()));
-/// let first_result = uuid_v4(&args);
-/// let second_result = uuid_v4(&args);
-/// assert!(first_result.is_ok());
-/// let first_value = first_result.unwrap();
-/// assert!(first_value.to_string().contains("urn:uuid:"));
-/// assert!(second_result.is_ok());
-/// let second_value = second_result.unwrap();
-/// assert!(second_value.to_string().contains("urn:uuid:"));
-/// assert_ne!(first_value, second_value);
-/// ```
-/// # Example: Generate hyphenated uuid.
-/// ```
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::uuid_v4;
-///
-/// let mut args = HashMap::new();
-/// args.insert("format".to_string(), Value::String("hyphenated".to_string()));
-/// let first_result = uuid_v4(&args);
-/// let second_result = uuid_v4(&args);
-/// assert!(first_result.is_ok());
-/// assert!(second_result.is_ok());
-/// let first_value = first_result.unwrap();
-/// let second_value = second_result.unwrap();
-/// assert_ne!(first_value, second_value);
 /// ```
 pub fn uuid_v4(args: &HashMap<String, Value>) -> Result<Value> {
     let uuid = Uuid::new_v4();
@@ -72,8 +36,9 @@ pub fn uuid_v4(args: &HashMap<String, Value>) -> Result<Value> {
 
 /// Encode string to base64
 ///
-/// # Example
-/// ```
+/// # Examples
+///
+/// ```no_run
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::function::base64_encode;
@@ -82,18 +47,6 @@ pub fn uuid_v4(args: &HashMap<String, Value>) -> Result<Value> {
 /// args.insert("value".to_string(), Value::String("my_test".to_string()));
 /// let value = base64_encode(&args).unwrap();
 /// assert_eq!("bXlfdGVzdA==", value.as_str().unwrap());
-/// ```
-/// # Example: Encode with config.
-/// ```
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::base64_encode;
-///
-/// let mut args = HashMap::new();
-/// args.insert("value".to_string(), Value::String("my_test".to_string()));
-/// args.insert("config".to_string(), Value::String("STANDARD_NO_PAD".to_string()));
-/// let value = base64_encode(&args).unwrap();
-/// assert_eq!("bXlfdGVzdA", value.as_str().unwrap());
 /// ```
 pub fn base64_encode(args: &HashMap<String, Value>) -> Result<Value> {
     let decode_string = match args.get("value") {
@@ -140,26 +93,15 @@ pub fn base64_encode(args: &HashMap<String, Value>) -> Result<Value> {
 
 /// Decode base64 string.
 ///
-/// # Example
-/// ```
+/// # Examples
+///
+/// ```no_run
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::function::base64_decode;
 ///
 /// let mut args = HashMap::new();
 /// args.insert("value".to_string(), Value::String("bXlfdGVzdA".to_string()));
-/// let value = base64_decode(&args).unwrap();
-/// assert_eq!("my_test", value.as_str().unwrap());
-/// ```
-/// # Example: Decode with config.
-/// ```
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::base64_decode;
-///
-/// let mut args = HashMap::new();
-/// args.insert("value".to_string(), Value::String("bXlfdGVzdA".to_string()));
-/// args.insert("config".to_string(), Value::String("STANDARD_NO_PAD".to_string()));
 /// let value = base64_decode(&args).unwrap();
 /// assert_eq!("my_test", value.as_str().unwrap());
 /// ```
@@ -213,4 +155,86 @@ pub fn base64_decode(args: &HashMap<String, Value>) -> Result<Value> {
     };
 
     Ok(Value::String(decode_string))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uuid_v4_uuid() {
+        let args = HashMap::new();
+        let first_result = uuid_v4(&args);
+        let second_result = uuid_v4(&args);
+        assert!(first_result.is_ok());
+        assert!(second_result.is_ok());
+        let first_value = first_result.unwrap();
+        let second_value = second_result.unwrap();
+        assert_ne!(first_value, second_value);
+    }
+    #[test]
+    fn uuid_v4_urn() {
+        let mut args = HashMap::new();
+        args.insert("format".to_string(), Value::String("urn".to_string()));
+        let first_result = uuid_v4(&args);
+        let second_result = uuid_v4(&args);
+        assert!(first_result.is_ok());
+        let first_value = first_result.unwrap();
+        assert!(first_value.to_string().contains("urn:uuid:"));
+        assert!(second_result.is_ok());
+        let second_value = second_result.unwrap();
+        assert!(second_value.to_string().contains("urn:uuid:"));
+        assert_ne!(first_value, second_value);
+    }
+    #[test]
+    fn uuid_v4_hyphenated_uuid() {
+        let mut args = HashMap::new();
+        args.insert(
+            "format".to_string(),
+            Value::String("hyphenated".to_string()),
+        );
+        let first_result = uuid_v4(&args);
+        let second_result = uuid_v4(&args);
+        assert!(first_result.is_ok());
+        assert!(second_result.is_ok());
+        let first_value = first_result.unwrap();
+        let second_value = second_result.unwrap();
+        assert_ne!(first_value, second_value);
+    }
+    #[test]
+    fn base64_encode() {
+        let mut args = HashMap::new();
+        args.insert("value".to_string(), Value::String("my_test".to_string()));
+        let value = super::base64_encode(&args).unwrap();
+        assert_eq!("bXlfdGVzdA==", value.as_str().unwrap());
+    }
+    #[test]
+    fn base64_encode_with_config() {
+        let mut args = HashMap::new();
+        args.insert("value".to_string(), Value::String("my_test".to_string()));
+        args.insert(
+            "config".to_string(),
+            Value::String("STANDARD_NO_PAD".to_string()),
+        );
+        let value = super::base64_encode(&args).unwrap();
+        assert_eq!("bXlfdGVzdA", value.as_str().unwrap());
+    }
+    #[test]
+    fn base64_decode() {
+        let mut args = HashMap::new();
+        args.insert("value".to_string(), Value::String("bXlfdGVzdA".to_string()));
+        let value = super::base64_decode(&args).unwrap();
+        assert_eq!("my_test", value.as_str().unwrap());
+    }
+    #[test]
+    fn base64_decode_with_config() {
+        let mut args = HashMap::new();
+        args.insert("value".to_string(), Value::String("bXlfdGVzdA".to_string()));
+        args.insert(
+            "config".to_string(),
+            Value::String("STANDARD_NO_PAD".to_string()),
+        );
+        let value = super::base64_decode(&args).unwrap();
+        assert_eq!("my_test", value.as_str().unwrap());
+    }
 }
