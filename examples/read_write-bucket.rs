@@ -6,7 +6,7 @@ use tracing_subscriber;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
-#[tokio::main]
+#[async_std::main]
 async fn main() -> io::Result<()> {
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let subscriber = tracing_subscriber::fmt()
@@ -25,8 +25,6 @@ async fn main() -> io::Result<()> {
                 "bucket": "my-bucket",
                 "path": "data/out/db.jsonl",
                 "endpoint":"{{ BUCKET_ENDPOINT }}",
-                "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
-                "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
                 "region": "{{ BUCKET_REGION }}"
             }
         },
@@ -57,8 +55,6 @@ async fn main() -> io::Result<()> {
                 "bucket": "my-bucket",
                 "path": "data/out/db.jsonl",
                 "endpoint":"{{ BUCKET_ENDPOINT }}",
-                "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
-                "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
                 "region": "{{ BUCKET_REGION }}",
                 "tags": {
                     "service:writer:owner": "my_team_name",
@@ -68,7 +64,7 @@ async fn main() -> io::Result<()> {
             },
             "document" : {
                 "type": "jsonl",
-                "pretty": true
+                "is_pretty": true
             }
         }
     ]

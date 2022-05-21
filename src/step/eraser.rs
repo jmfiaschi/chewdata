@@ -2,7 +2,7 @@ use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, StepContext};
 use async_trait::async_trait;
-use crossbeam::channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender};
 use futures::StreamExt;
 use serde::Deserialize;
 use std::{fmt, io};
@@ -35,7 +35,7 @@ impl Default for Eraser {
         let uuid = Uuid::new_v4();
         Eraser {
             connector_type: ConnectorType::default(),
-            name: uuid.to_simple().to_string(),
+            name: uuid.simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             exclude_paths: Vec::default(),

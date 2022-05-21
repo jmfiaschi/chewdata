@@ -3,7 +3,7 @@ use crate::document::DocumentType;
 use crate::step::{DataResult, Step};
 use crate::StepContext;
 use async_trait::async_trait;
-use crossbeam::channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};
@@ -43,7 +43,7 @@ impl Default for Writer {
         Writer {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
-            name: uuid.to_simple().to_string(),
+            name: uuid.simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1000,

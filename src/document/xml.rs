@@ -206,8 +206,9 @@ impl Document for Xml {
     }
     /// See [`Document::read_data`] for more details.
     ///
-    /// # Example: Should read data in key of an xml object
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
@@ -232,37 +233,6 @@ impl Document for Xml {
     ///
     ///     let data_2 = dataset.next().await.unwrap().to_value();
     ///     let expected_data_2: Value = serde_json::from_str(r#"{"key_1":"value_2"}"#)?;
-    ///     assert_eq!(expected_data_2, data_2);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Should read data in body of an xml object
-    /// ```
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Xml::default();
-    ///     document.entry_path = "/root/*/item".to_string();
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"<root>
-    ///     <item>value_1</item>
-    ///     <item>value_2</item>
-    ///     </root>"#));
-    ///     connector.fetch().await?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data_1 = dataset.next().await.unwrap().to_value();
-    ///     let expected_data_1: Value = serde_json::from_str(r#"{"_":"value_1"}"#)?;
-    ///     assert_eq!(expected_data_1, data_1);
-    ///
-    ///     let data_2 = dataset.next().await.unwrap().to_value();
-    ///     let expected_data_2: Value = serde_json::from_str(r#"{"_":"value_2"}"#)?;
     ///     assert_eq!(expected_data_2, data_2);
     ///
     ///     Ok(())
@@ -325,8 +295,9 @@ impl Document for Xml {
     }
     /// See [`Document::write_data`] for more details.
     ///
-    /// # Example: Write multi data into empty inner document.
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
@@ -343,14 +314,6 @@ impl Document for Xml {
     ///     let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#)?;
     ///     document.write_data(&mut connector, value).await?;
     ///     assert_eq!(r#"<item><object column_1="line_1"/></item>"#, &format!("{}", connector));
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_2"}]}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#"<item><object column_1="line_1"/></item><item><object column_1="line_2"/></item>"#, &format!("{}", connector));
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"object":[{"_":"line_3"}]}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#"<item><object column_1="line_1"/></item><item><object column_1="line_2"/></item><item><object>line_3</object></item>"#, &format!("{}", connector));
     ///
     ///     Ok(())
     /// }
@@ -375,8 +338,9 @@ impl Document for Xml {
     }
     /// See [`Document::close`] for more details.
     ///
-    /// # Example: Remote document don't have data.
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
@@ -398,52 +362,6 @@ impl Document for Xml {
     ///     Ok(())
     /// }
     /// ```
-    /// # Example: Remote document has empty data.
-    /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Xml::default();
-    ///     let mut connector = InMemory::new(r#"<root></root>"#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.close(&mut connector).await?;
-    ///     assert_eq!(r#"<root><item column_1="line_1"/></root>"#, format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Remote document has data.
-    /// ```rust
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Xml::default();
-    ///     let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
-    ///
-    ///     document.write_data(&mut connector, value).await?;
-    ///     document.close(&mut connector).await?;
-    ///     assert_eq!(r#"<item column_1="line_2"/></root>"#, format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
     #[instrument]
     async fn close(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
         let remote_len = connector.len().await?;
@@ -454,9 +372,7 @@ impl Document for Xml {
         let header = self.header(connector).await?;
         let footer = self.footer(connector).await?;
 
-        if remote_len == 0
-            || remote_len == header.len() + footer.len()
-        {
+        if remote_len == 0 || remote_len == header.len() + footer.len() {
             connector.write_all(&header).await?;
             connector.write_all(&buff).await?;
             connector.write_all(&footer).await?;
@@ -471,8 +387,9 @@ impl Document for Xml {
     }
     /// See [`Document::has_data`] for more details.
     ///
-    /// # Example: Empty data
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
@@ -497,57 +414,14 @@ impl Document for Xml {
     ///     let mut buffer = Vec::default();
     ///     connector.read_to_end(&mut buffer).await?;
     ///     assert_eq!(false, document.has_data(&buffer).unwrap());
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Empty remote document
-    /// ```
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Xml::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    ///     connector.fetch().await?;
-    ///     document.entry_path = "/root/*/item".to_string();
-    ///
-    ///     let mut buffer = Vec::default();
-    ///     connector.read_to_end(&mut buffer).await?;
-    ///     assert_eq!(false, document.has_data(&buffer).unwrap());
     ///
     ///     Ok(())
     /// }
     /// ```
-    /// # Example: Not empty remote document
-    /// ```
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::xml::Xml;
-    /// use chewdata::document::Document;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Xml::default();
-    ///     let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
-    ///     connector.fetch().await?;
-    ///     document.entry_path = "/root/*/item".to_string();
-    ///
-    ///     let mut buffer = Vec::default();
-    ///     connector.read_to_end(&mut buffer).await?;
-    ///     assert_eq!(true, document.has_data(&buffer).unwrap());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    fn has_data(&self, buf: &Vec<u8>) -> io::Result<bool> {
-        let str = std::str::from_utf8(buf)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-            
+    fn has_data(&self, buf: &[u8]) -> io::Result<bool> {
+        let str =
+            std::str::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
         let data_value = jxon::xml_to_json(str)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
@@ -556,5 +430,149 @@ impl Document for Xml {
         }
 
         Ok(!buf.is_empty())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_std::prelude::StreamExt;
+
+    use crate::connector::in_memory::InMemory;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn read_data_in_target_position() {
+        let mut document = Xml::default();
+        document.entry_path = "/root/*/item".to_string();
+        let mut connector: Box<dyn Connector> = Box::new(InMemory::new(
+            r#"<root>
+<item key_1="value_1" />
+<item key_1="value_2" />
+</root>"#,
+        ));
+        connector.fetch().await.unwrap();
+        let mut dataset = document.read_data(&mut connector).await.unwrap();
+        let data_1 = dataset.next().await.unwrap().to_value();
+        let expected_data_1: Value = serde_json::from_str(r#"{"key_1":"value_1"}"#).unwrap();
+        assert_eq!(expected_data_1, data_1);
+        let data_2 = dataset.next().await.unwrap().to_value();
+        let expected_data_2: Value = serde_json::from_str(r#"{"key_1":"value_2"}"#).unwrap();
+        assert_eq!(expected_data_2, data_2);
+    }
+    #[async_std::test]
+    async fn read_data_in_body() {
+        let mut document = Xml::default();
+        document.entry_path = "/root/*/item".to_string();
+        let mut connector: Box<dyn Connector> = Box::new(InMemory::new(
+            r#"<root>
+<item>value_1</item>
+<item>value_2</item>
+</root>"#,
+        ));
+        connector.fetch().await.unwrap();
+        let mut dataset = document.read_data(&mut connector).await.unwrap();
+        let data_1 = dataset.next().await.unwrap().to_value();
+        let expected_data_1: Value = serde_json::from_str(r#"{"_":"value_1"}"#).unwrap();
+        assert_eq!(expected_data_1, data_1);
+        let data_2 = dataset.next().await.unwrap().to_value();
+        let expected_data_2: Value = serde_json::from_str(r#"{"_":"value_2"}"#).unwrap();
+        assert_eq!(expected_data_2, data_2);
+    }
+    #[async_std::test]
+    async fn write_data() {
+        let mut document = Xml::default();
+        let mut connector = InMemory::new(r#""#);
+        document.entry_path = "/root/*/item".to_string();
+        let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        assert_eq!(
+            r#"<item><object column_1="line_1"/></item>"#,
+            &format!("{}", connector)
+        );
+        let value: Value = serde_json::from_str(r#"{"object":[{"column_1":"line_2"}]}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        assert_eq!(
+            r#"<item><object column_1="line_1"/></item><item><object column_1="line_2"/></item>"#,
+            &format!("{}", connector)
+        );
+        let value: Value = serde_json::from_str(r#"{"object":[{"_":"line_3"}]}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        assert_eq!(
+            r#"<item><object column_1="line_1"/></item><item><object column_1="line_2"/></item><item><object>line_3</object></item>"#,
+            &format!("{}", connector)
+        );
+    }
+    #[async_std::test]
+    async fn close_with_empty_buffer() {
+        let mut document = Xml::default();
+        let mut connector = InMemory::new(r#""#);
+        let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        document.close(&mut connector).await.unwrap();
+        assert_eq!(
+            r#"<root><item column_1="line_1"/></root>"#,
+            format!("{}", connector)
+        );
+    }
+    #[async_std::test]
+    async fn close_with_empty_collection() {
+        let mut document = Xml::default();
+        let mut connector = InMemory::new(r#"<root></root>"#);
+        let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        document.close(&mut connector).await.unwrap();
+        assert_eq!(
+            r#"<root><item column_1="line_1"/></root>"#,
+            format!("{}", connector)
+        );
+    }
+    #[async_std::test]
+    async fn close_with_data_in_buffer() {
+        let mut document = Xml::default();
+        let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
+        let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        document.close(&mut connector).await.unwrap();
+        assert_eq!(
+            r#"<item column_1="line_2"/></root>"#,
+            format!("{}", connector)
+        );
+    }
+    #[async_std::test]
+    async fn has_data_with_empty_document() {
+        let mut document = Xml::default();
+        let mut connector = InMemory::new(r#"<root></root>"#);
+        connector.fetch().await.unwrap();
+        document.entry_path = "/root/*/item".to_string();
+        let mut buffer = Vec::default();
+        connector.read_to_end(&mut buffer).await.unwrap();
+        assert_eq!(false, document.has_data(&buffer).unwrap());
+        let mut connector = InMemory::new(r#"<root/>"#);
+        connector.fetch().await.unwrap();
+        document.entry_path = "/root/*/item".to_string();
+        let mut buffer = Vec::default();
+        connector.read_to_end(&mut buffer).await.unwrap();
+        assert_eq!(false, document.has_data(&buffer).unwrap());
+    }
+    #[async_std::test]
+    async fn has_data_with_empty_remote_document() {
+        let mut document = Xml::default();
+        let mut connector = InMemory::new(r#""#);
+        connector.fetch().await.unwrap();
+        document.entry_path = "/root/*/item".to_string();
+        let mut buffer = Vec::default();
+        connector.read_to_end(&mut buffer).await.unwrap();
+        assert_eq!(false, document.has_data(&buffer).unwrap());
+    }
+    #[async_std::test]
+    async fn has_data_with_not_empty_remote_document() {
+        let mut document = Xml::default();
+        let mut connector = InMemory::new(r#"<root><item column_1="line_1"/></root>"#);
+        connector.fetch().await.unwrap();
+        document.entry_path = "/root/*/item".to_string();
+        let mut buffer = Vec::default();
+        connector.read_to_end(&mut buffer).await.unwrap();
+        assert_eq!(true, document.has_data(&buffer).unwrap());
     }
 }

@@ -125,7 +125,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     /// Path of the document
     fn path(&self) -> String;
     /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send>>>;
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>>;
     /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
@@ -175,5 +175,5 @@ pub trait Paginator: std::fmt::Debug + Unpin {
     /// Some(count): Retrieve the total of item and store the value in the paginator.
     async fn count(&mut self) -> Result<Option<usize>>;
     /// Test if the paginator can be parallelizable.
-    fn is_parallelizable(&mut self) -> bool;
+    fn is_parallelizable(&self) -> bool;
 }

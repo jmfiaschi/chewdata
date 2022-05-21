@@ -1,7 +1,7 @@
 use super::json_pointer::JsonPointer;
+use json_value_resolve::Resolve;
 use regex::Regex;
 use serde_json::Value;
-use json_value_resolve::Resolve;
 
 const MUSTACHE_PATTERN: &str = "\\{{2}[^}]*\\}{2}";
 
@@ -17,7 +17,8 @@ impl Mustache for String {
     /// Test if the string contain mustache pattern.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```no_run
     /// use serde_json::Value;
     /// use chewdata::helper::mustache::Mustache;
     ///
@@ -30,10 +31,11 @@ impl Mustache for String {
         let reg = Regex::new(MUSTACHE_PATTERN).unwrap();
         reg.is_match(self.as_ref())
     }
-    /// Replace.
+    /// Replace mustache variables by the value
     ///
-    /// # Examples: Merge two array together.
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use serde_json::Value;
     /// use json_value_merge::Merge;
     /// use chewdata::helper::mustache::Mustache;
@@ -41,27 +43,12 @@ impl Mustache for String {
     /// let mut path = "my_path/{{ field_1 }}/{{ field_2 }}".to_string();
     ///
     /// let mut parameters = Value::default();
-    /// parameters.merge_in("/field_1", Value::String("var_1".to_string()));
-    /// parameters.merge_in("/field_2", Value::String("var_2".to_string()));
-    /// 
+    /// parameters.merge_in("/field_1", Value::String("var_1".to_string())).unwrap();
+    /// parameters.merge_in("/field_2", Value::String("var_2".to_string())).unwrap();
+    ///
     /// path.replace_mustache(parameters);
     ///
     /// assert_eq!("my_path/var_1/var_2", path.as_str());
-    /// ```
-    /// # Examples: Not remplace the pattern
-    /// ```
-    /// use serde_json::Value;
-    /// use json_value_merge::Merge;
-    /// use chewdata::helper::mustache::Mustache;
-    ///
-    /// let mut path = "my_path/{{ field_1 }}".to_string();
-    ///
-    /// let mut parameters = Value::default();
-    /// parameters.merge_in("/field_2", Value::String("var_2".to_string()));
-    ///
-    /// path.replace_mustache(parameters);
-    ///
-    /// assert_eq!("my_path/{{ field_1 }}", path.as_str());
     /// ```
     fn replace_mustache(&mut self, object: Value) {
         let mut resolved_path = self.to_owned();
@@ -109,12 +96,13 @@ impl Mustache for Value {
     /// Test if the object contain mustache pattern.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```no_run
     /// use serde_json::Value;
     /// use chewdata::helper::mustache::Mustache;
     ///
-    /// let mut value_1: Value = serde_json::from_str(r#"{"field":"{{ field_1 }}"}"#).unwrap();
-    /// let mut value_2: Value = serde_json::from_str(r#"{"field":"value_2"}"#).unwrap();
+    /// let value_1: Value = serde_json::from_str(r#"{"field":"{{ field_1 }}"}"#).unwrap();
+    /// let value_2: Value = serde_json::from_str(r#"{"field":"value_2"}"#).unwrap();
     ///
     /// assert_eq!(true, value_1.has_mustache());
     /// assert_eq!(false, value_2.has_mustache());
@@ -125,7 +113,8 @@ impl Mustache for Value {
     /// Replace mustache variable into a json value object.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```no_run
     /// use serde_json::Value;
     /// use json_value_merge::Merge;
     /// use chewdata::helper::mustache::Mustache;
@@ -133,28 +122,12 @@ impl Mustache for Value {
     /// let mut value: Value = serde_json::from_str(r#"{"field":"{{ field_1 }}"}"#).unwrap();
     ///
     /// let mut parameters = Value::default();
-    /// parameters.merge_in("/field_1", Value::String("var_1".to_string()));
-    /// parameters.merge_in("/field_2", Value::String("var_2".to_string()));
+    /// parameters.merge_in("/field_1", Value::String("var_1".to_string())).unwrap();
+    /// parameters.merge_in("/field_2", Value::String("var_2".to_string())).unwrap();
     ///
     /// value.replace_mustache(parameters);
     ///
     /// assert_eq!(r#"{"field":"var_1"}"#, value.to_string().as_str());
-    /// ```
-    /// # Examples: Resolve bool & number
-    /// ```
-    /// use serde_json::{Value, Number};
-    /// use json_value_merge::Merge;
-    /// use chewdata::helper::mustache::Mustache;
-    ///
-    /// let mut value: Value = serde_json::from_str(r#"{"number":"{{ number }}","bool":"{{ bool }}"}"#).unwrap();
-    ///
-    /// let mut parameters = Value::default();
-    /// parameters.merge_in("/number", serde_json::from_str("10").unwrap());
-    /// parameters.merge_in("/bool", serde_json::from_str("true").unwrap());
-    ///
-    /// value.replace_mustache(parameters);
-    ///
-    /// assert_eq!(r#"{"number":10,"bool":true}"#, value.to_string().as_str());
     /// ```
     fn replace_mustache(&mut self, object: Value) {
         value_replace_mustache(self, &object);
@@ -179,10 +152,8 @@ fn value_has_mustache(value: &Value) -> bool {
             }
             false
         }
-        Value::String(a) => {
-            a.has_mustache()
-        }
-        _ => false
+        Value::String(a) => a.has_mustache(),
+        _ => false,
     }
 }
 
@@ -204,6 +175,60 @@ fn value_replace_mustache(value: &mut Value, object: &Value) {
                 *value = Value::resolve(a.clone());
             }
         }
-        _ => ()
+        _ => (),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use json_value_merge::Merge;
+
+    use super::*;
+
+    #[test]
+    fn string_has_mustache() {
+        let mustache_string = "my value: {{ field }}".to_string();
+        assert_eq!(true, mustache_string.has_mustache());
+        let mustache_string = "my value".to_string();
+        assert_eq!(false, mustache_string.has_mustache());
+    }
+    #[test]
+    fn string_replace_mustache() {
+        let mustache_string = "my value: {{ field }}".to_string();
+        assert_eq!(true, mustache_string.has_mustache());
+        let mustache_string = "my value".to_string();
+        assert_eq!(false, mustache_string.has_mustache());
+    }
+    #[test]
+    fn string_replace_mustache_not_found_pattern() {
+        let mut path = "my_path/{{ field_1 }}".to_string();
+        let mut parameters = Value::default();
+        parameters.merge_in("/field_2", Value::String("var_2".to_string())).unwrap();
+        path.replace_mustache(parameters);
+        assert_eq!("my_path/{{ field_1 }}", path.as_str());
+    }
+    #[test]
+    fn value_has_mustache() {
+        let value_1: Value = serde_json::from_str(r#"{"field":"{{ field_1 }}"}"#).unwrap();
+        let value_2: Value = serde_json::from_str(r#"{"field":"value_2"}"#).unwrap();
+        assert_eq!(true, value_1.has_mustache());
+        assert_eq!(false, value_2.has_mustache());
+    }
+    #[test]
+    fn value_replace_mustache() {
+        let mut value: Value = serde_json::from_str(r#"{"field":"{{ field_1 }}"}"#).unwrap();
+        let mut parameters = Value::default();
+        parameters.merge_in("/field_1", Value::String("var_1".to_string())).unwrap();
+        parameters.merge_in("/field_2", Value::String("var_2".to_string())).unwrap();
+        value.replace_mustache(parameters);
+        assert_eq!(r#"{"field":"var_1"}"#, value.to_string().as_str());
+
+        let mut value: Value =
+            serde_json::from_str(r#"{"number":"{{ number }}","bool":"{{ bool }}"}"#).unwrap();
+        let mut parameters = Value::default();
+        parameters.merge_in("/number", serde_json::from_str("10").unwrap()).unwrap();
+        parameters.merge_in("/bool", serde_json::from_str("true").unwrap()).unwrap();
+        value.replace_mustache(parameters);
+        assert_eq!(r#"{"number":10,"bool":true}"#, value.to_string().as_str());
     }
 }

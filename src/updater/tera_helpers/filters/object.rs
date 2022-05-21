@@ -6,8 +6,9 @@ use tera::*;
 
 /// Merge two Value together.
 ///
-/// # Example: Merge single array of scalar.
-/// ```
+/// # Examples
+///
+/// ```no_run
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use json_value_merge::Merge;
@@ -23,75 +24,6 @@ use tera::*;
 /// let result = merge(&obj, &args);
 /// assert!(result.is_ok());
 /// assert_eq!(Value::String("b".to_string()), result.unwrap());
-/// ```
-/// # Example: Merge single array of objects.
-/// ```
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use json_value_merge::Merge;
-/// use chewdata::updater::tera_helpers::filters::object::merge;
-///
-/// let mut array: Vec<Value> = Vec::default();
-/// array.push(serde_json::from_str(r#"{"field1":"value1"}"#).unwrap());
-/// array.push(serde_json::from_str(r#"{"field2":"value2"}"#).unwrap());
-///
-/// let obj = Value::Array(array);
-/// let args = HashMap::new();
-///
-/// let result = merge(&obj, &args);
-/// assert!(result.is_ok());
-/// assert_eq!(
-///     serde_json::from_str::<Value>(r#"{"field1":"value1","field2":"value2"}"#).unwrap(),
-///     result.unwrap()
-/// );
-/// ```
-/// # Example: Merge one object with another.
-/// ```
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use json_value_merge::Merge;
-/// use chewdata::updater::tera_helpers::filters::object::merge;
-///
-/// let mut obj = Value::default();
-/// obj.merge_in("/field", Value::String("value".to_string()));
-///
-/// let mut with = Value::default();
-/// with.merge_in("/other_field", Value::String("other value".to_string()));
-///
-/// let mut args = HashMap::new();
-/// args.insert("with".to_string(), with.clone());
-///
-/// let result = merge(&obj, &args);
-/// assert!(result.is_ok());
-/// assert_eq!(
-///     serde_json::from_str::<Value>(r#"{"field":"value","other_field":"other value"}"#)
-///         .unwrap(),
-///     result.unwrap()
-/// );
-/// ```
-/// # Example: Merge one object with another in specific path.
-/// ```
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use json_value_merge::Merge;
-/// use chewdata::updater::tera_helpers::filters::object::merge;
-///
-/// let mut obj = Value::default();
-/// obj.merge_in("/field", Value::String("value".to_string()));
-///
-/// let with = Value::String("other value".to_string());
-///
-/// let mut args = HashMap::new();
-/// args.insert("with".to_string(), with.clone());
-/// args.insert("in".to_string(), Value::String("/other_field".to_string()));
-///
-/// let result = merge(&obj, &args);
-/// assert!(result.is_ok());
-/// assert_eq!(
-///     serde_json::from_str::<Value>(r#"{"field":"value","other_field":"other value"}"#)
-///         .unwrap(),
-///     result.unwrap()
-/// );
 /// ```
 pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let mut new_value = Value::default();
@@ -139,8 +71,9 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 
 /// Search elements in object Value.
 ///
-/// # Example:
-/// ```
+/// # Examples
+///
+/// ```no_run
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use json_value_search::Search;
@@ -156,14 +89,14 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 /// let result = search(&obj, &args);
 /// assert!(result.is_ok());
 /// assert_eq!(serde_json::from_str::<Value>(r#"{"field_2":"value"}"#).unwrap(), result.unwrap());
-/// 
+///
 /// let mut args = HashMap::new();
 /// args.insert("path".to_string(), Value::String("/field_1/field_2".to_string()));
 ///
 /// let result = search(&obj, &args);
 /// assert!(result.is_ok());
 /// assert_eq!("value".to_string(), result.unwrap());
-/// 
+///
 /// let mut args = HashMap::new();
 /// args.insert("path".to_string(), Value::String("/field_1/not_found".to_string()));
 ///
@@ -173,10 +106,14 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 /// ```
 pub fn search(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let path = match args.get("path") {
-        Some(val) => val.as_str().ok_or("Function `search` can't get the `path` argument")?,
-        None => return Err(Error::msg(
-            "Function `search` didn't receive a `path` argument",
-        ))
+        Some(val) => val
+            .as_str()
+            .ok_or("Function `search` can't get the `path` argument")?,
+        None => {
+            return Err(Error::msg(
+                "Function `search` didn't receive a `path` argument",
+            ))
+        }
     };
 
     let new_value = match value.clone().search(path)? {
@@ -185,4 +122,96 @@ pub fn search(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     };
 
     Ok(new_value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merge_array_of_scalar() {
+        let mut array: Vec<Value> = Vec::default();
+        array.push(Value::String("a".to_string()));
+        array.push(Value::String("b".to_string()));
+        let obj = Value::Array(array);
+        let args = HashMap::new();
+        let result = super::merge(&obj, &args);
+        assert!(result.is_ok());
+        assert_eq!(Value::String("b".to_string()), result.unwrap());
+    }
+    #[test]
+    fn merge_array_of_object() {
+        let mut array: Vec<Value> = Vec::default();
+        array.push(serde_json::from_str(r#"{"field1":"value1"}"#).unwrap());
+        array.push(serde_json::from_str(r#"{"field2":"value2"}"#).unwrap());
+        let obj = Value::Array(array);
+        let args = HashMap::new();
+        let result = super::merge(&obj, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            serde_json::from_str::<Value>(r#"{"field1":"value1","field2":"value2"}"#).unwrap(),
+            result.unwrap()
+        );
+    }
+    #[test]
+    fn merge_objects() {
+        let mut obj = Value::default();
+        obj.merge_in("/field", Value::String("value".to_string())).unwrap();
+        let mut with = Value::default();
+        with.merge_in("/other_field", Value::String("other value".to_string())).unwrap();
+        let mut args = HashMap::new();
+        args.insert("with".to_string(), with.clone());
+        let result = super::merge(&obj, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            serde_json::from_str::<Value>(r#"{"field":"value","other_field":"other value"}"#)
+                .unwrap(),
+            result.unwrap()
+        );
+    }
+    #[test]
+    fn merge_objects_with_path() {
+        let mut obj = Value::default();
+        obj.merge_in("/field", Value::String("value".to_string())).unwrap();
+        let with = Value::String("other value".to_string());
+        let mut args = HashMap::new();
+        args.insert("with".to_string(), with.clone());
+        args.insert("in".to_string(), Value::String("/other_field".to_string()));
+        let result = super::merge(&obj, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            serde_json::from_str::<Value>(r#"{"field":"value","other_field":"other value"}"#)
+                .unwrap(),
+            result.unwrap()
+        );
+    }
+    #[test]
+    fn search() {
+        let mut obj = Value::default();
+        obj.merge_in("/field_1/field_2", Value::String("value".to_string())).unwrap();
+        let mut args = HashMap::new();
+        args.insert("path".to_string(), Value::String("/field_1".to_string()));
+        let result = super::search(&obj, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            serde_json::from_str::<Value>(r#"{"field_2":"value"}"#).unwrap(),
+            result.unwrap()
+        );
+        let mut args = HashMap::new();
+        args.insert(
+            "path".to_string(),
+            Value::String("/field_1/field_2".to_string()),
+        );
+        let result = super::search(&obj, &args);
+        assert!(result.is_ok());
+        assert_eq!("value".to_string(), result.unwrap());
+        let mut args = HashMap::new();
+        args.insert(
+            "path".to_string(),
+            Value::String("/field_1/not_found".to_string()),
+        );
+        let result = super::search(&obj, &args);
+        assert!(result.is_ok());
+        assert_eq!(Value::Null, result.unwrap());
+    }
 }

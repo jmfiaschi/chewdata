@@ -83,7 +83,7 @@ impl Default for ParquetOptions {
             max_row_group_size: None,
             dictionary_page_size_limit: None,
             data_page_size_limit: None,
-            version: Some(2)
+            version: Some(2),
         }
     }
 }
@@ -104,8 +104,9 @@ impl Document for Parquet {
     }
     /// See [`Document::read_data`] for more details.
     ///
-    /// # Example: Should read the array input data.
-    /// ```rust
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, local::Local};
     /// use chewdata::document::parquet::Parquet;
     /// use chewdata::document::Document;
@@ -121,60 +122,6 @@ impl Document for Parquet {
     ///
     ///     let mut dataset = document.read_data(&mut connector).await?;
     ///     let data = dataset.next().await.unwrap().to_value();
-    ///
-    ///     let json_expected_str = r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove"}"#;
-    ///     let expected_data: Value = serde_json::from_str(json_expected_str)?;
-    ///     assert_eq!(expected_data, data);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Should read specific data in the records and return each data.
-    /// ```rust
-    /// use chewdata::connector::{Connector, local::Local};
-    /// use chewdata::document::parquet::Parquet;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Parquet::default();
-    ///     document.entry_path = Some("/string".to_string());
-    ///     let mut connector: Box<dyn Connector> = Box::new(Local::new("./data/multi_lines.parquet".to_string()));
-    ///     connector.fetch().await?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_value();
-    ///
-    ///     let expected_data = Value::String("value to test".to_string());
-    ///     assert_eq!(expected_data, data);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Should not found the entry path.
-    /// ```rust
-    /// use chewdata::connector::{Connector, local::Local};
-    /// use chewdata::document::parquet::Parquet;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Parquet::default();
-    ///     document.entry_path = Some("/not_found".to_string());
-    ///     let mut connector: Box<dyn Connector> = Box::new(Local::new("./data/multi_lines.parquet".to_string()));
-    ///     connector.fetch().await?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_value();
-    ///
-    ///     let expected_data: Value = serde_json::from_str(r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Entry path '/not_found' not found."}"#)?;
-    ///     assert_eq!(expected_data, data);
     ///
     ///     Ok(())
     /// }
@@ -185,7 +132,7 @@ impl Document for Parquet {
         connector.read_to_end(&mut buf).await?;
 
         let cursor = SliceableCursor::new(buf);
-        
+
         let read_from_cursor = SerializedFileReader::new(cursor)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
@@ -342,8 +289,7 @@ impl Document for Parquet {
             )
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-            let decoder_options = DecoderOptions::new()
-                .with_batch_size(self.batch_size.clone());
+            let decoder_options = DecoderOptions::new().with_batch_size(self.batch_size);
 
             let decoder = Decoder::new(Arc::new(schema.clone()), decoder_options);
 
@@ -359,5 +305,50 @@ impl Document for Parquet {
         self.inner = Default::default();
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::connector::local::Local;
+    use async_std::prelude::StreamExt;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn read_data() {
+        let document = Parquet::default();
+        let mut connector: Box<dyn Connector> =
+            Box::new(Local::new("./data/multi_lines.parquet".to_string()));
+        connector.fetch().await.unwrap();
+        let mut dataset = document.read_data(&mut connector).await.unwrap();
+        let data = dataset.next().await.unwrap().to_value();
+        let json_expected_str = r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove"}"#;
+        let expected_data: Value = serde_json::from_str(json_expected_str).unwrap();
+        assert_eq!(expected_data, data);
+    }
+    #[async_std::test]
+    async fn read_data_in_target_position() {
+        let mut document = Parquet::default();
+        document.entry_path = Some("/string".to_string());
+        let mut connector: Box<dyn Connector> =
+            Box::new(Local::new("./data/multi_lines.parquet".to_string()));
+        connector.fetch().await.unwrap();
+        let mut dataset = document.read_data(&mut connector).await.unwrap();
+        let data = dataset.next().await.unwrap().to_value();
+        let expected_data = Value::String("value to test".to_string());
+        assert_eq!(expected_data, data);
+    }
+    #[async_std::test]
+    async fn read_data_without_finding_entry_path() {
+        let mut document = Parquet::default();
+        document.entry_path = Some("/not_found".to_string());
+        let mut connector: Box<dyn Connector> =
+            Box::new(Local::new("./data/multi_lines.parquet".to_string()));
+        connector.fetch().await.unwrap();
+        let mut dataset = document.read_data(&mut connector).await.unwrap();
+        let data = dataset.next().await.unwrap().to_value();
+        let expected_data: Value = serde_json::from_str(r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Entry path '/not_found' not found."}"#).unwrap();
+        assert_eq!(expected_data, data);
     }
 }

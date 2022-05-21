@@ -16,7 +16,7 @@ pub mod updater;
 
 use self::step::StepType;
 use async_std::task;
-use crossbeam::channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender};
 use futures::stream::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,7 @@ pub async fn exec(
     let mut previous_step_receiver = input_receiver;
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
-        let (sender, receiver) = crossbeam::channel::unbounded();
+        let (sender, receiver) = async_channel::unbounded();
         let mut step = step_type.step_inner().clone();
         let thread_number = step.thread_number();
 
@@ -156,37 +156,37 @@ impl Metadata {
     }
 }
 
-impl Into<Value> for Metadata {
-    fn into(self) -> Value {
+impl From<Metadata> for Value {
+    fn from(metadata: Metadata) -> Value {
         let mut options = Map::default();
-        if let Some(has_headers) = self.has_headers.clone() {
+        if let Some(has_headers) = metadata.has_headers {
             options.insert("has_headers".to_string(), Value::Bool(has_headers));
         }
-        if let Some(delimiter) = self.delimiter.clone() {
+        if let Some(delimiter) = metadata.delimiter.clone() {
             options.insert("delimiter".to_string(), Value::String(delimiter));
         }
-        if let Some(quote) = self.quote.clone() {
+        if let Some(quote) = metadata.quote.clone() {
             options.insert("quote".to_string(), Value::String(quote));
         }
-        if let Some(escape) = self.escape.clone() {
+        if let Some(escape) = metadata.escape.clone() {
             options.insert("escape".to_string(), Value::String(escape));
         }
-        if let Some(comment) = self.comment.clone() {
+        if let Some(comment) = metadata.comment.clone() {
             options.insert("comment".to_string(), Value::String(comment));
         }
-        if let Some(compression) = self.compression.clone() {
+        if let Some(compression) = metadata.compression.clone() {
             options.insert("compression".to_string(), Value::String(compression));
         }
-        if let Some(mime_type) = self.mime_type.clone() {
+        if let Some(mime_type) = metadata.mime_type.clone() {
             options.insert("mime_type".to_string(), Value::String(mime_type));
         }
-        if let Some(mime_subtype) = self.mime_subtype.clone() {
+        if let Some(mime_subtype) = metadata.mime_subtype.clone() {
             options.insert("mime_subtype".to_string(), Value::String(mime_subtype));
         }
-        if let Some(charset) = self.charset.clone() {
+        if let Some(charset) = metadata.charset.clone() {
             options.insert("charset".to_string(), Value::String(charset));
         }
-        if let Some(language) = self.language.clone() {
+        if let Some(language) = metadata.language {
             options.insert("language".to_string(), Value::String(language));
         }
 

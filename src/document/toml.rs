@@ -1,7 +1,7 @@
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::{Dataset, DataResult};
 use crate::Metadata;
+use crate::{DataResult, Dataset};
 use async_std::io::prelude::WriteExt;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -40,8 +40,9 @@ impl Document for Toml {
     }
     /// See [`Document::read_data`] for more details.
     ///
-    /// # Example: Should read toml data.
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::toml::Toml;
     /// use chewdata::document::Document;
@@ -91,8 +92,9 @@ impl Document for Toml {
     }
     /// See [`Document::write_data`] for more details.
     ///
-    /// # Example: Write multi data into empty inner document.
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::toml::Toml;
     /// use chewdata::document::Document;
@@ -108,12 +110,6 @@ impl Document for Toml {
     ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
     ///     document.write_data(&mut connector, value).await?;
     ///     assert_eq!(r#"column_1 = "line_1"
-    /// "#, &format!("{}", connector));
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#"column_1 = "line_1"
-    /// column_1 = "line_2"
     /// "#, &format!("{}", connector));
     ///
     ///     Ok(())
@@ -135,5 +131,51 @@ impl Document for Toml {
                 )
             })?;
         connector.write_all(toml.as_bytes()).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_std::prelude::StreamExt;
+
+    use crate::connector::in_memory::InMemory;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn read_data() {
+        let document = Toml::default();
+        let mut connector: Box<dyn Connector> = Box::new(InMemory::new(
+            r#"[Title]
+key_1 = "value_1"
+key_2 = "value_2"
+"#,
+        ));
+        connector.fetch().await.unwrap();
+        let mut dataset = document.read_data(&mut connector).await.unwrap();
+        let data = dataset.next().await.unwrap().to_value();
+        let expected_data: Value =
+            serde_json::from_str(r#"{"Title":{"key_1":"value_1","key_2":"value_2"}}"#).unwrap();
+        assert_eq!(expected_data, data);
+    }
+    #[async_std::test]
+    async fn write_data() {
+        let mut document = Toml::default();
+        let mut connector = InMemory::new(r#""#);
+        let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        assert_eq!(
+            r#"column_1 = "line_1"
+"#,
+            &format!("{}", connector)
+        );
+        let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
+        document.write_data(&mut connector, value).await.unwrap();
+        assert_eq!(
+            r#"column_1 = "line_1"
+column_1 = "line_2"
+"#,
+            &format!("{}", connector)
+        );
     }
 }

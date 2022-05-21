@@ -8,6 +8,7 @@ help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 build: ## Build the script in local
+	@cargo clean
 	@cargo build --all-targets --all-features
 
 run: ## Launch the script in local
@@ -32,18 +33,19 @@ example:
 	@cargo run --example $(name)
 
 release: ## Released the script in local
+	@cargo clean
 	@cargo build --release
 
 test: start unit-tests integration-tests
 
 test\:docs:
-	@cargo test --doc
+	@cargo test --doc -- $(name)
 
 test\:libs:
-	@cargo test --lib
+	@cargo test --lib -- $(name)
 
 test\:integration:
-	@cargo test --tests
+	@cargo test --tests -- $(name)
 
 unit-tests: start test\:libs
 

@@ -1,10 +1,13 @@
 use super::Authenticator;
 use crate::helper::mustache::Mustache;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fmt, io::{Error, ErrorKind, Result}};
-use async_trait::async_trait;
-use surf::{RequestBuilder, http::headers};
+use std::{
+    fmt,
+    io::{Error, ErrorKind, Result},
+};
+use surf::{http::headers, RequestBuilder};
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -20,15 +23,23 @@ pub struct Basic {
 
 impl fmt::Debug for Basic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut obfuscate_username = self
-            .username
-            .clone();
-        obfuscate_username.replace_range(0..(obfuscate_username.len()/2), (0..(obfuscate_username.len()/2)).map(|_| "#").collect::<String>().as_str());
+        let mut obfuscate_username = self.username.clone();
+        obfuscate_username.replace_range(
+            0..(obfuscate_username.len() / 2),
+            (0..(obfuscate_username.len() / 2))
+                .map(|_| "#")
+                .collect::<String>()
+                .as_str(),
+        );
 
-        let mut obfuscate_password = self
-            .password
-            .clone();
-        obfuscate_password.replace_range(0..(obfuscate_password.len()/2), (0..(obfuscate_password.len()/2)).map(|_| "#").collect::<String>().as_str());
+        let mut obfuscate_password = self.password.clone();
+        obfuscate_password.replace_range(
+            0..(obfuscate_password.len() / 2),
+            (0..(obfuscate_password.len() / 2))
+                .map(|_| "#")
+                .collect::<String>()
+                .as_str(),
+        );
 
         f.debug_struct("Basic")
             .field("username", &obfuscate_username)
@@ -51,14 +62,15 @@ impl Default for Basic {
 impl Basic {
     /// Get new authentification
     ///
-    /// # Example
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::authenticator::basic::Basic;
     ///
     /// let username = "my_username";
     /// let password = "my_password";
     ///
-    /// let mut auth = Basic::new(username, password);
+    /// let auth = Basic::new(username, password);
     ///
     /// assert_eq!(username, auth.username);
     /// assert_eq!(password, auth.password);
@@ -76,8 +88,9 @@ impl Basic {
 impl Authenticator for Basic {
     /// See [`Authenticator::authenticate`] for more details.
     ///
-    /// # Example: Should authenticate the http call
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, curl::Curl};
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
@@ -96,59 +109,6 @@ impl Authenticator for Basic {
     ///     connector.fetch().await?;
     ///     let mut buffer = String::default();
     ///     let len = connector.read_to_string(&mut buffer).await?;
-    ///     assert!(0 < len, "Should read one some bytes.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: failed the authentification
-    /// ```
-    /// use chewdata::connector::{Connector, curl::Curl};
-    /// use surf::http::Method;
-    /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new("bad_username", "bad_password"))));
-    ///     connector.method = Method::Get;
-    ///     connector.path = "/basic-auth/true_username/true_password".to_string();
-    ///     match connector.fetch().await {
-    ///         Ok(_) => assert!(false, "Should generate an error."),
-    ///         Err(_) => assert!(true),
-    ///     };
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    /// # Example: Set username/password with parameters
-    /// ```
-    /// use chewdata::connector::{Connector, curl::Curl};
-    /// use surf::http::Method;
-    /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let username = "{{ username }}";
-    ///     let password = "{{ password }}";
-    /// 
-    ///     let mut parameters: Value = serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#)?;
-    /// 
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(username, password))));
-    ///     connector.method = Method::Get;
-    ///     connector.path = format!("/basic-auth/{}/{}", "my_username", "my_password");
-    ///     connector.parameters = parameters;
-    ///     connector.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     let len = connector.read_to_string(&mut buffer).await?;;
     ///     assert!(0 < len, "Should read one some bytes.");
     ///
     ///     Ok(())
@@ -180,5 +140,72 @@ impl Authenticator for Basic {
     /// See [`Authenticator::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_std::io::ReadExt;
+    use http_types::Method;
+
+    use crate::connector::{authenticator::AuthenticatorType, curl::Curl, Connector};
+
+    use super::*;
+
+    #[test]
+    fn new() {
+        let username = "my_username";
+        let password = "my_password";
+        let auth = Basic::new(username, password);
+        assert_eq!(username, auth.username);
+        assert_eq!(password, auth.password);
+    }
+    #[async_std::test]
+    async fn authenticate() {
+        let username = "my_username";
+        let password = "my_password";
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
+            username, password,
+        ))));
+        connector.method = Method::Get;
+        connector.path = format!("/basic-auth/{}/{}", username, password);
+        connector.fetch().await.unwrap();
+        let mut buffer = String::default();
+        let len = connector.read_to_string(&mut buffer).await.unwrap();
+        assert!(0 < len, "Should read one some bytes.");
+    }
+    #[async_std::test]
+    async fn authenticate_fail() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
+            "bad_username",
+            "bad_password",
+        ))));
+        connector.method = Method::Get;
+        connector.path = "/basic-auth/true_username/true_password".to_string();
+        match connector.fetch().await {
+            Ok(_) => assert!(false, "Should generate an error."),
+            Err(_) => assert!(true),
+        };
+    }
+    #[async_std::test]
+    async fn authenticate_with_username_password_in_param() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
+            "{{ username }}",
+            "{{ password }}",
+        ))));
+        connector.method = Method::Get;
+        connector.path = format!("/basic-auth/{}/{}", "my_username", "my_password");
+        connector.parameters =
+            serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
+        connector.fetch().await.unwrap();
+        let mut buffer = String::default();
+        let len = connector.read_to_string(&mut buffer).await.unwrap();
+        assert!(0 < len, "Should read one some bytes.");
     }
 }

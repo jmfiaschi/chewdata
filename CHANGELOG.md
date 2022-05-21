@@ -1,3 +1,24 @@
+# [1.12.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.12.0-beta.1) (2022-05-21)
+
+
+### Bug Fixes
+
+* **bucket:** is_empty doc test ([e6503f6](https://github.com/jmfiaschi/chewdata/commit/e6503f6bbf72e46c3c94a9bc751294edadccfd42))
+* **bucket:** remove hardcoding credentials, use profiles or env var instead ([f309c92](https://github.com/jmfiaschi/chewdata/commit/f309c92d86e9cac5b455e9916a85071650e96a13))
+* **lint:** clean code ([9275bc5](https://github.com/jmfiaschi/chewdata/commit/9275bc507f5984e3fb6b61c19ab0a2990b84ea4d))
+* **reader:** fix test ([251a2f6](https://github.com/jmfiaschi/chewdata/commit/251a2f68f0254deb9823b3bd90d41259f0f3b163))
+* **test:** there is no reactor running, must be called from the context of a Tokio 1.x runtime ([5114086](https://github.com/jmfiaschi/chewdata/commit/5114086f45c155e6cec37f89284d1f73ac754aac))
+* **test:** there is no reactor running, must be called from the context of a Tokio 1.x runtime ([5e4a3c6](https://github.com/jmfiaschi/chewdata/commit/5e4a3c69890299af4b13131ff0210fba6092c15a))
+* **tokio:** replace tokio macro by async_std ([393b65a](https://github.com/jmfiaschi/chewdata/commit/393b65a9ef0422ef7b4ac4cee5febf08fedb7cd0))
+
+
+### Features
+
+* **asw_sdk:** replace rusoto and remove hardcoding credentials ([31545bf](https://github.com/jmfiaschi/chewdata/commit/31545bf6670e70373bbac13bb942991ab976ee61))
+* **cargo:** replace crossbeam by async-channel ([836d7a6](https://github.com/jmfiaschi/chewdata/commit/836d7a6b2f42bb719848d63078a61903f39a5b31))
+* **cargo:** upgrade uuid ([22e397d](https://github.com/jmfiaschi/chewdata/commit/22e397d5e323505fb83903a896c239342b4da7c7))
+* **parquet:** handle parquet document ([#23](https://github.com/jmfiaschi/chewdata/issues/23)) ([0839281](https://github.com/jmfiaschi/chewdata/commit/0839281840df4d16aba2c7a955e33530830eef42))
+
 # [1.12.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.12.0-beta.3...v1.12.0-beta.4) (2022-05-10)
 
 

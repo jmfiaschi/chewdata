@@ -1,7 +1,7 @@
 use crate::connector::Connector;
 use crate::document::Document;
-use crate::{Dataset, DataResult};
 use crate::Metadata;
+use crate::{DataResult, Dataset};
 use async_std::io::prelude::WriteExt;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -38,8 +38,9 @@ impl Document for Text {
     }
     /// See [`Document::read_data`] for more details.
     ///
-    /// # Example
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::text::Text;
     /// use chewdata::document::Document;
@@ -71,8 +72,9 @@ impl Document for Text {
     }
     /// See [`Document::write_data`] for more details.
     ///
-    /// # Example
-    /// ```
+    /// # Examples
+    ///
+    /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::text::Text;
     /// use chewdata::document::Document;
@@ -96,5 +98,34 @@ impl Document for Text {
         connector
             .write_all(value.as_str().unwrap_or("").as_bytes())
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_std::prelude::StreamExt;
+
+    use crate::connector::in_memory::InMemory;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn read_data() {
+        let document = Text::default();
+        let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"My text1 \n My text 2"#));
+        connector.fetch().await.unwrap();
+        let mut dataset = document.read_data(&mut connector).await.unwrap();
+        let data = dataset.next().await.unwrap().to_value();
+        assert_eq!(r#"My text1 \n My text 2"#, data);
+    }
+    #[async_std::test]
+    async fn write_data() {
+        let mut document = Text::default();
+        let mut connector = InMemory::new(r#""#);
+        document
+            .write_data(&mut connector, Value::String("My text".to_string()))
+            .await
+            .unwrap();
+        assert_eq!(r#"My text"#, &format!("{}", connector));
     }
 }
