@@ -1,3 +1,11 @@
+# [1.12.0](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.12.0) (2022-05-21)
+
+
+### Features
+
+* **asw_sdk:** replace rusoto and remove hardcoding credentials ([#32](https://github.com/jmfiaschi/chewdata/issues/32)) ([d97e074](https://github.com/jmfiaschi/chewdata/commit/d97e0743776cc6c10a20e435426c9db11c894371))
+* **parquet:** handle parquet document ([#23](https://github.com/jmfiaschi/chewdata/issues/23)) ([0839281](https://github.com/jmfiaschi/chewdata/commit/0839281840df4d16aba2c7a955e33530830eef42))
+
 # [1.12.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.12.0-beta.1) (2022-05-21)
 
 
