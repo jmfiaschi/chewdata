@@ -3,7 +3,7 @@ use crate::document::DocumentType;
 use crate::step::{DataResult, Step};
 use crate::StepContext;
 use async_trait::async_trait;
-use crossbeam::channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};

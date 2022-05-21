@@ -1,13 +1,12 @@
 use chewdata::DataResult;
 use chewdata::StepContext;
-use crossbeam::channel::unbounded;
 use std::io;
 use std::thread;
 
 #[async_std::main]
 async fn main() -> io::Result<()> {
-    let (sender_input, receiver_input) = unbounded();
-    let (sender_output, receiver_output) = unbounded();
+    let (sender_input, receiver_input) = async_channel::unbounded();
+    let (sender_output, receiver_output) = async_channel::unbounded();
 
     let config = r#"
     [{
@@ -40,7 +39,7 @@ async fn main() -> io::Result<()> {
     let config = serde_json::from_str(config.to_string().as_str())?;
     chewdata::exec(config, Some(receiver_input), Some(sender_output)).await?;
 
-    for step_context in receiver_output {
+    for step_context in receiver_output.recv().await {
         println!("data_result {:?}", step_context.data_result());
     }
 

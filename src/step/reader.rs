@@ -4,7 +4,7 @@ use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, StepContext};
 use async_trait::async_trait;
-use crossbeam::channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender};
 use futures::StreamExt;
 use serde::Deserialize;
 use std::{fmt, io};

@@ -6,10 +6,10 @@ pub mod validator;
 pub mod writer;
 
 use crate::{DataResult, StepContext};
+use async_channel::{Receiver, Sender, TryRecvError, TrySendError};
 use async_std::{stream, task};
 use async_stream::stream;
 use async_trait::async_trait;
-use crossbeam::channel::{Receiver, Sender, TryRecvError, TrySendError};
 use eraser::Eraser;
 use futures::Stream;
 use reader::Reader;
@@ -115,7 +115,7 @@ async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext) ->
                 trace!(step = format!("{:?}", step).as_str(), sleep = step.sleep(), "The step can't send any data, the pipe is full. It tries later");
                 task::sleep(Duration::from_millis(step.sleep())).await;
             }
-            TrySendError::Disconnected(_) => return Err(io::Error::new(
+            TrySendError::Closed(_) => return Err(io::Error::new(
                 io::ErrorKind::Interrupted,
                 format!("The step '{}' has been disconnected from the pipe. the step can't send any data", step.name()),
             )),
@@ -143,11 +143,11 @@ async fn receive<'step>(
                     yield step_context_received.clone();
                 },
                 Err(TryRecvError::Empty) => {
-                    trace!(step = format!("{:?}", step).as_str(), sleep = step.sleep(), "The pipe is empty. The step tries later");
+                    trace!(step = format!("{:?}", step).as_str(), sleep = sleep_time, "The pipe is empty. The step tries later");
                     task::sleep(Duration::from_millis(sleep_time)).await;
                     continue;
                 },
-                Err(TryRecvError::Disconnected) => {
+                Err(TryRecvError::Closed) => {
                     trace!(step = format!("{:?}", step).as_str(), "The pipe is disconnected, no more step context to handle");
                     break;
                 },

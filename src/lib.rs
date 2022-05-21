@@ -16,7 +16,7 @@ pub mod updater;
 
 use self::step::StepType;
 use async_std::task;
-use crossbeam::channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender};
 use futures::stream::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,7 @@ pub async fn exec(
     let mut previous_step_receiver = input_receiver;
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
-        let (sender, receiver) = crossbeam::channel::unbounded();
+        let (sender, receiver) = async_channel::unbounded();
         let mut step = step_type.step_inner().clone();
         let thread_number = step.thread_number();
 

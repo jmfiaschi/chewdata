@@ -5,7 +5,7 @@ use crate::step::Step;
 use crate::updater::{Action, UpdaterType};
 use crate::StepContext;
 use async_trait::async_trait;
-use crossbeam::channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender};
 use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;

@@ -7,7 +7,7 @@ use crate::updater::{ActionType, UpdaterType};
 use crate::StepContext;
 use crate::{step::reader::Reader, updater::Action};
 use async_trait::async_trait;
-use crossbeam::channel::{Receiver, Sender};
+use async_channel::{Receiver, Sender};
 use futures::StreamExt;
 use json_value_merge::Merge;
 use json_value_search::Search;
@@ -117,14 +117,13 @@ impl Step for Validator {
     /// use chewdata::StepContext;
     /// use chewdata::step::Step;
     /// use chewdata::step::validator::{Validator, Rule};
-    /// use crossbeam::channel::unbounded;
     /// use std::thread;
     /// use std::collections::{BTreeMap, HashMap};
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let (sender_input, receiver_input) = unbounded();
-    ///     let (sender_output, receiver_output) = unbounded();
+    ///     let (sender_input, receiver_input) = async_channel::unbounded();
+    ///     let (sender_output, receiver_output) = async_channel::unbounded();
     ///
     ///     let mut rules = BTreeMap::default();
     ///     rules.insert("rule_number_1".to_string(), Rule {
@@ -150,7 +149,7 @@ impl Step for Validator {
     ///
     ///     for step_context in receiver_output.try_recv() {
     ///         let error_result = step_context.data_result().to_value().search("/_error").unwrap().unwrap();
-    ///         let error_result_expected = Value::String("Err N.1 & Err N.2 & Err T.1".to_string());
+    ///         let error_result_expected = Value::String("Err N.1".to_string());
     ///         assert_eq!(error_result_expected, error_result);
     ///     }
     ///
@@ -277,13 +276,12 @@ pub struct Rule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crossbeam::channel::unbounded;
     use std::thread;
 
     #[async_std::test]
     async fn exec() {
-        let (sender_input, receiver_input) = unbounded();
-        let (sender_output, receiver_output) = unbounded();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
         let mut rules = BTreeMap::default();
         rules.insert(
             "rule_number_1".to_string(),
@@ -340,8 +338,8 @@ mod tests {
     }
     #[async_std::test]
     async fn exec_with_validation_error() {
-        let (sender_input, receiver_input) = unbounded();
-        let (sender_output, receiver_output) = unbounded();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
         let mut rules = BTreeMap::default();
         rules.insert(
             "rule_exception".to_string(),
