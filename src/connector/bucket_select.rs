@@ -832,140 +832,146 @@ mod tests {
     }
     #[async_std::test]
     async fn json_lines() {
-        let mut connector = BucketSelect::default();
-        connector.bucket = "my-bucket".to_string();
-        connector.path = "my-key".to_string();
-        connector.query = "my-query".to_string();
-        connector.metadata = Metadata {
-            ..Jsonl::default().metadata
-        };
+        Compat::new(async {
+            let mut connector = BucketSelect::default();
+            connector.bucket = "my-bucket".to_string();
+            connector.path = "my-key".to_string();
+            connector.query = "my-query".to_string();
+            connector.metadata = Metadata {
+                ..Jsonl::default().metadata
+            };
 
-        let select_object_content_expected = connector
-            .client()
-            .await
-            .unwrap()
-            .select_object_content()
-            .bucket(connector.bucket.clone())
-            .key(connector.path())
-            .expression(connector.query.clone())
-            .expression_type(ExpressionType::Sql)
-            .input_serialization(
-                InputSerialization::builder()
-                    .json(JsonInput::builder().r#type(JsonType::Lines).build())
-                    .compression_type(CompressionType::from("NONE"))
-                    .build(),
-            )
-            .output_serialization(
-                OutputSerialization::builder()
-                    .json(JsonOutput::builder().build())
-                    .build(),
+            let select_object_content_expected = connector
+                .client()
+                .await
+                .unwrap()
+                .select_object_content()
+                .bucket(connector.bucket.clone())
+                .key(connector.path())
+                .expression(connector.query.clone())
+                .expression_type(ExpressionType::Sql)
+                .input_serialization(
+                    InputSerialization::builder()
+                        .json(JsonInput::builder().r#type(JsonType::Lines).build())
+                        .compression_type(CompressionType::from("NONE"))
+                        .build(),
+                )
+                .output_serialization(
+                    OutputSerialization::builder()
+                        .json(JsonOutput::builder().build())
+                        .build(),
+                );
+
+            assert_eq!(
+                format!("{:?}", select_object_content_expected),
+                format!("{:?}", connector.select_object_content().await.unwrap())
             );
-
-        assert_eq!(
-            format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().await.unwrap())
-        );
+        });
     }
     #[async_std::test]
     async fn csv_with_header() {
-        let mut connector = BucketSelect::default();
-        connector.bucket = "my-bucket".to_string();
-        connector.path = "my-key".to_string();
-        connector.query = "my-query".to_string();
-        connector.metadata = Metadata {
-            ..Csv::default().metadata
-        };
+        Compat::new(async {
+            let mut connector = BucketSelect::default();
+            connector.bucket = "my-bucket".to_string();
+            connector.path = "my-key".to_string();
+            connector.query = "my-query".to_string();
+            connector.metadata = Metadata {
+                ..Csv::default().metadata
+            };
 
-        let select_object_content_expected = connector
-            .client()
-            .await
-            .unwrap()
-            .select_object_content()
-            .bucket(connector.bucket.clone())
-            .key(connector.path())
-            .expression(connector.query.clone())
-            .expression_type(ExpressionType::Sql)
-            .input_serialization(
-                InputSerialization::builder()
-                    .csv(
-                        CsvInput::builder()
-                            .set_field_delimiter(connector.metadata.clone().delimiter)
-                            .file_header_info(FileHeaderInfo::Use)
-                            .set_quote_character(connector.metadata.clone().quote)
-                            .set_quote_escape_character(connector.metadata.clone().escape)
-                            .build(),
-                    )
-                    .compression_type(CompressionType::from("NONE"))
-                    .build(),
-            )
-            .output_serialization(
-                OutputSerialization::builder()
-                    .csv(
-                        CsvOutput::builder()
-                            .set_field_delimiter(connector.metadata.clone().delimiter)
-                            .set_quote_character(connector.metadata.clone().quote)
-                            .set_quote_escape_character(connector.metadata.clone().escape)
-                            .record_delimiter("\n".to_string())
-                            .build(),
-                    )
-                    .build(),
+            let select_object_content_expected = connector
+                .client()
+                .await
+                .unwrap()
+                .select_object_content()
+                .bucket(connector.bucket.clone())
+                .key(connector.path())
+                .expression(connector.query.clone())
+                .expression_type(ExpressionType::Sql)
+                .input_serialization(
+                    InputSerialization::builder()
+                        .csv(
+                            CsvInput::builder()
+                                .set_field_delimiter(connector.metadata.clone().delimiter)
+                                .file_header_info(FileHeaderInfo::Use)
+                                .set_quote_character(connector.metadata.clone().quote)
+                                .set_quote_escape_character(connector.metadata.clone().escape)
+                                .build(),
+                        )
+                        .compression_type(CompressionType::from("NONE"))
+                        .build(),
+                )
+                .output_serialization(
+                    OutputSerialization::builder()
+                        .csv(
+                            CsvOutput::builder()
+                                .set_field_delimiter(connector.metadata.clone().delimiter)
+                                .set_quote_character(connector.metadata.clone().quote)
+                                .set_quote_escape_character(connector.metadata.clone().escape)
+                                .record_delimiter("\n".to_string())
+                                .build(),
+                        )
+                        .build(),
+                );
+
+            assert_eq!(
+                format!("{:?}", select_object_content_expected),
+                format!("{:?}", connector.select_object_content().await.unwrap())
             );
-
-        assert_eq!(
-            format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().await.unwrap())
-        );
+        });
     }
     #[async_std::test]
     async fn csv_without_header() {
-        let mut connector = BucketSelect::default();
-        connector.bucket = "my-bucket".to_string();
-        connector.path = "my-key".to_string();
-        connector.query = "my-query".to_string();
-        connector.metadata = Metadata {
-            has_headers: Some(false),
-            ..Csv::default().metadata
-        };
+        Compat::new(async {
+            let mut connector = BucketSelect::default();
+            connector.bucket = "my-bucket".to_string();
+            connector.path = "my-key".to_string();
+            connector.query = "my-query".to_string();
+            connector.metadata = Metadata {
+                has_headers: Some(false),
+                ..Csv::default().metadata
+            };
 
-        let select_object_content_expected = connector
-            .client()
-            .await
-            .unwrap()
-            .select_object_content()
-            .bucket(connector.bucket.clone())
-            .key(connector.path())
-            .expression(connector.query.clone())
-            .expression_type(ExpressionType::Sql)
-            .input_serialization(
-                InputSerialization::builder()
-                    .csv(
-                        CsvInput::builder()
-                            .set_field_delimiter(connector.metadata.clone().delimiter)
-                            .file_header_info(FileHeaderInfo::None)
-                            .set_quote_character(connector.metadata.clone().quote)
-                            .set_quote_escape_character(connector.metadata.clone().escape)
-                            .build(),
-                    )
-                    .compression_type(CompressionType::from("NONE"))
-                    .build(),
-            )
-            .output_serialization(
-                OutputSerialization::builder()
-                    .csv(
-                        CsvOutput::builder()
-                            .set_field_delimiter(connector.metadata.clone().delimiter)
-                            .set_quote_character(connector.metadata.clone().quote)
-                            .set_quote_escape_character(connector.metadata.clone().escape)
-                            .record_delimiter("\n".to_string())
-                            .build(),
-                    )
-                    .build(),
+            let select_object_content_expected = connector
+                .client()
+                .await
+                .unwrap()
+                .select_object_content()
+                .bucket(connector.bucket.clone())
+                .key(connector.path())
+                .expression(connector.query.clone())
+                .expression_type(ExpressionType::Sql)
+                .input_serialization(
+                    InputSerialization::builder()
+                        .csv(
+                            CsvInput::builder()
+                                .set_field_delimiter(connector.metadata.clone().delimiter)
+                                .file_header_info(FileHeaderInfo::None)
+                                .set_quote_character(connector.metadata.clone().quote)
+                                .set_quote_escape_character(connector.metadata.clone().escape)
+                                .build(),
+                        )
+                        .compression_type(CompressionType::from("NONE"))
+                        .build(),
+                )
+                .output_serialization(
+                    OutputSerialization::builder()
+                        .csv(
+                            CsvOutput::builder()
+                                .set_field_delimiter(connector.metadata.clone().delimiter)
+                                .set_quote_character(connector.metadata.clone().quote)
+                                .set_quote_escape_character(connector.metadata.clone().escape)
+                                .record_delimiter("\n".to_string())
+                                .build(),
+                        )
+                        .build(),
+                );
+
+            assert_eq!(
+                format!("{:?}", select_object_content_expected),
+                format!("{:?}", connector.select_object_content().await.unwrap())
             );
-
-        assert_eq!(
-            format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().await.unwrap())
-        );
+        });
     }
     #[async_std::test]
     async fn paginator_stream() {
