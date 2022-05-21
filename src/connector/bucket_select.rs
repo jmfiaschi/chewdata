@@ -794,39 +794,41 @@ mod tests {
     }
     #[async_std::test]
     async fn json_document() {
-        let mut connector = BucketSelect::default();
-        connector.bucket = "my-bucket".to_string();
-        connector.path = "my-key".to_string();
-        connector.query = "my-query".to_string();
-        connector.metadata = Metadata {
-            ..Json::default().metadata
-        };
+        Compat::new(async {
+            let mut connector = BucketSelect::default();
+            connector.bucket = "my-bucket".to_string();
+            connector.path = "my-key".to_string();
+            connector.query = "my-query".to_string();
+            connector.metadata = Metadata {
+                ..Json::default().metadata
+            };
 
-        let select_object_content_expected = connector
-            .client()
-            .await
-            .unwrap()
-            .select_object_content()
-            .bucket(connector.bucket.clone())
-            .key(connector.path())
-            .expression(connector.query.clone())
-            .expression_type(ExpressionType::Sql)
-            .input_serialization(
-                InputSerialization::builder()
-                    .json(JsonInput::builder().r#type(JsonType::Document).build())
-                    .compression_type(CompressionType::from("NONE"))
-                    .build(),
-            )
-            .output_serialization(
-                OutputSerialization::builder()
-                    .json(JsonOutput::builder().build())
-                    .build(),
+            let select_object_content_expected = connector
+                .client()
+                .await
+                .unwrap()
+                .select_object_content()
+                .bucket(connector.bucket.clone())
+                .key(connector.path())
+                .expression(connector.query.clone())
+                .expression_type(ExpressionType::Sql)
+                .input_serialization(
+                    InputSerialization::builder()
+                        .json(JsonInput::builder().r#type(JsonType::Document).build())
+                        .compression_type(CompressionType::from("NONE"))
+                        .build(),
+                )
+                .output_serialization(
+                    OutputSerialization::builder()
+                        .json(JsonOutput::builder().build())
+                        .build(),
+                );
+
+            assert_eq!(
+                format!("{:?}", select_object_content_expected),
+                format!("{:?}", connector.select_object_content().await.unwrap())
             );
-
-        assert_eq!(
-            format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().await.unwrap())
-        );
+        });
     }
     #[async_std::test]
     async fn json_lines() {
