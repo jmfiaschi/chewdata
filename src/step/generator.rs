@@ -34,7 +34,7 @@ impl Default for Generator {
     fn default() -> Self {
         let uuid = Uuid::new_v4();
         Generator {
-            name: uuid.to_simple().to_string(),
+            name: uuid.simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1,

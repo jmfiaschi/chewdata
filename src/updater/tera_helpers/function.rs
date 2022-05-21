@@ -26,9 +26,9 @@ pub fn uuid_v4(args: &HashMap<String, Value>) -> Result<Value> {
     };
 
     let uuid_string = match value_format.as_str() {
-        Some("hyphenated") => uuid.to_hyphenated().to_string(),
-        Some("urn") => uuid.to_urn().to_string(),
-        _ => uuid.to_simple().to_string(),
+        Some("hyphenated") => uuid.hyphenated().to_string(),
+        Some("urn") => uuid.urn().to_string(),
+        _ => uuid.simple().to_string(),
     };
 
     Ok(Value::String(uuid_string))

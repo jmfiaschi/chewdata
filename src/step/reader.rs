@@ -40,7 +40,7 @@ impl Default for Reader {
         Reader {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
-            name: uuid.to_simple().to_string(),
+            name: uuid.simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             receiver: None,

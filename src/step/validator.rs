@@ -56,7 +56,7 @@ impl Default for Validator {
         Validator {
             updater_type: UpdaterType::default(),
             referentials: None,
-            name: uuid.to_simple().to_string(),
+            name: uuid.simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             thread_number: 1,

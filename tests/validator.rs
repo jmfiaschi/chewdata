@@ -43,9 +43,9 @@ fn it_should_apply_simple_validation() {
     ),
     (
         "mapping_rule",
-        "{% if mapping_ref | filter(attribute='mapping_code', value=input.code) | length > 0 %} true {% else %} false {% endif %}",
+        "{% if mapping_ref | filter(attribute='mapping_value', value=input.code) | length > 0 %} true {% else %} false {% endif %}",
         "{{ rule.name }}: The value '{{ input.code }}' not map with the referencial",
-        "mapping_rule: The value 'value_to_map_2' not map with the referencial"
+        "mapping_rule: The value 'value_to_map' not map with the referencial"
     ),];
     let configs = [(
         "tera",

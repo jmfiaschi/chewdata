@@ -35,7 +35,7 @@ impl Default for Eraser {
         let uuid = Uuid::new_v4();
         Eraser {
             connector_type: ConnectorType::default(),
-            name: uuid.to_simple().to_string(),
+            name: uuid.simple().to_string(),
             description: None,
             data_type: DataResult::OK.to_string(),
             exclude_paths: Vec::default(),
