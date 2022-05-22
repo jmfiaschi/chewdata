@@ -5,4 +5,5 @@ Cargo.lock
 examples
 data
 target
+!target/release/chewdata
 docs

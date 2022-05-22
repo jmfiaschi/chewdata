@@ -104,7 +104,6 @@ impl Connector for Io {
         while let Some(line) = lines.next().await {
             let current_line: String = line?;
             if current_line.eq(self.eoi.as_str()) {
-                println!("end");
                 break;
             };
             buf = format!("{}{}\n", buf, current_line);
