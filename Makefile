@@ -7,9 +7,9 @@ export $(shell sed 's/=.*//' .env)
 help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
-build: ## Build the script in local
+build: ## Build the script in local without examples
 	@cargo clean
-	@cargo build --all-targets --all-features
+	@cargo build --lib --bins --tests --benches --all-features
 
 run: ## Launch the script in local
 	@if [ "$(json)" ]; then\
@@ -34,7 +34,7 @@ example:
 
 release: ## Released the script in local
 	@cargo clean
-	@cargo build --release
+	@cargo build --release --lib --bins --all-features
 
 test: start unit-tests integration-tests
 

@@ -14,7 +14,7 @@ categories = ["encoding","network-programming","data-structures"]
 [[bench]]
 name = "benchmark"
 harness = false
-path = "benches/benchmark"
+path = "benches/benchmark.rs"
 
 [dependencies]
 # Logs

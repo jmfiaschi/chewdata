@@ -27,11 +27,11 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6
-      # - uses: Swatinem/rust-cache@v1
-      #   with:
-      #     sharedKey: build
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
       - run: make build
-  build-release:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -41,9 +41,9 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6
-      # - uses: Swatinem/rust-cache@v1
-      #   with:
-      #     sharedKey: build-release
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build-release
       - run: make release
   unit-tests:
     needs: [build, lint]
@@ -56,9 +56,9 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6
-      # - uses: Swatinem/rust-cache@v1
-      #   with:
-      #     sharedKey: build
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
       - run: make unit-tests
   integration-tests:
     needs: [build, lint]
@@ -71,9 +71,9 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6
-      # - uses: Swatinem/rust-cache@v1
-      #   with:
-      #     sharedKey: build
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
       - run: make integration-tests
   benchmark:
     needs: [build, lint]
@@ -87,9 +87,9 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v0.2.6
-      # - uses: Swatinem/rust-cache@v1
-      #   with:
-      #     sharedKey: build
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build
       - name: Generate benchmark
         run: make bench | tee output.txt
       - name: Store benchmark result
@@ -104,14 +104,14 @@ jobs:
           fail-on-alert: true
           alert-comment-cc-users: "@jmfiaschi"
           benchmark-data-dir-path: "docs/benches/${{ env.BRANCH_NAME }}"
-  release:
+  semantic-release:
     needs: [benchmark, integration-tests, unit-tests, build-release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      # - uses: Swatinem/rust-cache@v1
-      #   with:
-      #     sharedKey: build-release
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: build-release
       - name: Install Semantic Release
         run: |
           sudo npm install semantic-release -g
