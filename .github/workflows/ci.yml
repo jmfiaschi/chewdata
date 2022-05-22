@@ -105,7 +105,7 @@ jobs:
           alert-comment-cc-users: "@jmfiaschi"
           benchmark-data-dir-path: "docs/benches/${{ env.BRANCH_NAME }}"
   semantic-release:
-    needs: [benchmark, integration-tests, unit-tests, build-release]
+    needs: [benchmark, integration-tests, unit-tests, release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
