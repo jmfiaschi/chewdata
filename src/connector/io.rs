@@ -104,6 +104,7 @@ impl Connector for Io {
         while let Some(line) = lines.next().await {
             let current_line: String = line?;
             if current_line.eq(self.eoi.as_str()) {
+                println!("end");
                 break;
             };
             buf = format!("{}{}\n", buf, current_line);
@@ -197,7 +198,7 @@ impl Paginator for IoPaginator {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::io::Io;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
@@ -208,8 +209,8 @@ impl Paginator for IoPaginator {
     ///     let connector = Io::default();
     /// 
     ///     let mut stream = connector.paginator().await?.stream().await?;
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
+    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader");
+    ///     assert!(stream.next().await.transpose()?.is_none(), "Must return only on connector for IO");
     ///
     ///     Ok(())
     /// }
@@ -220,10 +221,8 @@ impl Paginator for IoPaginator {
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let new_connector = self.connector.clone();
         let stream = Box::pin(stream! {
-            while true {
-                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
-                yield Ok(Box::new(new_connector.clone()) as Box<dyn Connector>);
-            }
+            trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
+            yield Ok(Box::new(new_connector.clone()) as Box<dyn Connector>);
             trace!("The stream stop to return a new connectors");
         });
 
@@ -250,11 +249,11 @@ mod tests {
         let mut stream = paginator.stream().await.unwrap();
         assert!(
             stream.next().await.transpose().unwrap().is_some(),
-            "Can't get the first reader."
+            "Can't get the first reader"
         );
         assert!(
-            stream.next().await.transpose().unwrap().is_some(),
-            "Can't get the second reader."
+            stream.next().await.transpose().unwrap().is_none(),
+            "Must return only on connector for IO"
         );
     }
 }

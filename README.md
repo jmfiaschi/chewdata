@@ -57,12 +57,12 @@ If you want some examples to discover this project, go in this section [./exampl
 
 ### Run the ETL
 
-If you run the program without parameters, the application will wait until you write json data. By default, the program write json data in the output and the program stop when you press multiple times the 'enter' key.
+If you run the program without parameters, the application will wait until you write json data. By default, the program write json data in the output and the program stop when you enter empty value.
 
 ```Bash
 $ cargo run 
 $ [{"key":"value"},{"name":"test"}]
-$ exit
+$ enter
 [{"key":"value"},{"name":"test"}]
 ```
 
