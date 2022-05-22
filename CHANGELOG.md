@@ -1,3 +1,10 @@
+## [1.12.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.0...v1.12.1-beta.1) (2022-05-22)
+
+
+### Bug Fixes
+
+* **io:** the stream return only one connector ([19cc5ab](https://github.com/jmfiaschi/chewdata/commit/19cc5ab54fd7241aa4e438ff1871442926cad4d4))
+
 # [1.12.0](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.12.0) (2022-05-21)
 
 ### Features
