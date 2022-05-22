@@ -72,7 +72,7 @@ coverage\:it:
 
 bench:
 	@cargo install cargo-criterion
-	@cargo criterion --output-format bencher --plotting-backend disabled 2>&1
+	@cargo criterion --benches --output-format bencher --plotting-backend disabled 2>&1
 
 minio:
 	echo "${BLUE}Run Minio server.${NC}"
