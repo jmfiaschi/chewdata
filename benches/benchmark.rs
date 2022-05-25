@@ -18,14 +18,14 @@ fn document_read_benchmark(c: &mut Criterion) {
     let readers: [(&str, &str, Box<dyn Document>); 7] = [
         ("json", "data/one_line.json", Box::new(Json::default())),
         ("jsonl", "data/one_line.jsonl", Box::new(Jsonl::default())),
-        #[cfg(feature = "use_xml_document")]
+        #[cfg(feature = "xml")]
         ("xml", "data/one_line.xml", Box::new(Xml::default())),
-        #[cfg(feature = "use_csv_document")]
+        #[cfg(feature = "csv")]
         ("csv", "data/one_line.csv", Box::new(Csv::default())),
-        #[cfg(feature = "use_toml_document")]
+        #[cfg(feature = "toml")]
         ("toml", "data/one_line.toml", Box::new(Toml::default())),
         ("yaml", "data/one_line.yml", Box::new(Yaml::default())),
-        #[cfg(feature = "use_parquet_document")]
+        #[cfg(feature = "parquet")]
         (
             "parquet",
             "data/one_line.parquet",

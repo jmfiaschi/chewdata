@@ -1,27 +1,27 @@
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 pub mod authenticator;
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 pub mod bucket;
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 pub mod bucket_select;
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 pub mod curl;
 pub mod in_memory;
 pub mod io;
 pub mod local;
-#[cfg(feature = "use_mongodb_connector")]
+#[cfg(feature = "mongodb")]
 pub mod mongodb;
 
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 use self::bucket::Bucket;
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 use self::bucket_select::BucketSelect;
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 use self::curl::Curl;
 use self::in_memory::InMemory;
 use self::io::Io;
 use self::local::Local;
-#[cfg(feature = "use_mongodb_connector")]
+#[cfg(feature = "mongodb")]
 use self::mongodb::Mongodb;
 use crate::document::Document;
 use crate::Dataset;
@@ -45,16 +45,16 @@ pub enum ConnectorType {
     Io(Io),
     #[serde(rename = "local")]
     Local(Local),
-    #[cfg(feature = "use_bucket_connector")]
+    #[cfg(feature = "bucket")]
     #[serde(rename = "bucket")]
     Bucket(Bucket),
-    #[cfg(feature = "use_bucket_connector")]
+    #[cfg(feature = "bucket")]
     #[serde(rename = "bucket_select")]
     BucketSelect(BucketSelect),
-    #[cfg(feature = "use_curl_connector")]
+    #[cfg(feature = "curl")]
     #[serde(rename = "curl")]
     Curl(Curl),
-    #[cfg(feature = "use_mongodb_connector")]
+    #[cfg(feature = "mongodb")]
     #[serde(rename = "mongodb")]
     #[serde(alias = "mongo")]
     Mongodb(Mongodb),
@@ -72,13 +72,13 @@ impl ConnectorType {
             ConnectorType::InMemory(connector) => Box::new(connector),
             ConnectorType::Io(connector) => Box::new(connector),
             ConnectorType::Local(connector) => Box::new(connector),
-            #[cfg(feature = "use_curl_connector")]
+            #[cfg(feature = "curl")]
             ConnectorType::Curl(connector) => Box::new(connector),
-            #[cfg(feature = "use_bucket_connector")]
+            #[cfg(feature = "bucket")]
             ConnectorType::Bucket(connector) => Box::new(connector),
-            #[cfg(feature = "use_bucket_connector")]
+            #[cfg(feature = "bucket")]
             ConnectorType::BucketSelect(connector) => Box::new(connector),
-            #[cfg(feature = "use_mongodb_connector")]
+            #[cfg(feature = "mongodb")]
             ConnectorType::Mongodb(connector) => Box::new(connector),
         }
     }

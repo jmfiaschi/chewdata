@@ -32,14 +32,18 @@ fn debug_dir() -> PathBuf {
 fn it_should_read_file_in_local_with_one_line() {
     let config = r#"[{"type":"r","connector":{"type":"local","path":"{{ APP_FILE_PATH_INPUT }}"},"document":{"type":"{{ APP_FORMAT_INPUT }}"}},{"type":"w"}]"#;
     let mut formats = vec!["json", "jsonl"];
-    if cfg!(feature = "use_csv_document") {
+    formats.push("yml");
+    if cfg!(feature = "csv") {
         formats.push("csv");
     }
-    if cfg!(feature = "use_yml_document") {
-        formats.push("yml");
+    if cfg!(feature = "toml") {
+        formats.push("toml");
     }
-    if cfg!(feature = "use_xml_document") {
+    if cfg!(feature = "xml") {
         formats.push("xml");
+    }
+    if cfg!(feature = "parquet") {
+        formats.push("parquet");
     }
     for format in formats {
         let data_file_path = format!("{}/{}.{}", "data", "one_line", format);
@@ -69,7 +73,7 @@ fn it_should_read_file_in_local_with_one_line() {
         assert_eq!(json_value_expected.to_string(), object_result.to_string());
     }
 }
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 #[test]
 fn it_should_read_file_in_bucket_with_one_line() {
     let config = r#"[{"type":"r","connector":{"type":"bucket","bucket":"my-bucket","path":"data/one_line.json","endpoint": "{{ BUCKET_ENDPOINT }}"}},{"type":"w"}]"#;
@@ -103,7 +107,7 @@ fn it_should_read_file_in_bucket_with_one_line() {
     let json_value_expected = data(format!("{}/{}.{}", "data", "one_line", "json").as_str());
     assert_eq!(json_value_expected.to_string(), object_result.to_string());
 }
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 #[test]
 fn it_should_read_data_get_api() {
     let config = r#"[{"type":"r","connector": {"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/get"}},{"type":"w"}]"#;
@@ -128,7 +132,7 @@ fn it_should_read_data_get_api() {
 
     assert!(object_result.pointer("/0/headers").is_some());
 }
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 #[test]
 fn it_should_read_data_get_api_with_basic() {
     let config = r#"[{"type":"r","connector":{"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/basic-auth/my-username/my-password","authenticator":{"type": "basic","username":"{{ CURL_BASIC_AUTH_USERNAME }}","password":"{{ CURL_BASIC_AUTH_PASSWORD }}"}}},{"type":"w"}]"#;
@@ -160,7 +164,7 @@ fn it_should_read_data_get_api_with_basic() {
         object_result.to_string()
     );
 }
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 #[test]
 fn it_should_read_data_get_api_with_bearer() {
     let config = r#"[{"type":"r","connector":{"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/bearer","authenticator":{"type": "bearer","token":"{{ CURL_BEARER_TOKEN }}"}}},{"type":"w"}]"#;

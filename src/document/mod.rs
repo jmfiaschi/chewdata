@@ -1,26 +1,26 @@
-#[cfg(feature = "use_csv_document")]
+#[cfg(feature = "csv")]
 pub mod csv;
 pub mod json;
 pub mod jsonl;
-#[cfg(feature = "use_parquet_document")]
+#[cfg(feature = "parquet")]
 pub mod parquet;
 pub mod text;
-#[cfg(feature = "use_toml_document")]
+#[cfg(feature = "toml")]
 pub mod toml;
-#[cfg(feature = "use_xml_document")]
+#[cfg(feature = "xml")]
 pub mod xml;
 pub mod yaml;
 
-#[cfg(feature = "use_csv_document")]
+#[cfg(feature = "csv")]
 use self::csv::Csv;
 use self::json::Json;
 use self::jsonl::Jsonl;
-#[cfg(feature = "use_parquet_document")]
+#[cfg(feature = "parquet")]
 use self::parquet::Parquet;
 use self::text::Text;
-#[cfg(feature = "use_toml_document")]
+#[cfg(feature = "toml")]
 use self::toml::Toml;
-#[cfg(feature = "use_xml_document")]
+#[cfg(feature = "xml")]
 use self::xml::Xml;
 use self::yaml::Yaml;
 use super::Metadata;
@@ -34,26 +34,26 @@ use std::io;
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(tag = "type")]
 pub enum DocumentType {
-    #[cfg(feature = "use_csv_document")]
+    #[cfg(feature = "csv")]
     #[serde(rename = "csv")]
     Csv(Csv),
     #[serde(rename = "json")]
     Json(Json),
     #[serde(rename = "jsonl")]
     Jsonl(Jsonl),
-    #[cfg(feature = "use_xml_document")]
+    #[cfg(feature = "xml")]
     #[serde(rename = "xml")]
     Xml(Xml),
     #[serde(rename = "yaml")]
     #[serde(alias = "yml")]
     Yaml(Yaml),
-    #[cfg(feature = "use_toml_document")]
+    #[cfg(feature = "toml")]
     #[serde(rename = "toml")]
     Toml(Toml),
     #[serde(rename = "text")]
     #[serde(alias = "txt")]
     Text(Text),
-    #[cfg(feature = "use_parquet_document")]
+    #[cfg(feature = "parquet")]
     #[serde(rename = "parquet")]
     Parquet(Parquet),
 }
@@ -67,49 +67,49 @@ impl Default for DocumentType {
 impl DocumentType {
     pub fn boxed_inner(self) -> Box<dyn Document> {
         match self {
-            #[cfg(feature = "use_csv_document")]
+            #[cfg(feature = "csv")]
             DocumentType::Csv(document) => Box::new(document),
             DocumentType::Json(document) => Box::new(document),
             DocumentType::Jsonl(document) => Box::new(document),
-            #[cfg(feature = "use_xml_document")]
+            #[cfg(feature = "xml")]
             DocumentType::Xml(document) => Box::new(document),
             DocumentType::Yaml(document) => Box::new(document),
-            #[cfg(feature = "use_toml_document")]
+            #[cfg(feature = "toml")]
             DocumentType::Toml(document) => Box::new(document),
             DocumentType::Text(document) => Box::new(document),
-            #[cfg(feature = "use_parquet_document")]
+            #[cfg(feature = "parquet")]
             DocumentType::Parquet(document) => Box::new(document),
         }
     }
     pub fn ref_inner(&self) -> &dyn Document {
         match self {
-            #[cfg(feature = "use_csv_document")]
+            #[cfg(feature = "csv")]
             DocumentType::Csv(document) => document,
             DocumentType::Json(document) => document,
             DocumentType::Jsonl(document) => document,
-            #[cfg(feature = "use_xml_document")]
+            #[cfg(feature = "xml")]
             DocumentType::Xml(document) => document,
             DocumentType::Yaml(document) => document,
-            #[cfg(feature = "use_toml_document")]
+            #[cfg(feature = "toml")]
             DocumentType::Toml(document) => document,
             DocumentType::Text(document) => document,
-            #[cfg(feature = "use_parquet_document")]
+            #[cfg(feature = "parquet")]
             DocumentType::Parquet(document) => document,
         }
     }
     pub fn ref_mut_inner(&mut self) -> &mut dyn Document {
         match self {
-            #[cfg(feature = "use_csv_document")]
+            #[cfg(feature = "csv")]
             DocumentType::Csv(document) => document,
             DocumentType::Json(document) => document,
             DocumentType::Jsonl(document) => document,
-            #[cfg(feature = "use_xml_document")]
+            #[cfg(feature = "xml")]
             DocumentType::Xml(document) => document,
             DocumentType::Yaml(document) => document,
-            #[cfg(feature = "use_toml_document")]
+            #[cfg(feature = "toml")]
             DocumentType::Toml(document) => document,
             DocumentType::Text(document) => document,
-            #[cfg(feature = "use_parquet_document")]
+            #[cfg(feature = "parquet")]
             DocumentType::Parquet(document) => document,
         }
     }
@@ -182,7 +182,7 @@ impl Clone for Box<dyn Document> {
 #[cfg(test)]
 mod test {
     use super::*;
-    #[cfg(feature = "use_csv_document")]
+    #[cfg(feature = "csv")]
     #[test]
     fn it_should_deserialize_in_csv_type() {
         let config = r#"{"type":"csv"}"#;
@@ -215,7 +215,7 @@ mod test {
             serde_json::from_str(config).expect("Can't deserialize the config");
         assert_eq!(document_builder_expected, document_builder_result);
     }
-    #[cfg(feature = "use_xml_document")]
+    #[cfg(feature = "xml")]
     #[test]
     fn it_should_deserialize_in_xml_type() {
         let config = r#"{"type":"xml"}"#;
@@ -224,7 +224,7 @@ mod test {
             serde_json::from_str(config).expect("Can't deserialize the config");
         assert_eq!(document_builder_expected, document_builder_result);
     }
-    #[cfg(feature = "use_toml_document")]
+    #[cfg(feature = "toml")]
     #[test]
     fn it_should_deserialize_in_toml_type() {
         let config = r#"{"type":"toml"}"#;
