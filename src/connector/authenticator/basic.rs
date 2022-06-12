@@ -92,6 +92,7 @@ impl Authenticator for Basic {
     ///
     /// ```no_run
     /// use chewdata::connector::{Connector, curl::Curl};
+    /// use chewdata::document::json::Json;
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
     /// use async_std::prelude::*;
@@ -99,16 +100,19 @@ impl Authenticator for Basic {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Box::new(Json::default());
+    ///
     ///     let username = "my_username";
     ///     let password = "my_password";
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(username, password))));
+    ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
+    ///         username, password,
+    ///     ))));
     ///     connector.method = Method::Get;
     ///     connector.path = format!("/basic-auth/{}/{}", username, password);
-    ///     connector.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     let len = connector.read_to_string(&mut buffer).await?;
+    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let len = datastream.count().await;
     ///     assert!(0 < len, "Should read one some bytes.");
     ///
     ///     Ok(())
@@ -145,12 +149,11 @@ impl Authenticator for Basic {
 
 #[cfg(test)]
 mod tests {
-    use async_std::io::ReadExt;
-    use http_types::Method;
-
-    use crate::connector::{authenticator::AuthenticatorType, curl::Curl, Connector};
-
     use super::*;
+    use crate::connector::{authenticator::AuthenticatorType, curl::Curl, Connector};
+    use crate::document::json::Json;
+    use async_std::prelude::StreamExt;
+    use http_types::Method;
 
     #[test]
     fn new() {
@@ -162,6 +165,8 @@ mod tests {
     }
     #[async_std::test]
     async fn authenticate() {
+        let document = Box::new(Json::default());
+
         let username = "my_username";
         let password = "my_password";
         let mut connector = Curl::default();
@@ -171,13 +176,14 @@ mod tests {
         ))));
         connector.method = Method::Get;
         connector.path = format!("/basic-auth/{}/{}", username, password);
-        connector.fetch().await.unwrap();
-        let mut buffer = String::default();
-        let len = connector.read_to_string(&mut buffer).await.unwrap();
+        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let len = datastream.count().await;
         assert!(0 < len, "Should read one some bytes.");
     }
     #[async_std::test]
     async fn authenticate_fail() {
+        let document = Box::new(Json::default());
+
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
@@ -186,13 +192,15 @@ mod tests {
         ))));
         connector.method = Method::Get;
         connector.path = "/basic-auth/true_username/true_password".to_string();
-        match connector.fetch().await {
+        match connector.fetch(document).await {
             Ok(_) => assert!(false, "Should generate an error."),
             Err(_) => assert!(true),
         };
     }
     #[async_std::test]
     async fn authenticate_with_username_password_in_param() {
+        let document = Box::new(Json::default());
+
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
@@ -203,9 +211,8 @@ mod tests {
         connector.path = format!("/basic-auth/{}/{}", "my_username", "my_password");
         connector.parameters =
             serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
-        connector.fetch().await.unwrap();
-        let mut buffer = String::default();
-        let len = connector.read_to_string(&mut buffer).await.unwrap();
+        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let len = datastream.count().await;
         assert!(0 < len, "Should read one some bytes.");
     }
 }

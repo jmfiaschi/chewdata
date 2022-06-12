@@ -96,6 +96,7 @@ impl Step for Generator {
                 .is_type(self.data_type.as_ref())
             {
                 trace!("This step handle only this data type");
+                super::send(self as &dyn Step, &step_context_received.clone()).await?;
                 continue;
             }
 

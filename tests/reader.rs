@@ -30,28 +30,34 @@ fn debug_dir() -> PathBuf {
 
 #[test]
 fn it_should_read_file_in_local_with_one_line() {
-    let config = r#"[{"type":"r","connector":{"type":"local","path":"{{ APP_FILE_PATH_INPUT }}"},"document":{"type":"{{ APP_FORMAT_INPUT }}"}},{"type":"w"}]"#;
-    let mut formats = vec!["json", "jsonl"];
-    formats.push("yml");
+    let mut formats = vec![
+        (
+            "json",
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"},"document":{"type":"json"}},{"type":"w"}]"#,
+        ),
+        (
+            "jsonl",
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.jsonl"},"document":{"type":"jsonl"}},{"type":"w"}]"#,
+        ),
+        (
+            "yml",
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.yml"},"document":{"type":"yaml"}},{"type":"w"}]"#,
+        ),
+    ];
     if cfg!(feature = "csv") {
-        formats.push("csv");
+        formats.push(("csv", r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.csv"},"document":{"type":"csv"}},{"type":"w"}]"#));
     }
     if cfg!(feature = "toml") {
-        formats.push("toml");
+        formats.push(("toml", r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.toml"},"document":{"type":"toml"}},{"type":"w"}]"#));
     }
     if cfg!(feature = "xml") {
-        formats.push("xml");
+        formats.push(("xml",r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.xml"},"document":{"type":"xml","entry_path": "/root/*/item"}},{"type":"w"}]"#));
     }
-    if cfg!(feature = "parquet") {
-        formats.push("parquet");
-    }
-    for format in formats {
+    for (format, config) in formats {
         let data_file_path = format!("{}/{}.{}", "data", "one_line", format);
         println!("Try to test this file '{}'.", data_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
-            .env("APP_FILE_PATH_INPUT", &data_file_path)
-            .env("APP_FORMAT_INPUT", format)
             .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()

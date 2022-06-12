@@ -1,14 +1,9 @@
 extern crate csv;
 
-use crate::connector::Connector;
 use crate::document::Document;
-use crate::Metadata;
-use crate::{DataResult, Dataset};
-use async_std::io::prelude::WriteExt;
-use async_stream::stream;
-use async_trait::async_trait;
+use crate::DataResult;
+use crate::{DataSet, Metadata};
 use csv::Trim;
-use futures::AsyncReadExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::io;
@@ -145,277 +140,266 @@ impl Csv {
         builder
     }
     /// Read csv data with header.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::csv::Csv;
-    /// use chewdata::document::Document;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Csv::default();
-    ///     let mut connector = InMemory::new("column1,column2\nA1,A2\nB1,B2\n");
-    ///     connector.fetch().await?;
-    ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
-    ///
-    ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
-    ///     let data_1 = dataset.next().await.unwrap().to_value();
-    ///     let data_2 = dataset.next().await.unwrap().to_value();
-    ///     let expected_data_1: Value = serde_json::from_str(r#"{"column1":"A1","column2":"A2"}"#)?;
-    ///     let expected_data_2: Value = serde_json::from_str(r#"{"column1":"B1","column2":"B2"}"#)?;
-    ///     assert_eq!(expected_data_1, data_1);
-    ///     assert_eq!(expected_data_2, data_2);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    fn read_with_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<Dataset> {
-        Ok(Box::pin(stream! {
-            let data = reader.into_deserialize::<Map<String, Value>>();
-            for record in data {
-                let data_result = match record {
-                    Ok(record) => {
-                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
-                        DataResult::Ok(Value::Object(record))
-                    }
-                    Err(e) => {
-                        warn!(error = format!("{:?}",e).as_str(),  "Can't deserialize the record");
-                        if let super::csv::csv::ErrorKind::Io(_) = e.kind() {
-                            return;
-                        };
-
-                        DataResult::Err((Value::Null, e.into()))
-                    }
-                };
-                yield data_result;
-            }
-            trace!("End generator");
-        }))
+    fn read_with_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<DataSet> {
+        Ok(reader
+            .into_deserialize::<Map<String, Value>>()
+            .into_iter()
+            .map(|record_result| match record_result {
+                Ok(record) => {
+                    trace!(
+                        record = format!("{:?}", record).as_str(),
+                        "Record deserialized"
+                    );
+                    DataResult::Ok(Value::Object(record))
+                }
+                Err(e) => {
+                    warn!(
+                        error = format!("{:?}", e).as_str(),
+                        "Can't deserialize the record"
+                    );
+                    DataResult::Err((Value::Null, e.into()))
+                }
+            })
+            .collect())
     }
     /// Read csv data without header.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
-    /// use chewdata::document::csv::Csv;
-    /// use chewdata::document::Document;
-    /// use chewdata::Metadata;
-    /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut metadata = Metadata::default();
-    ///     metadata.has_headers = Some(false);
-    ///
-    ///     let mut document = Csv::default();
-    ///     document.metadata = metadata;
-    ///
-    ///     let mut connector = InMemory::new("A1,A2\nB1,B2\n");
-    ///     connector.fetch().await?;
-    ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
-    ///
-    ///     let mut dataset = document.read_data(&mut boxed_connector).await?;
-    ///     let data_1 = dataset.next().await.unwrap().to_value();
-    ///     let data_2 = dataset.next().await.unwrap().to_value();
-    ///     let expected_data_1 = Value::Array(vec![Value::String("A1".to_string()),Value::String("A2".to_string())]);
-    ///     let expected_data_2 = Value::Array(vec![Value::String("B1".to_string()),Value::String("B2".to_string())]);
-    ///     assert_eq!(expected_data_1, data_1);
-    ///     assert_eq!(expected_data_2, data_2);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    fn read_without_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<Dataset> {
-        Ok(Box::pin(stream! {
-            for record in reader.into_records() {
-                let data_result = match record {
-                    Ok(record) => {
-                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
-                        let map: Vec<Value> = record
-                            .iter()
-                            .map(|value| Value::String(value.to_string()))
-                            .collect();
-                        DataResult::Ok(Value::Array(map))
-                    }
-                    Err(e) => {
-                        warn!(error = format!("{:?}",e).as_str(),  "Can't deserialize the record");
-                        DataResult::Err((
-                            Value::Null,
-                            io::Error::new(io::ErrorKind::InvalidData, e),
-                        ))
-                    }
-                };
-                yield data_result;
-            }
-        }))
+    fn read_without_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<DataSet> {
+        Ok(reader
+            .into_records()
+            .into_iter()
+            .map(|record_result| match record_result {
+                Ok(record) => {
+                    trace!(
+                        record = format!("{:?}", record).as_str(),
+                        "Record deserialized"
+                    );
+                    let map = record
+                        .iter()
+                        .map(|value| Value::String(value.to_string()))
+                        .collect();
+                    DataResult::Ok(Value::Array(map))
+                }
+                Err(e) => {
+                    warn!(
+                        error = format!("{:?}", e).as_str(),
+                        "Can't deserialize the record"
+                    );
+                    DataResult::Err((Value::Null, e.into()))
+                }
+            })
+            .collect())
     }
 }
 
-#[async_trait]
 impl Document for Csv {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Csv::default().metadata.merge(self.metadata.clone())
     }
-    /// See [`Document::read_data`] for more details.
-    ///
+    /// See [`Document::read`] for more details.
+    /// 
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
-    /// use chewdata::Metadata;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
     ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut metadata = Csv::default().metadata;
-    ///     metadata.delimiter = Some("|".to_string());
-    ///
-    ///     let mut document = Csv::default();
-    ///     document.metadata = metadata;
-    ///
-    ///     let mut connector = InMemory::new(r#""string"|"string_backspace"|"special_char"|"int"|"float"|"bool"
-    /// "My text"|"My text with
-    ///  backspace"|"€"|10|9.5|"true"
-    ///     "#);
-    ///     connector.fetch().await?;
-    ///     let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
-    ///
-    ///     let dataset = document.read_data(&mut boxed_connector).await?;
-    ///
-    ///     Ok(())
-    /// }
+    /// let document = Csv::default();
+    /// let buffer = "column1,column2\nA1,A2\nB1,B2\n".as_bytes().to_vec();
+    /// let mut dataset = document.read(&buffer).unwrap().into_iter();
+    /// let data_1 = dataset.next().unwrap().to_value();
+    /// let data_2 = dataset.next().unwrap().to_value();
+    /// let expected_data_1: Value =
+    ///     serde_json::from_str(r#"{"column1":"A1","column2":"A2"}"#).unwrap();
+    /// let expected_data_2: Value =
+    ///     serde_json::from_str(r#"{"column1":"B1","column2":"B2"}"#).unwrap();
+    /// assert_eq!(expected_data_1, data_1);
+    /// assert_eq!(expected_data_2, data_2);
+    /// ```
+    /// 
+    /// ```no_run
+    /// use chewdata::document::csv::Csv;
+    /// use chewdata::document::Document;
+    /// use serde_json::Value;
+    /// use chewdata::Metadata;
+    /// 
+    /// let mut metadata = Metadata::default();
+    /// metadata.has_headers = Some(false);
+    /// 
+    /// let mut document = Csv::default();
+    /// document.metadata = metadata;
+    /// let buffer = "A1,A2\nB1,B2\n".as_bytes().to_vec();
+    /// 
+    /// let mut dataset = document.read(&buffer).unwrap().into_iter();
+    /// let data_1 = dataset.next().unwrap().to_value();
+    /// let data_2 = dataset.next().unwrap().to_value();
+    /// let expected_data_1 = Value::Array(vec![
+    ///     Value::String("A1".to_string()),
+    ///     Value::String("A2".to_string()),
+    /// ]);
+    /// let expected_data_2 = Value::Array(vec![
+    ///     Value::String("B1".to_string()),
+    ///     Value::String("B2".to_string()),
+    /// ]);
+    /// assert_eq!(expected_data_1, data_1);
+    /// assert_eq!(expected_data_2, data_2);
     /// ```
     #[instrument]
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
-        let mut buf = Vec::new();
-        connector.read_to_end(&mut buf).await?;
-
-        let cursor = io::Cursor::new(buf);
-        let builder_reader = self.reader_builder().from_reader(cursor);
-        let data = match self.metadata().has_headers {
+    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+        let builder_reader = self
+            .reader_builder()
+            .from_reader(io::Cursor::new(buffer.clone()));
+        match self.metadata().has_headers {
             Some(false) => Csv::read_without_header(builder_reader),
             _ => Csv::read_with_header(builder_reader),
-        };
-
-        data
+        }
     }
-    /// See [`Document::write_data`] for more details.
+    /// See [`Document::write`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::document::{DocumentType, csv::Csv};
+    /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
+    /// use chewdata::DataResult; 
+    /// 
+    /// let mut document = Csv::default();
+    /// let dataset = vec![DataResult::Ok(
+    ///     serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+    /// )];
+    /// let buffer = document.write(&dataset).unwrap();
+    /// assert_eq!(r#""line_1"
+    /// "#.as_bytes().to_vec(), buffer);
     ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Csv::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#""column_1"
-    /// "line_1"
-    /// "#, &format!("{}", connector));
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-    ///     document.write_data(&mut connector, value).await?;
-    ///
-    ///     Ok(())
-    /// }
+    /// let dataset = vec![DataResult::Ok(
+    ///     serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap(),
+    /// )];
+    /// let buffer = document.write(&dataset).unwrap();
+    /// assert_eq!(r#""line_2"
+    /// "#.as_bytes().to_vec(), buffer);
     /// ```
-    #[instrument]
-    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        let write_header = connector
-            .metadata()
-            .has_headers
-            .unwrap_or_else(|| self.metadata().has_headers.unwrap_or(false));
-        // Use a buffer here because the csv builder flush everytime it write something.
-        let mut builder_writer = self.writer_builder().from_writer(vec![]);
+    #[instrument(skip(dataset))]
+    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+        let mut builder_writer = self.writer_builder().from_writer(Vec::default());
 
-        match value {
-            Value::Bool(value) => {
-                builder_writer.serialize(value)?;
-                Ok(())
-            }
-            Value::Number(value) => {
-                builder_writer.serialize(value)?;
-                Ok(())
-            }
-            Value::String(value) => {
-                builder_writer.serialize(value)?;
-                Ok(())
-            }
-            Value::Null => Ok(()),
+        for data in dataset {
+            let record = data.to_value();
+            match record.clone() {
+                Value::Bool(value) => builder_writer.serialize(value),
+                Value::Number(value) => builder_writer.serialize(value),
+                Value::String(value) => builder_writer.serialize(value),
+                Value::Null => Ok(()),
+                Value::Object(object) => {
+                    let mut values = Vec::<Value>::new();
+
+                    for (_, value) in object {
+                        values.push(value);
+                    }
+
+                    builder_writer.serialize(values)
+                }
+                Value::Array(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Can't transform an array to csv string. {:?}", data),
+                    ))
+                }
+            }?;
+            trace!(
+                record = format!("{:?}", record).as_str(),
+                "Record serialized"
+            );
+        }
+
+        Ok(builder_writer
+            .into_inner()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
+            .as_slice()
+            .to_vec())
+    }
+    /// See [`Document::header`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use chewdata::document::csv::Csv;
+    /// use chewdata::document::Document;
+    /// use serde_json::Value;
+    /// use chewdata::DataResult; 
+    /// 
+    /// let document = Csv::default();
+    /// let dataset = vec![DataResult::Ok(
+    ///     serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+    /// )];
+    /// let buffer = document.header(&dataset).unwrap();
+    /// assert_eq!(r#""column_1"
+    /// "#.as_bytes().to_vec(), buffer);
+    /// ```
+    fn header(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+        if dataset.is_empty() {
+            return Ok(Vec::default());
+        }
+
+        let mut builder_writer = self.writer_builder().from_writer(Vec::default());
+        let write_header = self.metadata().has_headers.unwrap_or(false);
+        let data = dataset.iter().next().unwrap();
+
+        let header = match data.to_value() {
             Value::Object(object) => {
-                let mut values = Vec::<Value>::new();
-                let mut keys = Vec::<String>::new();
+                let keys = object
+                    .into_iter()
+                    .map(|(key, _)| key)
+                    .collect::<Vec<String>>();
 
-                for (key, value) in object {
-                    keys.push(key);
-                    values.push(value);
+                match write_header {
+                    true => {
+                        builder_writer.write_record(keys)?;
+                        builder_writer
+                            .into_inner()
+                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
+                            .as_slice()
+                            .to_vec()
+                    }
+                    false => Vec::default(),
                 }
-
-                if write_header {
-                    builder_writer.write_record(keys)?;
-                    let mut metadata = connector.metadata();
-                    metadata.has_headers = Some(false);
-                    connector.set_metadata(metadata);
-                }
-                builder_writer.serialize(values)?;
-                Ok(())
             }
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("This object is not handle. {:?}", value),
-            )),
-        }?;
+            _ => Vec::default(),
+        };
 
-        connector
-            .write_all(
-                builder_writer
-                    .into_inner()
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
-                    .as_slice(),
-            )
-            .await
+        if !header.is_empty() {
+            trace!(
+                header = format!("{:?}", &header).as_str(),
+                "Header serialized"
+            );
+        }
+
+        Ok(header)
+    }
+    /// See [`Document::terminator`] for more details.
+    fn terminator(&self) -> io::Result<Vec<u8>> {
+        Ok(self
+            .metadata
+            .terminator
+            .clone()
+            .unwrap_or_else(|| DEFAULT_TERMINATOR.to_string())
+            .as_bytes()
+            .to_vec())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use async_std::prelude::StreamExt;
-
-    use crate::connector::in_memory::InMemory;
-
     use super::*;
 
-    #[async_std::test]
-    async fn read_with_header() {
+    #[test]
+    fn read_with_header() {
         let document = Csv::default();
-        let mut connector = InMemory::new("column1,column2\nA1,A2\nB1,B2\n");
-        connector.fetch().await.unwrap();
-        let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
-        let mut dataset = document.read_data(&mut boxed_connector).await.unwrap();
-        let data_1 = dataset.next().await.unwrap().to_value();
-        let data_2 = dataset.next().await.unwrap().to_value();
+        let buffer = "column1,column2\nA1,A2\nB1,B2\n".as_bytes().to_vec();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data_1 = dataset.next().unwrap().to_value();
+        let data_2 = dataset.next().unwrap().to_value();
         let expected_data_1: Value =
             serde_json::from_str(r#"{"column1":"A1","column2":"A2"}"#).unwrap();
         let expected_data_2: Value =
@@ -423,34 +407,30 @@ mod tests {
         assert_eq!(expected_data_1, data_1);
         assert_eq!(expected_data_2, data_2);
     }
-    #[async_std::test]
-    async fn not_read_with_header() {
+    #[test]
+    fn not_read_with_header() {
         let document = Csv::default();
-        let mut connector = InMemory::new("column1,column2\nA1\n");
-        connector.fetch().await.unwrap();
-        let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
-        let mut dataset = document.read_data(&mut boxed_connector).await.unwrap();
-        let data = dataset.next().await.unwrap();
+        let buffer = "column1,column2\nA1\n".as_bytes().to_vec();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap();
         match data {
             DataResult::Ok(_) => assert!(
                 false,
-                "The line readed by the csv builder should be in error."
+                "The line read by the csv builder should be in error."
             ),
             DataResult::Err(_) => (),
         };
     }
-    #[async_std::test]
-    async fn read_without_header() {
+    #[test]
+    fn read_without_header() {
         let mut metadata = Metadata::default();
         metadata.has_headers = Some(false);
         let mut document = Csv::default();
+        let buffer = "A1,A2\nB1,B2\n".as_bytes().to_vec();
         document.metadata = metadata;
-        let mut connector = InMemory::new("A1,A2\nB1,B2\n");
-        connector.fetch().await.unwrap();
-        let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
-        let mut dataset = document.read_data(&mut boxed_connector).await.unwrap();
-        let data_1 = dataset.next().await.unwrap().to_value();
-        let data_2 = dataset.next().await.unwrap().to_value();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data_1 = dataset.next().unwrap().to_value();
+        let data_2 = dataset.next().unwrap().to_value();
         let expected_data_1 = Value::Array(vec![
             Value::String("A1".to_string()),
             Value::String("A2".to_string()),
@@ -462,53 +442,73 @@ mod tests {
         assert_eq!(expected_data_1, data_1);
         assert_eq!(expected_data_2, data_2);
     }
-    #[async_std::test]
-    async fn read_data() {
+    #[test]
+    fn read() {
         let mut metadata = Csv::default().metadata;
         metadata.delimiter = Some("|".to_string());
         let mut document = Csv::default();
         document.metadata = metadata;
-        let mut connector = InMemory::new(
-            r#""string"|"string_backspace"|"special_char"|"int"|"float"|"bool"
+        let buffer = r#""string"|"string_backspace"|"special_char"|"int"|"float"|"bool"
 "My text"|"My text with
  backspace"|"€"|10|9.5|"true"
-        "#,
-        );
-        connector.fetch().await.unwrap();
-        let mut boxed_connector: Box<dyn Connector> = Box::new(connector);
-        let mut dataset = document.read_data(&mut boxed_connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
-        let expected_data: Value = serde_json::from_str(r#"{
+        "#
+        .as_bytes()
+        .to_vec();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
+        let expected_data: Value = serde_json::from_str(
+            r#"{
             "string":"My text",
             "string_backspace":"My text with\n backspace",
             "special_char":"€",
             "int":10,
             "float":9.5,
             "bool":true
-        }"#)
+        }"#,
+        )
         .unwrap();
         assert_eq!(expected_data, data);
     }
-    #[async_std::test]
-    async fn write_data_with_header() {
+    #[test]
+    fn write() {
         let mut document = Csv::default();
-        let mut connector = InMemory::new(r#""#);
-        let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-        document.write_data(&mut connector, value).await.unwrap();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+        )];
+        let buffer = document.write(&dataset).unwrap();
         assert_eq!(
-            r#""column_1"
-"line_1"
-"#,
-            &format!("{}", connector)
+            r#""line_1"
+"#
+            .as_bytes()
+            .to_vec(),
+            buffer
         );
-        let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-        document.write_data(&mut connector, value).await.unwrap();
+
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap(),
+        )];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(
+            r#""line_2"
+"#
+            .as_bytes()
+            .to_vec(),
+            buffer
+        );
+    }
+    #[test]
+    fn header() {
+        let document = Csv::default();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+        )];
+        let buffer = document.header(&dataset).unwrap();
         assert_eq!(
             r#""column_1"
-"line_1"
-"line_2"
-"#,
-            &format!("{}", connector)
+"#
+            .as_bytes()
+            .to_vec(),
+            buffer
         );
     }
 }

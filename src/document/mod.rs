@@ -24,11 +24,8 @@ use self::toml::Toml;
 use self::xml::Xml;
 use self::yaml::Yaml;
 use super::Metadata;
-use crate::connector::Connector;
-use crate::Dataset;
-use async_trait::async_trait;
+use crate::DataSet;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::io;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -116,22 +113,13 @@ impl DocumentType {
 }
 
 /// Every document_builder that implement this trait can get/write json_value through a connector.
-#[async_trait]
 pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
-    /// Apply some actions and read the data though the Connector.
-    async fn read_data(&self, reader: &mut Box<dyn Connector>) -> io::Result<Dataset>;
-    /// Format the data result into the document format, apply some action and write into the connector.
-    async fn write_data(&mut self, writer: &mut dyn Connector, value: Value) -> io::Result<()>;
-    /// Apply actions to close the document.
-    async fn close(&mut self, _writer: &mut dyn Connector) -> io::Result<()> {
-        Ok(())
-    }
     fn metadata(&self) -> Metadata {
         Metadata::default()
     }
-    /// Check if the buf has data
-    fn has_data(&self, buf: &[u8]) -> io::Result<bool> {
-        Ok(!buf.is_empty())
+    /// Check if the buffer has data
+    fn has_data(&self, buffer: &[u8]) -> io::Result<bool> {
+        Ok(!buffer.is_empty())
     }
     /// Check if it's possible to append new data into the end of the document
     /// 
@@ -144,20 +132,28 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     ///             |--------|------|--------|
     /// document => | header | data | footer |
     ///             |--------|------|--------|
-    async fn header(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
+    fn header(&self, _dataset: &DataSet) -> io::Result<Vec<u8>> {
         Ok(Default::default())
     }
     /// Return the footer data used to identify when the data end
     ///             |--------|------|--------|
     /// document => | header | data | footer |
     ///             |--------|------|--------|
-    async fn footer(&self, _connector: &mut dyn Connector) -> io::Result<Vec<u8>> {
+    fn footer(&self, _dataset: &DataSet) -> io::Result<Vec<u8>> {
+        Ok(Default::default())
+    }
+    /// Return the terminator to seperate lines of data
+    fn terminator(&self) -> io::Result<Vec<u8>> {
         Ok(Default::default())
     }
     /// Set the entry path. The entry path is the path to reach the data into the document. 
     /// 
     /// For example, in json, the entry path for `{"field1":{"sub_field1":10}}` will be `/field1/sub_field1` 
     fn set_entry_path(&mut self, _entry_point: String) {}
+    /// Read buffer of bytes and transform it into dataset
+    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet>;
+    /// Write dataset into a buffer of bytes
+    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>>;
 }
 
 pub trait DocumentClone {

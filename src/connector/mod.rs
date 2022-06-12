@@ -11,6 +11,14 @@ pub mod io;
 pub mod local;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
+// #[cfg(feature = "psql")]
+// pub mod psql;
+// #[cfg(feature = "mysql")]
+// pub mod mysql;
+// #[cfg(feature = "mssql")]
+// pub mod mssql;
+// #[cfg(feature = "sqlite")]
+// pub mod sqlite;
 
 #[cfg(feature = "bucket")]
 use self::bucket::Bucket;
@@ -23,10 +31,10 @@ use self::io::Io;
 use self::local::Local;
 #[cfg(feature = "mongodb")]
 use self::mongodb::Mongodb;
+use crate::DataSet;
 use crate::document::Document;
-use crate::Dataset;
+use crate::DataStream;
 use crate::Metadata;
-use async_std::io::{Read, Write};
 use async_trait::async_trait;
 use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
@@ -58,6 +66,20 @@ pub enum ConnectorType {
     #[serde(rename = "mongodb")]
     #[serde(alias = "mongo")]
     Mongodb(Mongodb),
+    // #[cfg(feature = "psql")]
+    // #[serde(rename = "psql")]
+    // #[serde(alias = "pgsql")]
+    // #[serde(alias = "pg")]
+    // Psql(Psql),
+    // #[cfg(feature = "mysql")]
+    // #[serde(rename = "mysql")]
+    // Mysql(Mysql),
+    // #[cfg(feature = "mssql")]
+    // #[serde(rename = "mssql")]
+    // Mssql(Mssql),
+    // #[cfg(feature = "sqlite")]
+    // #[serde(rename = "sqlite")]
+    // Sqlite(Sqlite),
 }
 
 impl Default for ConnectorType {
@@ -80,29 +102,21 @@ impl ConnectorType {
             ConnectorType::BucketSelect(connector) => Box::new(connector),
             #[cfg(feature = "mongodb")]
             ConnectorType::Mongodb(connector) => Box::new(connector),
+            // #[cfg(feature = "psql")]
+            // ConnectorType::Psql(connector) => Box::new(connector),
+            // #[cfg(feature = "mysql")]
+            // ConnectorType::Mysql(connector) => Box::new(connector),
+            // #[cfg(feature = "mssql")]
+            // ConnectorType::Mssql(connector) => Box::new(connector),
+            // #[cfg(feature = "sqlite")]
+            // ConnectorType::Sqlite(connector) => Box::new(connector),
         }
     }
 }
 
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
 #[async_trait]
-pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Read + Write {
-    // Fetch data from the resource and set the inner of the connector.
-    async fn fetch(&mut self) -> Result<()>;
-    // Return the dataset that contain a stream of data.
-    #[instrument]
-    async fn dataset(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<Dataset>> {
-        let mut connector = self.clone_box();
-    
-        match document.has_data(self.inner())? {
-            false => return Ok(None),
-            true => ()
-        };
-
-        Ok(Some(document.read_data(&mut connector).await?))
-    }
-    // Send the data from the inner connector to the remote resource.
-    async fn send(&mut self, position: Option<isize>) -> Result<()>;
+pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool>;
     /// Set parameters.
     fn set_parameters(&mut self, parameters: Value);
@@ -116,28 +130,24 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     fn is_variable(&self) -> bool;
     /// Check if the resource is empty.
     async fn is_empty(&mut self) -> Result<bool> {
-        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
+        Ok(0 == self.len().await?)
     }
     /// Get the resource size of the current path.
     async fn len(&mut self) -> Result<usize> {
-        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
+        Ok(0)
     }
     /// Path of the document
     fn path(&self) -> String;
-    /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>>;
+    /// Fetch data from the resource and set the inner of the connector.
+    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>>;
+    /// Send the data from the inner connector to the remote resource.
+    async fn send(&mut self, document: Box<dyn Document>, dataset: &DataSet) -> std::io::Result<Option<DataStream>>;
     /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
     }
-    /// clear the inner
-    fn clear(&mut self);
-    /// Get the connect buffer inner reference.
-    fn inner(&self) -> &Vec<u8>;
-    /// Return a chunk of bytes with a start and end position in the document.
-    async fn chunk(&self, _start: usize, _end: usize) -> Result<Vec<u8>> {
-        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
-    }
+    /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>>;
 }
 
 impl fmt::Display for dyn Connector {

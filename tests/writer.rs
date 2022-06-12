@@ -42,7 +42,7 @@ fn it_should_write_file_in_local_with_one_line() {
         formats.push(("toml", r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}"}}]"#));
     }
     if cfg!(feature = "xml") {
-        formats.push(("xml",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#));
+        formats.push(("xml",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true,"entry_path":"/root/*/item"}}]"#));
     }
     for (format, config) in &formats {
         let output_file_path = format!("{}/{}.{}", "data/out", "one_line", format);

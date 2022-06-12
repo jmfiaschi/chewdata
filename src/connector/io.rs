@@ -1,5 +1,6 @@
 use super::{Connector, Paginator};
-use crate::Metadata;
+use crate::document::Document;
+use crate::{DataSet, DataStream, Metadata};
 use async_std::io::BufReader;
 use async_std::io::{stdin, stdout};
 use async_std::prelude::*;
@@ -8,11 +9,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::{
-    fmt,
-    io::{Cursor, Result},
-};
+use std::{fmt, io::Result};
 
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
@@ -23,22 +20,10 @@ pub struct Io {
     #[serde(default = "default_eof")]
     #[serde(alias = "end_of_input")]
     pub eoi: String,
-    #[serde(skip)]
-    pub inner: Cursor<Vec<u8>>,
 }
 
 fn default_eof() -> String {
     "".to_string()
-}
-
-impl fmt::Display for Io {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
-        )
-    }
 }
 
 // Not display the inner for better performance with big data
@@ -70,30 +55,13 @@ impl Connector for Io {
     fn is_variable(&self) -> bool {
         false
     }
-    /// See [`Connector::is_empty`] for more details.
-    async fn is_empty(&mut self) -> Result<bool> {
-        Ok(true)
-    }
-    /// See [`Connector::len`] for more details.
-    async fn len(&mut self) -> Result<usize> {
-        Ok(0)
-    }
     /// See [`Connector::is_resource_will_change`] for more details.
     fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
         Ok(false)
     }
-    /// See [`Connector::inner`] for more details.
-    fn inner(&self) -> &Vec<u8> {
-        self.inner.get_ref()
-    }
     /// See [`Connector::fetch`] for more details.
     #[instrument]
-    async fn fetch(&mut self) -> Result<()> {
-        // Avoid to fetch two times the same data in the same connector
-        if !self.inner.get_ref().is_empty() {
-            return Ok(());
-        }
-
+    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
         let stdin = BufReader::new(stdin());
 
         trace!("Fetch lines");
@@ -108,25 +76,37 @@ impl Connector for Io {
             };
             buf = format!("{}{}\n", buf, current_line);
         }
+        trace!("Save lines into the buffer");
+        if !document.has_data(buf.as_bytes())? {
+            return Ok(None);
+        }
 
-        trace!("Save lines into the inner buffer");
-        self.inner = Cursor::new(buf.into_bytes());
+        let dataset = document.read(&buf.into_bytes())?;
 
         info!("The connector fetch data with success");
-        Ok(())
+        Ok(Some(Box::pin(stream! {
+            for data in dataset {
+                yield data;
+            }
+        })))
     }
     /// See [`Connector::send`] for more details.
-    #[instrument]
-    async fn send(&mut self, _position: Option<isize>) -> Result<()> {
+    #[instrument(skip(dataset))]
+    async fn send(&mut self, mut document: Box<dyn Document>, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
+        let mut buffer = Vec::default();
+
+        buffer.append(&mut document.header(dataset)?);
+        buffer.append(&mut document.write(dataset)?);
+        buffer.append(&mut document.footer(dataset)?);
+
         trace!("Write data into stdout");
-        stdout().write_all(self.inner.get_ref()).await?;
+        stdout().write_all(&buffer).await?;
         // Force to send data
         trace!("Flush data into stdout");
         stdout().flush().await?;
-        self.clear();
 
         info!("The connector send data into the resource with success");
-        Ok(())
+        Ok(None)
     }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
@@ -137,42 +117,6 @@ impl Connector for Io {
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         Ok(Box::pin(IoPaginator::new(self.clone())?))
-    }
-    /// See [`Connector::clear`] for more details.
-    fn clear(&mut self) {
-        self.inner = Default::default();
-    }
-}
-
-#[async_trait]
-impl async_std::io::Read for Io {
-    /// See [`async_std::io::Read::poll_read`] for more details.
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
-    }
-}
-
-#[async_trait]
-impl async_std::io::Write for Io {
-    /// See [`async_std::io::Write::poll_write`] for more details.
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>> {
-        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
-    }
-    /// See [`async_std::io::Write::poll_flush`] for more details.
-    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(std::io::Write::flush(&mut self.inner))
-    }
-    /// See [`async_std::io::Write::poll_close`] for more details.
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_flush(cx)
     }
 }
 
@@ -206,7 +150,7 @@ impl Paginator for IoPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let connector = Io::default();
-    /// 
+    ///
     ///     let mut stream = connector.paginator().await?.stream().await?;
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader");
     ///     assert!(stream.next().await.transpose()?.is_none(), "Must return only on connector for IO");
@@ -236,9 +180,7 @@ impl Paginator for IoPaginator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_std::{
-        prelude::StreamExt,
-    };
+    use async_std::prelude::StreamExt;
 
     #[async_std::test]
     async fn paginator_stream() {

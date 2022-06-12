@@ -109,6 +109,7 @@ impl Step for Transformer {
             let data_result = step_context_received.data_result();
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
+                super::send(self as &dyn Step, &step_context_received.clone()).await?;
                 continue;
             }
 

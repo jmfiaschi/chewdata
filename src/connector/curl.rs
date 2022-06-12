@@ -2,17 +2,15 @@ use super::authenticator::AuthenticatorType;
 use super::{Connector, Paginator};
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
-use crate::Metadata;
+use crate::{DataSet, DataStream, Metadata};
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use json_value_merge::Merge;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::io::{Cursor, Error, ErrorKind, Result, Write};
+use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::{collections::HashMap, fmt};
 use surf::http::{headers, Method, Url};
 
@@ -40,8 +38,6 @@ pub struct Curl {
     #[serde(alias = "counter")]
     #[serde(alias = "count")]
     pub counter_type: Option<CounterType>,
-    #[serde(skip)]
-    pub inner: Box<Cursor<Vec<u8>>>,
 }
 
 impl Default for Curl {
@@ -56,18 +52,7 @@ impl Default for Curl {
             parameters: Value::Null,
             paginator_type: PaginatorType::default(),
             counter_type: None,
-            inner: Box::new(Cursor::default()),
         }
-    }
-}
-
-impl fmt::Display for Curl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
-        )
     }
 }
 
@@ -156,109 +141,12 @@ impl Connector for Curl {
         new_path.replace_mustache(new_parameters);
 
         if actuel_path == new_path {
-            trace!("The connector stay link to the same resource");
+            trace!("The connector path didn't change");
             return Ok(false);
         }
 
-        info!("The connector will use another resource, regarding the new parameters");
+        info!("The connector will use another resource regarding the new parameters");
         Ok(true)
-    }
-    /// See [`Connector::fetch`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{curl::Curl, Connector};
-    /// use surf::http::Method;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Curl::default();
-    ///     assert_eq!(0, connector.inner().len());
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Get;
-    ///     connector.path = "/json".to_string();
-    ///     connector.fetch().await?;
-    ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument]
-    async fn fetch(&mut self) -> Result<()> {
-        // Avoid to fetch two times the same data in the same connector
-        if !self.inner.get_ref().is_empty() {
-            return Ok(());
-        }
-
-        let client = surf::client();
-        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        let mut request_builder = surf::RequestBuilder::new(self.method, url);
-
-        if let Some(ref mut authenticator_type) = self.authenticator_type {
-            let authenticator = authenticator_type.authenticator_mut();
-            authenticator.set_parameters(self.parameters.clone());
-            request_builder = authenticator.authenticate(request_builder).await?;
-        }
-
-        if !self.metadata().content_type().is_empty() {
-            request_builder =
-                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
-        }
-
-        if !self.headers.is_empty() {
-            for (key, value) in self.headers.iter() {
-                request_builder = request_builder.header(key.as_str(), value.as_str());
-            }
-        }
-
-        let req = request_builder.build();
-        let mut res = client
-            .send(req.clone())
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-
-        let data = res
-            .body_bytes()
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-
-        if !res.status().is_success() {
-            return Err(Error::new(
-                ErrorKind::Interrupted,
-                format!(
-                    "Curl failed with status code '{}' and response body: {}",
-                    res.status(),
-                    String::from_utf8(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-                ),
-            ));
-        }
-
-        self.inner = Box::new(Cursor::new(data));
-
-        info!("The connector fetch data into the resource with success");
-        Ok(())
-    }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        let paginator = match self.paginator_type {
-            PaginatorType::Offset(ref offset_paginator) => {
-                let mut offset_paginator = offset_paginator.clone();
-                offset_paginator.set_connector(self.clone());
-
-                Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
-            }
-            PaginatorType::Cursor(ref cursor_paginator) => {
-                let mut cursor_paginator = cursor_paginator.clone();
-                cursor_paginator.set_connector(self.clone());
-
-                Box::new(cursor_paginator) as Box<dyn Paginator + Send + Sync>
-            }
-        };
-
-        Ok(Pin::new(paginator))
     }
     /// See [`Connector::is_variable_path`] for more details.
     ///
@@ -277,35 +165,11 @@ impl Connector for Curl {
     /// assert_eq!(true, connector.is_variable());
     /// ```
     fn is_variable(&self) -> bool {
-        let reg = Regex::new("\\{\\{[^}]*\\}\\}").unwrap();
-        reg.is_match(self.path.as_ref())
+        self.path.has_mustache()
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;
-    }
-    /// See [`Connector::is_empty`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{curl::Curl, Connector};
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.path = "/status/200".to_string();
-    ///     assert_eq!(true, connector.is_empty().await?);
-    ///     connector.path = "/get".to_string();
-    ///     assert_eq!(false, connector.is_empty().await?);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn is_empty(&mut self) -> Result<bool> {
-        Ok(0 == self.len().await?)
     }
     /// See [`Connector::set_metadata`] for more details.
     fn set_metadata(&mut self, metadata: Metadata) {
@@ -391,12 +255,101 @@ impl Connector for Curl {
         );
         Ok(content_length)
     }
+    /// See [`Connector::fetch`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use chewdata::connector::{curl::Curl, Connector};
+    /// use chewdata::document::json::Json;
+    /// use surf::http::Method;
+    /// use async_std::stream::StreamExt;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let document = Box::new(Json::default());
+    ///     let mut connector = Curl::default();
+    ///     connector.endpoint = "http://localhost:8080".to_string();
+    ///     connector.method = Method::Get;
+    ///     connector.path = "/json".to_string();
+    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     assert!(
+    ///         0 < datastream.count().await,
+    ///         "The inner connector should have a size upper than zero"
+    ///     );
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument]
+    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
+        let client = surf::client();
+        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let mut request_builder = surf::RequestBuilder::new(self.method, url);
+
+        if let Some(ref mut authenticator_type) = self.authenticator_type {
+            let authenticator = authenticator_type.authenticator_mut();
+            authenticator.set_parameters(self.parameters.clone());
+            request_builder = authenticator.authenticate(request_builder).await?;
+        }
+
+        if !self.metadata().content_type().is_empty() {
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+        }
+
+        if !self.headers.is_empty() {
+            for (key, value) in self.headers.iter() {
+                request_builder = request_builder.header(key.as_str(), value.as_str());
+            }
+        }
+
+        let req = request_builder.build();
+        let mut res = client
+            .send(req.clone())
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        let data = res
+            .body_bytes()
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+        if !res.status().is_success() {
+            return Err(Error::new(
+                ErrorKind::Interrupted,
+                format!(
+                    "Curl failed with status code '{}' and response body: {}",
+                    res.status(),
+                    String::from_utf8(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                ),
+            ));
+        }
+
+        info!("The connector fetch data into the resource with success");
+
+        if !document.has_data(&data)? {
+            return Ok(None);
+        }
+
+        let dataset = document.read(&data)?;
+
+        Ok(Some(Box::pin(stream! {
+            for data in dataset {
+                yield data;
+            }
+        })))
+    }
     /// See [`Connector::send`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
+    /// use chewdata::document::json::Json;
+    /// use chewdata::DataResult;
     /// use surf::http::Method;
     /// use async_std::prelude::*;
     /// use json_value_search::Search;
@@ -405,21 +358,36 @@ impl Connector for Curl {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Box::new(Json::default());
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Post;
     ///     connector.path = "/post".to_string();
-    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
+    ///     let expected_result1 =
+    ///        DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+    ///     let dataset = vec![expected_result1];
+    ///     let mut datastream = connector.send(document, &dataset).await.unwrap().unwrap();
+    ///     let value = datastream.next().await.unwrap().to_value();
+    ///     assert_eq!(
+    ///        r#"[{"column1":"value1"}]"#,
+    ///        value.search("/data").unwrap().unwrap()
+    ///     );
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
-    async fn send(&mut self, _position: Option<isize>) -> Result<()> {
+    #[instrument(skip(dataset))]
+    async fn send(
+        &mut self,
+        mut document: Box<dyn Document>,
+        dataset: &DataSet,
+    ) -> std::io::Result<Option<DataStream>> {
         let client = surf::client();
-        // initialize the position of the cursor
-        self.inner.set_position(0);
+        let mut buffer = Vec::default();
+
+        buffer.append(&mut document.header(dataset)?);
+        buffer.append(&mut document.write(dataset)?);
+        buffer.append(&mut document.footer(dataset)?);
 
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
@@ -442,7 +410,7 @@ impl Connector for Curl {
             }
         }
 
-        let req = request_builder.body(self.inner.get_ref().to_vec()).build();
+        let req = request_builder.body(buffer).build();
         let mut res = client
             .send(req)
             .await
@@ -464,15 +432,18 @@ impl Connector for Curl {
             ));
         }
 
-        self.clear();
-
         if !data.is_empty() {
-            self.inner.write_all(&data)?;
-            self.inner.set_position(0);
+            let dataset = document.read(&data)?;
+
+            return Ok(Some(Box::pin(stream! {
+                for data in dataset {
+                    yield data;
+                }
+            })));
         }
 
         info!("The connector send data into the resource with success");
-        Ok(())
+        Ok(None)
     }
     /// See [`Connector::erase`] for more details.
     ///
@@ -539,45 +510,24 @@ impl Connector for Curl {
         info!("The connector erase data in the resource with success");
         Ok(())
     }
-    /// See [`Writer::inner`] for more details.
-    fn inner(&self) -> &Vec<u8> {
-        self.inner.get_ref()
-    }
-    /// See [`Connector::clear`] for more details.
-    fn clear(&mut self) {
-        self.inner = Default::default();
-    }
-}
+    /// See [`Connector::paginator`] for more details.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+        let paginator = match self.paginator_type {
+            PaginatorType::Offset(ref offset_paginator) => {
+                let mut offset_paginator = offset_paginator.clone();
+                offset_paginator.set_connector(self.clone());
 
-#[async_trait]
-impl async_std::io::Read for Curl {
-    /// See [`async_std::io::Read::poll_read`] for more details.
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
-    }
-}
+                Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
+            }
+            PaginatorType::Cursor(ref cursor_paginator) => {
+                let mut cursor_paginator = cursor_paginator.clone();
+                cursor_paginator.set_connector(self.clone());
 
-#[async_trait]
-impl async_std::io::Write for Curl {
-    /// See [`async_std::io::Write::poll_write`] for more details.
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>> {
-        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
-    }
-    /// See [`async_std::io::Write::poll_flush`] for more details.
-    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(std::io::Write::flush(&mut self.inner))
-    }
-    /// See [`async_std::io::Write::poll_close`] for more details.
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_flush(cx)
+                Box::new(cursor_paginator) as Box<dyn Paginator + Send + Sync>
+            }
+        };
+
+        Ok(Pin::new(paginator))
     }
 }
 
@@ -795,11 +745,13 @@ impl BodyCounter {
 
         document.set_entry_path(self.entry_path.clone());
 
-        connector.fetch().await?;
-
-        let mut dataset = document
-            .read_data(&mut (Box::new(connector) as Box<dyn Connector>))
-            .await?;
+        let mut dataset = match connector.fetch(document).await? {
+            Some(dataset) => dataset,
+            None => {
+                trace!("No data found");
+                return Ok(None);
+            }
+        };
 
         let data_opt = dataset.next().await;
 
@@ -1124,11 +1076,11 @@ impl Paginator for CursorPaginator {
                     .merge_in("/paginator/limit", Value::String(limit.to_string()))?;
 
                 document.set_entry_path(entry_path.clone());
-                new_connector.fetch().await?;
 
-                let mut dataset = document
-                    .read_data(&mut (new_connector.clone() as Box<dyn Connector>))
-                    .await?;
+                let mut dataset = match new_connector.fetch(document.clone()).await? {
+                    Some(dataset) => dataset,
+                    None => break
+                };
 
                 let data_opt = dataset.next().await;
 
@@ -1163,11 +1115,12 @@ impl Paginator for CursorPaginator {
 
 #[cfg(test)]
 mod tests {
-    use async_std::io::{ReadExt, WriteExt};
-    use json_value_search::Search;
-
-    use super::*;
     use crate::document::json::Json;
+    #[cfg(feature = "xml")]
+    use crate::document::xml::Xml;
+    use crate::DataResult;
+    use json_value_search::Search;
+    use super::*;
 
     #[test]
     fn is_variable() {
@@ -1228,33 +1181,32 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
+        let document = Box::new(Json::default());
         let mut connector = Curl::default();
-        assert_eq!(0, connector.inner().len());
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/json".to_string();
-        connector.fetch().await.unwrap();
+        let datastream = connector.fetch(document).await.unwrap().unwrap();
         assert!(
-            0 < connector.inner().len(),
+            0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
         );
     }
     #[async_std::test]
     async fn send() {
+        let document = Box::new(Json::default());
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Post;
         connector.path = "/post".to_string();
-        connector
-            .write_all(r#"[{"column1":"value1"}]"#.as_bytes())
-            .await
-            .unwrap();
-        connector.send(None).await.unwrap();
-        let payload: Value =
-            serde_json::from_str(std::str::from_utf8(connector.inner()).unwrap()).unwrap();
+        let expected_result1 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        let dataset = vec![expected_result1];
+        let mut datastream = connector.send(document, &dataset).await.unwrap().unwrap();
+        let value = datastream.next().await.unwrap().to_value();
         assert_eq!(
             r#"[{"column1":"value1"}]"#,
-            payload.search("/data").unwrap().unwrap()
+            value.search("/data").unwrap().unwrap()
         );
     }
     #[async_std::test]
@@ -1315,8 +1267,12 @@ mod tests {
         let mut paginator = connector.paginator().await.unwrap();
         assert_eq!(Some(194), paginator.count().await.unwrap());
     }
+    #[cfg(feature = "xml")]
     #[async_std::test]
     async fn paginator_offset_stream() {
+        let mut document = Box::new(Xml::default());
+        document.entry_path = "/html/body/*/a".to_string();
+
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
@@ -1329,20 +1285,31 @@ mod tests {
         let mut paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
+
         let mut connector = stream.next().await.transpose().unwrap().unwrap();
-        connector.fetch().await.unwrap();
         assert_eq!("/links/1/10", connector.path().as_str());
-        let mut buffer1 = String::default();
-        let len1 = connector.read_to_string(&mut buffer1).await.unwrap();
+        let len1 = connector
+            .fetch(document.clone())
+            .await
+            .unwrap()
+            .unwrap()
+            .count()
+            .await;
         assert!(0 < len1, "Can't read the content of the file.");
+
         let mut connector = stream.next().await.transpose().unwrap().unwrap();
-        connector.fetch().await.unwrap();
         assert_eq!("/links/2/10", connector.path().as_str());
-        let mut buffer2 = String::default();
-        let len2 = connector.read_to_string(&mut buffer2).await.unwrap();
+        let len2 = connector
+            .fetch(document)
+            .await
+            .unwrap()
+            .unwrap()
+            .count()
+            .await;
         assert!(0 < len2, "Can't read the content of the file.");
+
         assert!(
-            buffer1 != buffer2,
+            len1 != len2,
             "The content of this two files is not different."
         );
     }

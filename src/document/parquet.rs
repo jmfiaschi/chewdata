@@ -1,13 +1,8 @@
-use crate::connector::Connector;
 use crate::document::Document;
-use crate::Metadata;
-use crate::{DataResult, Dataset};
+use crate::DataResult;
+use crate::{DataSet, Metadata};
 use arrow::datatypes::Schema;
 use arrow::json::reader::{infer_json_schema_from_iterator, Decoder, DecoderOptions};
-use async_std::io::prelude::WriteExt;
-use async_std::io::ReadExt;
-use async_stream::stream;
-use async_trait::async_trait;
 use json_value_search::Search;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, Encoding};
@@ -30,9 +25,6 @@ pub struct Parquet {
     pub schema: Option<Box<Value>>,
     pub batch_size: usize,
     pub options: Option<ParquetOptions>,
-    // List of temporary values used to write into the connector
-    #[serde(skip)]
-    pub inner: Vec<Value>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
@@ -66,7 +58,6 @@ impl Default for Parquet {
             schema: None,
             batch_size: 1000,
             options: Some(ParquetOptions::default()),
-            inner: Vec::default(),
         }
     }
 }
@@ -88,7 +79,6 @@ impl Default for ParquetOptions {
     }
 }
 
-#[async_trait]
 impl Document for Parquet {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
@@ -102,113 +92,94 @@ impl Document for Parquet {
     fn can_append(&self) -> bool {
         false
     }
-    /// See [`Document::read_data`] for more details.
+    /// See [`Document::read`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{Connector, local::Local};
     /// use chewdata::document::parquet::Parquet;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
+    /// use std::io::Read;
     ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Parquet::default();
-    ///     let mut connector: Box<dyn Connector> = Box::new(Local::new("./data/multi_lines.parquet".to_string()));
-    ///     connector.fetch().await?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_value();
-    ///
-    ///     Ok(())
-    /// }
+    /// let document = Parquet::default();
+    /// let mut buffer = Vec::default();
+    /// std::fs::OpenOptions::new()
+    ///     .read(true)
+    ///     .write(false)
+    ///     .create(false)
+    ///     .append(false)
+    ///     .truncate(false)
+    ///     .open("./data/multi_lines.parquet").unwrap()
+    ///     .read_to_end(&mut buffer).unwrap();
+    /// let mut dataset = document.read(&buffer).unwrap().into_iter();
+    /// let data = dataset.next().unwrap().to_value();
+    /// let json_expected_str = r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove"}"#;
+    /// let expected_data: Value = serde_json::from_str(json_expected_str).unwrap();
+    /// assert_eq!(expected_data, data);
     /// ```
     #[instrument]
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
-        let mut buf = Vec::new();
-        connector.read_to_end(&mut buf).await?;
-
-        let cursor = SliceableCursor::new(buf);
-
-        let read_from_cursor = SerializedFileReader::new(cursor)
+    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+        let mut dataset = Vec::default();
+        let entry_path_option = self.entry_path.clone();
+        let read_from_cursor = SerializedFileReader::new(SliceableCursor::new(buffer.clone()))
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
         let rows = read_from_cursor
             .get_row_iter(None)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-        let entry_path_option = self.entry_path.clone();
-
-        let records: Vec<Value> = rows.map(|row| row.to_json_value()).collect();
-
-        Ok(Box::pin(stream! {
-            for record in records {
-                match entry_path_option.clone() {
-                    Some(entry_path) => {
-                        match record.clone().search(entry_path.as_ref()) {
-                            Ok(Some(Value::Array(values))) => {
-                                for value in values {
-                                    yield DataResult::Ok(value);
-                                }
-                            }
-                            Ok(Some(record)) => yield DataResult::Ok(record),
-                            Ok(None) => {
-                                yield DataResult::Err((
-                                    record,
-                                    io::Error::new(
-                                        io::ErrorKind::InvalidInput,
-                                        format!("Entry path '{}' not found.", entry_path),
-                                    ),
-                                ))
-                            }
-                            Err(e) => yield DataResult::Err((record, e)),
+        for row in rows {
+            let record = row.to_json_value();
+            match entry_path_option.clone() {
+                Some(entry_path) => match record.clone().search(entry_path.as_ref())? {
+                    Some(Value::Array(records)) => {
+                        for record in records {
+                            trace!(
+                                record = format!("{:?}", record).as_str(),
+                                "Record deserialized"
+                            );
+                            dataset.push(DataResult::Ok(record));
                         }
-                    },
-                    None => {
-                        yield DataResult::Ok(record);
                     }
+                    Some(record) => {
+                        trace!(
+                            record = format!("{:?}", record).as_str(),
+                            "Record deserialized"
+                        );
+                        dataset.push(DataResult::Ok(record));
+                    }
+                    None => {
+                        warn!(
+                            entry_path = format!("{:?}", entry_path).as_str(),
+                            record = format!("{:?}", record.clone()).as_str(),
+                            "Entry path not found"
+                        );
+                        dataset.push(DataResult::Err((
+                            record,
+                            io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                format!("Entry path '{}' not found.", entry_path),
+                            ),
+                        )));
+                    }
+                },
+                None => {
+                    trace!(
+                        record = format!("{:?}", record).as_str(),
+                        "Record deserialized"
+                    );
+                    dataset.push(DataResult::Ok(record));
                 }
             }
-        }))
-    }
-    /// See [`Document::write_data`] for more details.
-    async fn write_data(&mut self, _connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        self.inner.push(value);
-
-        Ok(())
-    }
-    /// See [`Document::close`] for more details.
-    async fn close(&mut self, connector: &mut dyn Connector) -> io::Result<()> {
-        let connector_is_empty = connector.is_empty().await?;
-
-        let mut values = Vec::default();
-
-        // In parquet, if the document exist, we need to create another document. A paquet file is immutable.
-        if !connector_is_empty && connector.inner().is_empty() {
-            connector.fetch().await?;
-            let mut buf = Vec::new();
-            connector.read_to_end(&mut buf).await?;
-
-            let cursor = SliceableCursor::new(buf);
-
-            let mut records = SerializedFileReader::new(cursor)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
-                .get_row_iter(None)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
-                .into_iter()
-                .map(|row| row.to_json_value())
-                .collect();
-
-            values.append(&mut records);
-            connector.clear();
         }
 
-        values.append(&mut self.inner.clone());
-
-        let mut arrow_value = values.clone().into_iter().map(Ok);
+        Ok(dataset)
+    }
+    /// See [`Document::write`] for more details.
+    #[instrument(skip(dataset))]
+    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+        let mut arrow_value = dataset.iter().map(|data| Ok(data.to_value()));
 
         let schema = match self.schema.clone() {
             Some(value) => Schema::from(&value),
@@ -291,7 +262,7 @@ impl Document for Parquet {
 
             let decoder_options = DecoderOptions::new().with_batch_size(self.batch_size);
 
-            let decoder = Decoder::new(Arc::new(schema.clone()), decoder_options);
+            let decoder = Decoder::new(Arc::new(schema), decoder_options);
 
             while let Ok(Some(batch)) = decoder.next_batch(&mut arrow_value) {
                 writer.write(&batch.clone())?;
@@ -300,54 +271,72 @@ impl Document for Parquet {
             writer.close()?;
         }
 
-        connector.write_all(&cursor_writer.data()).await?;
-
-        self.inner = Default::default();
-
-        Ok(())
+        Ok(cursor_writer.data())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::connector::local::Local;
-    use async_std::prelude::StreamExt;
-
     use super::*;
+    use std::io::Read;
 
-    #[async_std::test]
-    async fn read_data() {
+    #[test]
+    fn read_data() {
         let document = Parquet::default();
-        let mut connector: Box<dyn Connector> =
-            Box::new(Local::new("./data/multi_lines.parquet".to_string()));
-        connector.fetch().await.unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
+        let mut buffer = Vec::default();
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(false)
+            .create(false)
+            .append(false)
+            .truncate(false)
+            .open("./data/multi_lines.parquet")
+            .unwrap()
+            .read_to_end(&mut buffer)
+            .unwrap();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
         let json_expected_str = r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove"}"#;
         let expected_data: Value = serde_json::from_str(json_expected_str).unwrap();
         assert_eq!(expected_data, data);
     }
-    #[async_std::test]
-    async fn read_data_in_target_position() {
+    #[test]
+    fn read_data_in_target_position() {
         let mut document = Parquet::default();
         document.entry_path = Some("/string".to_string());
-        let mut connector: Box<dyn Connector> =
-            Box::new(Local::new("./data/multi_lines.parquet".to_string()));
-        connector.fetch().await.unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
+        let mut buffer = Vec::default();
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(false)
+            .create(false)
+            .append(false)
+            .truncate(false)
+            .open("./data/multi_lines.parquet")
+            .unwrap()
+            .read_to_end(&mut buffer)
+            .unwrap();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
         let expected_data = Value::String("value to test".to_string());
         assert_eq!(expected_data, data);
     }
-    #[async_std::test]
-    async fn read_data_without_finding_entry_path() {
+    #[test]
+    fn read_data_without_finding_entry_path() {
         let mut document = Parquet::default();
         document.entry_path = Some("/not_found".to_string());
-        let mut connector: Box<dyn Connector> =
-            Box::new(Local::new("./data/multi_lines.parquet".to_string()));
-        connector.fetch().await.unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
+        let mut buffer = Vec::default();
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(false)
+            .create(false)
+            .append(false)
+            .truncate(false)
+            .open("./data/multi_lines.parquet")
+            .unwrap()
+            .read_to_end(&mut buffer)
+            .unwrap();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
         let expected_data: Value = serde_json::from_str(r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Entry path '/not_found' not found."}"#).unwrap();
         assert_eq!(expected_data, data);
     }

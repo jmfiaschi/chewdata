@@ -1,5 +1,7 @@
 use super::{Connector, Paginator};
-use crate::{document::Document as ChewdataDocument, helper::mustache::Mustache};
+use crate::{
+    document::Document as ChewdataDocument, helper::mustache::Mustache, DataSet, DataStream,
+};
 use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -11,10 +13,9 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::task::{Context, Poll};
 use std::{fmt, pin::Pin};
 use std::{
-    io::{Cursor, Error, ErrorKind, Result},
+    io::{Error, ErrorKind, Result},
     sync::Arc,
 };
 
@@ -26,7 +27,9 @@ pub struct Mongodb {
     pub database: String,
     #[serde(alias = "col")]
     pub collection: String,
-    pub query: Box<Option<Value>>,
+    #[serde(alias = "params")]
+    pub parameters: Value,
+    pub filter: Box<Option<Value>>,
     pub find_options: Box<Option<FindOptions>>,
     #[serde(skip_serializing)]
     pub update_options: Box<Option<UpdateOptions>>,
@@ -35,9 +38,6 @@ pub struct Mongodb {
     #[serde(alias = "counter")]
     #[serde(alias = "count")]
     pub counter_type: Option<CounterType>,
-    #[serde(alias = "projection")]
-    #[serde(skip)]
-    pub inner: Box<Cursor<Vec<u8>>>,
 }
 
 impl Default for Mongodb {
@@ -49,23 +49,37 @@ impl Default for Mongodb {
             endpoint: Default::default(),
             database: Default::default(),
             collection: Default::default(),
-            query: Default::default(),
+            parameters: Default::default(),
+            filter: Default::default(),
             find_options: Default::default(),
             update_options: Box::new(Some(update_option)),
             paginator_type: PaginatorType::default(),
             counter_type: None,
-            inner: Default::default(),
         }
     }
 }
 
 impl fmt::Display for Mongodb {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
-        )
+        futures::executor::block_on(async {
+            let hostname = self.endpoint.clone();
+            let database = self.database.clone();
+            let collection = self.collection.clone();
+            let options = *self.find_options.clone();
+            let filter: Option<Document> = match self.filter(self.parameters.clone()) {
+                Some(filter) => serde_json::from_str(filter.to_string().as_str()).unwrap(),
+                None => None,
+            };
+
+            let client = Client::with_uri_str(&hostname).await.unwrap();
+            let db = client.database(&database);
+            let collection = db.collection::<Document>(&collection);
+            let cursor = collection.find(filter, options).await.unwrap();
+            let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect().await;
+            let data = serde_json::to_string(&docs).unwrap();
+
+            write!(f, "{}", data)
+        })
     }
 }
 
@@ -76,10 +90,25 @@ impl fmt::Debug for Mongodb {
             .field("endpoint", &self.endpoint)
             .field("collection", &self.collection)
             .field("database", &self.database)
-            .field("query", &self.query)
+            .field("parameters", &self.parameters)
+            .field("filter", &self.filter)
             .field("find_options", &self.find_options)
             .field("update_options", &self.update_options)
             .finish()
+    }
+}
+
+impl Mongodb {
+    /// Get new filter value link to the parameters in input
+    fn filter(&self, parameters: Value) -> Option<Value> {
+        let mut filter = match *self.filter.clone() {
+            Some(filter) => filter,
+            None => return None,
+        };
+
+        filter.replace_mustache(parameters);
+
+        Some(filter)
     }
 }
 
@@ -109,38 +138,33 @@ impl Connector for Mongodb {
         Ok(Pin::new(paginator))
     }
     /// See [`Connector::set_parameters`] for more details.
-    fn set_parameters(&mut self, _parameters: Value) {}
+    fn set_parameters(&mut self, parameters: Value) {
+        self.parameters = parameters;
+    }
     /// See [`Connector::is_variable`] for more details.
     fn is_variable(&self) -> bool {
-        false
+        match *self.filter.clone() {
+            Some(filter) => filter.has_mustache(),
+            None => false,
+        }
     }
     /// See [`Connector::is_resource_will_change`] for more details.
-    fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
-        Ok(self.is_variable())
-    }
-    /// See [`Connector::is_empty`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::mongodb::Mongodb;
-    /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Mongodb::default();
-    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
-    ///     assert_eq!(true, connector.is_empty().await?);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn is_empty(&mut self) -> Result<bool> {
-        Ok(0 == self.len().await?)
+    fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
+        if !self.is_variable() {
+            trace!("The connector stay link to the same resource");
+            return Ok(false);
+        }
+
+        let actuel_filter = self.filter(self.parameters.clone());
+        let new_filter = self.filter(new_parameters);
+
+        if actuel_filter == new_filter {
+            trace!("The connector filter didn't change");
+            return Ok(false);
+        }
+
+        info!("The connector will use another resource regarding the new parameters");
+        Ok(true)
     }
     /// See [`Connector::len`] for more details.
     async fn len(&mut self) -> Result<usize> {
@@ -163,46 +187,45 @@ impl Connector for Mongodb {
         // Ok(count as usize)
         Ok(0)
     }
-    /// See [`Connector::inner`] for more details.
-    fn inner(&self) -> &Vec<u8> {
-        self.inner.get_ref()
-    }
     /// See [`Connector::fetch`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
+    /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Box::new(Json::default());
+    ///
     ///     let mut connector = Mongodb::default();
-    ///     assert_eq!(0, connector.inner().len());
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     connector.fetch().await?;
-    ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
+    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     assert!(
+    ///         0 < datastream.count().await,
+    ///         "The inner connector should have a size upper than zero"
+    ///     );
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self) -> Result<()> {
-        // Avoid to fetch two times the same data in the same connector
-        if !self.inner.get_ref().is_empty() {
-            return Ok(());
-        }
-
+    async fn fetch(
+        &mut self,
+        document: Box<dyn ChewdataDocument>,
+    ) -> std::io::Result<Option<DataStream>> {
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
         let collection = self.collection.clone();
         let options = *self.find_options.clone();
-        let query: Option<Document> = match *self.query {
-            Some(ref query) => serde_json::from_str(query.to_string().as_str())?,
+        let filter: Option<Document> = match self.filter(self.parameters.clone()) {
+            Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
             None => None,
         };
 
@@ -212,16 +235,134 @@ impl Connector for Mongodb {
         let db = client.database(&database);
         let collection = db.collection::<Document>(&collection);
         let cursor = collection
-            .find(query, options)
+            .find(filter, options)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
         let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect().await;
-        let data = serde_json::to_string(&docs)?;
-
-        self.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
+        let data = serde_json::to_vec(&docs)?;
 
         info!("The connector fetch data with success");
-        Ok(())
+
+        if !document.has_data(&data)? {
+            return Ok(None);
+        }
+
+        let dataset = document.read(&data)?;
+
+        Ok(Some(Box::pin(stream! {
+            for data in dataset {
+                yield data;
+            }
+        })))
+    }
+    /// See [`Connector::send`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use chewdata::connector::mongodb::Mongodb;
+    /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
+    /// use chewdata::DataResult;
+    /// use serde_json::from_str;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let document = Box::new(Json::default());
+    ///
+    ///     let mut connector = Mongodb::default();
+    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+    ///     connector.database = "tests".into();
+    ///     connector.collection = "send_1".into();
+    ///     connector.erase().await.unwrap();
+    ///
+    ///     let expected_result1 =
+    ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+    ///     let dataset = vec![expected_result1.clone()];
+    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument(skip(dataset))]
+    async fn send(
+        &mut self,
+        _document: Box<dyn ChewdataDocument>,
+        dataset: &DataSet,
+    ) -> std::io::Result<Option<DataStream>> {
+        let hostname = self.endpoint.clone();
+        let database = self.database.clone();
+        let collection = self.collection.clone();
+
+        let mut docs: Vec<Document> = Vec::default();
+        for data in dataset {
+            docs.push(
+                serde_json::from_value(data.to_value())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            );
+        }
+
+        let update_options = self.update_options.clone();
+
+        let client = Client::with_uri_str(&hostname)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        let db = client.database(&database);
+        let collection = db.collection::<Document>(&collection);
+        let parameters = self.parameters.clone();
+
+        for doc in docs {
+            let mut doc_without_id = doc.clone();
+            if doc_without_id.get("_id").is_some() {
+                doc_without_id.remove("_id");
+            }
+
+            let filter_update = match self.filter(parameters.clone()) {
+                Some(mut filter) => {
+                    let json_doc: Value = serde_json::to_value(doc.clone())?;
+                    filter.replace_mustache(json_doc.clone());
+                    serde_json::from_str(filter.to_string().as_str())?
+                }
+                None => match doc.get("_id") {
+                    Some(id) => doc! { "_id": id },
+                    None => doc_without_id.clone(),
+                },
+            };
+
+            trace!(
+                filter = format!("{:?}", &filter_update).as_str(),
+                update = format!("{:?}", doc! {"$set": &doc_without_id}).as_str(),
+                "Query to update the collection"
+            );
+
+            let result = collection
+                .update_many(
+                    filter_update,
+                    doc! {"$set": doc_without_id},
+                    *update_options.clone(),
+                )
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+            if 0 < result.matched_count {
+                trace!(
+                    result = format!("{:?}", result).as_str(),
+                    "Document(s) updated into the connection"
+                );
+            }
+            if result.upserted_id.is_some() {
+                trace!(
+                    result = format!("{:?}", result).as_str(),
+                    "Document(s) inserted into the connection"
+                );
+            }
+        }
+
+        info!("The connector send data into the collection with success");
+        Ok(None)
     }
     /// See [`Connector::erase`] for more details.
     ///
@@ -230,21 +371,30 @@ impl Connector for Mongodb {
     /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
+    /// use chewdata::DataResult;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Box::new(Json::default());
+    ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
     ///     connector.collection = "erase".into();
     ///
-    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
-    ///     connector.erase().await?;
-    ///     connector.fetch().await?;
-    ///     assert_eq!("[]".to_string(), String::from_utf8(connector.inner().clone()).unwrap());
+    ///     let expected_result1 =
+    ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+    ///     let dataset = vec![expected_result1];
+    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.erase().await.unwrap();
+    ///
+    ///     let mut connector_read = connector.clone();
+    ///     connector_read.filter = Default::default();
+    ///     let datastream = connector_read.fetch(document).await.unwrap();
+    ///     assert!(datastream.is_none(), "The datastream should be empty");
     ///
     ///     Ok(())
     /// }
@@ -268,133 +418,6 @@ impl Connector for Mongodb {
 
         info!("The connector erase data with success");
         Ok(())
-    }
-    /// See [`Connector::send`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::mongodb::Mongodb;
-    /// use chewdata::connector::Connector;
-    /// use serde_json::from_str;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Mongodb::default();
-    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-    ///     connector.database = "tests".into();
-    ///     connector.collection = "send_1".into();
-    ///     connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#)?;
-    ///     connector.update_options = serde_json::from_str(r#"{"upsert":true}"#)?;
-    ///     connector.erase().await?;
-    ///     connector.write(r#"[{"column1":"value1"}]"#.as_bytes()).await?;
-    ///     connector.send(None).await?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument]
-    async fn send(&mut self, _position: Option<isize>) -> Result<()> {
-        let hostname = self.endpoint.clone();
-        let database = self.database.clone();
-        let collection = self.collection.clone();
-
-        let docs: Vec<Document> = serde_json::from_slice(self.inner.get_ref())?;
-        let update_options = self.update_options.clone();
-
-        let client = Client::with_uri_str(&hostname)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-
-        let db = client.database(&database);
-        let collection = db.collection::<Document>(&collection);
-
-        for doc in docs {
-            let query_update = match *self.query.clone() {
-                Some(ref mut query_tmp) => {
-                    let json_doc: Value = serde_json::to_value(doc.clone())?;
-                    query_tmp.replace_mustache(json_doc.clone());
-                    serde_json::from_str(query_tmp.to_string().as_str())?
-                }
-                None => doc.clone(),
-            };
-
-            let mut doc_without_id = doc.clone();
-            if doc_without_id.get("_id").is_some() {
-                doc_without_id.remove("_id");
-            }
-
-            trace!(
-                query = format!("{:?}", &query_update).as_str(),
-                update = format!("{:?}", doc! {"$set": &doc_without_id}).as_str(),
-                "Query to update the collection"
-            );
-
-            let result = collection
-                .update_many(
-                    query_update,
-                    doc! {"$set": doc_without_id},
-                    *update_options.clone(),
-                )
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-
-            if 0 < result.matched_count {
-                trace!(
-                    result = format!("{:?}", result).as_str(),
-                    "Document(s) updated into the connection"
-                );
-            }
-            if result.upserted_id.is_some() {
-                trace!(
-                    result = format!("{:?}", result).as_str(),
-                    "Document(s) inserted into the connection"
-                );
-            }
-        }
-
-        self.clear();
-
-        info!("The connector send data into the collection with success");
-        Ok(())
-    }
-    /// See [`Connector::clear`] for more details.
-    fn clear(&mut self) {
-        self.inner = Default::default();
-    }
-}
-
-#[async_trait]
-impl async_std::io::Read for Mongodb {
-    /// See [`async_std::io::Read::poll_read`] for more details.
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
-    }
-}
-
-#[async_trait]
-impl async_std::io::Write for Mongodb {
-    /// See [`async_std::io::Write::poll_write`] for more details.
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>> {
-        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
-    }
-    /// See [`async_std::io::Write::poll_flush`] for more details.
-    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(std::io::Write::flush(&mut self.inner))
-    }
-    /// See [`async_std::io::Write::poll_close`] for more details.
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.poll_flush(cx)
     }
 }
 
@@ -459,8 +482,8 @@ impl ScanCounter {
         let database = connector.database.clone();
         let collection = connector.collection.clone();
         let options = self.options.clone();
-        let query: Option<Document> = match *connector.query {
-            Some(ref query) => serde_json::from_str(query.to_string().as_str())?,
+        let filter: Option<Document> = match connector.filter(connector.parameters.clone()) {
+            Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
             None => None,
         };
 
@@ -470,7 +493,7 @@ impl ScanCounter {
         let db = client.database(&database);
         let collection = db.collection::<Document>(&collection);
         let count = collection
-            .count_documents(query, options)
+            .count_documents(filter, options)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -742,14 +765,15 @@ impl Paginator for CursorPaginator {
         let hostname = connector.endpoint.clone();
         let database = connector.database.clone();
         let collection = connector.collection.clone();
-        let mut skip = self.skip;
+        let parameters = connector.parameters.clone();
+        let skip = self.skip;
         let batch_size = self.limit;
 
         let mut options = (*connector.find_options.clone()).unwrap_or_default();
         options.skip = Some(skip as u64);
 
-        let query: Option<Document> = match *connector.query {
-            Some(ref query) => serde_json::from_str(query.to_string().as_str())?,
+        let filter: Option<Document> = match connector.filter(parameters) {
+            Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
             None => None,
         };
 
@@ -758,56 +782,27 @@ impl Paginator for CursorPaginator {
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
         let db = client.database(&database);
         let collection = db.collection::<Document>(&collection);
-        let mut cursor = collection
-            .find(query, Some(options))
+        let cursor = collection
+            .find(filter, Some(options))
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        let cursor_size = cursor.count().await;
 
         let stream = Box::pin(stream! {
-            let mut docs: Vec<_> = Vec::default();
-            while let Some(doc) = cursor.next().await {
-                match doc {
-                    Ok(doc) => docs.push(doc.clone()),
-                    Err(e) => {
-                        warn!(error = e.to_string().as_str(), "Document in error");
-                        continue;
-                    },
-                };
-
-                if batch_size <= docs.len() {
+            for i in 0..cursor_size {
+                if 0 == i%batch_size || i == cursor_size {
                     let mut new_connector = connector.clone();
 
                     let mut options = (*new_connector.find_options.clone()).unwrap_or_default();
-                    options.skip = Some(skip as u64);
+                    options.skip = Some(i as u64);
                     options.limit = Some(batch_size as i64);
 
                     new_connector.find_options = Box::new(Some(options.clone()));
-                    skip+=batch_size;
-
-                    let data = serde_json::to_string(&docs)?;
-                    new_connector.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
-                    docs = Vec::default();
 
                     trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
                     yield Ok(new_connector as Box<dyn Connector>);
                 }
             }
-            if !docs.is_empty() {
-                let mut new_connector = connector.clone();
-
-                let mut options = (*new_connector.find_options.clone()).unwrap_or_default();
-                options.skip = Some(skip as u64);
-                options.limit = Some(batch_size as i64);
-
-                new_connector.find_options = Box::new(Some(options.clone()));
-
-                let data = serde_json::to_string(&docs)?;
-                new_connector.inner = Box::new(Cursor::new(data.as_bytes().to_vec()));
-
-                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
-                yield Ok(new_connector as Box<dyn Connector>);
-            }
-
         });
         Ok(stream)
     }
@@ -820,10 +815,11 @@ impl Paginator for CursorPaginator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_std::{
-        io::{ReadExt, WriteExt},
-        prelude::StreamExt,
-    };
+    use crate::document::json::Json;
+    use crate::DataResult;
+    use async_std::prelude::StreamExt;
+    use json_value_merge::Merge;
+    use json_value_search::Search;
 
     #[async_std::test]
     async fn is_empty() {
@@ -835,63 +831,48 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
+        let document = Box::new(Json::default());
+
         let mut connector = Mongodb::default();
-        assert_eq!(0, connector.inner().len());
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
         connector.collection = "startup_log".into();
-        connector.fetch().await.unwrap();
+        let datastream = connector.fetch(document).await.unwrap().unwrap();
         assert!(
-            0 < connector.inner().len(),
+            0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
         );
     }
     #[async_std::test]
     async fn send_new_data() {
+        let document = Box::new(Json::default());
+
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "tests".into();
         connector.collection = "send_1".into();
-        connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#).unwrap();
-        connector.update_options = serde_json::from_str(r#"{"upsert":true}"#).unwrap();
         connector.erase().await.unwrap();
-        connector
-            .write(r#"[{"column1":"value1"}]"#.as_bytes())
-            .await
-            .unwrap();
-        connector.send(None).await.unwrap();
-        let mut buffer = String::default();
-        let mut connector_reader = connector.clone();
-        connector_reader.query = Default::default();
-        connector_reader.fetch().await.unwrap();
-        connector_reader.read_to_string(&mut buffer).await.unwrap();
-        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
+
+        let expected_result1 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        let dataset = vec![expected_result1.clone()];
+        connector.send(document.clone(), &dataset).await.unwrap();
+
+        let expected_result2 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
+        let dataset = vec![expected_result2.clone()];
+        connector.send(document.clone(), &dataset).await.unwrap();
+
+        let mut connector_read = connector.clone();
+        connector_read.filter = Default::default();
+        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
         assert_eq!(
             "value1",
-            docs[0]
-                .as_document()
+            datastream
+                .next()
+                .await
                 .unwrap()
-                .get("column1")
-                .unwrap()
-                .as_str()
-                .unwrap()
-        );
-        connector
-            .write(r#"[{"column1":"value2"}]"#.as_bytes())
-            .await
-            .unwrap();
-        connector.send(None).await.unwrap();
-        let mut buffer = String::default();
-        let mut connector_reader = connector.clone();
-        connector_reader.query = Default::default();
-        connector_reader.fetch().await.unwrap();
-        connector_reader.read_to_string(&mut buffer).await.unwrap();
-        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
-        assert_eq!(
-            "value1",
-            docs[0]
-                .as_document()
-                .unwrap()
+                .to_value()
                 .get("column1")
                 .unwrap()
                 .as_str()
@@ -899,9 +880,11 @@ mod tests {
         );
         assert_eq!(
             "value2",
-            docs[1]
-                .as_document()
+            datastream
+                .next()
+                .await
                 .unwrap()
+                .to_value()
                 .get("column1")
                 .unwrap()
                 .as_str()
@@ -910,80 +893,62 @@ mod tests {
     }
     #[async_std::test]
     async fn send_existing_data() {
+        let document = Box::new(Json::default());
+
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "tests".into();
         connector.collection = "send_2".into();
-        connector.query = serde_json::from_str(r#"{"column1":"{{ column1 }}"}"#).unwrap();
-        connector.update_options = serde_json::from_str(r#"{"upsert":true}"#).unwrap();
         connector.erase().await.unwrap();
-        connector
-            .write(r#"[{"column1":"value1"}]"#.as_bytes())
+
+        let expected_result1 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        let dataset = vec![expected_result1.clone()];
+        connector.send(document.clone(), &dataset).await.unwrap();
+
+        let expected_result2 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
+        let dataset = vec![expected_result2.clone()];
+        connector.send(document.clone(), &dataset).await.unwrap();
+
+        let mut connector_read = connector.clone();
+        connector_read.filter = Default::default();
+        let mut datastream = connector_read
+            .fetch(document.clone())
             .await
-            .unwrap();
-        connector.send(None).await.unwrap();
-        let mut buffer = String::default();
-        let mut connector_reader = connector.clone();
-        connector_reader.query = Default::default();
-        connector_reader.fetch().await.unwrap();
-        connector_reader.read_to_string(&mut buffer).await.unwrap();
-        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
-        assert_eq!(
-            "value1",
-            docs[0]
-                .as_document()
-                .unwrap()
-                .get("column1")
-                .unwrap()
-                .as_str()
-                .unwrap()
-        );
-        connector.query = serde_json::from_str(r#"{"column1":"value1"}"#).unwrap();
-        connector
-            .write(r#"[{"column1":"value2"}]"#.as_bytes())
-            .await
-            .unwrap();
-        connector.send(None).await.unwrap();
-        let mut buffer = String::default();
-        let mut connector_reader = connector.clone();
-        connector_reader.query = Default::default();
-        connector_reader.fetch().await.unwrap();
-        connector_reader.read_to_string(&mut buffer).await.unwrap();
-        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
-        assert_eq!(
-            "value2",
-            docs[0]
-                .as_document()
-                .unwrap()
-                .get("column1")
-                .unwrap()
-                .as_str()
-                .unwrap()
-        );
-        let id = docs[0]
-            .as_document()
             .unwrap()
-            .get_object_id("_id")
-            .unwrap()
-            .to_string();
-        connector.query =
-            serde_json::from_str(format!(r#"{{"_id": {{"$oid":"{}"}}}}"#, id).as_str()).unwrap();
-        connector
-            .write(r#"[{"column1":"value3"}]"#.as_bytes())
-            .await
             .unwrap();
-        connector.send(None).await.unwrap();
-        let mut buffer = String::default();
-        let mut connector_reader = connector.clone();
-        connector_reader.query = Default::default();
-        connector_reader.fetch().await.unwrap();
-        connector_reader.read_to_string(&mut buffer).await.unwrap();
-        let docs: Vec<mongodb::bson::Bson> = serde_json::from_str(buffer.as_str()).unwrap();
+        let data_1 = datastream.next().await.unwrap();
+        let data_1_id = data_1.to_value().search("/_id").unwrap().unwrap();
+
+        let mut result3: Value = serde_json::from_str(r#"{"column1":"value3"}"#).unwrap();
+        result3.merge_in("/_id", data_1_id).unwrap();
+        let expected_result3 = DataResult::Ok(result3);
+        let dataset = vec![expected_result3.clone()];
+        connector.send(document.clone(), &dataset).await.unwrap();
+
+        let mut connector_read = connector.clone();
+        connector_read.filter = Default::default();
+        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
         assert_eq!(
             "value3",
-            docs[0]
-                .as_document()
+            datastream
+                .next()
+                .await
                 .unwrap()
+                .to_value()
+                .get("column1")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        );
+        assert_eq!(
+            "value2",
+            datastream
+                .next()
+                .await
+                .unwrap()
+                .to_value()
                 .get("column1")
                 .unwrap()
                 .as_str()
@@ -992,21 +957,23 @@ mod tests {
     }
     #[async_std::test]
     async fn erase() {
+        let document = Box::new(Json::default());
+
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "tests".into();
         connector.collection = "erase".into();
-        connector
-            .write(r#"[{"column1":"value1"}]"#.as_bytes())
-            .await
-            .unwrap();
-        connector.send(None).await.unwrap();
+
+        let expected_result1 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        let dataset = vec![expected_result1];
+        connector.send(document.clone(), &dataset).await.unwrap();
         connector.erase().await.unwrap();
-        connector.fetch().await.unwrap();
-        assert_eq!(
-            "[]".to_string(),
-            String::from_utf8(connector.inner().clone()).unwrap()
-        );
+
+        let mut connector_read = connector.clone();
+        connector_read.filter = Default::default();
+        let datastream = connector_read.fetch(document).await.unwrap();
+        assert!(datastream.is_none(), "The datastream should be empty");
     }
     #[async_std::test]
     async fn paginator_scan_counter_count() {
@@ -1038,6 +1005,8 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_offset_count_with_skip_and_limit() {
+        let document = Box::new(Json::default());
+
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
@@ -1049,20 +1018,18 @@ mod tests {
         });
         let mut paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
-        let mut connector = stream.next().await.transpose().unwrap().unwrap();
-        connector.fetch().await.unwrap();
-        let mut buffer1 = String::default();
-        let len1 = connector.read_to_string(&mut buffer1).await.unwrap();
-        assert!(0 < len1, "Can't read the content of the file.");
-        let mut connector = stream.next().await.transpose().unwrap().unwrap();
-        connector.fetch().await.unwrap();
-        let mut buffer2 = String::default();
-        let len2 = connector.read_to_string(&mut buffer2).await.unwrap();
-        assert!(0 < len2, "Can't read the content of the file.");
+        let mut paginate = paginator.stream().await.unwrap();
+        let mut connector = paginate.next().await.transpose().unwrap().unwrap();
+
+        let mut datastream = connector.fetch(document.clone()).await.unwrap().unwrap();
+        let data_1 = datastream.next().await.unwrap();
+
+        let mut connector = paginate.next().await.transpose().unwrap().unwrap();
+        let mut datastream = connector.fetch(document).await.unwrap().unwrap();
+        let data_2 = datastream.next().await.unwrap();
         assert!(
-            buffer1 != buffer2,
-            "The content of this two files is not different."
+            data_1 != data_2,
+            "The content of this two stream is not different."
         );
     }
     #[async_std::test]
