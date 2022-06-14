@@ -167,25 +167,48 @@ impl Connector for Mongodb {
         Ok(true)
     }
     /// See [`Connector::len`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use chewdata::connector::mongodb::Mongodb;
+    /// use chewdata::document::json::Json;
+    /// use chewdata::connector::Connector;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let mut connector = Mongodb::default();
+    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+    ///     connector.database = "local".into();
+    ///     connector.collection = "startup_log".into();
+    ///     let len = connector.len().await.unwrap();
+    ///     assert!(
+    ///         0 < len,
+    ///         "The connector should have a size upper than zero"
+    ///     );
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     async fn len(&mut self) -> Result<usize> {
-        // TODO: find a way to have this method available
-        // let hostname = self.endpoint.clone();
-        // let database = self.database.clone();
-        // let collection = self.collection.clone();
+        let hostname = self.endpoint.clone();
+        let database = self.database.clone();
+        let collection = self.collection.clone();
 
-        // let client = match Client::with_uri_str(&hostname).await {
-        //     Ok(client) => client,
-        //     Err(e) => return Err(Error::new(ErrorKind::Interrupted, e)),
-        // };
-        // let db = client.database(&database);
-        // let collection = db.collection(&collection);
-        // let count = collection
-        //     .estimated_document_count(None)
-        //     .await
-        //     .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        let client = match Client::with_uri_str(&hostname).await {
+            Ok(client) => client,
+            Err(e) => return Err(Error::new(ErrorKind::Interrupted, e)),
+        };
+        let db = client.database(&database);
+        let collection = db.collection::<Document>(&collection);
+        let count = collection
+            .estimated_document_count(None)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        // Ok(count as usize)
-        Ok(0)
+        Ok(count as usize)
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -828,6 +851,18 @@ mod tests {
         connector.database = "local".into();
         connector.collection = "startup_log".into();
         assert_eq!(true, connector.is_empty().await.unwrap());
+    }
+    #[async_std::test]
+    async fn len() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+        let len = connector.len().await.unwrap();
+        assert!(
+            0 < len,
+            "The connector should have a size upper than zero"
+        );
     }
     #[async_std::test]
     async fn fetch() {
