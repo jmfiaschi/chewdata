@@ -39,6 +39,7 @@ async-channel = { version = "1.6.1" }
 mime = "0.3"
 base64 = "0.13"
 regex = "1.5"
+chrono = { version = "0.4" }
 fake = { version = "2.4" }
 rand = "0.8"
 clap = { version = "3.1", features = ["yaml"] }
@@ -58,19 +59,18 @@ arrow = { version = "14.0", optional = true }
 # For Connectors
 ## bucket
 tokio = { version = "1.18", optional = true }
-aws-config = { version = "0.12", optional = true }
-aws-sdk-s3 = { version = "0.12", optional = true }
+aws-config = { version = "0.13", optional = true }
+aws-sdk-s3 = { version = "0.13", optional = true }
 byteorder = { version = "1.4", optional = true }
 jsonwebtoken = { version = "8.1", optional = true }
 surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
 http-types = { version = "2.12", optional = true }
 mongodb = { version = "2.2", default-features = false, features = ["async-std-runtime"], optional = true }
 async-compat = { version = "0.2", optional = true }
-sqlx = { version = "0.5", features = [ "runtime-async-std-native-tls" ] }
+sqlx = { version = "0.6", features = ["all","runtime-async-std-native-tls"], optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["stable"] }
-chrono = { version = "0.4" }
 
 [features]
 xml = ["jxon"]
@@ -80,6 +80,7 @@ parquet = ["dep:parquet","byteorder","arrow"]
 bucket = ["aws-sdk-s3","aws-config","tokio","async-compat"]
 curl = ["surf","jsonwebtoken","http-types"]
 mongodb = ["dep:mongodb"]
+psql = ["sqlx/postgres","sqlx/json"]
 default = [
     'xml',
     'csv',
@@ -88,6 +89,7 @@ default = [
     'bucket',
     'curl',
     'mongodb',
+    'psql',
     'tracing/max_level_trace',
     'tracing/release_max_level_info'
 ]

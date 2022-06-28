@@ -11,14 +11,8 @@ pub mod io;
 pub mod local;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
-// #[cfg(feature = "psql")]
-// pub mod psql;
-// #[cfg(feature = "mysql")]
-// pub mod mysql;
-// #[cfg(feature = "mssql")]
-// pub mod mssql;
-// #[cfg(feature = "sqlite")]
-// pub mod sqlite;
+#[cfg(feature = "psql")]
+pub mod psql;
 
 #[cfg(feature = "bucket")]
 use self::bucket::Bucket;
@@ -31,6 +25,8 @@ use self::io::Io;
 use self::local::Local;
 #[cfg(feature = "mongodb")]
 use self::mongodb::Mongodb;
+#[cfg(feature = "psql")]
+use self::psql::Psql;
 use crate::DataSet;
 use crate::document::Document;
 use crate::DataStream;
@@ -66,20 +62,11 @@ pub enum ConnectorType {
     #[serde(rename = "mongodb")]
     #[serde(alias = "mongo")]
     Mongodb(Mongodb),
-    // #[cfg(feature = "psql")]
-    // #[serde(rename = "psql")]
-    // #[serde(alias = "pgsql")]
-    // #[serde(alias = "pg")]
-    // Psql(Psql),
-    // #[cfg(feature = "mysql")]
-    // #[serde(rename = "mysql")]
-    // Mysql(Mysql),
-    // #[cfg(feature = "mssql")]
-    // #[serde(rename = "mssql")]
-    // Mssql(Mssql),
-    // #[cfg(feature = "sqlite")]
-    // #[serde(rename = "sqlite")]
-    // Sqlite(Sqlite),
+    #[cfg(feature = "psql")]
+    #[serde(rename = "psql")]
+    #[serde(alias = "pgsql")]
+    #[serde(alias = "pg")]
+    Psql(Psql),
 }
 
 impl Default for ConnectorType {
@@ -102,14 +89,8 @@ impl ConnectorType {
             ConnectorType::BucketSelect(connector) => Box::new(connector),
             #[cfg(feature = "mongodb")]
             ConnectorType::Mongodb(connector) => Box::new(connector),
-            // #[cfg(feature = "psql")]
-            // ConnectorType::Psql(connector) => Box::new(connector),
-            // #[cfg(feature = "mysql")]
-            // ConnectorType::Mysql(connector) => Box::new(connector),
-            // #[cfg(feature = "mssql")]
-            // ConnectorType::Mssql(connector) => Box::new(connector),
-            // #[cfg(feature = "sqlite")]
-            // ConnectorType::Sqlite(connector) => Box::new(connector),
+            #[cfg(feature = "psql")]
+            ConnectorType::Psql(connector) => Box::new(connector),
         }
     }
 }

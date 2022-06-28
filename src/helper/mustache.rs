@@ -64,22 +64,18 @@ impl Mustache for String {
             let json_pointer = value_captured.to_string().to_json_pointer();
 
             let var: String = match object.pointer(&json_pointer) {
+                Some(Value::Null) => "null".to_string(),
                 Some(Value::String(string)) => string.to_string(),
                 Some(Value::Number(number)) => format!("{}", number),
                 Some(Value::Bool(boolean)) => format!("{}", boolean),
+                Some(Value::Array(vec)) => Value::Array(vec.clone()).to_string(),
+                Some(Value::Object(map)) => Value::Object(map.clone()).to_string(),
                 None => {
                     warn!(
                         "This value '{}' can't be resolved for this path '{}' and this object '{}'",
                         value_captured,
                         json_pointer,
                         format!("{:?}", object),
-                    );
-                    continue;
-                }
-                Some(_) => {
-                    warn!(
-                        "This parameter '{}' is not handle, only scalar",
-                        format!("{:?}", object.pointer(&json_pointer))
                     );
                     continue;
                 }
@@ -203,7 +199,9 @@ mod tests {
     fn string_replace_mustache_not_found_pattern() {
         let mut path = "my_path/{{ field_1 }}".to_string();
         let mut parameters = Value::default();
-        parameters.merge_in("/field_2", Value::String("var_2".to_string())).unwrap();
+        parameters
+            .merge_in("/field_2", Value::String("var_2".to_string()))
+            .unwrap();
         path.replace_mustache(parameters);
         assert_eq!("my_path/{{ field_1 }}", path.as_str());
     }
@@ -218,16 +216,24 @@ mod tests {
     fn value_replace_mustache() {
         let mut value: Value = serde_json::from_str(r#"{"field":"{{ field_1 }}"}"#).unwrap();
         let mut parameters = Value::default();
-        parameters.merge_in("/field_1", Value::String("var_1".to_string())).unwrap();
-        parameters.merge_in("/field_2", Value::String("var_2".to_string())).unwrap();
+        parameters
+            .merge_in("/field_1", Value::String("var_1".to_string()))
+            .unwrap();
+        parameters
+            .merge_in("/field_2", Value::String("var_2".to_string()))
+            .unwrap();
         value.replace_mustache(parameters);
         assert_eq!(r#"{"field":"var_1"}"#, value.to_string().as_str());
 
         let mut value: Value =
             serde_json::from_str(r#"{"number":"{{ number }}","bool":"{{ bool }}"}"#).unwrap();
         let mut parameters = Value::default();
-        parameters.merge_in("/number", serde_json::from_str("10").unwrap()).unwrap();
-        parameters.merge_in("/bool", serde_json::from_str("true").unwrap()).unwrap();
+        parameters
+            .merge_in("/number", serde_json::from_str("10").unwrap())
+            .unwrap();
+        parameters
+            .merge_in("/bool", serde_json::from_str("true").unwrap())
+            .unwrap();
         value.replace_mustache(parameters);
         assert_eq!(r#"{"number":10,"bool":true}"#, value.to_string().as_str());
     }

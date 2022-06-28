@@ -2,22 +2,18 @@ use super::{Connector, Paginator};
 use crate::{
     document::Document as ChewdataDocument, helper::mustache::Mustache, DataSet, DataStream,
 };
-use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use mongodb::{
     bson::{doc, Document},
-    options::{CountOptions, FindOptions, UpdateOptions},
+    options::{FindOptions, UpdateOptions},
     Client,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io::{Error, ErrorKind, Result};
 use std::{fmt, pin::Pin};
-use std::{
-    io::{Error, ErrorKind, Result},
-    sync::Arc,
-};
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -118,25 +114,6 @@ impl Connector for Mongodb {
     fn path(&self) -> String {
         format!("{}/{}/{}", self.endpoint, self.database, self.collection)
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        let paginator = match self.paginator_type {
-            PaginatorType::Offset(ref offset_paginator) => {
-                let mut offset_paginator = offset_paginator.clone();
-                offset_paginator.set_connector(self.clone());
-
-                Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
-            }
-            PaginatorType::Cursor(ref cursor_paginator) => {
-                let mut cursor_paginator = cursor_paginator.clone();
-                cursor_paginator.set_connector(self.clone());
-
-                Box::new(cursor_paginator) as Box<dyn Paginator + Send + Sync>
-            }
-        };
-
-        Ok(Pin::new(paginator))
-    }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;
@@ -149,22 +126,8 @@ impl Connector for Mongodb {
         }
     }
     /// See [`Connector::is_resource_will_change`] for more details.
-    fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
-        if !self.is_variable() {
-            trace!("The connector stay link to the same resource");
-            return Ok(false);
-        }
-
-        let actuel_filter = self.filter(self.parameters.clone());
-        let new_filter = self.filter(new_parameters);
-
-        if actuel_filter == new_filter {
-            trace!("The connector filter didn't change");
-            return Ok(false);
-        }
-
-        info!("The connector will use another resource regarding the new parameters");
-        Ok(true)
+    fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
+        Ok(false)
     }
     /// See [`Connector::len`] for more details.
     ///
@@ -442,19 +405,38 @@ impl Connector for Mongodb {
         info!("The connector erase data with success");
         Ok(())
     }
+    /// See [`Connector::paginator`] for more details.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+        let paginator = match self.paginator_type {
+            PaginatorType::Offset(ref offset_paginator) => {
+                let mut offset_paginator = offset_paginator.clone();
+                offset_paginator.set_connector(self.clone());
+
+                Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
+            }
+            PaginatorType::Cursor(ref cursor_paginator) => {
+                let mut cursor_paginator = cursor_paginator.clone();
+                cursor_paginator.set_connector(self.clone());
+
+                Box::new(cursor_paginator) as Box<dyn Paginator + Send + Sync>
+            }
+        };
+
+        Ok(Pin::new(paginator))
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum CounterType {
-    #[serde(alias = "scan")]
+    #[serde(alias = "metadata")]
     #[serde(skip_serializing)]
-    Scan(ScanCounter),
+    Metadata(MetadataCounter),
 }
 
 impl Default for CounterType {
     fn default() -> Self {
-        CounterType::Scan(ScanCounter::default())
+        CounterType::Metadata(MetadataCounter::default())
     }
 }
 
@@ -465,24 +447,21 @@ impl CounterType {
         _document: Option<Box<dyn ChewdataDocument>>,
     ) -> Result<Option<usize>> {
         match self {
-            CounterType::Scan(scan) => scan.count(connector).await,
+            CounterType::Metadata(counter) => counter.count(connector).await,
         }
     }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
-pub struct ScanCounter {
-    #[serde(skip_serializing)]
-    pub options: Option<CountOptions>,
-}
+pub struct MetadataCounter {}
 
-impl ScanCounter {
-    /// Get the number of items from the scan
+impl MetadataCounter {
+    /// Get the number of items from the metadata
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::mongodb::{Mongodb, ScanCounter};
+    /// use chewdata::connector::mongodb::{Mongodb, MetadataCounter};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -493,7 +472,7 @@ impl ScanCounter {
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
     ///
-    ///     let counter = ScanCounter::default();
+    ///     let counter = MetadataCounter::default();
     ///     assert!(counter.count(connector).await?.is_some());
     ///
     ///     Ok(())
@@ -501,24 +480,7 @@ impl ScanCounter {
     /// ```
     #[instrument]
     pub async fn count(&self, connector: Mongodb) -> Result<Option<usize>> {
-        let hostname = connector.endpoint.clone();
-        let database = connector.database.clone();
-        let collection = connector.collection.clone();
-        let options = self.options.clone();
-        let filter: Option<Document> = match connector.filter(connector.parameters.clone()) {
-            Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
-            None => None,
-        };
-
-        let client = Client::with_uri_str(&hostname)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-        let db = client.database(&database);
-        let collection = db.collection::<Document>(&collection);
-        let count = collection
-            .count_documents(filter, options)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        let count = connector.clone().len().await?;
 
         info!(count = count, "The counter count with success");
         Ok(Some(count as usize))
@@ -581,7 +543,7 @@ impl Paginator for OffsetPaginator {
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, OffsetPaginator, CounterType, ScanCounter}, Connector};
+    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, OffsetPaginator, CounterType, MetadataCounter}, Connector};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -610,7 +572,7 @@ impl Paginator for OffsetPaginator {
 
         let mut counter_type = None;
         if connector.counter_type.is_none() {
-            counter_type = Some(CounterType::Scan(ScanCounter::default()));
+            counter_type = Some(CounterType::default());
         }
 
         if let Some(counter_type) = counter_type {
@@ -709,11 +671,8 @@ impl Paginator for OffsetPaginator {
 pub struct CursorPaginator {
     pub limit: usize,
     pub skip: usize,
-    pub batch_size: Option<usize>,
     #[serde(skip)]
     pub connector: Option<Box<Mongodb>>,
-    #[serde(skip)]
-    pub cursor: Option<Arc<Mutex<mongodb::Cursor<Document>>>>,
 }
 
 impl Default for CursorPaginator {
@@ -721,9 +680,7 @@ impl Default for CursorPaginator {
         CursorPaginator {
             limit: 100,
             skip: 0,
-            batch_size: None,
             connector: None,
-            cursor: None,
         }
     }
 }
@@ -850,7 +807,7 @@ mod tests {
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
         connector.collection = "startup_log".into();
-        assert_eq!(true, connector.is_empty().await.unwrap());
+        assert_eq!(false, connector.is_empty().await.unwrap());
     }
     #[async_std::test]
     async fn len() {
@@ -859,10 +816,7 @@ mod tests {
         connector.database = "local".into();
         connector.collection = "startup_log".into();
         let len = connector.len().await.unwrap();
-        assert!(
-            0 < len,
-            "The connector should have a size upper than zero"
-        );
+        assert!(0 < len, "The connector should have a size upper than zero");
     }
     #[async_std::test]
     async fn fetch() {
@@ -927,7 +881,7 @@ mod tests {
         );
     }
     #[async_std::test]
-    async fn send_existing_data() {
+    async fn update_existing_data() {
         let document = Box::new(Json::default());
 
         let mut connector = Mongodb::default();
@@ -1016,7 +970,7 @@ mod tests {
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
         connector.collection = "startup_log".into();
-        let counter = ScanCounter::default();
+        let counter = MetadataCounter::default();
         assert!(counter.count(connector).await.unwrap().is_some());
     }
     #[async_std::test]
@@ -1025,7 +979,7 @@ mod tests {
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "not_found".into();
         connector.collection = "startup_log".into();
-        let counter = ScanCounter::default();
+        let counter = MetadataCounter::default();
         assert_eq!(Some(0), counter.count(connector).await.unwrap());
     }
     #[async_std::test]

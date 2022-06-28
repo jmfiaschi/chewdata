@@ -91,16 +91,22 @@ httpbin:
 	@docker-compose up -d httpbin
 
 mongo:
-	echo "${BLUE}Run mongodb server.${NC}"
-	@docker-compose up -d mongo
-	echo "${BLUE}Run mongo express.${NC}"
+	echo "${BLUE}Run mongo server.${NC}"
+	@docker-compose up -d mongo-admin mongo
+
+psql:
+	echo "${BLUE}Run psql server.${NC}"
+	@docker-compose up -d psql
+
+adminer:
+	echo "${BLUE}Run admin db${NC}"
 	echo "${YELLOW}Host: http://localhost:8081${NC}"
-	@docker-compose up -d mongo-express
+	@docker-compose up -d adminer
 
 semantic-release:
 	@npx semantic-release
 
-start: minio minio\:install httpbin mongo
+start: minio minio\:install httpbin mongo adminer
 
 stop:
 	@docker-compose down
