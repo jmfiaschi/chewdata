@@ -3,13 +3,12 @@ use crate::DataResult;
 use crate::{DataSet, Metadata};
 use arrow::datatypes::Schema;
 use arrow::json::reader::{infer_json_schema_from_iterator, Decoder, DecoderOptions};
+use bytes::Bytes;
 use json_value_search::Search;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, Encoding};
 use parquet::file::properties::{WriterProperties, WriterVersion};
 use parquet::file::reader::{FileReader, SerializedFileReader};
-use parquet::file::serialized_reader::SliceableCursor;
-use parquet::file::writer::InMemoryWriteableCursor;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
@@ -122,7 +121,7 @@ impl Document for Parquet {
     fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
         let entry_path_option = self.entry_path.clone();
-        let read_from_cursor = SerializedFileReader::new(SliceableCursor::new(buffer.clone()))
+        let read_from_cursor = SerializedFileReader::new(Bytes::from(buffer.clone()))
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
         let rows = read_from_cursor
@@ -187,7 +186,7 @@ impl Document for Parquet {
         }
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let cursor_writer = InMemoryWriteableCursor::default();
+        let cursor_writer = Vec::new();
 
         let mut properties_builder = WriterProperties::builder();
         properties_builder = properties_builder.set_write_batch_size(self.batch_size);
@@ -271,7 +270,7 @@ impl Document for Parquet {
             writer.close()?;
         }
 
-        Ok(cursor_writer.data())
+        Ok(cursor_writer)
     }
 }
 
