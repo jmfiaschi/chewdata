@@ -168,7 +168,7 @@ impl Tera {
         engine.register_function("fake_currency_code", faker::currency_code);
         engine.register_function("fake_currency_symbol", faker::currency_symbol);
         engine.register_function("fake_credit_card", faker::credit_card);
-        engine.register_function("fake_barecode", faker::barecode);
+        engine.register_function("fake_barcode", faker::barcode);
         engine.register_function("fake_password", faker::password);
 
         engine

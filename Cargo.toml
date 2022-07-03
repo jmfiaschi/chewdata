@@ -40,7 +40,7 @@ mime = "0.3"
 base64 = "0.13"
 regex = "1.5"
 chrono = { version = "0.4" }
-fake = { version = "2.4" }
+fake = { version = "2.5", features = ["random_color"] }
 rand = "0.8"
 clap = { version = "3.1", features = ["yaml"] }
 version = "3.0"
@@ -59,8 +59,8 @@ arrow = { version = "14.0", optional = true }
 # For Connectors
 ## bucket
 tokio = { version = "1.18", optional = true }
-aws-config = { version = "0.13", optional = true }
-aws-sdk-s3 = { version = "0.13", optional = true }
+aws-config = { version = "0.15", optional = true }
+aws-sdk-s3 = { version = "0.15", optional = true }
 byteorder = { version = "1.4", optional = true }
 jsonwebtoken = { version = "8.1", optional = true }
 surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
