@@ -111,6 +111,7 @@ start: minio minio\:install httpbin mongo adminer
 stop:
 	@docker-compose down
 
+clean: stop
 clean:
 	@sudo rm -Rf .cache
 	@cargo clean
