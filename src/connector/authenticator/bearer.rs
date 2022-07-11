@@ -7,14 +7,13 @@ use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
-use surf::{http::headers, RequestBuilder};
+use surf::http::headers;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Bearer {
     pub token: String,
     pub is_base64: bool,
-    pub parameters: Value,
 }
 
 impl fmt::Debug for Bearer {
@@ -31,7 +30,6 @@ impl fmt::Debug for Bearer {
         f.debug_struct("Bearer")
             .field("token", &obfuscate_token)
             .field("is_base64", &self.is_base64)
-            .field("parameters", &self.parameters)
             .finish()
     }
 }
@@ -41,7 +39,6 @@ impl Default for Bearer {
         Bearer {
             token: "".to_owned(),
             is_base64: false,
-            parameters: Value::Null,
         }
     }
 }
@@ -57,9 +54,6 @@ impl Bearer {
     /// let token = "my_token";
     ///
     /// let auth = Bearer::new(token);
-    ///
-    /// assert_eq!(token, auth.token);
-    /// assert_eq!(false, auth.is_base64);
     /// ```
     pub fn new(token: &str) -> Self {
         Bearer {
@@ -77,30 +71,23 @@ impl Authenticator for Bearer {
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{Connector, curl::Curl};
-    /// use chewdata::document::json::Json;
-    /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, bearer::Bearer};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
-    ///     let token = "abcd1234";
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Bearer(Bearer::new(token))));
-    ///     connector.method = Method::Get;
-    ///     connector.path = "/bearer".to_string();
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
-    ///     let len = datastream.count().await;
-    ///     assert!(0 < len, "Should read one some bytes.");
+    ///     let token = "my_token";
+    /// 
+    ///     let (auth_name, auth_value) = Bearer::new(token).authenticate(Value::Null).await.unwrap();
+    /// 
+    ///     assert_eq!(auth_name, "authorization".to_string().into_bytes());
+    ///     assert_eq!(auth_value, format!("Bearer {}", token).as_bytes().to_vec());
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn authenticate(&mut self, request_builder: RequestBuilder) -> Result<RequestBuilder> {
+    async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)> {
         if let "" = self.token.as_ref() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -109,7 +96,6 @@ impl Authenticator for Bearer {
         }
 
         let mut token = self.token.clone();
-        let parameters = self.parameters.clone();
 
         if token.has_mustache() {
             token.replace_mustache(parameters);
@@ -121,73 +107,24 @@ impl Authenticator for Bearer {
 
         let bearer = base64::encode(token);
 
-        Ok(request_builder.header(headers::AUTHORIZATION, format!("Bearer {}", bearer)))
-    }
-    /// See [`Authenticator::set_parameters`] for more details.
-    fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters;
+        Ok((
+            headers::AUTHORIZATION.to_string().into_bytes(),
+            format!("Bearer {}", bearer).into_bytes(),
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use async_std::prelude::StreamExt;
-    use http_types::Method;
-    use crate::document::json::Json;
-    use crate::connector::{authenticator::AuthenticatorType, curl::Curl, Connector};
     use super::*;
 
-    #[test]
-    fn new() {
-        let token = "my_token";
-        let auth = Bearer::new(token);
-        assert_eq!(token, auth.token);
-        assert_eq!(false, auth.is_base64);
-    }
     #[async_std::test]
     async fn authenticate() {
-        let document = Box::new(Json::default());
-        let token = "abcd1234";
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type =
-            Some(Box::new(AuthenticatorType::Bearer(Bearer::new(token))));
-        connector.method = Method::Get;
-        connector.path = "/bearer".to_string();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
-        let len = datastream.count().await;
-        assert!(0 < len, "Should read one some bytes.");
-    }
-    #[async_std::test]
-    async fn authenticate_fail() {
-        let document = Box::new(Json::default());
+        let token = "my_token";
 
-        let bad_token = "";
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type =
-            Some(Box::new(AuthenticatorType::Bearer(Bearer::new(bad_token))));
-        connector.method = Method::Get;
-        connector.path = "/bearer".to_string();
-        match connector.fetch(document).await {
-            Ok(_) => assert!(false, "Should generate an error."),
-            Err(_) => assert!(true),
-        };
-    }
-    #[async_std::test]
-    async fn authenticate_with_token_in_param() {
-        let document = Box::new(Json::default());
+        let (auth_name, auth_value) = Bearer::new(token).authenticate(Value::Null).await.unwrap();
 
-        let token = "{{ token }}";
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type =
-            Some(Box::new(AuthenticatorType::Bearer(Bearer::new(token))));
-        connector.method = Method::Get;
-        connector.path = "/bearer".to_string();
-        connector.parameters = serde_json::from_str(r#"{"token":"my_token"}"#).unwrap();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
-        let len = datastream.count().await;
-        assert!(0 < len, "Should read one some bytes.");
+        assert_eq!(auth_name, "authorization".to_string().into_bytes());
+        assert_eq!(auth_value, format!("Bearer {}", base64::encode(token)).as_bytes().to_vec());
     }
 }

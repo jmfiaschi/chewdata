@@ -6,13 +6,20 @@ use crate::{DataSet, DataStream, Metadata};
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
+use http_types::headers::HeaderName;
+use http_types::headers::HeaderValue;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::convert::TryInto;
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
+use std::time::Duration;
 use std::{collections::HashMap, fmt};
-use surf::http::{headers, Method, Url};
+use surf::{
+    http::{headers, Method, Url},
+    Client,
+};
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -31,6 +38,9 @@ pub struct Curl {
     pub method: Method,
     // Add complementaries headers. This headers override the default headers.
     pub headers: Box<HashMap<String, String>>,
+    pub timeout: Option<u64>,
+    pub keepalive: bool,
+    pub tcp_nodelay: bool,
     #[serde(alias = "params")]
     pub parameters: Value,
     #[serde(alias = "paginator")]
@@ -49,6 +59,9 @@ impl Default for Curl {
             path: "".into(),
             method: Method::Get,
             headers: Box::new(HashMap::default()),
+            timeout: Some(5),
+            keepalive: true,
+            tcp_nodelay: false,
             parameters: Value::Null,
             paginator_type: PaginatorType::default(),
             counter_type: None,
@@ -66,9 +79,72 @@ impl fmt::Debug for Curl {
             .field("path", &self.path)
             .field("method", &self.method)
             .field("headers", &self.headers)
+            .field("timeout", &self.timeout)
+            .field("keepalive", &self.keepalive)
+            .field("tcp_nodelay", &self.tcp_nodelay)
             .field("parameters", &self.parameters)
             .field("paginator_type", &self.paginator_type)
             .finish()
+    }
+}
+
+impl Curl {
+    async fn client(&mut self) -> std::io::Result<Client> {
+        let mut config = surf::Config::new()
+            .set_base_url(
+                Url::parse(self.endpoint.as_str())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            )
+            .set_timeout(match self.timeout {
+                None => None,
+                Some(timeout) => Some(Duration::from_secs(timeout)),
+            })
+            .set_http_keep_alive(self.keepalive)
+            .set_tcp_no_delay(self.tcp_nodelay);
+
+        if let Some(ref mut authenticator_type) = self.authenticator_type {
+            let authenticator = authenticator_type.authenticator_mut();
+            let (auth_name, auth_value) =
+                authenticator.authenticate(self.parameters.clone()).await?;
+            config = config
+                .add_header(
+                    HeaderName::from_bytes(auth_name)
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                    HeaderValue::from_bytes(auth_value)
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                )
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        }
+
+        if !self.metadata().content_type().is_empty() {
+            config = config
+                .add_header(
+                    HeaderName::from_bytes(headers::CONTENT_TYPE.to_string().into_bytes())
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                    HeaderValue::from_bytes(self.metadata().content_type().into_bytes())
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                )
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        }
+
+        if !self.headers.is_empty() {
+            for (key, value) in self.headers.iter() {
+                config = config
+                    .add_header(
+                        HeaderName::from_bytes(key.clone().into_bytes())
+                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                        HeaderValue::from_bytes(value.clone().into_bytes())
+                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                    )
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            }
+        }
+
+        let client: Client = config
+            .try_into()
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+        Ok(client)
     }
 }
 
@@ -90,17 +166,18 @@ impl Connector for Curl {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
+        let mut params = self.parameters.clone();
         let mut metadata = Map::default();
 
-        metadata.insert("metadata".to_string(), self.metadata().into());
-        path.replace_mustache(Value::Object(metadata));
+        match self.is_variable() {
+            true => {
+                metadata.insert("metadata".to_string(), self.metadata().into());
+                params.merge(Value::Object(metadata));
 
-        match (self.is_variable(), self.parameters.clone()) {
-            (true, params) => {
-                path.replace_mustache(params);
+                path.replace_mustache(params.clone());
                 path
             }
-            _ => path,
+            false => path,
         }
     }
     /// See [`Connector::is_resource_will_change`] for more details.
@@ -134,18 +211,22 @@ impl Connector for Curl {
         let mut old_parameters = self.parameters.clone();
         old_parameters.merge(metadata);
 
-        let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(old_parameters);
+        let mut previous_path = self.path.clone();
+        previous_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
-        if actuel_path == new_path {
-            trace!("The connector path didn't change");
+        if previous_path == new_path {
+            trace!(path = previous_path, "The connector path didn't change");
             return Ok(false);
         }
 
-        info!("The connector will use another resource regarding the new parameters");
+        info!(
+            previous_path = previous_path,
+            new_path = new_path,
+            "The connector will use another resource regarding the new parameters"
+        );
         Ok(true)
     }
     /// See [`Connector::is_variable_path`] for more details.
@@ -201,32 +282,12 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        let client = surf::client();
+        let client = self.client().await?;
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        let mut request_builder = surf::head(url);
-
-        if let Some(ref mut authenticator_type) = self.authenticator_type {
-            let authenticator = authenticator_type.authenticator_mut();
-            authenticator.set_parameters(self.parameters.clone());
-            request_builder = authenticator.authenticate(request_builder).await?;
-        }
-
-        if !self.metadata().content_type().is_empty() {
-            request_builder =
-                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
-        }
-
-        if !self.headers.is_empty() {
-            for (key, value) in self.headers.iter() {
-                request_builder = request_builder.header(key.as_str(), value.as_str());
-            }
-        }
-
-        let req = request_builder.build();
 
         let res = client
-            .send(req)
+            .send(surf::head(url))
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -284,31 +345,18 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
-        let client = surf::client();
-        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+        let client = self.client().await?;
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
+
+        let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        let mut request_builder = surf::RequestBuilder::new(self.method, url);
 
-        if let Some(ref mut authenticator_type) = self.authenticator_type {
-            let authenticator = authenticator_type.authenticator_mut();
-            authenticator.set_parameters(self.parameters.clone());
-            request_builder = authenticator.authenticate(request_builder).await?;
-        }
-
-        if !self.metadata().content_type().is_empty() {
-            request_builder =
-                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
-        }
-
-        if !self.headers.is_empty() {
-            for (key, value) in self.headers.iter() {
-                request_builder = request_builder.header(key.as_str(), value.as_str());
-            }
-        }
-
-        let req = request_builder.build();
         let mut res = client
-            .send(req.clone())
+            .send(surf::RequestBuilder::new(self.method, url))
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -328,7 +376,10 @@ impl Connector for Curl {
             ));
         }
 
-        info!("The connector fetch data into the resource with success");
+        info!(
+            path = path,
+            "The connector fetch data into the resource with success"
+        );
 
         if !document.has_data(&data)? {
             return Ok(None);
@@ -382,37 +433,30 @@ impl Connector for Curl {
         mut document: Box<dyn Document>,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
-        let client = surf::client();
+        let client = self.client().await?;
         let mut buffer = Vec::default();
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
 
         buffer.append(&mut document.header(dataset)?);
         buffer.append(&mut document.write(dataset)?);
         buffer.append(&mut document.footer(dataset)?);
 
-        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+        let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        let mut request_builder = surf::RequestBuilder::new(self.method, url);
 
-        if let Some(ref mut authenticator_type) = self.authenticator_type {
-            let authenticator = authenticator_type.authenticator_mut();
-            authenticator.set_parameters(self.parameters.clone());
-            request_builder = authenticator.authenticate(request_builder).await?;
-        }
+        let mut req = surf::RequestBuilder::new(self.method, url).body(buffer);
 
+        // Force to replace the `application/octet-stream` but the connector content type.
         if !self.metadata().content_type().is_empty() {
-            request_builder =
-                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            req = req.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
-        if !self.headers.is_empty() {
-            for (key, value) in self.headers.iter() {
-                request_builder = request_builder.header(key.as_str(), value.as_str());
-            }
-        }
-
-        let req = request_builder.body(buffer).build();
         let mut res = client
-            .send(req)
+            .send(req.build())
             .await
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
@@ -442,7 +486,10 @@ impl Connector for Curl {
             })));
         }
 
-        info!("The connector send data into the resource with success");
+        info!(
+            path = path,
+            "The connector send data into the resource with success"
+        );
         Ok(None)
     }
     /// See [`Connector::erase`] for more details.
@@ -466,31 +513,18 @@ impl Connector for Curl {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
-        let client = surf::client();
-        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+        let client = self.client().await?;
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
+
+        let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        let mut request_builder = surf::RequestBuilder::new(Method::Delete, url);
 
-        if let Some(ref mut authenticator_type) = self.authenticator_type {
-            let authenticator = authenticator_type.authenticator_mut();
-            authenticator.set_parameters(self.parameters.clone());
-            request_builder = authenticator.authenticate(request_builder).await?;
-        }
-
-        if !self.metadata().content_type().is_empty() {
-            request_builder =
-                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
-        }
-
-        if !self.headers.is_empty() {
-            for (key, value) in self.headers.iter() {
-                request_builder = request_builder.header(key.as_str(), value.as_str());
-            }
-        }
-
-        let req = request_builder.build();
         let mut res = client
-            .send(req)
+            .send(surf::RequestBuilder::new(Method::Delete, url))
             .await
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
@@ -507,7 +541,10 @@ impl Connector for Curl {
             ));
         }
 
-        info!("The connector erase data in the resource with success");
+        info!(
+            path = path,
+            "The connector erase data in the resource with success"
+        );
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -615,8 +652,8 @@ impl HeaderCounter {
     /// ```
     #[instrument]
     pub async fn count(&self, connector: Curl) -> Result<Option<usize>> {
-        let client = surf::client();
         let mut connector = connector.clone();
+        let client = connector.client().await?;
 
         if let Some(path) = self.path.clone() {
             connector.path = path;
@@ -624,29 +661,9 @@ impl HeaderCounter {
 
         let url = Url::parse(format!("{}{}", connector.endpoint, connector.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        let mut request_builder = surf::head(url);
-
-        if let Some(ref mut authenticator_type) = connector.authenticator_type {
-            let authenticator = authenticator_type.authenticator_mut();
-            authenticator.set_parameters(connector.parameters.clone());
-            request_builder = authenticator.authenticate(request_builder).await?;
-        }
-
-        if !connector.metadata().content_type().is_empty() {
-            request_builder =
-                request_builder.header(headers::CONTENT_TYPE, connector.metadata().content_type());
-        }
-
-        if !connector.headers.is_empty() {
-            for (key, value) in connector.headers.iter() {
-                request_builder = request_builder.header(key.as_str(), value.as_str());
-            }
-        }
-
-        let req = request_builder.build();
 
         let res = client
-            .send(req)
+            .send(surf::head(url))
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -1115,12 +1132,12 @@ impl Paginator for CursorPaginator {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::document::json::Json;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
     use crate::DataResult;
     use json_value_search::Search;
-    use super::*;
 
     #[test]
     fn is_variable() {

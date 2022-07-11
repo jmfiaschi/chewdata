@@ -87,17 +87,18 @@ impl Connector for Local {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
+        let mut params = self.parameters.clone();
         let mut metadata = Map::default();
 
-        metadata.insert("metadata".to_string(), self.metadata().into());
-        path.replace_mustache(Value::Object(metadata));
+        match self.is_variable() {
+            true => {
+                metadata.insert("metadata".to_string(), self.metadata().into());
+                params.merge(Value::Object(metadata));
 
-        match (self.is_variable(), self.parameters.clone()) {
-            (true, params) => {
-                path.replace_mustache(params);
+                path.replace_mustache(params.clone());
                 path
             }
-            _ => path,
+            false => path,
         }
     }
     /// See [`Connector::len`] for more details.
@@ -198,18 +199,25 @@ impl Connector for Local {
         let mut old_parameters = self.parameters.clone();
         old_parameters.merge(metadata);
 
-        let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(old_parameters);
+        let mut previous_path = self.path.clone();
+        previous_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
-        if actuel_path == new_path {
-            trace!("The connector stay link to the same file");
+        if previous_path == new_path {
+            trace!(
+                path = previous_path,
+                "The connector stay link to the same file"
+            );
             return Ok(false);
         }
 
-        info!("The connector will use another file, regarding the new parameters");
+        info!(
+            previous_path = previous_path,
+            new_path = new_path,
+            "The connector will use another file, regarding the new parameters"
+        );
         Ok(true)
     }
     /// See [`Connector::set_metadata`] for more details.
@@ -249,16 +257,22 @@ impl Connector for Local {
     #[instrument]
     async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
         let mut buff = Vec::default();
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
+
         OpenOptions::new()
             .read(true)
             .write(false)
             .create(false)
             .append(false)
             .truncate(false)
-            .open(self.path())?
+            .open(path.clone())?
             .read_to_end(&mut buff)?;
 
-        info!("The connector fetch data with success");
+        info!(path = path, "The connector fetch data with success");
 
         if !document.has_data(&buff)? {
             return Ok(None);
@@ -287,7 +301,7 @@ impl Connector for Local {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
-    /// 
+    ///
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
@@ -323,6 +337,11 @@ impl Connector for Local {
         let footer = document.footer(dataset)?;
         let header = document.header(dataset)?;
         let body = document.write(dataset)?;
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
 
         let position = match document.can_append() {
             true => Some(-(footer.len() as isize)),
@@ -334,10 +353,10 @@ impl Connector for Local {
             .create(true)
             .write(true)
             .truncate(false)
-            .open(self.path().as_str())?;
+            .open(path.as_str())?;
 
         file.lock_exclusive()?;
-        trace!("The connector lock the file");
+        trace!(path = path, "The connector lock the file");
 
         let file_len = file.metadata()?.len();
 
@@ -357,12 +376,15 @@ impl Connector for Local {
         }
         file.write_all(&body)?;
         file.write_all(&footer)?;
-        trace!("The connector write data into the file");
+        trace!(path = path, "The connector write data into the file");
 
         file.unlock()?;
-        trace!("The connector unlock the file");
+        trace!(path = path, "The connector unlock the file");
 
-        info!("The connector send data into the file with success");
+        info!(
+            path = path,
+            "The connector send data into the file with success"
+        );
         Ok(None)
     }
     /// See [`Connector::erase`] for more details.
@@ -395,15 +417,21 @@ impl Connector for Local {
     /// ```
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
+
         OpenOptions::new()
             .read(false)
             .create(true)
             .append(false)
             .write(true)
             .truncate(true)
-            .open(self.path().as_str())?;
+            .open(path.as_str())?;
 
-        info!("The connector erase the file with success");
+        info!(path = path, "The connector erase the file with success");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
@@ -588,7 +616,11 @@ mod tests {
         connector.send(document.clone(), &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(document.clone()).await.unwrap().unwrap();
+        let mut datastream = connector_read
+            .fetch(document.clone())
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
 
         let expected_result2 =

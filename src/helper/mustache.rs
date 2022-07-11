@@ -71,7 +71,7 @@ impl Mustache for String {
                 Some(Value::Array(vec)) => Value::Array(vec.clone()).to_string(),
                 Some(Value::Object(map)) => Value::Object(map.clone()).to_string(),
                 None => {
-                    warn!(
+                    trace!(
                         "This value '{}' can't be resolved for this path '{}' and this object '{}'",
                         value_captured,
                         json_pointer,

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 use std::io::{Error, ErrorKind, Result};
-use surf::{http::headers, RequestBuilder};
+use surf::http::headers;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -24,7 +24,6 @@ pub struct Jwt {
     pub format: Format,
     pub key: String,
     pub payload: Box<Value>,
-    pub parameters: Box<Value>,
     pub token: Option<String>,
 }
 
@@ -66,7 +65,6 @@ impl fmt::Debug for Jwt {
             .field("format", &self.format)
             .field("key", &obfuscate_key)
             .field("payload", &self.payload)
-            .field("parameters", &self.parameters)
             .field("token", &obfuscate_token)
             .finish()
     }
@@ -102,7 +100,6 @@ impl Default for Jwt {
             format: Format::Secret,
             key: "".to_string(),
             payload: Box::new(Value::Null),
-            parameters: Box::new(Value::Null),
             token: None,
         }
     }
@@ -171,14 +168,13 @@ impl Jwt {
     /// }
     /// ```
     #[instrument]
-    pub async fn refresh(&mut self) -> Result<()> {
+    pub async fn refresh(&mut self, parameters: Value) -> Result<()> {
         let refresh_connector_type = match self.refresh_connector.clone() {
             Some(refresh_connector_type) => refresh_connector_type,
-            None => return Ok(())
+            None => return Ok(()),
         };
-        
+
         let mut payload = *self.payload.clone();
-        let parameters = *self.parameters.clone();
 
         if payload.has_mustache() {
             payload.replace_mustache(parameters);
@@ -302,12 +298,12 @@ impl Authenticator for Jwt {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
-    /// 
+    ///
     ///     let mut refresh_connector = Curl::default();
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     refresh_connector.path = "/tokens".to_string();
     ///     refresh_connector.method = Method::Post;
-    /// 
+    ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
     ///     auth.payload = serde_json::from_str(
@@ -320,7 +316,7 @@ impl Authenticator for Jwt {
     ///         mime_subtype: Some("json".to_string()),
     ///         ..Default::default()
     ///     };
-    /// 
+    ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
@@ -334,19 +330,18 @@ impl Authenticator for Jwt {
     /// }
     /// ```
     #[instrument]
-    async fn authenticate(&mut self, request_builder: RequestBuilder) -> Result<RequestBuilder> {
+    async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)> {
         let mut token_option = self.token.clone();
-        let parameters = self.parameters.clone();
 
         if let (None, Some(_)) = (token_option.clone(), self.refresh_connector.clone()) {
-            self.refresh().await?;
+            self.refresh(parameters.clone()).await?;
             token_option = self.token.clone();
         }
 
         if let Some(token) = token_option.clone() {
             if token.has_mustache() {
                 let mut token = token;
-                token.replace_mustache(*parameters.clone());
+                token.replace_mustache(parameters.clone());
                 token_option = Some(token);
             }
         }
@@ -358,7 +353,7 @@ impl Authenticator for Jwt {
                         self.payload.get("claims").unwrap_or(&Value::Null).clone();
 
                     if claim_payload.has_mustache() {
-                        claim_payload.replace_mustache(*parameters.clone());
+                        claim_payload.replace_mustache(parameters.clone());
                     }
 
                     if !claim_payload.eq(&jwt_payload.claims) {
@@ -368,7 +363,7 @@ impl Authenticator for Jwt {
                 Err(e) => {
                     match e.kind() {
                         jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
-                            self.refresh().await?;
+                            self.refresh(parameters).await?;
                             token_option = self.token.clone();
                         }
                         _ => {
@@ -387,27 +382,28 @@ impl Authenticator for Jwt {
         Ok(match token_option {
             Some(token) => {
                 let bearer = base64::encode(token);
-                request_builder.header(headers::AUTHORIZATION, format!("Bearer {}", bearer))
+                (
+                    headers::AUTHORIZATION.to_string().into_bytes(),
+                    format!("Bearer {}", bearer).into_bytes(),
+                )
             }
             None => {
                 warn!("No Java Web Token found for the authentication");
-                request_builder
+                (
+                    headers::AUTHORIZATION.to_string().into_bytes(),
+                    "Bearer".to_string().into_bytes(),
+                )
             }
         })
-    }
-    /// See [`Authenticator::set_parameters`] for more details.
-    fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = Box::new(parameters);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::Metadata;
-    use crate::connector::{authenticator::AuthenticatorType, curl::Curl, Connector};
-    use crate::document::json::Json;
-    use http_types::Method;
     use super::*;
+    use crate::connector::curl::Curl;
+    use crate::Metadata;
+    use http_types::Method;
 
     #[test]
     fn new() {
@@ -434,7 +430,7 @@ mod tests {
             mime_subtype: Some("json".to_string()),
             ..Default::default()
         };
-        auth.refresh().await.unwrap();
+        auth.refresh(Value::Null).await.unwrap();
 
         assert!(
             10 < auth.token.unwrap().len(),
@@ -443,8 +439,6 @@ mod tests {
     }
     #[async_std::test]
     async fn authenticate() {
-        let document = Box::new(Json::default());
-
         let mut refresh_connector = Curl::default();
         refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         refresh_connector.path = "/tokens".to_string();
@@ -463,51 +457,12 @@ mod tests {
             ..Default::default()
         };
 
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
-        connector.method = Method::Get;
-        connector.path = "/bearer".to_string();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
-        let len = datastream.count().await;
-        assert!(0 < len, "Should read one some bytes.");
-    }
-    #[async_std::test]
-    async fn authenticate_fail() {
-        let document = Box::new(Json::default());
-
-        let mut refresh_connector = Curl::default();
-        refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
-        refresh_connector.path = "/tokens".to_string();
-        refresh_connector.method = Method::Post;
-
-        let mut auth = Jwt::default();
-        auth.key = "my_bad_key".to_string();
-        auth.payload = serde_json::from_str(
-            r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
-        ).unwrap();
-        auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token = "token".to_string();
-        auth.refresh_document.metadata = Metadata {
-            mime_type: Some("application".to_string()),
-            mime_subtype: Some("json".to_string()),
-            ..Default::default()
-        };
-
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
-        connector.method = Method::Get;
-        connector.path = "/bearer".to_string();
-        match connector.fetch(document).await {
-            Ok(_) => assert!(false, "Should generate an error."),
-            Err(_) => assert!(true),
-        };
+        let (auth_name, auth_value) = auth.authenticate(Value::Null).await.unwrap();
+        assert_eq!(auth_name, "authorization".to_string().into_bytes());
+        assert_eq!(auth_value, "Bearer ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SkhhWFpsYms1aGJXVWlPaUpLYjJodWJua2lMQ0pwWVhRaU9qRTFPVGswTmpJM05UVXNJbVY0Y0NJNk16TXhOVFkwTVRZd056ZDkuQXFsUk4yeDZUMGJFMXBKSlowV1BRcm1MaUszN2lUODl6bExCaVJHNVp1MA==".as_bytes().to_vec());
     }
     #[async_std::test]
     async fn authenticate_with_token_in_param() {
-        let document = Box::new(Json::default());
-
         let parameters: Value =
             serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
         let mut refresh_connector = Curl::default();
@@ -528,47 +483,8 @@ mod tests {
             ..Default::default()
         };
 
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
-        connector.method = Method::Get;
-        connector.path = "/bearer".to_string();
-        connector.parameters = parameters;
-        
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
-        let len = datastream.count().await;
-        assert!(0 < len, "Should read one some bytes.");
-    }
-    #[async_std::test]
-    async fn authenticate_with_refresh_token() {
-        let document = Box::new(Json::default());
-
-        let mut refresh_connector = Curl::default();
-        refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
-        refresh_connector.path = "/tokens".to_string();
-        refresh_connector.method = Method::Post;
-
-        let mut auth = Jwt::default();
-        auth.key = "my_key".to_string();
-        auth.payload = serde_json::from_str(
-            r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1592254044,"exp":1592254044},"key":"my_key"}"#,
-        ).unwrap();
-        auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token = "token".to_string();
-        auth.refresh_document.metadata = Metadata {
-            mime_type: Some("application".to_string()),
-            mime_subtype: Some("json".to_string()),
-            ..Default::default()
-        };
-
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
-        connector.method = Method::Get;
-        connector.path = "/bearer".to_string();
-        
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
-        let len = datastream.count().await;
-        assert!(0 < len, "Should read one some bytes.");
+        let (auth_name, auth_value) = auth.authenticate(parameters).await.unwrap();
+        assert_eq!(auth_name, "authorization".to_string().into_bytes());
+        assert_eq!(auth_value, "Bearer ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SkhhWFpsYms1aGJXVWlPaUpLYjJodWJua2lMQ0oxYzJWeWJtRnRaU0k2SW0xNVgzVnpaWEp1WVcxbElpd2ljR0Z6YzNkdmNtUWlPaUp0ZVY5d1lYTnpkMjl5WkNJc0ltbGhkQ0k2TVRVNU9UUTJNamMxTlN3aVpYaHdJam96TXpFMU5qUXhOakEzTjMwLmc4bUdyZk5LLThudVQ3dENOSERxbHJVa3c3V3l3Z1ZUQy04V3VIUHBaNmc=".as_bytes().to_vec());
     }
 }

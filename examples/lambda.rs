@@ -40,7 +40,7 @@ async fn main() -> io::Result<()> {
     chewdata::exec(config, Some(receiver_input), Some(sender_output)).await?;
 
     for step_context in receiver_output.recv().await {
-        println!("data_result {:?}", step_context.data_result());
+        println!("{}", step_context.data_result().to_value().to_string());
     }
 
     Ok(())

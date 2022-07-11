@@ -218,18 +218,22 @@ impl Connector for Bucket {
         let mut old_parameters = *self.parameters.clone();
         old_parameters.merge(metadata);
 
-        let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(old_parameters);
+        let mut previous_path = self.path.clone();
+        previous_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
-        if actuel_path == new_path {
-            trace!("The connector path didn't change");
+        if previous_path == new_path {
+            trace!(path = previous_path, "The connector path didn't change");
             return Ok(false);
         }
 
-        info!("The connector will use another resource regarding the new parameters");
+        info!(
+            previous_path = previous_path,
+            new_path = new_path,
+            "The connector will use another resource regarding the new parameters"
+        );
         Ok(true)
     }
     /// See [`Connector::path`] for more details.
@@ -249,17 +253,18 @@ impl Connector for Bucket {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
+        let mut params = *self.parameters.clone();
         let mut metadata = Map::default();
 
-        metadata.insert("metadata".to_string(), self.metadata().into());
-        path.replace_mustache(Value::Object(metadata));
+        match self.is_variable() {
+            true => {
+                metadata.insert("metadata".to_string(), self.metadata().into());
+                params.merge(Value::Object(metadata));
 
-        match (self.is_variable(), *self.parameters.clone()) {
-            (true, params) => {
-                path.replace_mustache(params);
+                path.replace_mustache(params.clone());
                 path
             }
-            _ => path,
+            false => path,
         }
     }
     /// See [`Connector::len`] for more details.
@@ -353,12 +358,18 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn fetch(&mut self, document: Box<dyn Document>) -> Result<Option<DataStream>> {
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
+
         let get_object = Compat::new(
             self.client()
                 .await?
                 .get_object()
                 .bucket(self.bucket.clone())
-                .key(self.path())
+                .key(path.clone())
                 .set_version_id(self.version.clone())
                 .send(),
         )
@@ -373,7 +384,7 @@ impl Connector for Bucket {
             .into_bytes()
             .to_vec();
 
-        info!("The connector fetch data into the resource with success");
+        info!(path = path, "The connector fetch data into the resource with success");
 
         if !document.has_data(&buffer)? {
             return Ok(None);
@@ -451,6 +462,10 @@ impl Connector for Bucket {
         let header = document.header(dataset)?;
         let body = document.write(dataset)?;
 
+        if path_resolved.has_mustache() {
+            warn!(path = path_resolved, "This path is not fully resolved");
+        }
+
         let position = match document.can_append() {
             true => Some(-(footer.len() as isize)),
             false => None,
@@ -511,7 +526,7 @@ impl Connector for Bucket {
                 .await?
                 .put_object()
                 .bucket(self.bucket.clone())
-                .key(path_resolved)
+                .key(path_resolved.clone())
                 .tagging(self.tagging())
                 .content_type(self.metadata().content_type())
                 .set_metadata(Some(self.metadata().to_hashmap()))
@@ -528,7 +543,7 @@ impl Connector for Bucket {
         .await
         .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        info!("The connector send data into the resource with success");
+        info!(path = path_resolved, "The connector send data into the resource with success");
         Ok(None)
     }
     fn set_metadata(&mut self, metadata: Metadata) {
@@ -541,12 +556,18 @@ impl Connector for Bucket {
     /// See [`Connector::erase`] for more details.
     #[instrument]
     async fn erase(&mut self) -> Result<()> {
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
+
         Compat::new(async {
             self.client()
                 .await?
                 .put_object()
                 .bucket(self.bucket.clone())
-                .key(self.path())
+                .key(path)
                 .body(Vec::default().into())
                 .send()
                 .await
@@ -825,10 +846,7 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"[{"column1":"value1"}]"#).unwrap());
         let dataset = vec![expected_result1.clone()];
-        connector
-            .send(document.clone(), &dataset)
-            .await
-            .unwrap();
+        connector.send(document.clone(), &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         let mut datastream = connector_read

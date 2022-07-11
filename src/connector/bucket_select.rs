@@ -137,6 +137,11 @@ impl BucketSelect {
     /// Get a Select object Content Request object with a BucketSelect connector.
     pub async fn select_object_content(&self) -> Result<SelectObjectContent> {
         let metadata = self.metadata();
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path = path, "This path is not fully resolved");
+        }
 
         let input_serialization = match metadata.mime_subtype.as_deref() {
             Some("csv") => InputSerialization::builder().csv(
@@ -201,7 +206,7 @@ impl BucketSelect {
             .await?
             .select_object_content()
             .bucket(self.bucket.clone())
-            .key(self.path())
+            .key(path)
             .expression(self.query.clone())
             .expression_type(ExpressionType::Sql)
             .input_serialization(input_serialization)
@@ -385,18 +390,22 @@ impl Connector for BucketSelect {
         let mut old_parameters = *self.parameters.clone();
         old_parameters.merge(metadata);
 
-        let mut actuel_path = self.path.clone();
-        actuel_path.replace_mustache(old_parameters);
+        let mut previous_path = self.path.clone();
+        previous_path.replace_mustache(old_parameters);
 
         let mut new_path = self.path.clone();
         new_path.replace_mustache(new_parameters);
 
-        if actuel_path == new_path {
-            trace!("The connector path didn't change");
+        if previous_path == new_path {
+            trace!(path = previous_path, "The connector path didn't change");
             return Ok(false);
         }
 
-        info!("The connector will use another resource regarding the new parameters");
+        info!(
+            previous_path = previous_path,
+            new_path = new_path,
+            "The connector will use another resource regarding the new parameters"
+        );
         Ok(true)
     }
     /// See [`Connector::path`] for more details.
@@ -416,17 +425,18 @@ impl Connector for BucketSelect {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
+        let mut params = *self.parameters.clone();
         let mut metadata = Map::default();
 
-        metadata.insert("metadata".to_string(), self.metadata().into());
-        path.replace_mustache(Value::Object(metadata));
+        match self.is_variable() {
+            true => {
+                metadata.insert("metadata".to_string(), self.metadata().into());
+                params.merge(Value::Object(metadata));
 
-        match (self.is_variable(), *self.parameters.clone()) {
-            (true, params) => {
-                path.replace_mustache(params);
+                path.replace_mustache(params.clone());
                 path
             }
-            _ => path,
+            false => path,
         }
     }
     /// See [`Connector::len`] for more details.
@@ -470,7 +480,7 @@ impl Connector for BucketSelect {
                 .unwrap(),
             "limit 1"
         );
-        
+
         let len = connector.fetch_length().await.unwrap_or_default();
 
         info!(len = len, "The connector found data in the resource");
@@ -479,7 +489,7 @@ impl Connector for BucketSelect {
     /// See [`Connector::fetch`] for more details.
     ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use chewdata::document::json::Json;
@@ -511,6 +521,8 @@ impl Connector for BucketSelect {
     #[instrument]
     async fn fetch(&mut self, document: Box<dyn Document>) -> Result<Option<DataStream>> {
         let mut buffer = Vec::default();
+        let path = self.path();
+
         if let (Some(true), Some("csv")) = (
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),
@@ -536,7 +548,10 @@ impl Connector for BucketSelect {
         }
 
         buffer.append(&mut self.fetch_data().await?);
-        info!("The connector fetch data into the resource with success");
+        info!(
+            path = path,
+            "The connector fetch data into the resource with success"
+        );
 
         if !document.has_data(&buffer)? {
             return Ok(None);
@@ -606,7 +621,7 @@ impl Paginator for BucketSelectPaginator {
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;

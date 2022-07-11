@@ -116,7 +116,9 @@ impl Step for Writer {
             {
                 // If the path change and the inner connector not empty, the connector
                 // flush and send the data to the remote document before to load a new document.
-                if connector.is_resource_will_change(step_context_received.to_value()?)? {
+                if connector.is_resource_will_change(step_context_received.to_value()?)?
+                    && !dataset.is_empty()
+                {
                     match connector.send(document.clone(), &dataset).await {
                         Ok(_) => {
                             info!("Dataset sended with success into the connector");
@@ -131,7 +133,11 @@ impl Step for Writer {
                         Err(e) => {
                             warn!(
                                 error = format!("{:?}", &e).as_str(),
-                                dataset = format!("{:?}", &dataset).as_str(),
+                                dataset = match enabled!(tracing::Level::DEBUG) {
+                                    true => format!("{:?}", &dataset),
+                                    false => String::from("[See data in debug mode]"),
+                                }
+                                .as_str(),
                                 "Can't send the dataset through the connector"
                             );
 
@@ -140,7 +146,10 @@ impl Step for Writer {
                                     self as &dyn Step,
                                     &StepContext::new(
                                         self.name(),
-                                        DataResult::Err((data.to_value(), io::Error::new(e.kind(), e.to_string()))),
+                                        DataResult::Err((
+                                            data.to_value(),
+                                            io::Error::new(e.kind(), e.to_string()),
+                                        )),
                                     )?,
                                 )
                                 .await?;
@@ -167,7 +176,11 @@ impl Step for Writer {
                     Err(e) => {
                         warn!(
                             error = format!("{:?}", &e).as_str(),
-                            dataset = format!("{:?}", &dataset).as_str(),
+                            dataset = match enabled!(tracing::Level::DEBUG) {
+                                true => format!("{:?}", &dataset),
+                                false => String::from("[See data in debug mode]"),
+                            }
+                            .as_str(),
                             "Can't send the dataset through the connector"
                         );
 
@@ -176,7 +189,10 @@ impl Step for Writer {
                                 self as &dyn Step,
                                 &StepContext::new(
                                     self.name(),
-                                    DataResult::Err((data.to_value(), io::Error::new(e.kind(), e.to_string()))),
+                                    DataResult::Err((
+                                        data.to_value(),
+                                        io::Error::new(e.kind(), e.to_string()),
+                                    )),
                                 )?,
                             )
                             .await?;
@@ -205,7 +221,11 @@ impl Step for Writer {
                 Err(e) => {
                     warn!(
                         error = format!("{:?}", &e).as_str(),
-                        dataset = format!("{:?}", &dataset).as_str(),
+                        dataset = match enabled!(tracing::Level::DEBUG) {
+                            true => format!("{:?}", &dataset),
+                            false => String::from("[See data in debug mode]"),
+                        }
+                        .as_str(),
                         "Can't send the dataset through the connector"
                     );
 
@@ -214,7 +234,10 @@ impl Step for Writer {
                             self as &dyn Step,
                             &StepContext::new(
                                 self.name(),
-                                DataResult::Err((data.to_value(), io::Error::new(e.kind(), e.to_string()))),
+                                DataResult::Err((
+                                    data.to_value(),
+                                    io::Error::new(e.kind(), e.to_string()),
+                                )),
                             )?,
                         )
                         .await?;
