@@ -32,7 +32,13 @@ async fn main() -> io::Result<()> {
         }
     },{
         "type": "w",
-        "dataset_size": 1
+        "connector": {
+            "type": "local",
+            "path": "./data/out/commoncrawl.jsonl"
+        },
+        "document": {
+            "type":"jsonl"
+        }
     }]
     "#;
 

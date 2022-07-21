@@ -6,6 +6,7 @@ use serde_json::Value;
 use std::io;
 
 const DEFAULT_SUBTYPE: &str = "toml";
+const DEFAULT_TERMINATOR: &str = "---";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -18,6 +19,7 @@ pub struct Toml {
 impl Default for Toml {
     fn default() -> Self {
         let metadata = Metadata {
+            terminator: Some(DEFAULT_TERMINATOR.to_string()),
             mime_type: Some(mime::APPLICATION.to_string()),
             mime_subtype: Some(DEFAULT_SUBTYPE.to_string()),
             charset: Some(mime::UTF_8.to_string()),

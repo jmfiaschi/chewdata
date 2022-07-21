@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
 
+const DEFAULT_TERMINATOR: &str = "\n";
+
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Text {
@@ -16,6 +18,7 @@ pub struct Text {
 impl Default for Text {
     fn default() -> Self {
         let metadata = Metadata {
+            terminator: Some(DEFAULT_TERMINATOR.to_string()),
             mime_type: Some(mime::TEXT.to_string()),
             mime_subtype: Some(mime::PLAIN.to_string()),
             charset: Some(mime::UTF_8.to_string()),

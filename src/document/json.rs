@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
 
+const DEFAULT_TERMINATOR: &str = ",";
+
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Json {
@@ -16,8 +18,6 @@ pub struct Json {
     pub is_pretty: bool,
     pub entry_path: Option<String>,
 }
-
-const DEFAULT_TERMINATOR: &str = ",";
 
 impl Default for Json {
     fn default() -> Self {

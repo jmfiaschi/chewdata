@@ -21,10 +21,8 @@ async fn main() -> io::Result<()> {
     [{
         "type": "r",
         "connector": {
-            "type": "curl",
-            "endpoint": "http://index.commoncrawl.org",
-            "path": "/CC-MAIN-2017-04-index?url=https%3A%2F%2Fnews.ycombinator.com%2F*&output=json",
-            "method": "get"
+            "type": "local",
+            "path": "./data/out/commoncrawl.jsonl"
         },
         "document": {
             "type":"jsonl"
@@ -34,25 +32,32 @@ async fn main() -> io::Result<()> {
         "connector": {
             "type": "bucket",
             "bucket": "my-bucket",
-            "path": "data/commoncrawl.json",
+            "path": "data/out/commoncrawl.jsonl",
             "endpoint": "{{ BUCKET_ENDPOINT }}",
             "region": "{{ BUCKET_REGION }}"
         },
         "document": {
             "type":"jsonl"
         }
-    },{
+    }]
+    "#;
+
+    let config_resolved = env::Vars::apply(config.to_string());
+    chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None, None).await?;
+
+    let config = r#"
+    [{
         "type": "r",
         "connector": {
             "type": "bucket_select",
             "bucket": "my-bucket",
-            "path": "data/commoncrawl.json",
+            "path": "data/out/commoncrawl.jsonl",
             "endpoint": "{{ BUCKET_ENDPOINT }}",
             "region": "{{ BUCKET_REGION }}",
-            "query": "select * from s3object where status = '200'"
+            "query": "select * from s3object where length = '2044'"
         },
         "document" : {
-            "type": "json"
+            "type": "jsonl"
         }
     },
     {

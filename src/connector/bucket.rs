@@ -520,7 +520,7 @@ impl Connector for Bucket {
         cursor.write_all(&footer)?;
 
         let buffer = cursor.into_inner();
-
+        
         Compat::new(
             self.client()
                 .await?
@@ -529,7 +529,7 @@ impl Connector for Bucket {
                 .key(path_resolved.clone())
                 .tagging(self.tagging())
                 .content_type(self.metadata().content_type())
-                .set_metadata(Some(self.metadata().to_hashmap()))
+                .set_metadata(Some(self.metadata().to_hashmap().into_iter().map(|(key, value)| (key, value.replace("\n", "\\n"))).collect()))
                 .set_cache_control(self.cache_control.to_owned())
                 .set_content_language(match self.metadata().content_language().is_empty() {
                     true => None,
