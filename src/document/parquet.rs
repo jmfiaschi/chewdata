@@ -179,14 +179,11 @@ impl Document for Parquet {
     #[instrument(skip(dataset))]
     fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut arrow_value = dataset.iter().map(|data| Ok(data.to_value()));
-
         let schema = match self.schema.clone() {
             Some(value) => Schema::from(&value),
             None => infer_json_schema_from_iterator(arrow_value.clone()),
         }
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-        let cursor_writer = Vec::new();
 
         let mut properties_builder = WriterProperties::builder();
         properties_builder = properties_builder.set_write_batch_size(self.batch_size);
@@ -249,11 +246,13 @@ impl Document for Parquet {
                 });
             }
         }
+        
         let properties = properties_builder.build();
-
+        let mut buffer = Vec::new();
+        
         {
             let mut writer = ArrowWriter::try_new(
-                cursor_writer.clone(),
+                &mut buffer,
                 Arc::new(schema.clone()),
                 Some(properties),
             )
@@ -270,7 +269,7 @@ impl Document for Parquet {
             writer.close()?;
         }
 
-        Ok(cursor_writer)
+        Ok(buffer)
     }
 }
 
@@ -338,5 +337,17 @@ mod tests {
         let data = dataset.next().unwrap().to_value();
         let expected_data: Value = serde_json::from_str(r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Entry path '/not_found' not found."}"#).unwrap();
         assert_eq!(expected_data, data);
+    }
+    #[test]
+    fn write() {
+        let mut document = Parquet::default();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+        ),
+        DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap(),
+        )];
+        let buffer = document.write(&dataset).unwrap();
+        assert!(0 < buffer.len(), "The buffer size must be upper than 0");
     }
 }
