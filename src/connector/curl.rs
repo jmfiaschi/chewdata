@@ -287,7 +287,7 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let res = client
-            .send(surf::head(url))
+            .head(url)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -356,7 +356,7 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut res = client
-            .send(surf::RequestBuilder::new(self.method, url))
+            .send(client.request(self.method, url))
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -448,7 +448,7 @@ impl Connector for Curl {
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = surf::RequestBuilder::new(self.method, url).body(buffer);
+        let mut req = client.request(self.method, url).body(buffer);
 
         // Force to replace the `application/octet-stream` but the connector content type.
         if !self.metadata().content_type().is_empty() {
@@ -524,7 +524,7 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut res = client
-            .send(surf::RequestBuilder::new(Method::Delete, url))
+            .delete(url)
             .await
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
@@ -663,7 +663,7 @@ impl HeaderCounter {
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let res = client
-            .send(surf::head(url))
+            .head(url)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -1133,6 +1133,7 @@ impl Paginator for CursorPaginator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::connector::authenticator::{basic::Basic, bearer::Bearer, AuthenticatorType};
     use crate::document::json::Json;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
@@ -1203,6 +1204,38 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/json".to_string();
+        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        assert!(
+            0 < datastream.count().await,
+            "The inner connector should have a size upper than zero"
+        );
+    }
+    #[async_std::test]
+    async fn fetch_with_basic() {
+        let document = Box::new(Json::default());
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/basic-auth/my-username/my-password".to_string();
+        connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
+            "my-username",
+            "my-password",
+        ))));
+        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        assert!(
+            0 < datastream.count().await,
+            "The inner connector should have a size upper than zero"
+        );
+    }
+    #[async_std::test]
+    async fn fetch_with_bearer() {
+        let document = Box::new(Json::default());
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/bearer".to_string();
+        connector.authenticator_type =
+            Some(Box::new(AuthenticatorType::Bearer(Bearer::new("abcd1234"))));
         let datastream = connector.fetch(document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,

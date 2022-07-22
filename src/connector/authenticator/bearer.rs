@@ -71,9 +71,10 @@ impl Authenticator for Bearer {
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::authenticator::{AuthenticatorType, bearer::Bearer};
+    /// use chewdata::connector::authenticator::{AuthenticatorType, bearer::Bearer, Authenticator};
     /// use async_std::prelude::*;
     /// use std::io;
+    /// use serde_json::Value;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {

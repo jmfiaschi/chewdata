@@ -84,7 +84,7 @@ impl Authenticator for Basic {
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
+    /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic, Authenticator};
     /// use async_std::prelude::*;
     /// use std::io;
     ///

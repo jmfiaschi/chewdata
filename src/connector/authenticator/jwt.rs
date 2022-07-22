@@ -140,7 +140,7 @@ impl Jwt {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut refresh_connector = Curl::default();
+    ///    let mut refresh_connector = Curl::default();
     ///    refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///    refresh_connector.path = "/tokens".to_string();
     ///    refresh_connector.method = Method::Post;
@@ -157,7 +157,7 @@ impl Jwt {
     ///        mime_subtype: Some("json".to_string()),
     ///        ..Default::default()
     ///    };
-    ///    auth.refresh().await.unwrap();
+    ///    auth.refresh(Value::Null).await.unwrap();
     ///
     ///    assert!(
     ///        10 < auth.token.unwrap().len(),
@@ -291,7 +291,7 @@ impl Authenticator for Jwt {
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
     /// use surf::http::Method;
-    /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
+    /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt, Authenticator};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
