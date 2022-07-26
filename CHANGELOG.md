@@ -1,3 +1,25 @@
+# [1.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.1-beta.1...v1.13.0-beta.1) (2022-07-26)
+
+
+### Bug Fixes
+
+* **bench:** document read ([5e9056f](https://github.com/jmfiaschi/chewdata/commit/5e9056f942cd8f455993af82ef62c75ae178cc81))
+* **cargo:** upgrade ([18cc073](https://github.com/jmfiaschi/chewdata/commit/18cc0736a1241c7bc8d7d1d63699e07a1480aded))
+* **curl:** auth ([9c01414](https://github.com/jmfiaschi/chewdata/commit/9c01414fff89a6d3dd152617f9ca6979a1355c80))
+* **examples:** improve the examples ([608a4a7](https://github.com/jmfiaschi/chewdata/commit/608a4a7f2744a138f1aa33a64e4d5daf01338aa3))
+* **faker:** upgrade & fix ([cfd2f05](https://github.com/jmfiaschi/chewdata/commit/cfd2f0582bbf1d7d94a8f7bee2b6cc0a50d450c5))
+* **makefile:** clean ([6af87b1](https://github.com/jmfiaschi/chewdata/commit/6af87b11da15fe808bc604d2330c01f078fb0df6))
+* **parquet:** function write ([37d5b33](https://github.com/jmfiaschi/chewdata/commit/37d5b336a3d56930497af67a92d5173f0a57af1f))
+* **parquet:** upgrade & fix ([c814e4f](https://github.com/jmfiaschi/chewdata/commit/c814e4f8aeab51c76b2f92e8e449ff00f68deb34))
+
+
+### Features
+
+* **feature:** refacto feature names ([77df6b2](https://github.com/jmfiaschi/chewdata/commit/77df6b2e1419459dc3778e90b78dc1fe52bacef1))
+* **psql/msql/sqlite/sqlite:** simplify the code for the futur connectors ([53f6fed](https://github.com/jmfiaschi/chewdata/commit/53f6fed78f2b5f5f31ec215f39f51e63725a1b11))
+* **psql/msql/sqlite/sqlite:** simplify the code for the futur connectors ([d8386f2](https://github.com/jmfiaschi/chewdata/commit/d8386f2eccbfc856357e3cf985f237660e57c328))
+* **psql:** add psql connector feature ([a1cdb2b](https://github.com/jmfiaschi/chewdata/commit/a1cdb2b94f2c23203729692d638684485ffad866))
+
 ## [1.12.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.0...v1.12.1-beta.1) (2022-05-22)
 
 ### Bug Fixes
