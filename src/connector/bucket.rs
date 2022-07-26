@@ -22,6 +22,7 @@ use std::{
     fmt,
     io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write},
 };
+use async_compat::CompatExt;
 
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 
@@ -364,19 +365,20 @@ impl Connector for Bucket {
             warn!(path = path, "This path is not fully resolved");
         }
 
-        let get_object = Compat::new(
-            self.client()
-                .await?
-                .get_object()
-                .bucket(self.bucket.clone())
-                .key(path.clone())
-                .set_version_id(self.version.clone())
-                .send(),
-        )
-        .await
-        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        let get_object = self.client()
+            .compat()
+            .await?
+            .get_object()
+            .bucket(self.bucket.clone())
+            .key(path.clone())
+            .set_version_id(self.version.clone())
+            .send()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        let buffer = Compat::new(get_object.body.collect())
+        let buffer = get_object.body.collect()
+            .compat()
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
             .into_bytes()
@@ -490,9 +492,7 @@ impl Connector for Bucket {
                 .await
                 .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-                content_file = get_object
-                    .body
-                    .collect()
+                content_file = Compat::new(get_object.body.collect())
                     .await
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                     .into_bytes()
