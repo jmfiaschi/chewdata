@@ -2,7 +2,11 @@ include .env
 export $(shell sed 's/=.*//' .env)
 
 .SILENT:
-.PHONY: build exec test bench help minio minio-install httpbin clean docs
+.PHONY: build exec test bench help minio minio-install httpbin clean docs debug
+
+debug:
+	@rustup -V
+	@cargo -V
 
 help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -11,6 +15,7 @@ build: ## Build the script in local without examples
 	@cargo clean
 	@cargo build --lib --bins --tests --benches --all-features
 
+run: debug
 run: ## Launch the script in local
 	@if [ "$(json)" ]; then\
 		cargo run ${json};\
@@ -106,7 +111,7 @@ adminer:
 semantic-release:
 	@npx semantic-release
 
-start: minio minio\:install httpbin mongo adminer
+start: debug minio minio\:install httpbin mongo adminer
 
 stop:
 	@docker-compose down
