@@ -3,7 +3,7 @@ use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::{DataSet, DataStream, Metadata};
-use async_compat::Compat;
+use async_compat::CompatExt;
 use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -22,7 +22,6 @@ use std::{
     fmt,
     io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write},
 };
-use async_compat::CompatExt;
 
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 
@@ -78,22 +77,24 @@ impl Default for Bucket {
 impl fmt::Display for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         futures::executor::block_on(async {
-            let get_object = Compat::new(
-                self.client()
-                    .await
-                    .unwrap()
-                    .get_object()
-                    .bucket(self.bucket.clone())
-                    .key(self.path())
-                    .set_version_id(self.version.clone())
-                    .send(),
-            )
-            .await
-            .unwrap();
+            let get_object = self
+                .client()
+                .compat()
+                .await
+                .unwrap()
+                .get_object()
+                .bucket(self.bucket.clone())
+                .key(self.path())
+                .set_version_id(self.version.clone())
+                .send()
+                .compat()
+                .await
+                .unwrap();
 
             let buffer = get_object
                 .body
                 .collect()
+                .compat()
                 .await
                 .unwrap()
                 .into_bytes()
@@ -292,39 +293,38 @@ impl Connector for Bucket {
     /// ```
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
-        Compat::new(async {
-            let reg = Regex::new("[*]").unwrap();
-            if reg.is_match(self.path.as_ref()) {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "len() method not available for wildcard path.",
-                ));
+        let reg = Regex::new("[*]").unwrap();
+        if reg.is_match(self.path.as_ref()) {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "len() method not available for wildcard path.",
+            ));
+        }
+
+        let len = match self
+            .client()
+            .compat()
+            .await?
+            .head_object()
+            .key(self.path())
+            .bucket(self.bucket.clone())
+            .set_version_id(self.version.clone())
+            .send()
+            .compat()
+            .await
+        {
+            Ok(res) => res.content_length() as usize,
+            Err(e) => {
+                warn!(
+                    error = format!("{:?}", e.to_string()).as_str(),
+                    "The connector can't find the length of the document"
+                );
+                0_usize
             }
+        };
 
-            let len = match self
-                .client()
-                .await?
-                .head_object()
-                .key(self.path())
-                .bucket(self.bucket.clone())
-                .set_version_id(self.version.clone())
-                .send()
-                .await
-            {
-                Ok(res) => res.content_length() as usize,
-                Err(e) => {
-                    warn!(
-                        error = format!("{:?}", e.to_string()).as_str(),
-                        "The connector can't find the length of the document"
-                    );
-                    0_usize
-                }
-            };
-
-            info!(len = len, "The connector found data in the resource");
-            Ok(len)
-        })
-        .await
+        info!(len = len, "The connector found data in the resource");
+        Ok(len)
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -365,7 +365,8 @@ impl Connector for Bucket {
             warn!(path = path, "This path is not fully resolved");
         }
 
-        let get_object = self.client()
+        let get_object = self
+            .client()
             .compat()
             .await?
             .get_object()
@@ -377,7 +378,9 @@ impl Connector for Bucket {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        let buffer = get_object.body.collect()
+        let buffer = get_object
+            .body
+            .collect()
             .compat()
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
@@ -480,19 +483,23 @@ impl Connector for Bucket {
                 "Fetch existing data into S3"
             );
             {
-                let get_object = Compat::new(
-                    self.client()
-                        .await?
-                        .get_object()
-                        .bucket(self.bucket.clone())
-                        .key(self.path())
-                        .set_version_id(self.version.clone())
-                        .send(),
-                )
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+                let get_object = self
+                    .client()
+                    .compat()
+                    .await?
+                    .get_object()
+                    .bucket(self.bucket.clone())
+                    .key(self.path())
+                    .set_version_id(self.version.clone())
+                    .send()
+                    .compat()
+                    .await
+                    .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-                content_file = Compat::new(get_object.body.collect())
+                content_file = get_object
+                    .body
+                    .collect()
+                    .compat()
                     .await
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                     .into_bytes()
@@ -522,33 +529,33 @@ impl Connector for Bucket {
 
         let buffer = cursor.into_inner();
 
-        Compat::new(
-            self.client()
-                .await?
-                .put_object()
-                .bucket(self.bucket.clone())
-                .key(path_resolved.clone())
-                .tagging(self.tagging())
-                .content_type(self.metadata().content_type())
-                .set_metadata(Some(
-                    self.metadata()
-                        .to_hashmap()
-                        .into_iter()
-                        .map(|(key, value)| (key, value.replace("\n", "\\n")))
-                        .collect(),
-                ))
-                .set_cache_control(self.cache_control.to_owned())
-                .set_content_language(match self.metadata().content_language().is_empty() {
-                    true => None,
-                    false => Some(self.metadata().content_language()),
-                })
-                .content_length(buffer.len() as i64)
-                .set_expires(self.expires.map(DateTime::from_secs))
-                .body(buffer.into())
-                .send(),
-        )
-        .await
-        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        self.client()
+            .compat()
+            .await?
+            .put_object()
+            .bucket(self.bucket.clone())
+            .key(path_resolved.clone())
+            .tagging(self.tagging())
+            .content_type(self.metadata().content_type())
+            .set_metadata(Some(
+                self.metadata()
+                    .to_hashmap()
+                    .into_iter()
+                    .map(|(key, value)| (key, value.replace("\n", "\\n")))
+                    .collect(),
+            ))
+            .set_cache_control(self.cache_control.to_owned())
+            .set_content_language(match self.metadata().content_language().is_empty() {
+                true => None,
+                false => Some(self.metadata().content_language()),
+            })
+            .content_length(buffer.len() as i64)
+            .set_expires(self.expires.map(DateTime::from_secs))
+            .body(buffer.into())
+            .send()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         info!(
             path = path_resolved,
@@ -572,21 +579,20 @@ impl Connector for Bucket {
             warn!(path = path, "This path is not fully resolved");
         }
 
-        Compat::new(async {
-            self.client()
-                .await?
-                .put_object()
-                .bucket(self.bucket.clone())
-                .key(path)
-                .body(Vec::default().into())
-                .send()
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        self.client()
+            .compat()
+            .await?
+            .put_object()
+            .bucket(self.bucket.clone())
+            .key(path)
+            .body(Vec::default().into())
+            .send()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-            info!("The connector erase data in the resource with success");
-            Ok(())
-        })
-        .await
+        info!("The connector erase data in the resource with success");
+        Ok(())
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
@@ -637,6 +643,7 @@ impl BucketPaginator {
                 while is_truncated {
                     let mut list_object_v2 = connector
                         .client()
+                        .compat()
                         .await?
                         .list_objects_v2()
                         .bucket(connector.bucket.clone())
@@ -648,7 +655,7 @@ impl BucketPaginator {
                     }
 
                     let (mut paths_tmp, is_truncated_tmp, next_token_tmp) =
-                        match Compat::new(list_object_v2.send()).await {
+                        match list_object_v2.send().compat().await {
                             Ok(response) => (
                                 response
                                     .contents()

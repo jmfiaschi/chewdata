@@ -4,7 +4,7 @@ use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::{DataSet, DataStream, Metadata};
-use async_compat::Compat;
+use async_compat::CompatExt;
 use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -69,21 +69,23 @@ impl Default for BucketSelect {
 impl fmt::Display for BucketSelect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         futures::executor::block_on(async {
-            let get_object = Compat::new(
-                self.client()
-                    .await
-                    .unwrap()
-                    .get_object()
-                    .bucket(self.bucket.clone())
-                    .key(self.path())
-                    .send(),
-            )
-            .await
-            .unwrap();
+            let get_object = self
+                .client()
+                .compat()
+                .await
+                .unwrap()
+                .get_object()
+                .bucket(self.bucket.clone())
+                .key(self.path())
+                .send()
+                .compat()
+                .await
+                .unwrap();
 
             let buffer = get_object
                 .body
                 .collect()
+                .compat()
                 .await
                 .unwrap()
                 .into_bytes()
@@ -213,116 +215,116 @@ impl BucketSelect {
             .output_serialization(output_serialization))
     }
     async fn fetch_data(&mut self) -> Result<Vec<u8>> {
-        Compat::new(async {
-            let mut event_stream = self
-                .select_object_content()
-                .await?
-                .send()
-                .await
-                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
+        let mut event_stream = self
+            .select_object_content()
+            .compat()
+            .await?
+            .send()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
 
-            let mut buffer = Vec::default();
+        let mut buffer = Vec::default();
 
-            while let Some(event) = event_stream
-                .payload
-                .recv()
-                .await
-                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
-            {
-                match event {
-                    SelectObjectContentEventStream::Records(records) => {
-                        trace!("records Event");
-                        if let Some(bytes) = records.payload() {
-                            buffer.append(&mut bytes.clone().into_inner());
-                        };
-                    }
-                    SelectObjectContentEventStream::Stats(stats) => {
-                        trace!(
-                            stats = format!("{:?}", stats.details()).as_str(),
-                            "Stats Event"
-                        );
-                    }
-                    SelectObjectContentEventStream::End(_) => {
-                        trace!("End Event");
-                        break;
-                    }
-                    SelectObjectContentEventStream::Progress(progress) => {
-                        trace!(
-                            details = format!("{:?}", progress.details()).as_str(),
-                            "Progress Event"
-                        );
-                    }
-                    SelectObjectContentEventStream::Cont(_) => {
-                        trace!("Continuation Event");
-                    }
-                    otherwise => {
-                        return Err(Error::new(
-                            ErrorKind::Interrupted,
-                            format!("{:?}", otherwise),
-                        ))
-                    }
+        while let Some(event) = event_stream
+            .payload
+            .recv()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
+        {
+            match event {
+                SelectObjectContentEventStream::Records(records) => {
+                    trace!("records Event");
+                    if let Some(bytes) = records.payload() {
+                        buffer.append(&mut bytes.clone().into_inner());
+                    };
+                }
+                SelectObjectContentEventStream::Stats(stats) => {
+                    trace!(
+                        stats = format!("{:?}", stats.details()).as_str(),
+                        "Stats Event"
+                    );
+                }
+                SelectObjectContentEventStream::End(_) => {
+                    trace!("End Event");
+                    break;
+                }
+                SelectObjectContentEventStream::Progress(progress) => {
+                    trace!(
+                        details = format!("{:?}", progress.details()).as_str(),
+                        "Progress Event"
+                    );
+                }
+                SelectObjectContentEventStream::Cont(_) => {
+                    trace!("Continuation Event");
+                }
+                otherwise => {
+                    return Err(Error::new(
+                        ErrorKind::Interrupted,
+                        format!("{:?}", otherwise),
+                    ))
                 }
             }
+        }
 
-            Ok(buffer)
-        })
-        .await
+        Ok(buffer)
     }
     async fn fetch_length(&mut self) -> Result<usize> {
-        Compat::new(async {
-            let mut event_stream = self
-                .select_object_content()
-                .await?
-                .send()
-                .await
-                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
+        let mut event_stream = self
+            .select_object_content()
+            .compat()
+            .await?
+            .send()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
 
-            let mut buffer: usize = 0;
+        let mut buffer: usize = 0;
 
-            while let Some(event) = event_stream
-                .payload
-                .recv()
-                .await
-                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
-            {
-                match event {
-                    SelectObjectContentEventStream::Records(_) => {
-                        trace!("records Event");
-                    }
-                    SelectObjectContentEventStream::Stats(stats) => {
-                        trace!(
-                            stats = format!("{:?}", stats.details()).as_str(),
-                            "Stats Event"
-                        );
-                        if let Some(stats) = stats.details {
-                            buffer += stats.bytes_scanned() as usize;
-                        };
-                    }
-                    SelectObjectContentEventStream::End(_) => {
-                        trace!("End Event");
-                        break;
-                    }
-                    SelectObjectContentEventStream::Progress(progress) => {
-                        trace!(
-                            details = format!("{:?}", progress.details()).as_str(),
-                            "Progress Event"
-                        );
-                    }
-                    SelectObjectContentEventStream::Cont(_) => {
-                        trace!("Continuation Event");
-                    }
-                    otherwise => {
-                        return Err(Error::new(
-                            ErrorKind::Interrupted,
-                            format!("{:?}", otherwise),
-                        ))
-                    }
+        while let Some(event) = event_stream
+            .payload
+            .recv()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
+        {
+            match event {
+                SelectObjectContentEventStream::Records(_) => {
+                    trace!("records Event");
+                }
+                SelectObjectContentEventStream::Stats(stats) => {
+                    trace!(
+                        stats = format!("{:?}", stats.details()).as_str(),
+                        "Stats Event"
+                    );
+                    if let Some(stats) = stats.details {
+                        buffer += stats.bytes_scanned() as usize;
+                    };
+                }
+                SelectObjectContentEventStream::End(_) => {
+                    trace!("End Event");
+                    break;
+                }
+                SelectObjectContentEventStream::Progress(progress) => {
+                    trace!(
+                        details = format!("{:?}", progress.details()).as_str(),
+                        "Progress Event"
+                    );
+                }
+                SelectObjectContentEventStream::Cont(_) => {
+                    trace!("Continuation Event");
+                }
+                otherwise => {
+                    return Err(Error::new(
+                        ErrorKind::Interrupted,
+                        format!("{:?}", otherwise),
+                    ))
                 }
             }
+        }
 
-            Ok(buffer)
-        })
-        .await
+        Ok(buffer)
     }
 }
 
@@ -765,184 +767,180 @@ mod tests {
     }
     #[async_std::test]
     async fn json_document() {
-        Compat::new(async {
-            let mut connector = BucketSelect::default();
-            connector.bucket = "my-bucket".to_string();
-            connector.path = "my-key".to_string();
-            connector.query = "my-query".to_string();
-            connector.metadata = Metadata {
-                ..Json::default().metadata
-            };
+        let mut connector = BucketSelect::default();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "my-key".to_string();
+        connector.query = "my-query".to_string();
+        connector.metadata = Metadata {
+            ..Json::default().metadata
+        };
 
-            let select_object_content_expected = connector
-                .client()
-                .await
-                .unwrap()
-                .select_object_content()
-                .bucket(connector.bucket.clone())
-                .key(connector.path())
-                .expression(connector.query.clone())
-                .expression_type(ExpressionType::Sql)
-                .input_serialization(
-                    InputSerialization::builder()
-                        .json(JsonInput::builder().r#type(JsonType::Document).build())
-                        .compression_type(CompressionType::from("NONE"))
-                        .build(),
-                )
-                .output_serialization(
-                    OutputSerialization::builder()
-                        .json(JsonOutput::builder().build())
-                        .build(),
-                );
-
-            assert_eq!(
-                format!("{:?}", select_object_content_expected),
-                format!("{:?}", connector.select_object_content().await.unwrap())
+        let select_object_content_expected = connector
+            .client()
+            .compat()
+            .await
+            .unwrap()
+            .select_object_content()
+            .bucket(connector.bucket.clone())
+            .key(connector.path())
+            .expression(connector.query.clone())
+            .expression_type(ExpressionType::Sql)
+            .input_serialization(
+                InputSerialization::builder()
+                    .json(JsonInput::builder().r#type(JsonType::Document).build())
+                    .compression_type(CompressionType::from("NONE"))
+                    .build(),
+            )
+            .output_serialization(
+                OutputSerialization::builder()
+                    .json(JsonOutput::builder().build())
+                    .build(),
             );
-        });
+
+        assert_eq!(
+            format!("{:?}", select_object_content_expected),
+            format!("{:?}", connector.select_object_content().await.unwrap())
+        );
     }
     #[async_std::test]
     async fn json_lines() {
-        Compat::new(async {
-            let mut connector = BucketSelect::default();
-            connector.bucket = "my-bucket".to_string();
-            connector.path = "my-key".to_string();
-            connector.query = "my-query".to_string();
-            connector.metadata = Metadata {
-                ..Jsonl::default().metadata
-            };
+        let mut connector = BucketSelect::default();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "my-key".to_string();
+        connector.query = "my-query".to_string();
+        connector.metadata = Metadata {
+            ..Jsonl::default().metadata
+        };
 
-            let select_object_content_expected = connector
-                .client()
-                .await
-                .unwrap()
-                .select_object_content()
-                .bucket(connector.bucket.clone())
-                .key(connector.path())
-                .expression(connector.query.clone())
-                .expression_type(ExpressionType::Sql)
-                .input_serialization(
-                    InputSerialization::builder()
-                        .json(JsonInput::builder().r#type(JsonType::Lines).build())
-                        .compression_type(CompressionType::from("NONE"))
-                        .build(),
-                )
-                .output_serialization(
-                    OutputSerialization::builder()
-                        .json(JsonOutput::builder().build())
-                        .build(),
-                );
-
-            assert_eq!(
-                format!("{:?}", select_object_content_expected),
-                format!("{:?}", connector.select_object_content().await.unwrap())
+        let select_object_content_expected = connector
+            .client()
+            .compat()
+            .await
+            .unwrap()
+            .select_object_content()
+            .bucket(connector.bucket.clone())
+            .key(connector.path())
+            .expression(connector.query.clone())
+            .expression_type(ExpressionType::Sql)
+            .input_serialization(
+                InputSerialization::builder()
+                    .json(JsonInput::builder().r#type(JsonType::Lines).build())
+                    .compression_type(CompressionType::from("NONE"))
+                    .build(),
+            )
+            .output_serialization(
+                OutputSerialization::builder()
+                    .json(JsonOutput::builder().build())
+                    .build(),
             );
-        });
+
+        assert_eq!(
+            format!("{:?}", select_object_content_expected),
+            format!("{:?}", connector.select_object_content().await.unwrap())
+        );
     }
     #[async_std::test]
     async fn csv_with_header() {
-        Compat::new(async {
-            let mut connector = BucketSelect::default();
-            connector.bucket = "my-bucket".to_string();
-            connector.path = "my-key".to_string();
-            connector.query = "my-query".to_string();
-            connector.metadata = Metadata {
-                ..Csv::default().metadata
-            };
+        let mut connector = BucketSelect::default();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "my-key".to_string();
+        connector.query = "my-query".to_string();
+        connector.metadata = Metadata {
+            ..Csv::default().metadata
+        };
 
-            let select_object_content_expected = connector
-                .client()
-                .await
-                .unwrap()
-                .select_object_content()
-                .bucket(connector.bucket.clone())
-                .key(connector.path())
-                .expression(connector.query.clone())
-                .expression_type(ExpressionType::Sql)
-                .input_serialization(
-                    InputSerialization::builder()
-                        .csv(
-                            CsvInput::builder()
-                                .set_field_delimiter(connector.metadata.clone().delimiter)
-                                .file_header_info(FileHeaderInfo::Use)
-                                .set_quote_character(connector.metadata.clone().quote)
-                                .set_quote_escape_character(connector.metadata.clone().escape)
-                                .build(),
-                        )
-                        .compression_type(CompressionType::from("NONE"))
-                        .build(),
-                )
-                .output_serialization(
-                    OutputSerialization::builder()
-                        .csv(
-                            CsvOutput::builder()
-                                .set_field_delimiter(connector.metadata.clone().delimiter)
-                                .set_quote_character(connector.metadata.clone().quote)
-                                .set_quote_escape_character(connector.metadata.clone().escape)
-                                .record_delimiter("\n".to_string())
-                                .build(),
-                        )
-                        .build(),
-                );
-
-            assert_eq!(
-                format!("{:?}", select_object_content_expected),
-                format!("{:?}", connector.select_object_content().await.unwrap())
+        let select_object_content_expected = connector
+            .client()
+            .compat()
+            .await
+            .unwrap()
+            .select_object_content()
+            .bucket(connector.bucket.clone())
+            .key(connector.path())
+            .expression(connector.query.clone())
+            .expression_type(ExpressionType::Sql)
+            .input_serialization(
+                InputSerialization::builder()
+                    .csv(
+                        CsvInput::builder()
+                            .set_field_delimiter(connector.metadata.clone().delimiter)
+                            .file_header_info(FileHeaderInfo::Use)
+                            .set_quote_character(connector.metadata.clone().quote)
+                            .set_quote_escape_character(connector.metadata.clone().escape)
+                            .build(),
+                    )
+                    .compression_type(CompressionType::from("NONE"))
+                    .build(),
+            )
+            .output_serialization(
+                OutputSerialization::builder()
+                    .csv(
+                        CsvOutput::builder()
+                            .set_field_delimiter(connector.metadata.clone().delimiter)
+                            .set_quote_character(connector.metadata.clone().quote)
+                            .set_quote_escape_character(connector.metadata.clone().escape)
+                            .record_delimiter("\n".to_string())
+                            .build(),
+                    )
+                    .build(),
             );
-        });
+
+        assert_eq!(
+            format!("{:?}", select_object_content_expected),
+            format!("{:?}", connector.select_object_content().await.unwrap())
+        );
     }
     #[async_std::test]
     async fn csv_without_header() {
-        Compat::new(async {
-            let mut connector = BucketSelect::default();
-            connector.bucket = "my-bucket".to_string();
-            connector.path = "my-key".to_string();
-            connector.query = "my-query".to_string();
-            connector.metadata = Metadata {
-                has_headers: Some(false),
-                ..Csv::default().metadata
-            };
+        let mut connector = BucketSelect::default();
+        connector.bucket = "my-bucket".to_string();
+        connector.path = "my-key".to_string();
+        connector.query = "my-query".to_string();
+        connector.metadata = Metadata {
+            has_headers: Some(false),
+            ..Csv::default().metadata
+        };
 
-            let select_object_content_expected = connector
-                .client()
-                .await
-                .unwrap()
-                .select_object_content()
-                .bucket(connector.bucket.clone())
-                .key(connector.path())
-                .expression(connector.query.clone())
-                .expression_type(ExpressionType::Sql)
-                .input_serialization(
-                    InputSerialization::builder()
-                        .csv(
-                            CsvInput::builder()
-                                .set_field_delimiter(connector.metadata.clone().delimiter)
-                                .file_header_info(FileHeaderInfo::None)
-                                .set_quote_character(connector.metadata.clone().quote)
-                                .set_quote_escape_character(connector.metadata.clone().escape)
-                                .build(),
-                        )
-                        .compression_type(CompressionType::from("NONE"))
-                        .build(),
-                )
-                .output_serialization(
-                    OutputSerialization::builder()
-                        .csv(
-                            CsvOutput::builder()
-                                .set_field_delimiter(connector.metadata.clone().delimiter)
-                                .set_quote_character(connector.metadata.clone().quote)
-                                .set_quote_escape_character(connector.metadata.clone().escape)
-                                .record_delimiter("\n".to_string())
-                                .build(),
-                        )
-                        .build(),
-                );
-
-            assert_eq!(
-                format!("{:?}", select_object_content_expected),
-                format!("{:?}", connector.select_object_content().await.unwrap())
+        let select_object_content_expected = connector
+            .client()
+            .compat()
+            .await
+            .unwrap()
+            .select_object_content()
+            .bucket(connector.bucket.clone())
+            .key(connector.path())
+            .expression(connector.query.clone())
+            .expression_type(ExpressionType::Sql)
+            .input_serialization(
+                InputSerialization::builder()
+                    .csv(
+                        CsvInput::builder()
+                            .set_field_delimiter(connector.metadata.clone().delimiter)
+                            .file_header_info(FileHeaderInfo::None)
+                            .set_quote_character(connector.metadata.clone().quote)
+                            .set_quote_escape_character(connector.metadata.clone().escape)
+                            .build(),
+                    )
+                    .compression_type(CompressionType::from("NONE"))
+                    .build(),
+            )
+            .output_serialization(
+                OutputSerialization::builder()
+                    .csv(
+                        CsvOutput::builder()
+                            .set_field_delimiter(connector.metadata.clone().delimiter)
+                            .set_quote_character(connector.metadata.clone().quote)
+                            .set_quote_escape_character(connector.metadata.clone().escape)
+                            .record_delimiter("\n".to_string())
+                            .build(),
+                    )
+                    .build(),
             );
-        });
+
+        assert_eq!(
+            format!("{:?}", select_object_content_expected),
+            format!("{:?}", connector.select_object_content().await.unwrap())
+        );
     }
     #[async_std::test]
     async fn paginator_stream() {
