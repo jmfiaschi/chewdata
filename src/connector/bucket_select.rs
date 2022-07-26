@@ -799,7 +799,7 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().await.unwrap())
+            format!("{:?}", connector.select_object_content().compat().await.unwrap())
         );
     }
     #[async_std::test]
@@ -836,7 +836,7 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().await.unwrap())
+            format!("{:?}", connector.select_object_content().compat().await.unwrap())
         );
     }
     #[async_std::test]
@@ -887,7 +887,7 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().await.unwrap())
+            format!("{:?}", connector.select_object_content().compat().await.unwrap())
         );
     }
     #[async_std::test]
@@ -939,7 +939,7 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().await.unwrap())
+            format!("{:?}", connector.select_object_content().compat().await.unwrap())
         );
     }
     #[async_std::test]
