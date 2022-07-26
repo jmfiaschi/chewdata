@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658872298485,
+  "lastUpdate": 1658873884924,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -6093,6 +6093,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 28978,
             "range": "± 1335",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "587196cbd80626efd415a7b1c579dbd4c58c250a",
+          "message": "chore(bucket): fix compatibility between tokio & async for fetch method",
+          "timestamp": "2022-07-26T23:45:08+02:00",
+          "tree_id": "11c587b162ebd9bd93dff475ebd0facdd705b053",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/587196cbd80626efd415a7b1c579dbd4c58c250a"
+        },
+        "date": 1658873883583,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 6162,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 6046,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 232859,
+            "range": "± 1148",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 30036,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 15542,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 15326,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 314452,
+            "range": "± 898",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 24259,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 24380,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 24341,
+            "range": "± 30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 24438,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 24082,
+            "range": "± 124",
             "unit": "ns/iter"
           }
         ]
