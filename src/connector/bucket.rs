@@ -376,15 +376,16 @@ impl Connector for Bucket {
         .await
         .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        let buffer = get_object
-            .body
-            .collect()
+        let buffer = Compat::new(get_object.body.collect())
             .await
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?
             .into_bytes()
             .to_vec();
 
-        info!(path = path, "The connector fetch data into the resource with success");
+        info!(
+            path = path,
+            "The connector fetch data into the resource with success"
+        );
 
         if !document.has_data(&buffer)? {
             return Ok(None);
@@ -520,7 +521,7 @@ impl Connector for Bucket {
         cursor.write_all(&footer)?;
 
         let buffer = cursor.into_inner();
-        
+
         Compat::new(
             self.client()
                 .await?
@@ -529,7 +530,13 @@ impl Connector for Bucket {
                 .key(path_resolved.clone())
                 .tagging(self.tagging())
                 .content_type(self.metadata().content_type())
-                .set_metadata(Some(self.metadata().to_hashmap().into_iter().map(|(key, value)| (key, value.replace("\n", "\\n"))).collect()))
+                .set_metadata(Some(
+                    self.metadata()
+                        .to_hashmap()
+                        .into_iter()
+                        .map(|(key, value)| (key, value.replace("\n", "\\n")))
+                        .collect(),
+                ))
                 .set_cache_control(self.cache_control.to_owned())
                 .set_content_language(match self.metadata().content_language().is_empty() {
                     true => None,
@@ -543,7 +550,10 @@ impl Connector for Bucket {
         .await
         .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        info!(path = path_resolved, "The connector send data into the resource with success");
+        info!(
+            path = path_resolved,
+            "The connector send data into the resource with success"
+        );
         Ok(None)
     }
     fn set_metadata(&mut self, metadata: Metadata) {
