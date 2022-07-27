@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1653153728481,
+  "lastUpdate": 1658909095063,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1103,6 +1103,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 30321,
             "range": "± 1034",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e8fb7b1e56bce52680e8b969b685c0bbf2856cd7",
+          "message": "fix(io): the stream return only one connector (#33)\n\n* fix(io): the stream return only one connector\r\n\r\n* feat(feature): refacto feature names\r\n\r\n* feat(psql): add psql connector feature\r\n\r\n* refacto(project): * add timeout for curl",
+          "timestamp": "2022-07-27T09:26:27+02:00",
+          "tree_id": "ca0892cb23390a2d2c490e476483a898234498a8",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/e8fb7b1e56bce52680e8b969b685c0bbf2856cd7"
+        },
+        "date": 1658909094180,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 6902,
+            "range": "± 420",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 7011,
+            "range": "± 459",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 289906,
+            "range": "± 20469",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 32763,
+            "range": "± 4388",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 15068,
+            "range": "± 1473",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 16017,
+            "range": "± 1061",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 407340,
+            "range": "± 43037",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 25048,
+            "range": "± 1637",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 24577,
+            "range": "± 1609",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 24426,
+            "range": "± 1769",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 24833,
+            "range": "± 1338",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 24163,
+            "range": "± 1383",
             "unit": "ns/iter"
           }
         ]
