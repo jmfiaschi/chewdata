@@ -1,16 +1,13 @@
-use crate::connector::Connector;
 use crate::document::Document;
-use crate::Metadata;
-use crate::{DataResult, Dataset};
-use async_std::io::{prelude::WriteExt, ReadExt};
-use async_stream::stream;
-use async_trait::async_trait;
+use crate::DataResult;
+use crate::{DataSet, Metadata};
 use json_value_search::Search;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
 
 const DEFAULT_MIME_TYPE: &str = "x-ndjson";
+const DEFAULT_TERMINATOR: &str = "\n";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -25,6 +22,7 @@ pub struct Jsonl {
 impl Default for Jsonl {
     fn default() -> Self {
         let metadata = Metadata {
+            terminator: Some(DEFAULT_TERMINATOR.to_string()),
             mime_type: Some(mime::APPLICATION.to_string()),
             mime_subtype: Some(DEFAULT_MIME_TYPE.to_string()),
             charset: Some(mime::UTF_8.to_string()),
@@ -38,7 +36,6 @@ impl Default for Jsonl {
     }
 }
 
-#[async_trait]
 impl Document for Jsonl {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
@@ -48,108 +45,123 @@ impl Document for Jsonl {
     fn set_entry_path(&mut self, entry_path: String) {
         self.entry_path = Some(entry_path);
     }
-    /// See [`Document::read_data`] for more details.
+    /// See [`Document::read`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Jsonl::default();
-    ///     let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#;
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(&format!("{}", json_str.clone())));
-    ///     connector.fetch().await?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_value();
-    ///     let expected_data: Value = serde_json::from_str(json_str)?;
-    ///     assert_eq!(expected_data, data);
-    ///
-    ///     Ok(())
-    /// }
+    /// 
+    /// let document = Jsonl::default();
+    /// let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#.as_bytes().to_vec();
+    /// let buffer = json_str.clone();
+    /// 
+    /// let mut dataset = document.read(&buffer).unwrap().into_iter();
+    /// let data = dataset.next().unwrap().to_value();
+    /// let expected_data: Value = serde_json::from_slice(&json_str).unwrap();
+    /// assert_eq!(expected_data, data);
     /// ```
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
-        let mut buf = Vec::new();
-        connector.read_to_end(&mut buf).await?;
-
-        let cursor = io::Cursor::new(buf);
-
-        let deserializer = serde_json::Deserializer::from_reader(cursor);
+    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+        let deserializer = serde_json::Deserializer::from_reader(io::Cursor::new(buffer));
         let iterator = deserializer.into_iter::<Value>();
         let entry_path_option = self.entry_path.clone();
+        let mut dataset = Vec::default();
 
-        Ok(Box::pin(stream! {
-            for record_result in iterator {
-                match (record_result, entry_path_option.clone()) {
-                    (Ok(record), Some(entry_path)) => {
-                        match record.clone().search(entry_path.as_ref()) {
-                            Ok(Some(Value::Array(values))) => {
-                                for value in values {
-                                    yield DataResult::Ok(value);
-                                }
+        for record_result in iterator {
+            match (record_result, entry_path_option.clone()) {
+                (Ok(record), Some(entry_path)) => {
+                    match record.clone().search(entry_path.as_ref())? {
+                        Some(Value::Array(records)) => {
+                            for record in records {
+                                trace!(
+                                    record = format!("{:?}", record).as_str(),
+                                    "Record deserialized"
+                                );
+                                dataset.push(DataResult::Ok(record));
                             }
-                            Ok(Some(record)) => yield DataResult::Ok(record),
-                            Ok(None) => {
-                                yield DataResult::Err((
-                                    record,
-                                    io::Error::new(
-                                        io::ErrorKind::InvalidInput,
-                                        format!("Entry path '{}' not found.", entry_path),
-                                    ),
-                                ))
-                            }
-                            Err(e) => yield DataResult::Err((record, e)),
-                        };
-                    }
-                    (Ok(record), None) => yield DataResult::Ok(record),
-                    (Err(e), _) => {
-                        warn!(error = format!("{:?}", e).as_str(),  "Can't deserialize the record");
-                        yield DataResult::Err((Value::Null, e.into()));
-                    }
-                };
-            }
-        }))
+                        }
+                        Some(record) => {
+                            trace!(
+                                record = format!("{:?}", record).as_str(),
+                                "Record deserialized"
+                            );
+                            dataset.push(DataResult::Ok(record));
+                        }
+                        None => {
+                            warn!(
+                                entry_path = format!("{:?}", entry_path).as_str(),
+                                record = format!("{:?}", record.clone()).as_str(),
+                                "Entry path not found"
+                            );
+                            dataset.push(DataResult::Err((
+                                record,
+                                io::Error::new(
+                                    io::ErrorKind::InvalidInput,
+                                    format!("Entry path '{}' not found.", entry_path),
+                                ),
+                            )));
+                        }
+                    };
+                }
+                (Ok(record), None) => {
+                    trace!(
+                        record = format!("{:?}", record).as_str(),
+                        "Record deserialized"
+                    );
+                    dataset.push(DataResult::Ok(record));
+                }
+                (Err(e), _) => {
+                    warn!(
+                        error = format!("{:?}", e).as_str(),
+                        "Can't deserialize the record"
+                    );
+                    dataset.push(DataResult::Err((Value::Null, e.into())));
+                }
+            };
+        }
+
+        Ok(dataset)
     }
-    /// See [`Document::write_data`] for more details.
+    /// See [`Document::write`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
+    /// use chewdata::DataResult; 
     ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Jsonl::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#"{"column_1":"line_1"}
-    /// "#, &format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
+    /// let mut document = Jsonl::default();
+    /// let dataset = vec![DataResult::Ok(
+    ///     serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+    /// )];
+    /// let buffer = document.write(&dataset).unwrap();
+    /// assert_eq!(r#"{"column_1":"line_1"}"#.as_bytes().to_vec(), buffer);
     /// ```
-    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
+    #[instrument(skip(dataset))]
+    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buf = Vec::new();
-        match self.is_pretty {
-            true => serde_json::to_writer_pretty(&mut buf, &value),
-            false => serde_json::to_writer(&mut buf, &value),
-        }?;
-        connector.write_all(buf.clone().as_slice()).await?;
-        connector.write_all(b"\n").await
+        let dataset_len = dataset.len();
+
+        for (pos, data) in dataset.iter().enumerate() {
+            let record = data.to_value();
+            match self.is_pretty {
+                true => serde_json::to_writer_pretty(&mut buf, &record.clone())?,
+                false => serde_json::to_writer(&mut buf, &record.clone())?,
+            };
+            trace!(
+                record = format!("{:?}", record).as_str(),
+                "Record serialized"
+            );
+            if pos + 1 < dataset_len {
+                buf.append(&mut DEFAULT_TERMINATOR.as_bytes().to_vec());
+            }
+        }
+
+        Ok(buf)
     }
     /// See [`Document::has_data`] for more details.
     fn has_data(&self, buf: &[u8]) -> io::Result<bool> {
@@ -158,68 +170,77 @@ impl Document for Jsonl {
         }
         Ok(!buf.is_empty())
     }
+    /// See [`Document::terminator`] for more details.
+    fn terminator(&self) -> io::Result<Vec<u8>> {
+        Ok(self
+            .metadata
+            .terminator
+            .clone()
+            .unwrap_or_else(|| DEFAULT_TERMINATOR.to_string())
+            .as_bytes()
+            .to_vec())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use async_std::prelude::StreamExt;
-
-    use crate::connector::in_memory::InMemory;
-
     use super::*;
 
-    #[async_std::test]
-    async fn read_data() {
+    #[test]
+    fn read_data() {
         let document = Jsonl::default();
-        let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#;
-        let mut connector: Box<dyn Connector> =
-            Box::new(InMemory::new(&format!("{}", json_str.clone())));
-        connector.fetch().await.unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
-        let expected_data: Value = serde_json::from_str(json_str).unwrap();
+        let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#.as_bytes().to_vec();
+        let buffer = json_str.clone();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
+        let expected_data: Value = serde_json::from_slice(&json_str).unwrap();
         assert_eq!(expected_data, data);
     }
-    #[async_std::test]
-    async fn cant_read_data_object() {
+    #[test]
+    fn read_empty_data() {
         let document = Jsonl::default();
-        let mut connector: Box<dyn Connector> = Box::new(InMemory::new("My text"));
-        connector.fetch().await.unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap();
-        match data {
-            DataResult::Ok(_) => assert!(
+        let buffer = Vec::default();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        match dataset.next() {
+            Some(_) => assert!(
                 false,
-                "The line readed by the json builder should be in error."
+                "The data read by the json builder should be in error."
             ),
-            DataResult::Err(_) => (),
+            None => (),
         };
     }
-    #[async_std::test]
-    async fn read_data_in_target_position() {
+    #[test]
+    fn read_data_in_target_position() {
         let mut document = Jsonl::default();
         document.entry_path = Some("/array*/*".to_string());
-        let mut connector: Box<dyn Connector> = Box::new(InMemory::new(
-            r#"{"array1":[{"field":"value1"},{"field":"value2"}]}
-{"array1":[{"field":"value3"},{"field":"value4"}]}"#,
-        ));
-        connector.fetch().await.unwrap();
+        let buffer = r#"{"array1":[{"field":"value1"},{"field":"value2"}]}
+{"array1":[{"field":"value3"},{"field":"value4"}]}"#.as_bytes().to_vec();
         let expected_data: Value = serde_json::from_str(r#"{"field":"value1"}"#).unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
         assert_eq!(expected_data, data);
     }
-    #[async_std::test]
-    async fn read_data_without_finding_entry_path() {
+    #[test]
+    fn read_data_without_finding_entry_path() {
         let mut document = Jsonl::default();
         document.entry_path = Some("/not_found/*".to_string());
-        let mut connector: Box<dyn Connector> = Box::new(InMemory::new(
-            r#"{"array1":[{"field":"value1"},{"field":"value2"}]}"#,
-        ));
-        connector.fetch().await.unwrap();
+        let buffer = r#"{"array1":[{"field":"value1"},{"field":"value2"}]}"#.as_bytes().to_vec();
         let expected_data: Value = serde_json::from_str(r#"{"array1":[{"field":"value1"},{"field":"value2"}],"_error":"Entry path '/not_found/*' not found."}"#).unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
         assert_eq!(expected_data, data);
+    }
+    #[test]
+    fn write() {
+        let mut document = Jsonl::default();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+        ),
+        DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap(),
+        )];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(r#"{"column_1":"line_1"}
+{"column_1":"line_2"}"#.as_bytes().to_vec(), buffer);
     }
 }

@@ -1,3 +1,31 @@
+# [1.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.1-beta.1...v1.13.0-beta.1) (2022-07-26)
+
+
+### Bug Fixes
+
+* **bench:** document read ([5e9056f](https://github.com/jmfiaschi/chewdata/commit/5e9056f942cd8f455993af82ef62c75ae178cc81))
+* **cargo:** upgrade ([18cc073](https://github.com/jmfiaschi/chewdata/commit/18cc0736a1241c7bc8d7d1d63699e07a1480aded))
+* **curl:** auth ([9c01414](https://github.com/jmfiaschi/chewdata/commit/9c01414fff89a6d3dd152617f9ca6979a1355c80))
+* **examples:** improve the examples ([608a4a7](https://github.com/jmfiaschi/chewdata/commit/608a4a7f2744a138f1aa33a64e4d5daf01338aa3))
+* **faker:** upgrade & fix ([cfd2f05](https://github.com/jmfiaschi/chewdata/commit/cfd2f0582bbf1d7d94a8f7bee2b6cc0a50d450c5))
+* **makefile:** clean ([6af87b1](https://github.com/jmfiaschi/chewdata/commit/6af87b11da15fe808bc604d2330c01f078fb0df6))
+* **parquet:** function write ([37d5b33](https://github.com/jmfiaschi/chewdata/commit/37d5b336a3d56930497af67a92d5173f0a57af1f))
+* **parquet:** upgrade & fix ([c814e4f](https://github.com/jmfiaschi/chewdata/commit/c814e4f8aeab51c76b2f92e8e449ff00f68deb34))
+
+
+### Features
+
+* **feature:** refacto feature names ([77df6b2](https://github.com/jmfiaschi/chewdata/commit/77df6b2e1419459dc3778e90b78dc1fe52bacef1))
+* **psql/msql/sqlite/sqlite:** simplify the code for the futur connectors ([53f6fed](https://github.com/jmfiaschi/chewdata/commit/53f6fed78f2b5f5f31ec215f39f51e63725a1b11))
+* **psql/msql/sqlite/sqlite:** simplify the code for the futur connectors ([d8386f2](https://github.com/jmfiaschi/chewdata/commit/d8386f2eccbfc856357e3cf985f237660e57c328))
+* **psql:** add psql connector feature ([a1cdb2b](https://github.com/jmfiaschi/chewdata/commit/a1cdb2b94f2c23203729692d638684485ffad866))
+
+## [1.12.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.0...v1.12.1-beta.1) (2022-05-22)
+
+### Bug Fixes
+
+* **io:** the stream return only one connector ([19cc5ab](https://github.com/jmfiaschi/chewdata/commit/19cc5ab54fd7241aa4e438ff1871442926cad4d4))
+
 # [1.12.0](https://github.com/jmfiaschi/chewdata/compare/v1.11.0...v1.12.0) (2022-05-21)
 
 ### Features
@@ -52,11 +80,13 @@
 ### Bug Fixes
 
 * **linter:** fix some warning ([fa0b7ef](https://github.com/jmfiaschi/chewdata/commit/fa0b7ef8b60c886bd6e490bfb4e30f3fe1ad341f))
+
 # [1.11.0](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0) (2022-01-29)
 
 ### Features
 
 * **reader:** use offset/cursor paginator with iterative/concurrency mode ([#22](https://github.com/jmfiaschi/chewdata/issues/22)) ([f8b2cad](https://github.com/jmfiaschi/chewdata/commit/f8b2cadfb11f0b42fdd69e92b2669d3fdbdff3fd))
+
 # [1.11.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.10.0...v1.11.0-beta.1) (2022-01-29)
 
 ### Bug Fixes
@@ -79,6 +109,7 @@
 * **step:** replace alias by name to identify a step ([443fd43](https://github.com/jmfiaschi/chewdata/commit/443fd4392e325006ab48753777fc03b0ae93cf69))
 * **validator:** Add a validator step ([09bbeb7](https://github.com/jmfiaschi/chewdata/commit/09bbeb7ff44daba445027777e374826c8cffead3))
 * **validator:** Add tests and docs ([f1986df](https://github.com/jmfiaschi/chewdata/commit/f1986df515531641469d02fe5e8a27115aacca1c))
+
 # [1.10.0-beta.5](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.4...v1.10.0-beta.5) (2022-01-19)
 
 ### Bug Fixes
@@ -88,6 +119,7 @@
 ### Features
 
 * **example:** add sub command ([b1ded94](https://github.com/jmfiaschi/chewdata/commit/b1ded94d73d46b11d0f970f49bc6baef3547bc71))
+
 # [1.10.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.3...v1.10.0-beta.4) (2022-01-16)
 
 ### Bug Fixes
@@ -104,6 +136,7 @@
 * **parallel:** Possibility to read  in parallel data with offset pagination and  multi files with same structure of data ([2b2009d](https://github.com/jmfiaschi/chewdata/commit/2b2009d206fc92950642936a5f58326e6170e24e))
 * **quality:** forbid unsafe code ([da1c317](https://github.com/jmfiaschi/chewdata/commit/da1c317a9c7f2fff0127c3a3fe4b4f7250e5867a))
 * **step:** add wait/sleep field. The step wait/sleep is the pipe is not ready without blocking the thread ([ceef80b](https://github.com/jmfiaschi/chewdata/commit/ceef80b6ad2622b0225503a10b528f54d197a519))
+
 # [1.10.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.2...v1.10.0-beta.3) (2021-12-26)
 
 ### Bug Fixes
@@ -115,11 +148,13 @@
 * **step:** replace alias by name to identify a step ([443fd43](https://github.com/jmfiaschi/chewdata/commit/443fd4392e325006ab48753777fc03b0ae93cf69))
 * **validator:** Add a validator step ([09bbeb7](https://github.com/jmfiaschi/chewdata/commit/09bbeb7ff44daba445027777e374826c8cffead3))
 * **validator:** Add tests and docs ([f1986df](https://github.com/jmfiaschi/chewdata/commit/f1986df515531641469d02fe5e8a27115aacca1c))
+
 # [1.10.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.10.0-beta.1...v1.10.0-beta.2) (2021-12-26)
 
 ### Features
 
 * **step:** replace alias by name to identify a step ([55e2fdc](https://github.com/jmfiaschi/chewdata/commit/55e2fdc1ea66bd3670f4116d36d81c3dfc93a1c2))
+
 # [1.10.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.9.0...v1.10.0-beta.1) (2021-12-26)
 
 ### Features
@@ -138,16 +173,19 @@
 ### Bug Fixes
 
 * **step_context:** add step_context to avoid variable names collision ([c05e80b](https://github.com/jmfiaschi/chewdata/commit/c05e80ba2a7e5131ccd77695f1b097a9170619c2))
+
 # [1.9.0](https://github.com/jmfiaschi/chewdata/compare/v1.8.4...v1.9.0) (2021-12-19)
 
 ### Features
 
 * **tera:** remove set_env function ([25d52c5](https://github.com/jmfiaschi/chewdata/commit/25d52c556abcea926322922b554f2e612391a38c))
+
 # [1.9.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.9.0-beta.2...v1.9.0-beta.3) (2021-12-19)
 
 ### Bug Fixes
 
 * **ci:** use specific key ([1770fd0](https://github.com/jmfiaschi/chewdata/commit/1770fd02c842388ba9efc884ef2ccedfbe2c9e07))
+
 # [1.9.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.9.0-beta.1...v1.9.0-beta.2) (2021-12-19)
 
 ### Bug Fixes
@@ -177,16 +215,19 @@
 ### Bug Fixes
 
 * **transformer:** give more detail on the tera errors ([#15](https://github.com/jmfiaschi/chewdata/issues/15)) ([0f415b4](https://github.com/jmfiaschi/chewdata/commit/0f415b4b5d03b7979facc964c456086b51a41466))
+
 # [1.8.0](https://github.com/jmfiaschi/chewdata/compare/v1.7.0...v1.8.0) (2021-11-29)
 
 ### Features
 
 * **tera:** add object search by path ([#14](https://github.com/jmfiaschi/chewdata/issues/14)) ([4accb4e](https://github.com/jmfiaschi/chewdata/commit/4accb4e46530d1e6a80804fd6a639fbe2bc66fa3))
+
 # [1.7.0](https://github.com/jmfiaschi/chewdata/compare/v1.6.0...v1.7.0) (2021-11-28)
 
 ### Features
 
 * **steps:** remove the field wait ([#13](https://github.com/jmfiaschi/chewdata/issues/13)) ([70afab8](https://github.com/jmfiaschi/chewdata/commit/70afab8deb53938614b88bd2b951e95acc0d2159))
+
 # [1.6.0](https://github.com/jmfiaschi/chewdata/compare/v1.5.1...v1.6.0) (2021-11-07)
 
 ### Features
@@ -198,11 +239,13 @@
 ### Bug Fixes
 
 * **dependency:** key value in error ([60c21be](https://github.com/jmfiaschi/chewdata/commit/60c21be191c3b73123023d1cc889969ea10bb5a2))
+
 # [1.5.0](https://github.com/jmfiaschi/chewdata/compare/v1.4.0...v1.5.0) (2021-10-09)
 
 ### Features
 
 * **logs:** replace slog by tracing and multiqueue2 by crossbeam ([#11](https://github.com/jmfiaschi/chewdata/issues/11)) ([e3a15e8](https://github.com/jmfiaschi/chewdata/commit/e3a15e8fb8f0af142df5c899e8741920a7db4f4d))
+
 # [1.4.0](https://github.com/jmfiaschi/chewdata/compare/v1.3.1...v1.4.0) (2021-10-03)
 
 ### Features
@@ -214,16 +257,19 @@
 ### Bug Fixes
 
 * **xml:** fix transform string to scalar in the xml document ([583f8a0](https://github.com/jmfiaschi/chewdata/commit/583f8a0c94ef0764661a507b8a9a2cb7cae048ac))
+
 # [1.3.0](https://github.com/jmfiaschi/chewdata/compare/v1.2.0...v1.3.0) (2021-09-24)
 
 ### Features
 
 * **project:** externalize the documentation and fix xml issues ([365ea40](https://github.com/jmfiaschi/chewdata/commit/365ea40f7b18036b4a25a9b683b2fb6a1603da63))
+
 # [1.2.0](https://github.com/jmfiaschi/chewdata/compare/v1.1.0...v1.2.0) (2021-09-17)
 
 ### Features
 
 * **project:** update bucket_select and documentation ([#6](https://github.com/jmfiaschi/chewdata/issues/6)) ([98c9acb](https://github.com/jmfiaschi/chewdata/commit/98c9acb34cc48dc89026fde4b388368afc360fe1))
+
 # [1.1.0](https://github.com/jmfiaschi/chewdata/compare/v1.0.0...v1.1.0) (2021-08-29)
 
 ### Bug Fixes
@@ -234,6 +280,7 @@
 
 * **cd:** add  semantic-release-rust ([85dcbc2](https://github.com/jmfiaschi/chewdata/commit/85dcbc231542969dbf9353b563f0eee1cabf5df5))
 * **project:** refacto the code ([6c1717a](https://github.com/jmfiaschi/chewdata/commit/6c1717ae21ffc1ec28e318c02482b81a798558d3))
+
 # 1.0.0 (2020-12-17)
 
 ### Features

@@ -1,5 +1,6 @@
 use super::{Connector, Paginator};
-use crate::Metadata;
+use crate::document::Document;
+use crate::{DataSet, DataStream, Metadata};
 use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -9,7 +10,6 @@ use serde_json::Value;
 use std::io::{Cursor, Result, Seek, SeekFrom, Write};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 use std::{fmt, io};
 
 #[derive(Deserialize, Serialize, Clone, Default)]
@@ -26,17 +26,17 @@ pub struct InMemory {
     // The result value in memory.
     // Read the content only with the method io::Read::read().
     pub memory: Arc<Mutex<Buffer>>,
-    #[serde(skip)]
-    pub inner: Buffer,
 }
 
 impl fmt::Display for InMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            String::from_utf8(self.inner.clone().into_inner()).unwrap_or_default()
-        )
+        futures::executor::block_on(async {
+            write!(
+                f,
+                "{}",
+                String::from_utf8(self.memory.lock().await.get_ref().to_vec()).unwrap()
+            )
+        })
     }
 }
 
@@ -93,28 +93,6 @@ impl Connector for InMemory {
     fn is_variable(&self) -> bool {
         false
     }
-    /// See [`Connector::is_empty`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::connector::Connector;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = InMemory::new("");
-    ///     assert_eq!(true, connector.is_empty().await?);
-    ///     let mut connector = InMemory::new("My text");
-    ///     assert_eq!(false, connector.is_empty().await?);
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn is_empty(&mut self) -> io::Result<bool> {
-        Ok(self.memory.lock().await.get_ref().is_empty())
-    }
     /// See [`Connector::len`] for more details.
     ///
     /// # Examples
@@ -156,32 +134,117 @@ impl Connector for InMemory {
     /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::jsonl::Jsonl;
     /// use async_std::io::{Read, Write};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut connector = InMemory::new("My text");
-    ///     assert_eq!(0, connector.inner().len());
-    ///     connector.fetch().await?;
-    ///     assert!(0 < connector.inner().len(), "The inner connector should have a size upper than zero");
+    ///     let document = Box::new(Jsonl::default());
+    ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     assert!(
+    ///         0 < datastream.count().await,
+    ///         "The inner connector should have a size upper than zero"
+    ///     );
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self) -> Result<()> {
-        // Avoid to fetch two times the same data in the same connector
-        if !self.inner.get_ref().is_empty() {
-            return Ok(());
+    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
+        let resource = self.memory.lock().await;
+        info!("The connector fetch data with success");
+        if !document.has_data(resource.get_ref())? {
+            return Ok(None);
         }
 
-        let resource = self.memory.lock().await;
-        self.inner = io::Cursor::new(resource.get_ref().clone());
+        let dataset = document.read(resource.get_ref())?;
 
-        info!("The connector fetch data with success");
-        Ok(())
+        Ok(Some(Box::pin(stream! {
+            for data in dataset {
+                yield data;
+            }
+        })))
+    }
+    /// See [`Connector::send`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use chewdata::connector::in_memory::InMemory;
+    /// use chewdata::connector::Connector;
+    /// use chewdata::document::jsonl::Jsonl;
+    /// use chewdata::DataResult;
+    /// use async_std::prelude::*;
+    /// use std::io;
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let document = Box::new(Jsonl::default());
+    ///
+    ///     let expected_result1 =
+    ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+    ///     let dataset = vec![expected_result1.clone()];
+    ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///
+    ///     let mut connector_read = connector.clone();
+    ///     let mut datastream = connector_read.fetch(document.clone()).await.unwrap().unwrap();
+    ///     assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
+    ///
+    ///     let expected_result2 =
+    ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
+    ///     let dataset = vec![expected_result2.clone()];
+    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///
+    ///     let mut connector_read = connector.clone();
+    ///     let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+    ///     assert_eq!(expected_result1, datastream.next().await.unwrap());
+    ///     assert_eq!(expected_result2, datastream.next().await.unwrap());
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument(skip(dataset))]
+    async fn send(
+        &mut self,
+        mut document: Box<dyn Document>,
+        dataset: &DataSet,
+    ) -> std::io::Result<Option<DataStream>> {
+        let position = match document.can_append() {
+            true => Some(-(document.footer(dataset)?.len() as isize)),
+            false => None,
+        };
+        let terminator = document.terminator()?;
+        let footer = document.footer(dataset)?;
+        let header = document.header(dataset)?;
+        let body = document.write(dataset)?;
+
+        let mut memory = self.memory.lock().await;
+        let resource_len = memory.get_ref().len();
+
+        match position {
+            Some(pos) => match resource_len as isize + pos {
+                start if start > 0 => memory.seek(SeekFrom::Start(start as u64)),
+                _ => memory.seek(SeekFrom::Start(0)),
+            },
+            None => memory.seek(SeekFrom::Start(0)),
+        }?;
+
+        if 0 == resource_len {
+            memory.write_all(&header)?;
+        }
+        if 0 < resource_len && resource_len > (header.len() as usize + footer.len() as usize) {
+            memory.write_all(&terminator)?;
+        }
+        memory.write_all(&body)?;
+        memory.write_all(&footer)?;
+        memory.set_position(0);
+
+        info!("The connector send data into the memory with success");
+        Ok(None)
     }
     /// See [`Connector::erase`] for more details.
     ///
@@ -190,15 +253,17 @@ impl Connector for InMemory {
     /// ```no_run
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::jsonl::Jsonl;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let mut connector = InMemory::new("My text");
-    ///     connector.erase().await?;
-    ///     connector.fetch().await?;
-    ///     assert_eq!(true, connector.inner().is_empty());
+    ///     let document = Box::new(Jsonl::default());
+    ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+    ///     connector.erase().await.unwrap();
+    ///     let datastream = connector.fetch(document).await.unwrap();
+    ///     assert!(datastream.is_none(), "The datastream must be empty");
     ///
     ///     Ok(())
     /// }
@@ -211,90 +276,9 @@ impl Connector for InMemory {
         info!("The connector erase data into the memory with success");
         Ok(())
     }
-    /// See [`Connector::send`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-    ///     connector.write(r#"{"column1":"value2"}"#.as_bytes()).await?;
-    ///     connector.send(Some(0)).await?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument]
-    async fn send(&mut self, position: Option<isize>) -> Result<()> {
-        let inner = self.inner().clone();
-        let resource_len = self.len().await?;
-        self.clear();
-
-        let mut memory = self.memory.lock().await;
-
-        match position {
-            Some(pos) => match resource_len as isize + pos {
-                start if start > 0 => memory.seek(SeekFrom::Start(start as u64)),
-                _ => memory.seek(SeekFrom::Start(0)),
-            },
-            None => memory.seek(SeekFrom::Start(0)),
-        }?;
-
-        memory.write_all(&inner)?;
-        memory.set_position(0);
-
-        info!("The connector send data into the memory with success");
-        Ok(())
-    }
-    /// See [`Connector::inner`] for more details.
-    fn inner(&self) -> &Vec<u8> {
-        self.inner.get_ref()
-    }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         Ok(Box::pin(InMemoryPaginator::new(self.clone())?))
-    }
-    /// See [`Connector::clear`] for more details.
-    fn clear(&mut self) {
-        self.inner = Default::default();
-    }
-}
-
-#[async_trait]
-impl async_std::io::Read for InMemory {
-    /// See [`async_std::io::Read::poll_read`] for more details.
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Poll::Ready(std::io::Read::read(&mut self.inner, buf))
-    }
-}
-
-#[async_trait]
-impl async_std::io::Write for InMemory {
-    /// See [`async_std::io::Write::poll_write`] for more details.
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        Poll::Ready(std::io::Write::write(&mut self.inner, buf))
-    }
-    /// See [`async_std::io::Write::poll_flush`] for more details.
-    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Poll::Ready(std::io::Write::flush(&mut self.inner))
-    }
-    /// See [`async_std::io::Write::poll_close`] for more details.
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.poll_flush(cx)
     }
 }
 
@@ -358,8 +342,10 @@ impl Paginator for InMemoryPaginator {
 
 #[cfg(test)]
 mod tests {
-    use async_std::{io::{ReadExt, WriteExt}, prelude::StreamExt};
     use super::*;
+    use crate::document::jsonl::Jsonl;
+    use crate::DataResult;
+    use async_std::prelude::StreamExt;
 
     #[async_std::test]
     async fn len() {
@@ -378,44 +364,49 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let mut connector = InMemory::new("My text");
-        assert_eq!(0, connector.inner().len());
-        connector.fetch().await.unwrap();
+        let document = Box::new(Jsonl::default());
+        let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+        let datastream = connector.fetch(document).await.unwrap().unwrap();
         assert!(
-            0 < connector.inner().len(),
+            0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
         );
     }
     #[async_std::test]
     async fn send() {
-        let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-        connector
-            .write(r#"{"column1":"value2"}"#.as_bytes())
-            .await
-            .unwrap();
-        connector.send(Some(0)).await.unwrap();
+        let document = Box::new(Jsonl::default());
+
+        let expected_result1 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        let dataset = vec![expected_result1.clone()];
+        let mut connector = InMemory::new(r#""#);
+        connector.send(document.clone(), &dataset).await.unwrap();
+
         let mut connector_read = connector.clone();
-        connector_read.fetch().await.unwrap();
-        let mut buffer = String::default();
-        connector_read.read_to_string(&mut buffer).await.unwrap();
-        assert_eq!(r#"{"column1":"value1"}{"column1":"value2"}"#, buffer);
-        connector
-            .write(r#"{"column1":"value3"}"#.as_bytes())
+        let mut datastream = connector_read
+            .fetch(document.clone())
             .await
+            .unwrap()
             .unwrap();
-        connector.send(Some(-20)).await.unwrap();
+        assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
+
+        let expected_result2 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
+        let dataset = vec![expected_result2.clone()];
+        connector.send(document.clone(), &dataset).await.unwrap();
+
         let mut connector_read = connector.clone();
-        connector_read.fetch().await.unwrap();
-        let mut buffer = String::default();
-        connector_read.read_to_string(&mut buffer).await.unwrap();
-        assert_eq!(r#"{"column1":"value1"}{"column1":"value3"}"#, buffer);
+        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        assert_eq!(expected_result1, datastream.next().await.unwrap());
+        assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
     #[async_std::test]
     async fn erase() {
-        let mut connector = InMemory::new("My text");
+        let document = Box::new(Jsonl::default());
+        let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
         connector.erase().await.unwrap();
-        connector.fetch().await.unwrap();
-        assert_eq!(true, connector.inner().is_empty());
+        let datastream = connector.fetch(document).await.unwrap();
+        assert!(datastream.is_none(), "The datastream must be empty");
     }
     #[async_std::test]
     async fn paginator_stream() {

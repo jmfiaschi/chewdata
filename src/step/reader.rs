@@ -107,6 +107,7 @@ impl Step for Reader {
                         .is_type(self.data_type.as_ref())
                     {
                         trace!("This step handle only this data type");
+                        super::send(self as &dyn Step, &step_context_received.clone()).await?;
                         continue;
                     }
 
@@ -224,9 +225,7 @@ async fn send_data_into_pipe<'step>(
     document: &'step Box<dyn Document>,
     context: &'step Option<StepContext>,
 ) -> io::Result<Option<()>> {
-    connector.fetch().await?;
-
-    let mut dataset = match connector.dataset(document.clone()).await? {
+    let mut dataset = match connector.fetch(document.clone()).await? {
         Some(dataset) => dataset,
         None => return Ok(None),
     };

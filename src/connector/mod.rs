@@ -1,32 +1,36 @@
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 pub mod authenticator;
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 pub mod bucket;
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 pub mod bucket_select;
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 pub mod curl;
 pub mod in_memory;
 pub mod io;
 pub mod local;
-#[cfg(feature = "use_mongodb_connector")]
+#[cfg(feature = "mongodb")]
 pub mod mongodb;
+#[cfg(feature = "psql")]
+pub mod psql;
 
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 use self::bucket::Bucket;
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 use self::bucket_select::BucketSelect;
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 use self::curl::Curl;
 use self::in_memory::InMemory;
 use self::io::Io;
 use self::local::Local;
-#[cfg(feature = "use_mongodb_connector")]
+#[cfg(feature = "mongodb")]
 use self::mongodb::Mongodb;
+#[cfg(feature = "psql")]
+use self::psql::Psql;
+use crate::DataSet;
 use crate::document::Document;
-use crate::Dataset;
+use crate::DataStream;
 use crate::Metadata;
-use async_std::io::{Read, Write};
 use async_trait::async_trait;
 use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
@@ -45,19 +49,24 @@ pub enum ConnectorType {
     Io(Io),
     #[serde(rename = "local")]
     Local(Local),
-    #[cfg(feature = "use_bucket_connector")]
+    #[cfg(feature = "bucket")]
     #[serde(rename = "bucket")]
     Bucket(Bucket),
-    #[cfg(feature = "use_bucket_connector")]
+    #[cfg(feature = "bucket")]
     #[serde(rename = "bucket_select")]
     BucketSelect(BucketSelect),
-    #[cfg(feature = "use_curl_connector")]
+    #[cfg(feature = "curl")]
     #[serde(rename = "curl")]
     Curl(Curl),
-    #[cfg(feature = "use_mongodb_connector")]
+    #[cfg(feature = "mongodb")]
     #[serde(rename = "mongodb")]
     #[serde(alias = "mongo")]
     Mongodb(Mongodb),
+    #[cfg(feature = "psql")]
+    #[serde(rename = "psql")]
+    #[serde(alias = "pgsql")]
+    #[serde(alias = "pg")]
+    Psql(Psql),
 }
 
 impl Default for ConnectorType {
@@ -72,37 +81,23 @@ impl ConnectorType {
             ConnectorType::InMemory(connector) => Box::new(connector),
             ConnectorType::Io(connector) => Box::new(connector),
             ConnectorType::Local(connector) => Box::new(connector),
-            #[cfg(feature = "use_curl_connector")]
+            #[cfg(feature = "curl")]
             ConnectorType::Curl(connector) => Box::new(connector),
-            #[cfg(feature = "use_bucket_connector")]
+            #[cfg(feature = "bucket")]
             ConnectorType::Bucket(connector) => Box::new(connector),
-            #[cfg(feature = "use_bucket_connector")]
+            #[cfg(feature = "bucket")]
             ConnectorType::BucketSelect(connector) => Box::new(connector),
-            #[cfg(feature = "use_mongodb_connector")]
+            #[cfg(feature = "mongodb")]
             ConnectorType::Mongodb(connector) => Box::new(connector),
+            #[cfg(feature = "psql")]
+            ConnectorType::Psql(connector) => Box::new(connector),
         }
     }
 }
 
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
 #[async_trait]
-pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Read + Write {
-    // Fetch data from the resource and set the inner of the connector.
-    async fn fetch(&mut self) -> Result<()>;
-    // Return the dataset that contain a stream of data.
-    #[instrument]
-    async fn dataset(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<Dataset>> {
-        let mut connector = self.clone_box();
-    
-        match document.has_data(self.inner())? {
-            false => return Ok(None),
-            true => ()
-        };
-
-        Ok(Some(document.read_data(&mut connector).await?))
-    }
-    // Send the data from the inner connector to the remote resource.
-    async fn send(&mut self, position: Option<isize>) -> Result<()>;
+pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool>;
     /// Set parameters.
     fn set_parameters(&mut self, parameters: Value);
@@ -116,28 +111,24 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin + Re
     fn is_variable(&self) -> bool;
     /// Check if the resource is empty.
     async fn is_empty(&mut self) -> Result<bool> {
-        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
+        Ok(0 == self.len().await?)
     }
     /// Get the resource size of the current path.
     async fn len(&mut self) -> Result<usize> {
-        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
+        Ok(0)
     }
     /// Path of the document
     fn path(&self) -> String;
-    /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>>;
+    /// Fetch data from the resource and set the inner of the connector.
+    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>>;
+    /// Send the data from the inner connector to the remote resource.
+    async fn send(&mut self, document: Box<dyn Document>, dataset: &DataSet) -> std::io::Result<Option<DataStream>>;
     /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
     }
-    /// clear the inner
-    fn clear(&mut self);
-    /// Get the connect buffer inner reference.
-    fn inner(&self) -> &Vec<u8>;
-    /// Return a chunk of bytes with a start and end position in the document.
-    async fn chunk(&self, _start: usize, _end: usize) -> Result<Vec<u8>> {
-        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
-    }
+    /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
+    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>>;
 }
 
 impl fmt::Display for dyn Connector {

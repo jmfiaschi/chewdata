@@ -1,14 +1,11 @@
-use crate::connector::Connector;
 use crate::document::Document;
 use crate::Metadata;
-use crate::{DataResult, Dataset};
-use async_std::io::prelude::WriteExt;
-use async_stream::stream;
-use async_trait::async_trait;
-use futures::AsyncReadExt;
+use crate::{DataResult, DataSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
+
+const DEFAULT_TERMINATOR: &str = "\n";
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -21,6 +18,7 @@ pub struct Text {
 impl Default for Text {
     fn default() -> Self {
         let metadata = Metadata {
+            terminator: Some(DEFAULT_TERMINATOR.to_string()),
             mime_type: Some(mime::TEXT.to_string()),
             mime_subtype: Some(mime::PLAIN.to_string()),
             charset: Some(mime::UTF_8.to_string()),
@@ -30,102 +28,85 @@ impl Default for Text {
     }
 }
 
-#[async_trait]
 impl Document for Text {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Text::default().metadata.merge(self.metadata.clone())
     }
-    /// See [`Document::read_data`] for more details.
+    /// See [`Document::read`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::text::Text;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
     ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Text::default();
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"My text1 \n My text 2"#));
-    ///     connector.fetch().await?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_value();
-    ///     assert_eq!(r#"My text1 \n My text 2"#, data);
-    ///
-    ///     Ok(())
-    /// }
+    /// let document = Text::default();
+    /// let buffer = r#"My text1 \n My text 2"#.as_bytes().to_vec();
+    /// let mut dataset = document.read(&buffer).unwrap().into_iter();
+    /// let data = dataset.next().unwrap().to_value();
+    /// assert_eq!(r#"My text1 \n My text 2"#, data);
     /// ```
     #[instrument]
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
-        let mut text = String::default();
-        connector.read_to_string(&mut text).await?;
-
-        Ok(Box::pin(stream! {
-            yield DataResult::Ok(Value::String(text));
-        }))
+    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+        let record = Value::String(
+            String::from_utf8(buffer.clone())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        );
+        trace!(
+            record = format!("{:?}", record).as_str(),
+            "Record deserialized"
+        );
+        Ok(vec![DataResult::Ok(record)])
     }
-    /// See [`Document::write_data`] for more details.
+    /// See [`Document::write`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::text::Text;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
+    /// use chewdata::DataResult;
     ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Text::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    ///
-    ///     document.write_data(&mut connector, Value::String("My text".to_string())).await?;
-    ///     assert_eq!(r#"My text"#, &format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
+    /// let mut document = Text::default();
+    /// let dataset = vec![DataResult::Ok(Value::String("My text".to_string()))];
+    /// let buffer = document.write(&dataset).unwrap();
+    /// assert_eq!(r#"My text"#.as_bytes().to_vec(), buffer);
     /// ```
-    #[instrument]
-    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        connector
-            .write_all(value.as_str().unwrap_or("").as_bytes())
-            .await
+    #[instrument(skip(dataset))]
+    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+        let mut buffer = Vec::default();
+        for data in dataset {
+            let record = data.to_value();
+            buffer.append(&mut record.clone().as_str().unwrap_or("").as_bytes().to_vec());
+            trace!(
+                record = format!("{:?}", record).as_str(),
+                "Record serialized"
+            );
+        }
+        Ok(buffer)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use async_std::prelude::StreamExt;
-
-    use crate::connector::in_memory::InMemory;
-
     use super::*;
 
-    #[async_std::test]
-    async fn read_data() {
+    #[test]
+    fn read() {
         let document = Text::default();
-        let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"My text1 \n My text 2"#));
-        connector.fetch().await.unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
+        let buffer = r#"My text1 \n My text 2"#.as_bytes().to_vec();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
         assert_eq!(r#"My text1 \n My text 2"#, data);
     }
-    #[async_std::test]
-    async fn write_data() {
+    #[test]
+    fn write() {
         let mut document = Text::default();
-        let mut connector = InMemory::new(r#""#);
-        document
-            .write_data(&mut connector, Value::String("My text".to_string()))
-            .await
-            .unwrap();
-        assert_eq!(r#"My text"#, &format!("{}", connector));
+        let dataset = vec![DataResult::Ok(Value::String("My text".to_string()))];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(r#"My text"#.as_bytes().to_vec(), buffer);
     }
 }

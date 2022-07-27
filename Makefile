@@ -2,15 +2,20 @@ include .env
 export $(shell sed 's/=.*//' .env)
 
 .SILENT:
-.PHONY: build exec test bench help minio minio-install httpbin clean docs
+.PHONY: build exec test bench help minio minio-install httpbin clean docs debug
+
+debug:
+	@rustup -V
+	@cargo -V
 
 help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
-build: ## Build the script in local
+build: ## Build the script in local without examples
 	@cargo clean
-	@cargo build --all-targets --all-features
+	@cargo build --lib --bins --tests --benches --all-features
 
+run: debug
 run: ## Launch the script in local
 	@if [ "$(json)" ]; then\
 		cargo run ${json};\
@@ -34,7 +39,7 @@ example:
 
 release: ## Released the script in local
 	@cargo clean
-	@cargo build --release
+	@cargo build --release --lib --bins --all-features
 
 test: start unit-tests integration-tests
 
@@ -72,7 +77,7 @@ coverage\:it:
 
 bench:
 	@cargo install cargo-criterion
-	@cargo criterion --output-format bencher --plotting-backend disabled 2>&1
+	@cargo criterion --benches --output-format bencher --plotting-backend disabled 2>&1
 
 minio:
 	echo "${BLUE}Run Minio server.${NC}"
@@ -91,20 +96,27 @@ httpbin:
 	@docker-compose up -d httpbin
 
 mongo:
-	echo "${BLUE}Run mongodb server.${NC}"
-	@docker-compose up -d mongo
-	echo "${BLUE}Run mongo express.${NC}"
+	echo "${BLUE}Run mongo server.${NC}"
+	@docker-compose up -d mongo-admin mongo
+
+psql:
+	echo "${BLUE}Run psql server.${NC}"
+	@docker-compose up -d psql
+
+adminer:
+	echo "${BLUE}Run admin db${NC}"
 	echo "${YELLOW}Host: http://localhost:8081${NC}"
-	@docker-compose up -d mongo-express
+	@docker-compose up -d adminer
 
 semantic-release:
 	@npx semantic-release
 
-start: minio minio\:install httpbin mongo
+start: debug minio minio\:install httpbin mongo adminer
 
 stop:
 	@docker-compose down
 
+clean: stop
 clean:
 	@sudo rm -Rf .cache
 	@cargo clean

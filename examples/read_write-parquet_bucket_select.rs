@@ -10,6 +10,7 @@ use tracing_subscriber::EnvFilter;
 async fn main() -> io::Result<()> {
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let subscriber = tracing_subscriber::fmt()
+        .with_line_number(true)
         .with_writer(non_blocking)
         .with_env_filter(EnvFilter::from_default_env())
         .finish();
@@ -29,7 +30,7 @@ async fn main() -> io::Result<()> {
                 "query": "select * from s3object where round = 100.1"
             },
             "document" : {
-                "type": "json",
+                "type": "jsonl",
                 "metadata": {
                     "mime_subtype": "parquet"
                 }

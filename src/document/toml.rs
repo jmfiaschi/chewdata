@@ -1,16 +1,12 @@
-use crate::connector::Connector;
 use crate::document::Document;
 use crate::Metadata;
-use crate::{DataResult, Dataset};
-use async_std::io::prelude::WriteExt;
-use async_stream::stream;
-use async_trait::async_trait;
-use futures::AsyncReadExt;
+use crate::{DataResult, DataSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
 
 const DEFAULT_SUBTYPE: &str = "toml";
+const DEFAULT_TERMINATOR: &str = "---";
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -23,6 +19,7 @@ pub struct Toml {
 impl Default for Toml {
     fn default() -> Self {
         let metadata = Metadata {
+            terminator: Some(DEFAULT_TERMINATOR.to_string()),
             mime_type: Some(mime::APPLICATION.to_string()),
             mime_subtype: Some(DEFAULT_SUBTYPE.to_string()),
             charset: Some(mime::UTF_8.to_string()),
@@ -32,150 +29,156 @@ impl Default for Toml {
     }
 }
 
-#[async_trait]
 impl Document for Toml {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Toml::default().metadata.merge(self.metadata.clone())
     }
-    /// See [`Document::read_data`] for more details.
+    /// See [`Document::read`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{Connector, in_memory::InMemory};
     /// use chewdata::document::toml::Toml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
     ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Toml::default();
-    ///     let mut connector: Box<dyn Connector> = Box::new(InMemory::new(r#"[Title]
-    ///     key_1 = "value_1"
-    ///     key_2 = "value_2"
-    ///     "#));
-    ///     connector.fetch().await?;
-    ///
-    ///     let mut dataset = document.read_data(&mut connector).await?;
-    ///     let data = dataset.next().await.unwrap().to_value();
-    ///     let expected_data: Value = serde_json::from_str(r#"{"Title":{"key_1":"value_1","key_2":"value_2"}}"#)?;
-    ///     assert_eq!(expected_data, data);
-    ///
-    ///     Ok(())
-    /// }
+    /// let document = Toml::default();
+    /// let buffer = r#"[Title]
+    /// key_1 = "value_1"
+    /// key_2 = "value_2"
+    /// "#
+    /// .as_bytes()
+    /// .to_vec();
+    /// let mut dataset = document.read(&buffer).unwrap().into_iter();
+    /// let data = dataset.next().unwrap().to_value();
+    /// let expected_data: Value = serde_json::from_str(r#"{"Title":{"key_1":"value_1","key_2":"value_2"}}"#).unwrap();
+    /// assert_eq!(expected_data, data);
     /// ```
     #[instrument]
-    async fn read_data(&self, connector: &mut Box<dyn Connector>) -> io::Result<Dataset> {
-        let mut string = String::new();
-        connector.read_to_string(&mut string).await?;
-
-        let record: Value = toml::from_str(string.as_str())
+    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+        let record: Value = toml::from_slice(buffer)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        Ok(Box::pin(stream! {
-            match record {
-                Value::Array(records) => {
-                    for record in records {
-                        trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
-                        yield DataResult::Ok(record);
-                    }
-                }
-                record => {
-                    trace!(record = format!("{:?}",record).as_str(),  "Record deserialized");
-                    yield DataResult::Ok(record);
-                }
-            };
-        }))
+        Ok(match record {
+            Value::Array(records) => records
+                .into_iter()
+                .map(|record| {
+                    trace!(
+                        record = format!("{:?}", record).as_str(),
+                        "Record deserialized"
+                    );
+                    DataResult::Ok(record)
+                })
+                .collect(),
+            record => {
+                trace!(
+                    record = format!("{:?}", record).as_str(),
+                    "Record deserialized"
+                );
+                vec![DataResult::Ok(record)]
+            }
+        })
     }
-    /// See [`Document::write_data`] for more details.
+    /// See [`Document::write`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::document::toml::Toml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
-    /// use std::io;
+    /// use chewdata::DataResult;
     ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut document = Toml::default();
-    ///     let mut connector = InMemory::new(r#""#);
-    ///
-    ///     let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#)?;
-    ///     document.write_data(&mut connector, value).await?;
-    ///     assert_eq!(r#"column_1 = "line_1"
-    /// "#, &format!("{}", connector));
-    ///
-    ///     Ok(())
-    /// }
+    /// let mut document = Toml::default();
+    /// let dataset = vec![DataResult::Ok(
+    ///     serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+    /// )];
+    /// let buffer = document.write(&dataset).unwrap();
+    /// assert_eq!(r#"column_1 = "line_1"
+    /// "#.as_bytes().to_vec(), buffer);
+    /// let dataset = vec![DataResult::Ok(
+    ///     serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap(),
+    /// )];
+    /// let buffer = document.write(&dataset).unwrap();
+    /// assert_eq!(r#"column_1 = "line_2"
+    /// "#.as_bytes().to_vec(), buffer);
     /// ```
-    #[instrument]
-    async fn write_data(&mut self, connector: &mut dyn Connector, value: Value) -> io::Result<()> {
-        // Transform serde_json::Value to toml::Value
-        let toml_value = toml::value::Value::try_from(&value)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    #[instrument(skip(dataset))]
+    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+        let mut buffer = Vec::default();
 
-        let mut toml = String::new();
-        toml_value
-            .serialize(&mut toml::Serializer::new(&mut toml))
-            .map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Can't write the data into the connector. {}", e),
-                )
-            })?;
-        connector.write_all(toml.as_bytes()).await
+        for data in dataset {
+            let record = data.to_value();
+            // Transform serde_json::Value to toml::Value
+            let toml_value = toml::value::Value::try_from(record.clone())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+            let mut toml = String::new();
+            toml_value
+                .serialize(&mut toml::Serializer::new(&mut toml))
+                .map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Can't write the data into the connector. {}", e),
+                    )
+                })?;
+
+            trace!(
+                record = format!("{:?}", record).as_str(),
+                "Record serialized"
+            );
+
+            buffer.append(&mut toml.as_bytes().to_vec());
+        }
+
+        Ok(buffer)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use async_std::prelude::StreamExt;
-
-    use crate::connector::in_memory::InMemory;
-
     use super::*;
 
-    #[async_std::test]
-    async fn read_data() {
+    #[test]
+    fn read() {
         let document = Toml::default();
-        let mut connector: Box<dyn Connector> = Box::new(InMemory::new(
-            r#"[Title]
+        let buffer = r#"[Title]
 key_1 = "value_1"
 key_2 = "value_2"
-"#,
-        ));
-        connector.fetch().await.unwrap();
-        let mut dataset = document.read_data(&mut connector).await.unwrap();
-        let data = dataset.next().await.unwrap().to_value();
+"#
+        .as_bytes()
+        .to_vec();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data = dataset.next().unwrap().to_value();
         let expected_data: Value =
             serde_json::from_str(r#"{"Title":{"key_1":"value_1","key_2":"value_2"}}"#).unwrap();
         assert_eq!(expected_data, data);
     }
-    #[async_std::test]
-    async fn write_data() {
+    #[test]
+    fn write() {
         let mut document = Toml::default();
-        let mut connector = InMemory::new(r#""#);
-        let value: Value = serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap();
-        document.write_data(&mut connector, value).await.unwrap();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
+        )];
+        let buffer = document.write(&dataset).unwrap();
         assert_eq!(
             r#"column_1 = "line_1"
-"#,
-            &format!("{}", connector)
+"#
+            .as_bytes()
+            .to_vec(),
+            buffer
         );
-        let value: Value = serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap();
-        document.write_data(&mut connector, value).await.unwrap();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap(),
+        )];
+        let buffer = document.write(&dataset).unwrap();
         assert_eq!(
-            r#"column_1 = "line_1"
-column_1 = "line_2"
-"#,
-            &format!("{}", connector)
+            r#"column_1 = "line_2"
+"#
+            .as_bytes()
+            .to_vec(),
+            buffer
         );
     }
 }

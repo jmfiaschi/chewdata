@@ -87,79 +87,42 @@ impl Step for Eraser {
         let mut connector = connector_type.boxed_inner();
         let mut exclude_paths = self.exclude_paths.clone();
 
-        match connector.is_variable() {
-            true => {
-                // Used to check if one data has been received.
-                let mut has_data_been_received = false;
+        // Used to check if one data has been received.
+        let mut has_data_been_received = false;
 
-                let mut receiver_stream = super::receive(self as &dyn Step).await?;
-                while let Some(ref mut step_context_received) = receiver_stream.next().await {
-                    if !has_data_been_received {
-                        has_data_been_received = true;
-                    }
-
-                    if !step_context_received
-                        .data_result()
-                        .is_type(self.data_type.as_ref())
-                    {
-                        trace!("This step handle only this data type");
-                        continue;
-                    }
-
-                    connector.set_parameters(step_context_received.to_value()?);
-                    let path = connector.path();
-
-                    if !exclude_paths.contains(&path) {
-                        connector.erase().await?;
-
-                        exclude_paths.push(path);
-                    }
-
-                    step_context_received
-                        .insert_step_result(self.name(), step_context_received.data_result())?;
-                    super::send(self as &dyn Step, &step_context_received.clone()).await?;
-                }
-
-                // No data has been received, clean the connector.
-                if !has_data_been_received {
-                    connector.erase().await?;
-                }
+        let mut receiver_stream = super::receive(self as &dyn Step).await?;
+        while let Some(ref mut step_context_received) = receiver_stream.next().await {
+            if !has_data_been_received {
+                has_data_been_received = true;
             }
-            false => {
-                // Used to check if one data has been received.
-                let mut has_data_been_received = false;
 
-                let mut receiver_stream = super::receive(self as &dyn Step).await?;
-                while let Some(step_context_received) = receiver_stream.next().await {
-                    if !has_data_been_received {
-                        has_data_been_received = true;
-                    }
-                    let path = connector.path();
-
-                    if !step_context_received
-                        .data_result()
-                        .is_type(self.data_type.as_ref())
-                    {
-                        trace!("This step handle only this data type");
-                        continue;
-                    }
-
-                    // erase when the step receive the first message
-                    if !exclude_paths.contains(&path) {
-                        connector.erase().await?;
-
-                        exclude_paths.push(path);
-                    }
-
-                    super::send(self as &dyn Step, &step_context_received).await?;
-                }
-
-                // No data has been received, clean the connector.
-                if !has_data_been_received {
-                    connector.erase().await?;
-                }
+            if !step_context_received
+                .data_result()
+                .is_type(self.data_type.as_ref())
+            {
+                trace!("This step handle only this data type");
+                super::send(self as &dyn Step, &step_context_received.clone()).await?;
+                continue;
             }
-        };
+
+            connector.set_parameters(step_context_received.to_value()?);
+            let path = connector.path();
+
+            if !exclude_paths.contains(&path) {
+                connector.erase().await?;
+
+                exclude_paths.push(path);
+            }
+
+            step_context_received
+                .insert_step_result(self.name(), step_context_received.data_result())?;
+            super::send(self as &dyn Step, &step_context_received.clone()).await?;
+        }
+
+        // No data has been received, clean the connector.
+        if !has_data_been_received {
+            connector.erase().await?;
+        }
 
         Ok(())
     }

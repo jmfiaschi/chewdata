@@ -211,6 +211,16 @@ impl Clone for DataResult {
     }
 }
 
+impl PartialEq for DataResult {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (DataResult::Ok(value1), DataResult::Ok(value2)) => value1 == value2,
+            (DataResult::Err((value1, e1)),DataResult::Err((value2, e2))) => value1 == value2 && e1.to_string() == e2.to_string(),
+            (_, _) => false,
+        }
+    }
+}
+
 impl DataResult {
     pub const OK: &'static str = "ok";
     pub const ERR: &'static str = "err";
@@ -303,4 +313,5 @@ impl StepContext {
     }
 }
 
-pub type Dataset = Pin<Box<dyn Stream<Item = DataResult> + Send>>;
+pub type DataStream = Pin<Box<dyn Stream<Item = DataResult> + Send>>;
+pub type DataSet = Vec<DataResult>;

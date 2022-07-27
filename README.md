@@ -6,15 +6,19 @@
 
 This application is a light ETL in rust that can be used as a connector between systems
 
-| Feature                                  | Values                                                                  | Description                                                        |
-| ---------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Generate data                            | -                                                                       | Generate data for testing                                          |
-| Supported formats                        | `Json` , `Jsonl` , `CSV` , `Toml` , `XML` , `Yaml` , `Text` , `Parquet` | Read and Write in these formats                                    |
-| Multi Connectors                         | `Mongodb` , `S3` , `Minio` , `APIs`                                     | Read / Write / Clean data                                          |
-| Multi Http auths                         | `Basic` , `Bearer` , `Jwt`                                              | Read / Write / Clean data                                          |
-| Transform data                           | [tera template](https://tera.netlify.app/docs)                          | Transform the data in the fly                                      |
-| Multi Configuration formats              | `Json` , `Yaml`                                                         | The project need a jobs configuration in input                     |
-| Read data in parallel or sequential mode | `Cursor` , `Offset`                                                     | With this type of paginator, the data can be read in different way |
+| Feature                                  | Values                                                                                                  | Description                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Generate data                            | -                                                                                                       | Generate data for testing                                          |
+| Supported formats                        | `json` [E] , `jsonl` [E] , `csv` [D] , `toml` [D] , `xml` [D] , `yaml` [E] , `text` [E] , `parquet` [D] | Read and Write in these formats                                    |
+| Multi Connectors                         | `mongodb` [D] , `bucket` [D], `curl` [D] , `psql` [D], `local` [E], `io` [E], `inmemory` [E]            | Read / Write / Clean data                                          |
+| Multi Http auths                         | `basic` [D] , `bearer` [D], `jwt` [D]                                                                   | Give different possibilities to authenticate the `curl`            |
+| Transform data                           | [tera](https://tera.netlify.app/docs)    [E]                                                            | Transform the data in the fly                                      |
+| Configuration formats allowed            | `json` [E], `yaml`     [E]                                                                              | The project need a jobs configuration in input                     |
+| Read data in parallel or sequential mode | `cursor`[E] , `offset`     [E]                                                                          | With this type of paginator, the data can be read in different way |
+
+> [E] Feature enabled by default with the `--no-default-features` argument
+>  
+> [D] Feature must be enabled with the `--no-default-features` argument
 
 More useful information:
 
@@ -29,6 +33,7 @@ More useful information:
 * The configuration easly versionable
 * Can generate data in the fly for testing purpose
 * Control and validate the data. Handle bad and valid data in a dedicated stream
+* Enable only required feature: --no-default-features --features "toml psql"
 
 ## Getting started
 
@@ -57,12 +62,12 @@ If you want some examples to discover this project, go in this section [./exampl
 
 ### Run the ETL
 
-If you run the program without parameters, the application will wait until you write json data. By default, the program write json data in the output and the program stop when you press multiple times the 'enter' key.
+If you run the program without parameters, the application will wait until you write json data. By default, the program write json data in the output and the program stop when you enter empty value.
 
 ```Bash
 $ cargo run 
 $ [{"key":"value"},{"name":"test"}]
-$ exit
+$ enter
 [{"key":"value"},{"name":"test"}]
 ```
 

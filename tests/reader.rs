@@ -30,24 +30,34 @@ fn debug_dir() -> PathBuf {
 
 #[test]
 fn it_should_read_file_in_local_with_one_line() {
-    let config = r#"[{"type":"r","connector":{"type":"local","path":"{{ APP_FILE_PATH_INPUT }}"},"document":{"type":"{{ APP_FORMAT_INPUT }}"}},{"type":"w"}]"#;
-    let mut formats = vec!["json", "jsonl"];
-    if cfg!(feature = "use_csv_document") {
-        formats.push("csv");
+    let mut formats = vec![
+        (
+            "json",
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"},"document":{"type":"json"}},{"type":"w"}]"#,
+        ),
+        (
+            "jsonl",
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.jsonl"},"document":{"type":"jsonl"}},{"type":"w"}]"#,
+        ),
+        (
+            "yml",
+            r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.yml"},"document":{"type":"yaml"}},{"type":"w"}]"#,
+        ),
+    ];
+    if cfg!(feature = "csv") {
+        formats.push(("csv", r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.csv"},"document":{"type":"csv"}},{"type":"w"}]"#));
     }
-    if cfg!(feature = "use_yml_document") {
-        formats.push("yml");
+    if cfg!(feature = "toml") {
+        formats.push(("toml", r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.toml"},"document":{"type":"toml"}},{"type":"w"}]"#));
     }
-    if cfg!(feature = "use_xml_document") {
-        formats.push("xml");
+    if cfg!(feature = "xml") {
+        formats.push(("xml",r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.xml"},"document":{"type":"xml","entry_path": "/root/*/item"}},{"type":"w"}]"#));
     }
-    for format in formats {
+    for (format, config) in formats {
         let data_file_path = format!("{}/{}.{}", "data", "one_line", format);
         println!("Try to test this file '{}'.", data_file_path);
         let output = Command::new(debug_dir().join(APP_NAME))
             .args(&[config])
-            .env("APP_FILE_PATH_INPUT", &data_file_path)
-            .env("APP_FORMAT_INPUT", format)
             .env("RUST_LOG", "null")
             .current_dir(repo_dir())
             .output()
@@ -69,7 +79,7 @@ fn it_should_read_file_in_local_with_one_line() {
         assert_eq!(json_value_expected.to_string(), object_result.to_string());
     }
 }
-#[cfg(feature = "use_bucket_connector")]
+#[cfg(feature = "bucket")]
 #[test]
 fn it_should_read_file_in_bucket_with_one_line() {
     let config = r#"[{"type":"r","connector":{"type":"bucket","bucket":"my-bucket","path":"data/one_line.json","endpoint": "{{ BUCKET_ENDPOINT }}"}},{"type":"w"}]"#;
@@ -103,7 +113,7 @@ fn it_should_read_file_in_bucket_with_one_line() {
     let json_value_expected = data(format!("{}/{}.{}", "data", "one_line", "json").as_str());
     assert_eq!(json_value_expected.to_string(), object_result.to_string());
 }
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 #[test]
 fn it_should_read_data_get_api() {
     let config = r#"[{"type":"r","connector": {"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/get"}},{"type":"w"}]"#;
@@ -128,7 +138,7 @@ fn it_should_read_data_get_api() {
 
     assert!(object_result.pointer("/0/headers").is_some());
 }
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 #[test]
 fn it_should_read_data_get_api_with_basic() {
     let config = r#"[{"type":"r","connector":{"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/basic-auth/my-username/my-password","authenticator":{"type": "basic","username":"{{ CURL_BASIC_AUTH_USERNAME }}","password":"{{ CURL_BASIC_AUTH_PASSWORD }}"}}},{"type":"w"}]"#;
@@ -160,7 +170,7 @@ fn it_should_read_data_get_api_with_basic() {
         object_result.to_string()
     );
 }
-#[cfg(feature = "use_curl_connector")]
+#[cfg(feature = "curl")]
 #[test]
 fn it_should_read_data_get_api_with_bearer() {
     let config = r#"[{"type":"r","connector":{"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/bearer","authenticator":{"type": "bearer","token":"{{ CURL_BEARER_TOKEN }}"}}},{"type":"w"}]"#;

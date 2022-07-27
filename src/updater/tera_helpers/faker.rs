@@ -1,5 +1,5 @@
 use fake::faker::address::en::*;
-use fake::faker::barecode::en::*;
+use fake::faker::barcode::en::*;
 use fake::faker::company::en::*;
 use fake::faker::creditcard::en::*;
 use fake::faker::currency::en::*;
@@ -8,6 +8,7 @@ use fake::faker::job::en::*;
 use fake::faker::lorem::en::*;
 use fake::faker::name::en::*;
 use fake::faker::number::en::*;
+use fake::faker::color::en::*;
 use fake::Fake;
 use serde_json::value::Value;
 use std::collections::HashMap;
@@ -717,20 +718,20 @@ pub fn credit_card(_args: &HashMap<String, Value>) -> Result<Value> {
     Ok(Value::String(CreditCardNumber().fake()))
 }
 
-/// Generate barecode
+/// Generate barcode
 ///
 /// # Examples
 ///
 /// ```no_run
 /// use std::collections::HashMap;
-/// use chewdata::updater::tera_helpers::faker::barecode;
+/// use chewdata::updater::tera_helpers::faker::barcode;
 ///
 /// let mut args = HashMap::new();
-/// let barecode = barecode(&args);
-/// assert!(barecode.is_ok());
+/// let barcode = barcode(&args);
+/// assert!(barcode.is_ok());
 ///
 /// ```
-pub fn barecode(_args: &HashMap<String, Value>) -> Result<Value> {
+pub fn barcode(_args: &HashMap<String, Value>) -> Result<Value> {
     Ok(Value::String(Isbn().fake()))
 }
 

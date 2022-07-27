@@ -2,8 +2,8 @@ use crate::connector::ConnectorType;
 use crate::document::DocumentType;
 use crate::step::{DataResult, Step};
 use crate::StepContext;
-use async_trait::async_trait;
 use async_channel::{Receiver, Sender};
+use async_trait::async_trait;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{fmt, io};
@@ -92,12 +92,10 @@ impl Step for Writer {
         self.wait
     }
     #[instrument]
-    async fn exec(
-        &self
-    ) -> io::Result<()> {
-        let mut current_dataset_size = 0;
+    async fn exec(&self) -> io::Result<()> {
         let mut connector = self.connector_type.clone().boxed_inner();
-        let mut document = self.document_type.clone().boxed_inner();
+        let document = self.document_type.clone().boxed_inner();
+        let mut dataset = Vec::default();
 
         connector.set_metadata(connector.metadata().merge(document.metadata()));
 
@@ -106,13 +104,12 @@ impl Step for Writer {
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(step_context_received) = receiver_stream.next().await {
-            super::send(self as &dyn Step, &step_context_received.clone()).await?;
-
             if !step_context_received
                 .data_result()
                 .is_type(self.data_type.as_ref())
             {
                 trace!("This step handle only this data type");
+                super::send(self as &dyn Step, &step_context_received.clone()).await?;
                 continue;
             }
 
@@ -120,91 +117,131 @@ impl Step for Writer {
                 // If the path change and the inner connector not empty, the connector
                 // flush and send the data to the remote document before to load a new document.
                 if connector.is_resource_will_change(step_context_received.to_value()?)?
-                    && !connector.inner().is_empty()
+                    && !dataset.is_empty()
                 {
-                    document.close(&mut *connector).await?;
-                    
-                    let position = match document.can_append() {
-                        true => Some(-(document.footer(&mut *connector).await?.len() as isize)),
-                        false => None
-                    };
-
-                    match connector.send(position).await {
-                        Ok(_) => info!("Dataset sended with success into the connector"),
+                    match connector.send(document.clone(), &dataset).await {
+                        Ok(_) => {
+                            info!("Dataset sended with success into the connector");
+                            for data in dataset {
+                                super::send(
+                                    self as &dyn Step,
+                                    &StepContext::new(self.name(), data)?,
+                                )
+                                .await?;
+                            }
+                        }
                         Err(e) => {
                             warn!(
-                                error = e.to_string().as_str(),
-                                data = String::from_utf8_lossy(connector.inner())
-                                    .to_string()
-                                    .as_str(),
-                                "Can't send the data through the connector"
-                            )
+                                error = format!("{:?}", &e).as_str(),
+                                dataset = match enabled!(tracing::Level::DEBUG) {
+                                    true => format!("{:?}", &dataset),
+                                    false => String::from("[See data in debug mode]"),
+                                }
+                                .as_str(),
+                                "Can't send the dataset through the connector"
+                            );
+
+                            for data in dataset {
+                                super::send(
+                                    self as &dyn Step,
+                                    &StepContext::new(
+                                        self.name(),
+                                        DataResult::Err((
+                                            data.to_value(),
+                                            io::Error::new(e.kind(), e.to_string()),
+                                        )),
+                                    )?,
+                                )
+                                .await?;
+                            }
                         }
                     };
-                    current_dataset_size = 0;
+                    dataset = Vec::default();
                     connector = default_connector.clone();
                 }
             }
 
             connector.set_parameters(step_context_received.to_value()?);
+            dataset.push(step_context_received.data_result());
 
-            document
-                .write_data(
-                    &mut *connector,
-                    step_context_received.data_result().to_value(),
-                )
-                .await?;
-
-            current_dataset_size += 1;
-
-            if self.dataset_size <= current_dataset_size && document.can_append() {
-                document.close(&mut *connector).await?;
-
-                let position = match document.can_append() {
-                    true => Some(-(document.footer(&mut *connector).await?.len() as isize)),
-                    false => None
-                };
-
-                match connector.send(position).await {
-                    Ok(_) => (),
+            if self.dataset_size <= dataset.len() && document.can_append() {
+                match connector.send(document.clone(), &dataset).await {
+                    Ok(_) => {
+                        info!("Dataset sended with success into the connector");
+                        for data in dataset {
+                            super::send(self as &dyn Step, &StepContext::new(self.name(), data)?)
+                                .await?;
+                        }
+                    }
                     Err(e) => {
                         warn!(
-                            error = e.to_string().as_str(),
-                            data = String::from_utf8_lossy(connector.inner())
-                                .to_string()
-                                .as_str(),
-                            "Can't send the data through the connector"
-                        )
+                            error = format!("{:?}", &e).as_str(),
+                            dataset = match enabled!(tracing::Level::DEBUG) {
+                                true => format!("{:?}", &dataset),
+                                false => String::from("[See data in debug mode]"),
+                            }
+                            .as_str(),
+                            "Can't send the dataset through the connector"
+                        );
+
+                        for data in dataset {
+                            super::send(
+                                self as &dyn Step,
+                                &StepContext::new(
+                                    self.name(),
+                                    DataResult::Err((
+                                        data.to_value(),
+                                        io::Error::new(e.kind(), e.to_string()),
+                                    )),
+                                )?,
+                            )
+                            .await?;
+                        }
                     }
                 };
 
-                current_dataset_size = 0;
+                dataset = Vec::default();
             }
         }
 
-        if 0 < current_dataset_size {
+        if !dataset.is_empty() {
             info!(
-                dataset_size = current_dataset_size,
+                dataset_size = dataset.len(),
                 "Last send data into the connector"
             );
 
-            document.close(&mut *connector).await?;
-
-            let position = match document.can_append() {
-                true => Some(-(document.footer(&mut *connector).await?.len() as isize)),
-                false => None
-            };
-
-            match connector.send(position).await {
-                Ok(_) => (),
+            match connector.send(document.clone(), &dataset).await {
+                Ok(_) => {
+                    info!("Dataset sended with success into the connector");
+                    for data in dataset {
+                        super::send(self as &dyn Step, &StepContext::new(self.name(), data)?)
+                            .await?;
+                    }
+                }
                 Err(e) => {
                     warn!(
-                        error = e.to_string().as_str(),
-                        data = String::from_utf8_lossy(connector.inner())
-                            .to_string()
-                            .as_str(),
-                        "Can't send the data through the connector"
-                    )
+                        error = format!("{:?}", &e).as_str(),
+                        dataset = match enabled!(tracing::Level::DEBUG) {
+                            true => format!("{:?}", &dataset),
+                            false => String::from("[See data in debug mode]"),
+                        }
+                        .as_str(),
+                        "Can't send the dataset through the connector"
+                    );
+
+                    for data in dataset {
+                        super::send(
+                            self as &dyn Step,
+                            &StepContext::new(
+                                self.name(),
+                                DataResult::Err((
+                                    data.to_value(),
+                                    io::Error::new(e.kind(), e.to_string()),
+                                )),
+                            )?,
+                        )
+                        .await?;
+                    }
                 }
             };
         }

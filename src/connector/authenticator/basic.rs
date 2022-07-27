@@ -7,7 +7,7 @@ use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
-use surf::{http::headers, RequestBuilder};
+use surf::http::headers;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -18,7 +18,6 @@ pub struct Basic {
     #[serde(alias = "pwd")]
     #[serde(alias = "pass")]
     pub password: String,
-    pub parameters: Value,
 }
 
 impl fmt::Debug for Basic {
@@ -44,7 +43,6 @@ impl fmt::Debug for Basic {
         f.debug_struct("Basic")
             .field("username", &obfuscate_username)
             .field("password", &obfuscate_password)
-            .field("parameters", &self.parameters)
             .finish()
     }
 }
@@ -54,7 +52,6 @@ impl Default for Basic {
         Basic {
             username: "".to_owned(),
             password: "".to_owned(),
-            parameters: Value::Null,
         }
     }
 }
@@ -71,15 +68,11 @@ impl Basic {
     /// let password = "my_password";
     ///
     /// let auth = Basic::new(username, password);
-    ///
-    /// assert_eq!(username, auth.username);
-    /// assert_eq!(password, auth.password);
     /// ```
     pub fn new(username: &str, password: &str) -> Self {
         Basic {
             username: username.to_string(),
             password: password.to_string(),
-            ..Default::default()
         }
     }
 }
@@ -91,30 +84,36 @@ impl Authenticator for Basic {
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{Connector, curl::Curl};
-    /// use surf::http::Method;
-    /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic};
+    /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic, Authenticator};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let username = "my_username";
-    ///     let password = "my_password";
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(username, password))));
-    ///     connector.method = Method::Get;
-    ///     connector.path = format!("/basic-auth/{}/{}", username, password);
-    ///     connector.fetch().await?;
-    ///     let mut buffer = String::default();
-    ///     let len = connector.read_to_string(&mut buffer).await?;
-    ///     assert!(0 < len, "Should read one some bytes.");
+    ///     let username = "{{ username }}";
+    ///     let password = "{{ password }}";
+    ///     let parameters = serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
+    ///
+    ///     let (auth_name, auth_value) = Basic::new(username, password)
+    ///         .authenticate(parameters)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(auth_name, "authorization".to_string().into_bytes());
+    ///     assert_eq!(
+    ///         auth_value,
+    ///         format!(
+    ///             "Basic {}",
+    ///             base64::encode(format!("{}:{}", "my_username", "my_password"))
+    ///         )
+    ///         .as_bytes()
+    ///         .to_vec()
+    ///     );
     ///
     ///     Ok(())
     /// }
     /// ```
-    async fn authenticate(&mut self, request_builder: RequestBuilder) -> Result<RequestBuilder> {
+    async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)> {
         if let ("", "") = (self.username.as_ref(), self.password.as_ref()) {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -124,7 +123,6 @@ impl Authenticator for Basic {
 
         let mut username = self.username.clone();
         let mut password = self.password.clone();
-        let parameters = self.parameters.clone();
 
         if username.has_mustache() {
             username.replace_mustache(parameters.clone());
@@ -135,77 +133,58 @@ impl Authenticator for Basic {
 
         let basic = base64::encode(format!("{}:{}", username, password));
 
-        Ok(request_builder.header(headers::AUTHORIZATION, format!("Basic {}", basic)))
-    }
-    /// See [`Authenticator::set_parameters`] for more details.
-    fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = parameters;
+        Ok((
+            headers::AUTHORIZATION.as_str().as_bytes().to_vec(),
+            format!("Basic {}", basic).as_bytes().to_vec(),
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use async_std::io::ReadExt;
-    use http_types::Method;
-
-    use crate::connector::{authenticator::AuthenticatorType, curl::Curl, Connector};
-
     use super::*;
 
-    #[test]
-    fn new() {
-        let username = "my_username";
-        let password = "my_password";
-        let auth = Basic::new(username, password);
-        assert_eq!(username, auth.username);
-        assert_eq!(password, auth.password);
-    }
     #[async_std::test]
     async fn authenticate() {
         let username = "my_username";
         let password = "my_password";
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
-            username, password,
-        ))));
-        connector.method = Method::Get;
-        connector.path = format!("/basic-auth/{}/{}", username, password);
-        connector.fetch().await.unwrap();
-        let mut buffer = String::default();
-        let len = connector.read_to_string(&mut buffer).await.unwrap();
-        assert!(0 < len, "Should read one some bytes.");
-    }
-    #[async_std::test]
-    async fn authenticate_fail() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
-            "bad_username",
-            "bad_password",
-        ))));
-        connector.method = Method::Get;
-        connector.path = "/basic-auth/true_username/true_password".to_string();
-        match connector.fetch().await {
-            Ok(_) => assert!(false, "Should generate an error."),
-            Err(_) => assert!(true),
-        };
+
+        let (auth_name, auth_value) = Basic::new(username, password)
+            .authenticate(Value::Null)
+            .await
+            .unwrap();
+
+        assert_eq!(auth_name, "authorization".to_string().into_bytes());
+        assert_eq!(
+            auth_value,
+            format!(
+                "Basic {}",
+                base64::encode(format!("{}:{}", username, password))
+            )
+            .as_bytes()
+            .to_vec()
+        );
     }
     #[async_std::test]
     async fn authenticate_with_username_password_in_param() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.authenticator_type = Some(Box::new(AuthenticatorType::Basic(Basic::new(
-            "{{ username }}",
-            "{{ password }}",
-        ))));
-        connector.method = Method::Get;
-        connector.path = format!("/basic-auth/{}/{}", "my_username", "my_password");
-        connector.parameters =
-            serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
-        connector.fetch().await.unwrap();
-        let mut buffer = String::default();
-        let len = connector.read_to_string(&mut buffer).await.unwrap();
-        assert!(0 < len, "Should read one some bytes.");
+        let username = "{{ username }}";
+        let password = "{{ password }}";
+        let parameters = serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
+
+        let (auth_name, auth_value) = Basic::new(username, password)
+            .authenticate(parameters)
+            .await
+            .unwrap();
+
+        assert_eq!(auth_name, "authorization".to_string().into_bytes());
+        assert_eq!(
+            auth_value,
+            format!(
+                "Basic {}",
+                base64::encode(format!("{}:{}", "my_username", "my_password"))
+            )
+            .as_bytes()
+            .to_vec()
+        );
     }
 }
