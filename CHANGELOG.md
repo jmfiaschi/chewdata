@@ -1,3 +1,10 @@
+## [1.12.2-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.1...v1.12.2-beta.1) (2022-07-28)
+
+
+### Bug Fixes
+
+* **makefile:**  fix run command ([55e1da5](https://github.com/jmfiaschi/chewdata/commit/55e1da5bbdbb802da56a74280f189497aca29ae6))
+
 ## [1.12.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.0...v1.12.1) (2022-07-27)
 
 
