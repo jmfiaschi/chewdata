@@ -95,10 +95,7 @@ impl Curl {
                 Url::parse(self.endpoint.as_str())
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
             )
-            .set_timeout(match self.timeout {
-                None => None,
-                Some(timeout) => Some(Duration::from_secs(timeout)),
-            })
+            .set_timeout(self.timeout.map(Duration::from_secs))
             .set_http_keep_alive(self.keepalive)
             .set_tcp_no_delay(self.tcp_nodelay);
 

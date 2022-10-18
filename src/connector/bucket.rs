@@ -541,7 +541,7 @@ impl Connector for Bucket {
                 self.metadata()
                     .to_hashmap()
                     .into_iter()
-                    .map(|(key, value)| (key, value.replace("\n", "\\n")))
+                    .map(|(key, value)| (key, value.replace('\n', "\\n")))
                     .collect(),
             ))
             .set_cache_control(self.cache_control.to_owned())
