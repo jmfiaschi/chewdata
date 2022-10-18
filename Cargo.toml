@@ -42,7 +42,7 @@ regex = "1.6"
 chrono = { version = "0.4" }
 fake = { version = "2.5", features = ["random_color"] }
 rand = "0.8"
-clap = { version = "3.1", features = ["yaml"] }
+clap = { version = "4.0.17" }
 version = "3.0"
 serde_yaml = { version = "0.9.13" }
 # Lock local files
