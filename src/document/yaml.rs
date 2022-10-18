@@ -123,6 +123,8 @@ impl Document for Yaml {
         let mut buffer = Vec::default();
 
         for data in dataset {
+            buffer.append(&mut "---\n".as_bytes().to_vec());
+            
             let record = data.to_value();
             let mut buf = Vec::default();
             serde_yaml::to_writer(&mut buf, &record.clone()).map_err(|e| {

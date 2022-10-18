@@ -44,7 +44,7 @@ fake = { version = "2.5", features = ["random_color"] }
 rand = "0.8"
 clap = { version = "3.1", features = ["yaml"] }
 version = "3.0"
-serde_yaml = { version = "0.8" }
+serde_yaml = { version = "0.9.13" }
 # Lock local files
 fs2 = { version = "0.4" }
 # For Templates
