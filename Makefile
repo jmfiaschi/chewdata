@@ -21,7 +21,7 @@ build: ## Build the script in local without examples
 run: debug
 run: ## Launch the script in local
 	@if [ "$(json)" ]; then\
-		cargo run ${json};\
+		cargo run '$(json)';\
 	fi
 	@if [ "$(file)" ]; then\
 		cargo run -- --file $(file);\
