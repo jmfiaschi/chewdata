@@ -26,6 +26,7 @@ pub struct Psql {
     #[serde(alias = "params")]
     pub parameters: Value,
     pub query: Option<String>,
+    #[serde(alias = "paginator")]
     pub paginator_type: PaginatorType,
     #[serde(alias = "counter")]
     #[serde(alias = "count")]

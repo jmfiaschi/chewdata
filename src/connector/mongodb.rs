@@ -1018,7 +1018,7 @@ mod tests {
         let data_2 = datastream.next().await.unwrap();
         assert!(
             data_1 != data_2,
-            "The content of this two stream is not different."
+            "The content of this two stream are not different."
         );
     }
     #[async_std::test]

@@ -985,7 +985,7 @@ pub struct CursorPaginator {
     pub document: Option<Box<dyn Document>>,
     #[serde(skip)]
     pub connector: Option<Box<Curl>>,
-    #[serde(skip)]
+    #[serde(rename="next")]
     pub next_token: Option<String>,
 }
 
@@ -1037,7 +1037,7 @@ impl Paginator for CursorPaginator {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
-    ///     connector.path = "/uuid?next={{ paginator.next_token }}".to_string();
+    ///     connector.path = "/uuid?next={{ paginator.next }}".to_string();
     ///     connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
     ///         limit: 1,
     ///         entry_path: "/uuid".to_string(),
@@ -1083,7 +1083,7 @@ impl Paginator for CursorPaginator {
                 let mut new_parameters = connector.parameters.clone();
 
                 if let Some(next_token) = next_token_opt {
-                    new_parameters.merge_in("/paginator/next_token", Value::String(next_token))?;
+                    new_parameters.merge_in("/paginator/next", Value::String(next_token))?;
                 }
 
                 new_parameters
@@ -1403,19 +1403,31 @@ mod tests {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
-        connector.path = "/uuid?next={{ paginator.next_token }}".to_string();
+        connector.path = "/uuid?next={{ paginator.next }}".to_string();
         connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
             limit: 1,
             entry_path: "/uuid".to_string(),
             ..Default::default()
         });
+        let document = Box::new(Json::default());
+
         let mut paginator = connector.paginator().await.unwrap();
-        paginator.set_document(Box::new(Json::default()));
+        paginator.set_document(document.clone());
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();
         assert!(connector.is_some());
+        let mut datastream = connector.unwrap().fetch(document.clone()).await.unwrap().unwrap();
+        let data_1 = datastream.next().await.unwrap();
+
         let connector = stream.next().await.transpose().unwrap();
         assert!(connector.is_some());
+        let mut datastream = connector.unwrap().fetch(document).await.unwrap().unwrap();
+        let data_2 = datastream.next().await.unwrap();
+
+        assert!(
+            data_1 != data_2,
+            "The content of this two stream are not different."
+        );
     }
 }
