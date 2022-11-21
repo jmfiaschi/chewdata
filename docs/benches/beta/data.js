@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669008956955,
+  "lastUpdate": 1669070840131,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -6765,6 +6765,66 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 29915,
             "range": "± 153",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "committer": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "distinct": true,
+          "id": "b62b99d67e005dfa62457aad277871463d492f5f",
+          "message": "feat(cargo): optimize dependencies",
+          "timestamp": "2022-11-21T23:15:41+01:00",
+          "tree_id": "1c897e41c97952b0de6ad27b3d32978b7208bf63",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/b62b99d67e005dfa62457aad277871463d492f5f"
+        },
+        "date": 1669070838555,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 6662,
+            "range": "± 161",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 6634,
+            "range": "± 127",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 310349,
+            "range": "± 6998",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 35369,
+            "range": "± 777",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 13948,
+            "range": "± 265",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 21003,
+            "range": "± 481",
             "unit": "ns/iter"
           }
         ]
