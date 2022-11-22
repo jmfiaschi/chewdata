@@ -77,7 +77,7 @@ services:
         environment:
             MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
             MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
-    
+
     mongo-admin:
         image: mongo-express
         ports:
@@ -99,7 +99,7 @@ services:
             POSTGRES_PASSWORD: ${PSQL_PASSWORD}
             POSTGRES_DB: ${PSQL_DB}
         volumes:
-          - ./.config/psql.sh:/docker-entrypoint-initdb.d/init.sh
+            - ./.config/psql.sql:/docker-entrypoint-initdb.d/setup.sql
 
     adminer:
         image: adminer

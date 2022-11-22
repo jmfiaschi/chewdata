@@ -1,7 +1,3 @@
-#!/bin/bash
-set -e
-
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
 CREATE TABLE read (
     "number" INT NULL,
     "group" INT NULL,
@@ -88,5 +84,3 @@ CREATE TABLE send_with_key (
 );
 
 INSERT INTO send_with_key VALUES (1, 1561, 'value to test 5416', 'Long val\nto test', FALSE, 'é','field must be renamed','2019-12-31',1000000,10.156,'?search=test me','A,B,C','value_to_map','field to remove',null, '[1,2]', '{"field":"value"}');
-
-EOSQL
