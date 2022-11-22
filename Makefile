@@ -1,5 +1,5 @@
 include .env
-export $(shell sed 's/=.*//' .env)
+export $(shell sed "s/=.*//" .env)
 
 .SILENT:
 .PHONY: build exec test bench help minio minio-install httpbin clean docs debug
@@ -15,7 +15,6 @@ help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 build: ## Build the script in local without examples
-	@cargo clean
 	@cargo build --lib --bins --tests --benches --all-features
 
 run: debug
