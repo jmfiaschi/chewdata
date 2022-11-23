@@ -30,6 +30,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build
+      - run: make setup
       - run: make build
   release:
     runs-on: ubuntu-latest
@@ -44,6 +45,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: release
+      - run: make setup
       - run: make release
   unit-tests:
     needs: [build, lint]
@@ -119,7 +121,6 @@ jobs:
           sudo npm install @semantic-release/git -g
           sudo npm install @semantic-release/github -g
           sudo npm install @semantic-release/exec -g
-          cargo install semantic-release-rust --version 1.0.0-alpha.8
       - name: Run Semantic Release
         run: semantic-release
         env:
