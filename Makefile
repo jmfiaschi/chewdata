@@ -14,6 +14,11 @@ help: ## Display all commands.
 	@echo "$(YELLOW)cat data.json | make run file=[FILE_PATH]${NC}\n"
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
+setup:
+	@cargo install cargo-criterion
+	@cargo install cargo-tarpaulin
+	@cargo install semantic-release-rust --version 1.0.0-alpha.8
+
 build: ## Build the script in local without examples
 	@cargo build --lib --bins --tests --benches --all-features
 
@@ -61,7 +66,6 @@ lint:
 
 coverage: start
 coverage:
-	@cargo install cargo-tarpaulin
 	@cargo tarpaulin --out Xml --verbose --skip-clean --timeout 1200
 
 coverage\:ut: start
@@ -72,11 +76,9 @@ coverage\:ut:
 
 coverage\:it: start
 coverage\:it:
-	@cargo install cargo-tarpaulin
 	@cargo tarpaulin --out Xml --verbose --doc --tests --skip-clean --timeout 1200
 
 bench:
-	@cargo install cargo-criterion
 	@cargo criterion --benches --output-format bencher --plotting-backend disabled 2>&1
 
 minio:
