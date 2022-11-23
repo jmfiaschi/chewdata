@@ -69,7 +69,7 @@ async-compat = { version = "0.2", default-features = false, optional = true }
 sqlx = { version = "0.6", default-features = false, features = ["runtime-async-std-rustls", "all-types"], optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.3", features = ["stable"] }
+criterion = { version = "0.4", default-features = false, features = ["rayon", "plotters", "cargo_bench_support", "async_std","async_futures"] }
 
 [features]
 xml = ["jxon"]
