@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669088628285,
+  "lastUpdate": 1669249452872,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -6921,6 +6921,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 30359,
             "range": "± 147",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "committer": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "distinct": true,
+          "id": "6a09f6ee3694355ba30f080877fa7e3030a7dfb0",
+          "message": "feat(makefile): add setup command to install cargo extensions",
+          "timestamp": "2022-11-24T00:45:48+01:00",
+          "tree_id": "1bd1df9d6241cc9a33553854ca9e19f2804af218",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/6a09f6ee3694355ba30f080877fa7e3030a7dfb0"
+        },
+        "date": 1669249451372,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 6885,
+            "range": "± 297",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 6770,
+            "range": "± 192",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 331296,
+            "range": "± 20487",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 35140,
+            "range": "± 2725",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 14194,
+            "range": "± 626",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 21427,
+            "range": "± 721",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 430497,
+            "range": "± 20569",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 30633,
+            "range": "± 1872",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 30882,
+            "range": "± 1224",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 31033,
+            "range": "± 1129",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 30810,
+            "range": "± 1391",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 30789,
+            "range": "± 1797",
             "unit": "ns/iter"
           }
         ]
