@@ -18,6 +18,7 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v1
+      - run: make setup
       - run: make coverage
       - uses: codecov/codecov-action@v1
         with:

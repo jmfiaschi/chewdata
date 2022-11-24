@@ -15,9 +15,9 @@ help: ## Display all commands.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 setup:
+	@cargo install cargo-edit
 	@cargo install cargo-criterion
 	@cargo install cargo-tarpaulin
-	@cargo install semantic-release-rust --version 1.0.0-alpha.8
 
 build: ## Build the script in local without examples
 	@cargo build --lib --bins --tests --benches --all-features
