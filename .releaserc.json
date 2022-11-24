@@ -20,7 +20,7 @@
     [
       "@semantic-release/exec",
       {
-        "verifyConditionsCmd": "cargo check && cargo set-version ${nextRelease.version}",
+        "verifyConditionsCmd": "cargo set-version ${nextRelease.version}",
         "prepareCmd": "cargo package",
         "publishCmd": "cargo publish"
       }
