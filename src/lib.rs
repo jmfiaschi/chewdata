@@ -75,7 +75,7 @@ pub async fn exec(
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
 #[serde(default, deny_unknown_fields)]
 pub struct Metadata {
     pub has_headers: Option<bool>,
