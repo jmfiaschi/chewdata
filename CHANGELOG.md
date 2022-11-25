@@ -6,27 +6,22 @@
 * **.env:** remove CARGO_INCREMENTAL=1 ([345ed48](https://github.com/jmfiaschi/chewdata/commit/345ed48b3c64588130a11290112ab47c6b288171))
 * **cargo:** use only postgres for sqlx ([be24f70](https://github.com/jmfiaschi/chewdata/commit/be24f703e3466dcb20c3ae6e3f79296fd13ab6c2))
 * **curl:** parameters can have value paginator.next for cursor paginator ([bdc2849](https://github.com/jmfiaschi/chewdata/commit/bdc2849924f26c3b2db95872eec8e008fe0738a3))
-* **lint:** add cache ([b22e6a4](https://github.com/jmfiaschi/chewdata/commit/b22e6a4997291c975ed212a6d71845e8d5358afb))
+* **linter:** add cache ([b22e6a4](https://github.com/jmfiaschi/chewdata/commit/b22e6a4997291c975ed212a6d71845e8d5358afb))
 * **linter:** update files ([a416438](https://github.com/jmfiaschi/chewdata/commit/a4164388ed258ad2d10f89619df91278d82dcb91))
 * **makefile:** remove cargo clean during the build phase and use the cache. win time during the compilation ([48014b0](https://github.com/jmfiaschi/chewdata/commit/48014b0a1f1144e6d7819bd4677bd46e0c973761))
 * **release:** remove semantic-release-rust ([2b26a3a](https://github.com/jmfiaschi/chewdata/commit/2b26a3a0f8d26b789ca70d86bfb0915b4d9ccca6))
-* **release:** verify condition ([55a306b](https://github.com/jmfiaschi/chewdata/commit/55a306b97295e357673e3772e08fb80df9a0d9f4))
-* **release:** verify condition ([a712beb](https://github.com/jmfiaschi/chewdata/commit/a712bebfef329ccc277bc64a893a66b0a252fe37))
-* **release:** verify condition ([11944f8](https://github.com/jmfiaschi/chewdata/commit/11944f8965c1676c817b544d2e38e9634567da8b))
-* **window:** replace sh script by sql sript and avoid issue with text format ([2426dfe](https://github.com/jmfiaschi/chewdata/commit/2426dfe94edd16a096ce817c0b45fbdd4a048780))
+* **window:** replace sh script by sql script and avoid issue with text format ([2426dfe](https://github.com/jmfiaschi/chewdata/commit/2426dfe94edd16a096ce817c0b45fbdd4a048780))
 
 
 ### Features
 
 * **cargo:** optimize dependencies ([9a1886b](https://github.com/jmfiaschi/chewdata/commit/9a1886b5ccdb9083a17d55b9157fff99e5add0c5))
-* **cargo:** optimize dependencies ([b62b99d](https://github.com/jmfiaschi/chewdata/commit/b62b99d67e005dfa62457aad277871463d492f5f))
 * **cargo:** ugrade criterion ([aa050ad](https://github.com/jmfiaschi/chewdata/commit/aa050ad739c9088812470810ed28efbf228c12af))
 * **cargo:** upgrade version ([37d3d12](https://github.com/jmfiaschi/chewdata/commit/37d3d12b12e066284d624ad99e0b67620d69ac59))
-* **cicd:** upgrade versions ([0969db0](https://github.com/jmfiaschi/chewdata/commit/0969db055d43404216d487067abe25128b93d4b4))
+* **cicd:** upgrade version ([0969db0](https://github.com/jmfiaschi/chewdata/commit/0969db055d43404216d487067abe25128b93d4b4))
 * **clap:** upgrade version ([d08d517](https://github.com/jmfiaschi/chewdata/commit/d08d51729de4030cfde7717e17154ea22ca9e904))
 * **csv:** flatten object & array ([8ced5e6](https://github.com/jmfiaschi/chewdata/commit/8ced5e6d510442062e3a8c2a5f14d17a2e82fc59))
 * **makefile:** add setup command to install cargo extensions ([6a09f6e](https://github.com/jmfiaschi/chewdata/commit/6a09f6ee3694355ba30f080877fa7e3030a7dfb0))
-* **makefile:** add setup command to install cargo extensions ([9114262](https://github.com/jmfiaschi/chewdata/commit/9114262201984e9cabd265cd159058fd610560ae))
 * **release:** replace semantic-release-rust by standard cli ([f7c5609](https://github.com/jmfiaschi/chewdata/commit/f7c560960d13e00309b6d958f8220ba3ef4a7175))
 * **serde_yaml:** upgrade version ([ec36d46](https://github.com/jmfiaschi/chewdata/commit/ec36d46095a62ec0f0cedfb7caf77fd0e6bc824e))
 
