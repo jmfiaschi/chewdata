@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: lint
       - run: rustup component add clippy
       - uses: actions-rs/clippy-check@v1
         with:
@@ -47,8 +50,7 @@ jobs:
         with:
           shared-key: benchmark
       - run: make setup
-      - name: Generate benchmark
-        run: make bench | tee output.txt
+      - run: make bench | tee output.txt
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
