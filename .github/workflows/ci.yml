@@ -46,6 +46,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: benchmark
+      - run: make setup
       - name: Generate benchmark
         run: make bench | tee output.txt
       - name: Store benchmark result
