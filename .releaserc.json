@@ -21,8 +21,8 @@
       "@semantic-release/exec",
       {
         "verifyConditionsCmd": "cargo check",
-        "prepareCmd": "cargo set-version ${nextRelease.version} && cargo package",
-        "publishCmd": "cargo publish"
+        "prepareCmd": "cargo set-version ${nextRelease.version} && cargo package --allow-dirty",
+        "publishCmd": "cargo publish --allow-dirty"
       }
     ],
     [
