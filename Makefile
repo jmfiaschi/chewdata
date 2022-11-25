@@ -43,7 +43,6 @@ example:
 	@cargo run --example $(name)
 
 release: ## Released the script in local
-	@cargo clean
 	@cargo build --release --lib --bins --all-features
 
 test: start unit-tests integration-tests

@@ -32,6 +32,34 @@ jobs:
           shared-key: build
       - run: make setup
       - run: make build
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: nelonoel/branch-name@v1.0.1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: benchmark
+      - name: Generate benchmark
+        run: make bench | tee output.txt
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          tool: "cargo"
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          alert-threshold: "200%"
+          comment-on-alert: true
+          fail-on-alert: true
+          alert-comment-cc-users: "@jmfiaschi"
+          benchmark-data-dir-path: "docs/benches/${{ env.BRANCH_NAME }}"
   release:
     runs-on: ubuntu-latest
     steps:
@@ -77,35 +105,6 @@ jobs:
         with:
           shared-key: build
       - run: make integration-tests
-  benchmark:
-    needs: [build, lint]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: nelonoel/branch-name@v1.0.1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - run: cp .env.ci .env
-      - uses: falti/dotenv-action@v1
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: build
-      - name: Generate benchmark
-        run: make bench | tee output.txt
-      - name: Store benchmark result
-        uses: rhysd/github-action-benchmark@v1
-        with:
-          tool: "cargo"
-          output-file-path: output.txt
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
-          alert-threshold: "200%"
-          comment-on-alert: true
-          fail-on-alert: true
-          alert-comment-cc-users: "@jmfiaschi"
-          benchmark-data-dir-path: "docs/benches/${{ env.BRANCH_NAME }}"
   semantic-release:
     needs: [benchmark, integration-tests, unit-tests, release]
     runs-on: ubuntu-latest
