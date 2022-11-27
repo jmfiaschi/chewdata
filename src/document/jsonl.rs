@@ -53,11 +53,11 @@ impl Document for Jsonl {
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// 
+    ///
     /// let document = Jsonl::default();
     /// let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#.as_bytes().to_vec();
     /// let buffer = json_str.clone();
-    /// 
+    ///
     /// let mut dataset = document.read(&buffer).unwrap().into_iter();
     /// let data = dataset.next().unwrap().to_value();
     /// let expected_data: Value = serde_json::from_slice(&json_str).unwrap();
@@ -132,7 +132,7 @@ impl Document for Jsonl {
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::DataResult; 
+    /// use chewdata::DataResult;
     ///
     /// let mut document = Jsonl::default();
     /// let dataset = vec![DataResult::Ok(
@@ -142,7 +142,7 @@ impl Document for Jsonl {
     /// assert_eq!(r#"{"column_1":"line_1"}"#.as_bytes().to_vec(), buffer);
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buf = Vec::new();
         let dataset_len = dataset.len();
 
@@ -232,7 +232,7 @@ mod tests {
     }
     #[test]
     fn write() {
-        let mut document = Jsonl::default();
+        let document = Jsonl::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         ),

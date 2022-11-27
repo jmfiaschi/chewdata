@@ -242,10 +242,10 @@ impl Connector for Local {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Toml::default());
+    ///     let document = Toml::default();
     ///     let mut connector = Local::default();
     ///     connector.path = "./Cargo.toml".to_string();
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -255,7 +255,7 @@ impl Connector for Local {
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let mut buff = Vec::default();
         let path = self.path();
 
@@ -300,7 +300,7 @@ impl Connector for Local {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
@@ -308,19 +308,19 @@ impl Connector for Local {
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/out/test_local_send".to_string();
     ///     connector.erase().await.unwrap();
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read.fetch(document.clone()).await.unwrap().unwrap();
+    ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
     ///     assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
     ///
     ///     let expected_result2 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
     ///     let dataset = vec![expected_result2.clone()];
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+    ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
     ///     assert_eq!(expected_result1, datastream.next().await.unwrap());
     ///     assert_eq!(expected_result2, datastream.next().await.unwrap());
     ///
@@ -330,7 +330,7 @@ impl Connector for Local {
     #[instrument(skip(dataset))]
     async fn send(
         &mut self,
-        mut document: Box<dyn Document>,
+        document: &dyn Document,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         let terminator = document.terminator()?;
@@ -401,15 +401,15 @@ impl Connector for Local {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Toml::default());
+    ///     let document = Toml::default();
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/out/test_local_erase".to_string();
     ///     let expected_result =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result];
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///     connector.erase().await.unwrap();
-    ///     let datastream = connector.fetch(document).await.unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap();
     ///     assert!(datastream.is_none(), "No datastream with empty body");
     ///
     ///     Ok(())
@@ -594,10 +594,10 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Box::new(Toml::default());
+        let document = Toml::default();
         let mut connector = Local::default();
         connector.path = "./Cargo.toml".to_string();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -605,7 +605,7 @@ mod tests {
     }
     #[async_std::test]
     async fn send() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
@@ -613,11 +613,11 @@ mod tests {
         let mut connector = Local::default();
         connector.path = "./data/out/test_local_send".to_string();
         connector.erase().await.unwrap();
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         let mut datastream = connector_read
-            .fetch(document.clone())
+            .fetch(&document)
             .await
             .unwrap()
             .unwrap();
@@ -626,25 +626,25 @@ mod tests {
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(expected_result1, datastream.next().await.unwrap());
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
     #[async_std::test]
     async fn erase() {
-        let document = Box::new(Toml::default());
+        let document = Toml::default();
 
         let mut connector = Local::default();
         connector.path = "./data/out/test_local_erase".to_string();
         let expected_result =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
         connector.erase().await.unwrap();
-        let datastream = connector.fetch(document).await.unwrap();
+        let datastream = connector.fetch(&document).await.unwrap();
         assert!(datastream.is_none(), "No datastream with empty body");
     }
     #[async_std::test]

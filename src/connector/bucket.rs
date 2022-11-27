@@ -340,7 +340,7 @@ impl Connector for Bucket {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///     let mut connector = Bucket::default();
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
@@ -348,7 +348,7 @@ impl Connector for Bucket {
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -358,7 +358,7 @@ impl Connector for Bucket {
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self, document: Box<dyn Document>) -> Result<Option<DataStream>> {
+    async fn fetch(&mut self, document: &dyn Document) -> Result<Option<DataStream>> {
         let path = self.path();
 
         if path.has_mustache() {
@@ -419,7 +419,7 @@ impl Connector for Bucket {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = "http://localhost:9000".to_string();
@@ -430,25 +430,25 @@ impl Connector for Bucket {
     ///         DataResult::Ok(serde_json::from_str(r#"[{"column1":"value1"}]"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
     ///     connector
-    ///         .send(document.clone(), &dataset)
+    ///         .send(&document, &dataset)
     ///         .await
     ///         .unwrap();
     ///
     ///     let mut connector_read = connector.clone();
     ///     let mut datastream = connector_read
-    ///         .fetch(document.clone())
+    ///         .fetch(&document)
     ///         .await
     ///         .unwrap()
     ///         .unwrap();
     ///     assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
-    ///     
+    ///
     ///     let expected_result2 =
     ///         DataResult::Ok(serde_json::from_str(r#"[{"column1":"value2"}]"#).unwrap());
     ///     let dataset = vec![expected_result2.clone()];
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
-    ///     
+    ///     connector.send(&document, &dataset).await.unwrap();
+    ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+    ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
     ///     assert_eq!(expected_result1, datastream.next().await.unwrap());
     ///     assert_eq!(expected_result2, datastream.next().await.unwrap());
     ///
@@ -458,7 +458,7 @@ impl Connector for Bucket {
     #[instrument(skip(dataset))]
     async fn send(
         &mut self,
-        mut document: Box<dyn Document>,
+        document: &dyn Document,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         let mut content_file = Vec::default();
@@ -837,7 +837,7 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
         let mut connector = Bucket::default();
         connector.metadata = Metadata {
             ..Json::default().metadata
@@ -845,7 +845,7 @@ mod tests {
         connector.path = "data/one_line.json".to_string();
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -853,7 +853,7 @@ mod tests {
     }
     #[async_std::test]
     async fn send() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Bucket::default();
         connector.endpoint = "http://localhost:9000".to_string();
@@ -863,11 +863,11 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"[{"column1":"value1"}]"#).unwrap());
         let dataset = vec![expected_result1.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         let mut datastream = connector_read
-            .fetch(document.clone())
+            .fetch(&document)
             .await
             .unwrap()
             .unwrap();
@@ -876,10 +876,10 @@ mod tests {
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"[{"column1":"value2"}]"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(expected_result1, datastream.next().await.unwrap());
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }

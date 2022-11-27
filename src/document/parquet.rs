@@ -177,7 +177,7 @@ impl Document for Parquet {
     }
     /// See [`Document::write`] for more details.
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut arrow_value = dataset.iter().map(|data| Ok(data.to_value()));
         let schema = match self.schema.clone() {
             Some(value) => Schema::from(&value),
@@ -246,10 +246,10 @@ impl Document for Parquet {
                 });
             }
         }
-        
+
         let properties = properties_builder.build();
         let mut buffer = Vec::new();
-        
+
         {
             let mut writer = ArrowWriter::try_new(
                 &mut buffer,
@@ -340,7 +340,7 @@ mod tests {
     }
     #[test]
     fn write() {
-        let mut document = Parquet::default();
+        let document = Parquet::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         ),

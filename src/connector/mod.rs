@@ -120,9 +120,9 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     /// Path of the document
     fn path(&self) -> String;
     /// Fetch data from the resource and set the inner of the connector.
-    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>>;
+    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>>;
     /// Send the data from the inner connector to the remote resource.
-    async fn send(&mut self, document: Box<dyn Document>, dataset: &DataSet) -> std::io::Result<Option<DataStream>>;
+    async fn send(&mut self, document: &dyn Document, dataset: &DataSet) -> std::io::Result<Option<DataStream>>;
     /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::Unsupported, "function not implemented"))

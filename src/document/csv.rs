@@ -281,7 +281,7 @@ impl Document for Csv {
     /// "#.as_bytes().to_vec(), buffer);
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut builder_writer = self.writer_builder().from_writer(Vec::default());
 
         for data in dataset {
@@ -527,7 +527,7 @@ mod tests {
     }
     #[test]
     fn write() {
-        let mut document = Csv::default();
+        let document = Csv::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];
@@ -554,7 +554,7 @@ mod tests {
     }
     #[test]
     fn write_object() {
-        let mut document = Csv::default();
+        let document = Csv::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(
                 r#"{"column_1":{"field_1":"value_1","field_2":["value_2","value_3"]}}"#,

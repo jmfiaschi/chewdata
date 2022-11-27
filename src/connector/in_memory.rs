@@ -141,9 +141,9 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Jsonl::default());
+    ///     let document = Jsonl::default();
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -153,7 +153,7 @@ impl Connector for InMemory {
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let resource = self.memory.lock().await;
         info!("The connector fetch data with success");
         if !document.has_data(resource.get_ref())? {
@@ -182,25 +182,25 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Jsonl::default());
+    ///     let document = Jsonl::default();
     ///
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read.fetch(document.clone()).await.unwrap().unwrap();
+    ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
     ///     assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
     ///
     ///     let expected_result2 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
     ///     let dataset = vec![expected_result2.clone()];
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+    ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
     ///     assert_eq!(expected_result1, datastream.next().await.unwrap());
     ///     assert_eq!(expected_result2, datastream.next().await.unwrap());
     ///
@@ -210,7 +210,7 @@ impl Connector for InMemory {
     #[instrument(skip(dataset))]
     async fn send(
         &mut self,
-        mut document: Box<dyn Document>,
+        document: &dyn Document,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         let position = match document.can_append() {
@@ -259,10 +259,10 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Jsonl::default());
+    ///     let document = Jsonl::default();
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
     ///     connector.erase().await.unwrap();
-    ///     let datastream = connector.fetch(document).await.unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap();
     ///     assert!(datastream.is_none(), "The datastream must be empty");
     ///
     ///     Ok(())
@@ -364,9 +364,9 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Box::new(Jsonl::default());
+        let document = Jsonl::default();
         let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -374,17 +374,17 @@ mod tests {
     }
     #[async_std::test]
     async fn send() {
-        let document = Box::new(Jsonl::default());
+        let document = Jsonl::default();
 
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
         let mut connector = InMemory::new(r#""#);
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         let mut datastream = connector_read
-            .fetch(document.clone())
+            .fetch(&document)
             .await
             .unwrap()
             .unwrap();
@@ -393,19 +393,19 @@ mod tests {
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(expected_result1, datastream.next().await.unwrap());
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
     #[async_std::test]
     async fn erase() {
-        let document = Box::new(Jsonl::default());
+        let document = Jsonl::default();
         let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
         connector.erase().await.unwrap();
-        let datastream = connector.fetch(document).await.unwrap();
+        let datastream = connector.fetch(&document).await.unwrap();
         assert!(datastream.is_none(), "The datastream must be empty");
     }
     #[async_std::test]

@@ -119,7 +119,7 @@ impl Step for Writer {
                 if connector.is_resource_will_change(step_context_received.to_value()?)?
                     && !dataset.is_empty()
                 {
-                    match connector.send(document.clone(), &dataset).await {
+                    match connector.send(&*document, &dataset).await {
                         Ok(_) => {
                             info!("Dataset sended with success into the connector");
                             for data in dataset {
@@ -165,7 +165,7 @@ impl Step for Writer {
             dataset.push(step_context_received.data_result());
 
             if self.dataset_size <= dataset.len() && document.can_append() {
-                match connector.send(document.clone(), &dataset).await {
+                match connector.send(&*document, &dataset).await {
                     Ok(_) => {
                         info!("Dataset sended with success into the connector");
                         for data in dataset {
@@ -210,7 +210,7 @@ impl Step for Writer {
                 "Last send data into the connector"
             );
 
-            match connector.send(document.clone(), &dataset).await {
+            match connector.send(&*document, &dataset).await {
                 Ok(_) => {
                     info!("Dataset sended with success into the connector");
                     for data in dataset {

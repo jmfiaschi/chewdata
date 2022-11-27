@@ -190,7 +190,7 @@ impl Jwt {
         let dataset = vec![DataResult::Ok(payload)];
 
         let mut datastream = match refresh_connector
-            .send(self.refresh_document.clone(), &dataset)
+            .send(&*self.refresh_document, &dataset)
             .await?
         {
             Some(datastream) => datastream,
@@ -297,7 +297,7 @@ impl Authenticator for Jwt {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut refresh_connector = Curl::default();
     ///     refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
@@ -322,7 +322,7 @@ impl Authenticator for Jwt {
     ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     let len = datastream.count().await;
     ///     assert!(0 < len, "Should read one some bytes.");
     ///

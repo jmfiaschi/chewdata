@@ -119,12 +119,12 @@ impl Document for Yaml {
     /// );
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
 
         for data in dataset {
             buffer.append(&mut "---\n".as_bytes().to_vec());
-            
+
             let record = data.to_value();
             let mut buf = Vec::default();
             serde_yaml::to_writer(&mut buf, &record.clone()).map_err(|e| {
@@ -171,7 +171,7 @@ date: 2019-12-31
     }
     #[test]
     fn write() {
-        let mut document = Yaml::default();
+        let document = Yaml::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];

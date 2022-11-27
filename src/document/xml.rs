@@ -263,7 +263,7 @@ impl Document for Xml {
     /// );
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
         let header = self.header(dataset)?;
         let footer = self.footer(dataset)?;
