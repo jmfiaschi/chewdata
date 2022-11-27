@@ -1,3 +1,16 @@
+# [1.13.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.13.0-beta.1...v1.13.0-beta.2) (2022-11-27)
+
+
+### Bug Fixes
+
+* **lint:** add eq in the derive ([941d5c1](https://github.com/jmfiaschi/chewdata/commit/941d5c1736aacaa95d48b3a9f339fea2d9290bfd))
+* **lint:** replace consecutive ([f939566](https://github.com/jmfiaschi/chewdata/commit/f939566f63da624356d82bda92617fdad35ce407))
+
+
+### Performance Improvements
+
+* **send & fetch:** replace &box(T) by  &T ([adf8257](https://github.com/jmfiaschi/chewdata/commit/adf8257afd67d2bc51928690f2c4c2012df760c3))
+
 # [1.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.2...v1.13.0-beta.1) (2022-11-25)
 
 
