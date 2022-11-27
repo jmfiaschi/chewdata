@@ -43,12 +43,11 @@ fn document_read_benchmark(c: &mut Criterion) {
             .unwrap();
 
         let connector: InMemory = buf.into();
-        let document = document;
 
         c.bench_function(format!("read_{}/", format).as_str(), move |b| {
             b.to_async(FuturesExecutor).iter(|| async {
                 let mut connector: Box<dyn Connector> = Box::new(connector.clone());
-                let mut dataset = connector.fetch(document.clone()).await.unwrap().unwrap();
+                let mut dataset = connector.fetch(&*document).await.unwrap().unwrap();
                 while let Some(_) = dataset.next().await {}
             });
         });

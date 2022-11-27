@@ -326,12 +326,12 @@ impl Connector for Curl {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
     ///     connector.path = "/json".to_string();
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -341,7 +341,7 @@ impl Connector for Curl {
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let client = self.client().await?;
         let path = self.path();
 
@@ -406,7 +406,7 @@ impl Connector for Curl {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Post;
@@ -414,7 +414,7 @@ impl Connector for Curl {
     ///     let expected_result1 =
     ///        DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1];
-    ///     let mut datastream = connector.send(document, &dataset).await.unwrap().unwrap();
+    ///     let mut datastream = connector.send(&document, &dataset).await.unwrap().unwrap();
     ///     let value = datastream.next().await.unwrap().to_value();
     ///     assert_eq!(
     ///        r#"[{"column1":"value1"}]"#,
@@ -427,7 +427,7 @@ impl Connector for Curl {
     #[instrument(skip(dataset))]
     async fn send(
         &mut self,
-        mut document: Box<dyn Document>,
+        document: &dyn Document,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         let client = self.client().await?;
@@ -759,7 +759,7 @@ impl BodyCounter {
 
         document.set_entry_path(self.entry_path.clone());
 
-        let mut dataset = match connector.fetch(document).await? {
+        let mut dataset = match connector.fetch(&*document).await? {
             Some(dataset) => dataset,
             None => {
                 trace!("No data found");
@@ -1091,7 +1091,7 @@ impl Paginator for CursorPaginator {
 
                 document.set_entry_path(entry_path.clone());
 
-                let mut dataset = match new_connector.fetch(document.clone()).await? {
+                let mut dataset = match new_connector.fetch(&*document).await? {
                     Some(dataset) => dataset,
                     None => break
                 };
@@ -1196,12 +1196,12 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/json".to_string();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -1209,7 +1209,7 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch_with_basic() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
@@ -1218,7 +1218,7 @@ mod tests {
             "my-username",
             "my-password",
         ))));
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -1226,14 +1226,14 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch_with_bearer() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/bearer".to_string();
         connector.authenticator_type =
             Some(Box::new(AuthenticatorType::Bearer(Bearer::new("abcd1234"))));
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -1241,7 +1241,7 @@ mod tests {
     }
     #[async_std::test]
     async fn send() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Post;
@@ -1249,7 +1249,7 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1];
-        let mut datastream = connector.send(document, &dataset).await.unwrap().unwrap();
+        let mut datastream = connector.send(&document, &dataset).await.unwrap().unwrap();
         let value = datastream.next().await.unwrap().to_value();
         assert_eq!(
             r#"[{"column1":"value1"}]"#,
@@ -1317,7 +1317,7 @@ mod tests {
     #[cfg(feature = "xml")]
     #[async_std::test]
     async fn paginator_offset_stream() {
-        let mut document = Box::new(Xml::default());
+        let mut document = Xml::default();
         document.entry_path = "/html/body/*/a".to_string();
 
         let mut connector = Curl::default();
@@ -1336,7 +1336,7 @@ mod tests {
         let mut connector = stream.next().await.transpose().unwrap().unwrap();
         assert_eq!("/links/1/10", connector.path().as_str());
         let len1 = connector
-            .fetch(document.clone())
+            .fetch(&document)
             .await
             .unwrap()
             .unwrap()
@@ -1347,7 +1347,7 @@ mod tests {
         let mut connector = stream.next().await.transpose().unwrap().unwrap();
         assert_eq!("/links/2/10", connector.path().as_str());
         let len2 = connector
-            .fetch(document)
+            .fetch(&document)
             .await
             .unwrap()
             .unwrap()
@@ -1409,20 +1409,20 @@ mod tests {
             entry_path: "/uuid".to_string(),
             ..Default::default()
         });
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut paginator = connector.paginator().await.unwrap();
-        paginator.set_document(document.clone());
+        paginator.set_document(Box::new(document.clone()));
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();
         assert!(connector.is_some());
-        let mut datastream = connector.unwrap().fetch(document.clone()).await.unwrap().unwrap();
+        let mut datastream = connector.unwrap().fetch(&document).await.unwrap().unwrap();
         let data_1 = datastream.next().await.unwrap();
 
         let connector = stream.next().await.transpose().unwrap();
         assert!(connector.is_some());
-        let mut datastream = connector.unwrap().fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector.unwrap().fetch(&document).await.unwrap().unwrap();
         let data_2 = datastream.next().await.unwrap();
 
         assert!(

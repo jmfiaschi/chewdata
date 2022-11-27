@@ -76,7 +76,7 @@ impl Document for Text {
     /// assert_eq!(r#"My text"#.as_bytes().to_vec(), buffer);
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
         for data in dataset {
             let record = data.to_value();
@@ -104,7 +104,7 @@ mod tests {
     }
     #[test]
     fn write() {
-        let mut document = Text::default();
+        let document = Text::default();
         let dataset = vec![DataResult::Ok(Value::String("My text".to_string()))];
         let buffer = document.write(&dataset).unwrap();
         assert_eq!(r#"My text"#.as_bytes().to_vec(), buffer);

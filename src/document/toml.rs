@@ -105,7 +105,7 @@ impl Document for Toml {
     /// "#.as_bytes().to_vec(), buffer);
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
 
         for data in dataset {
@@ -157,7 +157,7 @@ key_2 = "value_2"
     }
     #[test]
     fn write() {
-        let mut document = Toml::default();
+        let document = Toml::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];

@@ -501,7 +501,7 @@ impl Connector for BucketSelect {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = BucketSelect::default();
     ///     connector.metadata = Metadata {
@@ -511,7 +511,7 @@ impl Connector for BucketSelect {
     ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -521,7 +521,7 @@ impl Connector for BucketSelect {
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self, document: Box<dyn Document>) -> Result<Option<DataStream>> {
+    async fn fetch(&mut self, document: &dyn Document) -> Result<Option<DataStream>> {
         let mut buffer = Vec::default();
         let path = self.path();
 
@@ -571,7 +571,7 @@ impl Connector for BucketSelect {
     #[instrument]
     async fn send(
         &mut self,
-        _document: Box<dyn Document>,
+        _document: &dyn Document,
         _dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         unimplemented!("Can't send data to the remote document. Use the bucket connector instead of this connector")
@@ -749,7 +749,7 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = BucketSelect::default();
         connector.metadata = Metadata {
@@ -759,7 +759,7 @@ mod tests {
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.query = "select * from s3object".to_string();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"

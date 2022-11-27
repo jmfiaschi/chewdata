@@ -270,7 +270,7 @@ impl Connector for Psql {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -283,7 +283,7 @@ impl Connector for Psql {
     ///     )
     ///     .unwrap();
     ///     connector.set_parameters(data);
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         1 == datastream.count().await,
     ///         "The datastream must contain one record"
@@ -293,7 +293,7 @@ impl Connector for Psql {
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self, _document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self, _document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let parameters = self.parameters.clone();
         let (query_sanitized, binding) = match self.query.clone() {
             Some(query) => self.query_sanitized(query, parameters.clone()),
@@ -418,7 +418,7 @@ impl Connector for Psql {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "postgres://admin:admin@localhost:5432".into();
@@ -433,7 +433,7 @@ impl Connector for Psql {
     ///         .unwrap(),
     ///     );
     ///     let dataset = vec![expected_result1.clone()];
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///
     ///     Ok(())
     /// }
@@ -441,7 +441,7 @@ impl Connector for Psql {
     #[instrument(skip(dataset))]
     async fn send(
         &mut self,
-        _document: Box<dyn Document>,
+        _document: &dyn Document,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         let query = match self.query.clone() {
@@ -508,7 +508,7 @@ impl Connector for Psql {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "psql://admin:admin@localhost".into();
@@ -518,11 +518,11 @@ impl Connector for Psql {
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"data":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1];
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///     connector.erase().await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let datastream = connector_read.fetch(document).await.unwrap();
+    ///     let datastream = connector_read.fetch(&document).await.unwrap();
     ///     assert!(datastream.is_none(), "The datastream should be empty");
     ///
     ///     Ok(())
@@ -813,13 +813,13 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Psql::default();
         connector.endpoint = "psql://admin:admin@localhost:5432".into();
         connector.database = "postgres".into();
         connector.collection = "public.read".into();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -827,7 +827,7 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch_with_parameters() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -840,7 +840,7 @@ mod tests {
         )
         .unwrap();
         connector.set_parameters(data);
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             1 == datastream.count().await,
             "The datastream must contain one record"
@@ -848,7 +848,7 @@ mod tests {
     }
     #[async_std::test]
     async fn erase() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Psql::default();
         connector.endpoint = "psql://admin:admin@localhost".into();
@@ -858,16 +858,16 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"data":"value1"}"#).unwrap());
         let dataset = vec![expected_result1];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
         connector.erase().await.unwrap();
 
         let mut connector_read = connector.clone();
-        let datastream = connector_read.fetch(document).await.unwrap();
+        let datastream = connector_read.fetch(&document).await.unwrap();
         assert!(datastream.is_none(), "The datastream should be empty");
     }
     #[async_std::test]
     async fn send_new_data() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost:5432".into();
@@ -888,10 +888,10 @@ mod tests {
             .unwrap(),
         );
         let dataset = vec![expected_result1.clone(), expected_result2.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(
             110,
             datastream
@@ -919,7 +919,7 @@ mod tests {
     }
     #[async_std::test]
     async fn update_existing_data() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -933,7 +933,7 @@ mod tests {
         let dataset = vec![expected_result1.clone()];
         let mut connector_update = connector.clone();
         connector_update
-            .send(document.clone(), &dataset)
+            .send(&document, &dataset)
             .await
             .unwrap();
 
@@ -943,7 +943,7 @@ mod tests {
         let dataset = vec![expected_result2.clone()];
         let mut connector_update = connector.clone();
         connector_update
-            .send(document.clone(), &dataset)
+            .send(&document, &dataset)
             .await
             .unwrap();
 
@@ -954,14 +954,14 @@ mod tests {
         connector_update.set_parameters(data);
         connector_update.query = Some("UPDATE {{ collection }} SET \"group\" = {{ group }}, \"string\" = {{ string }} WHERE \"number\" = {{ number }};".to_string());
         connector_update
-            .send(document.clone(), &dataset)
+            .send(&document, &dataset)
             .await
             .unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.query =
             Some("SELECT * FROM {{ collection }} ORDER BY \"number\" ASC;".to_string());
-        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(
             "value3",
             datastream
@@ -989,7 +989,7 @@ mod tests {
     }
     #[async_std::test]
     async fn upsert() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -1006,7 +1006,7 @@ mod tests {
         let dataset = vec![expected_result1.clone()];
         let mut connector_update = connector.clone();
         connector_update
-            .send(document.clone(), &dataset)
+            .send(&document, &dataset)
             .await
             .unwrap();
 
@@ -1016,7 +1016,7 @@ mod tests {
         let dataset = vec![expected_result2.clone()];
         let mut connector_update = connector.clone();
         connector_update
-            .send(document.clone(), &dataset)
+            .send(&document, &dataset)
             .await
             .unwrap();
 
@@ -1027,14 +1027,14 @@ mod tests {
         connector_update.set_parameters(data);
         connector_update.query = Some("INSERT INTO {{ collection }} (\"group\",\"string\",\"number\") VALUES ({{ group }},{{ string }},{{ number }}) ON CONFLICT (\"number\") DO UPDATE SET \"group\"=excluded.group,\"string\"=excluded.string;".to_string());
         connector_update
-            .send(document.clone(), &dataset)
+            .send(&document, &dataset)
             .await
             .unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.query =
             Some("SELECT * FROM {{ collection }} ORDER BY \"number\" ASC;".to_string());
-        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(
             "value3",
             datastream
@@ -1062,7 +1062,7 @@ mod tests {
     }
     #[async_std::test]
     async fn sql_injection() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -1073,7 +1073,7 @@ mod tests {
         let data: Value =
             serde_json::from_str(r#"{"number":1,"string":"value' OR 1=1;--"}"#).unwrap();
         connector.set_parameters(data);
-        let datastream = connector.fetch(document).await.unwrap();
+        let datastream = connector.fetch(&document).await.unwrap();
         assert!(datastream.is_none(), "The sql injection return no data");
     }
     #[async_std::test]
@@ -1097,7 +1097,7 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_offset_count_with_skip_and_limit() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -1113,11 +1113,11 @@ mod tests {
         let mut paginate = paginator.stream().await.unwrap();
         let mut connector = paginate.next().await.transpose().unwrap().unwrap();
 
-        let mut datastream = connector.fetch(document.clone()).await.unwrap().unwrap();
+        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
         let data_1 = datastream.next().await.unwrap();
 
         let mut connector = paginate.next().await.transpose().unwrap().unwrap();
-        let mut datastream = connector.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
         let data_2 = datastream.next().await.unwrap();
         assert!(
             data_1 != data_2,
