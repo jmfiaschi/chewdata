@@ -1,6 +1,6 @@
 use super::authenticator::AuthenticatorType;
 use super::{Connector, Paginator};
-use crate::document::Document;
+use crate::document::{Document, DocumentType};
 use crate::helper::mustache::Mustache;
 use crate::{DataSet, DataStream, Metadata};
 use async_stream::stream;
@@ -921,8 +921,9 @@ impl Paginator for OffsetPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let mut paginator = self.clone();
         let connector = match self.connector.clone() {
             Some(connector) => Ok(connector),
             None => Err(Error::new(
@@ -932,12 +933,12 @@ impl Paginator for OffsetPaginator {
         }?;
 
         let mut has_next = true;
-        let limit = self.limit;
-        let mut skip = self.skip;
+        let limit = paginator.limit;
+        let mut skip = paginator.skip;
 
-        let count_opt = match self.count {
+        let count_opt = match paginator.count {
             Some(count) => Some(count),
-            None => self.count().await?,
+            None => paginator.count().await?,
         };
 
         let stream = Box::pin(stream! {
@@ -981,8 +982,9 @@ pub struct CursorPaginator {
     pub limit: usize,
     // The entry path to catch the value in the body
     pub entry_path: String,
-    #[serde(skip)]
-    pub document: Option<Box<dyn Document>>,
+    #[serde(rename = "document")]
+    #[serde(alias = "doc")]
+    pub document_type: DocumentType,
     #[serde(skip)]
     pub connector: Option<Box<Curl>>,
     #[serde(rename="next")]
@@ -994,7 +996,7 @@ impl Default for CursorPaginator {
         CursorPaginator {
             limit: 100,
             connector: None,
-            document: None,
+            document_type: DocumentType::default(),
             next_token: None,
             entry_path: "/next".to_string(),
         }
@@ -1017,17 +1019,13 @@ impl Paginator for CursorPaginator {
     async fn count(&mut self) -> Result<Option<usize>> {
         Ok(None)
     }
-    /// See [`Paginator::set_document`] for more details.
-    fn set_document(&mut self, document: Box<dyn Document>) {
-        self.document = Some(document);
-    }
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// use chewdata::connector::{curl::{Curl, PaginatorType, CursorPaginator}, Connector};
-    /// use chewdata::document::json::Json;
+    /// use chewdata::document::{DocumentType, json::Json};
     /// use surf::http::Method;
     /// use async_std::prelude::*;
     /// use std::io;
@@ -1041,10 +1039,10 @@ impl Paginator for CursorPaginator {
     ///     connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
     ///         limit: 1,
     ///         entry_path: "/uuid".to_string(),
+    ///         document_type: DocumentType::default(),
     ///         ..Default::default()
     ///     });
-    ///     let mut paginator = connector.paginator().await?;
-    ///     paginator.set_document(Box::new(Json::default()));
+    ///     let paginator = connector.paginator().await?;
     ///     let mut stream = paginator.stream().await?;
     ///     assert!(stream.next().await.transpose()?.is_some());
     ///     assert!(stream.next().await.transpose()?.is_some());
@@ -1054,7 +1052,7 @@ impl Paginator for CursorPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let connector = match self.connector.clone() {
             Some(connector) => Ok(connector),
@@ -1064,14 +1062,7 @@ impl Paginator for CursorPaginator {
             )),
         }?;
 
-        let mut document = match self.document.clone() {
-            Some(document) => Ok(document),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't paginate without a document",
-            )),
-        }?;
-
+        let mut document = self.document_type.clone().boxed_inner();
         let mut has_next = true;
         let limit = self.limit;
         let entry_path = self.entry_path.clone();
@@ -1329,7 +1320,7 @@ mod tests {
             limit: 1,
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
 
@@ -1366,7 +1357,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/get".to_string();
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();
@@ -1386,7 +1377,7 @@ mod tests {
             count: Some(3),
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();
@@ -1407,12 +1398,13 @@ mod tests {
         connector.paginator_type = PaginatorType::Cursor(CursorPaginator {
             limit: 1,
             entry_path: "/uuid".to_string(),
+            document_type: DocumentType::default(),
             ..Default::default()
         });
+
         let document = Json::default();
 
-        let mut paginator = connector.paginator().await.unwrap();
-        paginator.set_document(Box::new(document.clone()));
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();

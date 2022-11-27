@@ -617,9 +617,10 @@ impl Paginator for OffsetPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = match self.connector.clone() {
+        let mut paginator = self.clone();
+        let connector = match paginator.connector.clone() {
             Some(connector) => Ok(connector),
             None => Err(Error::new(
                 ErrorKind::Interrupted,
@@ -631,9 +632,9 @@ impl Paginator for OffsetPaginator {
         let limit = self.limit;
         let mut skip = self.skip;
 
-        let count_opt = match self.count {
+        let count_opt = match paginator.count {
             Some(count) => Some(count),
-            None => self.count().await?,
+            None => paginator.count().await?,
         };
 
         let stream = Box::pin(stream! {
@@ -701,8 +702,6 @@ impl Paginator for CursorPaginator {
     async fn count(&mut self) -> Result<Option<usize>> {
         Ok(None)
     }
-    /// See [`Paginator::set_document`] for more details.
-    fn set_document(&mut self, _document: Box<dyn ChewdataDocument>) {}
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples
@@ -732,7 +731,7 @@ impl Paginator for CursorPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let connector = match self.connector.clone() {
             Some(connector) => Ok(connector),
@@ -1005,7 +1004,7 @@ mod tests {
             limit: 1,
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut paginate = paginator.stream().await.unwrap();
         let mut connector = paginate.next().await.transpose().unwrap().unwrap();
@@ -1032,7 +1031,7 @@ mod tests {
             limit: 1,
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();
@@ -1050,7 +1049,7 @@ mod tests {
             skip: 0,
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();

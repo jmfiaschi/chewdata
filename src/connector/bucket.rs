@@ -744,7 +744,7 @@ impl Paginator for BucketPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let connector = self.connector.clone();
         let mut paths = self.paths.clone();
@@ -889,7 +889,7 @@ mod tests {
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert!(
@@ -907,7 +907,7 @@ mod tests {
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert!(
@@ -927,7 +927,7 @@ mod tests {
         connector.path = "data/*.json*".to_string();
         connector.limit = Some(5);
         connector.skip = 2;
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert_eq!(

@@ -160,7 +160,7 @@ impl Paginator for IoPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let new_connector = self.connector.clone();
         let stream = Box::pin(stream! {
@@ -185,7 +185,7 @@ mod tests {
     #[async_std::test]
     async fn paginator_stream() {
         let connector = Io::default();
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert!(

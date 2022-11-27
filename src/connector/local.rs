@@ -511,7 +511,7 @@ impl Paginator for LocalPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let connector = self.connector.clone();
         let mut paths = self.paths.clone();
@@ -651,7 +651,7 @@ mod tests {
     async fn paginator_header_counter_count() {
         let mut connector = Local::default();
         connector.path = "./data/one_line.*".to_string();
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
 
         let mut stream = paginator.stream().await.unwrap();
