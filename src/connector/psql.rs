@@ -745,9 +745,10 @@ impl Paginator for OffsetPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = match self.connector.clone() {
+        let mut paginator = self.clone();
+        let connector = match paginator.connector.clone() {
             Some(connector) => Ok(connector),
             None => Err(Error::new(
                 ErrorKind::Interrupted,
@@ -756,15 +757,15 @@ impl Paginator for OffsetPaginator {
         }?;
 
         let mut has_next = true;
-        let limit = self.limit;
-        let mut skip = self.skip;
+        let limit = paginator.limit;
+        let mut skip = paginator.skip;
         let query = connector
             .query
             .clone()
             .unwrap_or_else(|| "SELECT * FROM {{ collection }}".to_string());
-        let count_opt = match self.count {
+        let count_opt = match paginator.count {
             Some(count) => Some(count),
-            None => self.count().await?,
+            None => paginator.count().await?,
         };
 
         let stream = Box::pin(stream! {
@@ -1108,7 +1109,7 @@ mod tests {
             limit: 1,
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut paginate = paginator.stream().await.unwrap();
         let mut connector = paginate.next().await.transpose().unwrap().unwrap();

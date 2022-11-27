@@ -169,7 +169,7 @@ async fn exec_connector<'step>(
     context: &'step Option<StepContext>,
 ) -> io::Result<()> {
     // todo: remove paginator mutability
-    let mut paginator = connector.paginator().await?;
+    let paginator = connector.paginator().await?;
     let mut stream = paginator.stream().await?;
 
     match paginator.is_parallelizable() {

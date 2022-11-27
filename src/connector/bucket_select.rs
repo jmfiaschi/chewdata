@@ -652,7 +652,7 @@ impl Paginator for BucketSelectPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let connector = self.connector.clone();
         let mut paths = self.paths.clone();
@@ -953,7 +953,7 @@ mod tests {
             ..Json::default().metadata
         };
 
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
 
         let mut stream = paginator.stream().await.unwrap();
@@ -979,7 +979,7 @@ mod tests {
             ..Json::default().metadata
         };
 
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
 
