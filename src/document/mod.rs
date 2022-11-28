@@ -28,7 +28,7 @@ use crate::DataSet;
 use serde::{Deserialize, Serialize};
 use std::io;
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(tag = "type")]
 pub enum DocumentType {
     #[cfg(feature = "csv")]

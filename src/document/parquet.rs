@@ -14,7 +14,7 @@ use serde_json::Value;
 use std::io;
 use std::sync::Arc;
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Parquet {
     #[serde(rename = "metadata")]
@@ -26,7 +26,7 @@ pub struct Parquet {
     pub options: Option<ParquetOptions>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ParquetOptions {
     version: Option<usize>,

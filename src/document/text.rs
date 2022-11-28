@@ -7,7 +7,7 @@ use std::io;
 
 const DEFAULT_TERMINATOR: &str = "\n";
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Text {
     #[serde(rename = "metadata")]
