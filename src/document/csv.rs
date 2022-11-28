@@ -140,7 +140,7 @@ impl Csv {
         builder
     }
     /// Read csv data with header.
-    fn read_with_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<DataSet> {
+    fn read_with_header(reader: csv::Reader<io::Cursor<&[u8]>>) -> io::Result<DataSet> {
         Ok(reader
             .into_deserialize::<Map<String, Value>>()
             .into_iter()
@@ -163,7 +163,7 @@ impl Csv {
             .collect())
     }
     /// Read csv data without header.
-    fn read_without_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<DataSet> {
+    fn read_without_header(reader: csv::Reader<io::Cursor<&[u8]>>) -> io::Result<DataSet> {
         Ok(reader
             .into_records()
             .into_iter()
@@ -246,10 +246,10 @@ impl Document for Csv {
     /// assert_eq!(expected_data_2, data_2);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let builder_reader = self
             .reader_builder()
-            .from_reader(io::Cursor::new(buffer.clone()));
+            .from_reader(io::Cursor::new(buffer));
         match self.metadata().has_headers {
             Some(false) => Csv::read_without_header(builder_reader),
             _ => Csv::read_with_header(builder_reader),

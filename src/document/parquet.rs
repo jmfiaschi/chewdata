@@ -118,10 +118,11 @@ impl Document for Parquet {
     /// assert_eq!(expected_data, data);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
+        let bytes = Bytes::copy_from_slice(buffer);
         let entry_path_option = self.entry_path.clone();
-        let read_from_cursor = SerializedFileReader::new(Bytes::from(buffer.clone()))
+        let read_from_cursor = SerializedFileReader::new(bytes)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
         let rows = read_from_cursor

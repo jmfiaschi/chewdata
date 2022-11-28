@@ -65,7 +65,7 @@ impl Document for Yaml {
     /// assert_eq!(expected_data, data);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
 
         for document in serde_yaml::Deserializer::from_slice(buffer) {

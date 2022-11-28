@@ -56,7 +56,7 @@ impl Document for Toml {
     /// assert_eq!(expected_data, data);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let record: Value = toml::from_slice(buffer)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 

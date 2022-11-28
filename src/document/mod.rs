@@ -151,7 +151,7 @@ pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
     /// For example, in json, the entry path for `{"field1":{"sub_field1":10}}` will be `/field1/sub_field1`
     fn set_entry_path(&mut self, _entry_point: String) {}
     /// Read buffer of bytes and transform it into dataset
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet>;
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet>;
     /// Write dataset into a buffer of bytes
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>>;
 }
