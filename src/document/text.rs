@@ -49,9 +49,9 @@ impl Document for Text {
     /// assert_eq!(r#"My text1 \n My text 2"#, data);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let record = Value::String(
-            String::from_utf8(buffer.clone())
+            String::from_utf8(buffer.to_vec())
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         );
         trace!(

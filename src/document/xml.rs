@@ -179,7 +179,7 @@ impl Document for Xml {
     /// assert_eq!(expected_data_2, data_2);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
         let entry_path = self.entry_path.clone();
         let str = std::str::from_utf8(buffer)

@@ -71,7 +71,7 @@ impl Document for Json {
     /// assert_eq!(expected_data, data);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let deserializer = serde_json::Deserializer::from_reader(io::Cursor::new(buffer));
         let iterator = deserializer.into_iter::<Value>();
         let entry_path_option = self.entry_path.clone();
