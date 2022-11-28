@@ -7,7 +7,7 @@ use std::{fmt, io};
 
 const DEFAULT_SUBTYPE: &str = "x-yaml";
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Yaml {
     #[serde(rename = "metadata")]

@@ -8,7 +8,7 @@ use std::io;
 const DEFAULT_SUBTYPE: &str = "toml";
 const DEFAULT_TERMINATOR: &str = "---";
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Toml {
     #[serde(rename = "metadata")]

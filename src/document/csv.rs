@@ -18,7 +18,7 @@ const DEFAULT_QUOTE_STYLE: &str = "NOT_NUMERIC";
 const DEFAULT_IS_FLEXIBLE: bool = true;
 const DEFAULT_TRIM: &str = "ALL";
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Csv {
     #[serde(rename = "metadata")]
@@ -409,8 +409,8 @@ fn insert_object(
     }
 }
 
-fn insert_array(base_json: &mut Map<String, Value>, base_key: Option<&str>, array: &Vec<Value>) {
-    for (key, value) in array.into_iter().enumerate() {
+fn insert_array(base_json: &mut Map<String, Value>, base_key: Option<&str>, array: &[Value]) {
+    for (key, value) in array.iter().enumerate() {
         let new_key = base_key.map_or_else(
             || key.clone().to_string(),
             |base_key| format!("{base_key}.{key}"),
