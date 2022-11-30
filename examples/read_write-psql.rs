@@ -96,7 +96,13 @@ async fn main() -> io::Result<()> {
                     "type": "psql",
                     "endpoint": "{{ PSQL_ENDPOINT }}",
                     "db": "{{ PSQL_DB }}",
-                    "collection": "examples.simple_insert"
+                    "collection": "examples.simple_insert",
+                    "query": "SELECT * FROM {{ collection }} WHERE number IN (10,20)",
+                    "paginator": {
+                        "type": "offset",
+                        "limit": 1,
+                        "skip": 1
+                    }
                 }
             },{
                 "type": "w"
