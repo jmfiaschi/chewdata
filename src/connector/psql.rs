@@ -103,7 +103,7 @@ impl Psql {
         );
         query_sanitized.replace_mustache(Value::Object(map));
 
-        for captured in regex.captures_iter(query.as_ref()) {
+        for captured in regex.captures_iter(query_sanitized.clone().as_ref()) {
             let pattern_captured = captured[0].to_string();
             let value_captured = captured[1].trim().to_string();
             let json_pointer = value_captured.to_string().to_json_pointer();
@@ -852,7 +852,7 @@ mod tests {
         connector.database = "postgres".into();
         connector.collection = "public.read".into();
         connector.query =
-            Some("SELECT * FROM {{ collection }} WHERE \"number\" = {{ number }} AND \"string\" = {{ string }} AND \"boolean\" = {{ boolean }} AND \"null\" = {{ null }} AND \"array\" = {{ array }} AND \"object\" = {{ object }} AND \"date\" = {{ date }} AND \"round\" = {{ round }};".to_string());
+            Some("SELECT * FROM {{ collection }} WHERE \"number\" = {{ number }} AND \"string\" = {{ string }} AND \"boolean\" = {{ boolean }} AND \"null\" = {{ null }} AND \"array\" = {{ array }} AND \"object\" = {{ object }} AND \"date\" = {{ date }} AND \"round\" = {{ round }}".to_string());
         let data: Value = serde_json::from_str(
             r#"{"number":1,"group":1,"string":"value to test 5416","boolean":false,"null":null,"array":[1,2],"object":{"field":"value"},"date":"2019-12-31T00:00:00.000Z","round":10.156}"#,
         )
@@ -970,7 +970,7 @@ mod tests {
         let dataset = vec![DataResult::Ok(data.clone())];
         let mut connector_update = connector.clone();
         connector_update.set_parameters(data);
-        connector_update.query = Some("UPDATE {{ collection }} SET \"group\" = {{ group }}, \"string\" = {{ string }} WHERE \"number\" = {{ number }};".to_string());
+        connector_update.query = Some("UPDATE {{ collection }} SET \"group\" = {{ group }}, \"string\" = {{ string }} WHERE \"number\" = {{ number }}".to_string());
         connector_update
             .send(&document, &dataset)
             .await
@@ -978,7 +978,7 @@ mod tests {
 
         let mut connector_read = connector.clone();
         connector_read.query =
-            Some("SELECT * FROM {{ collection }} ORDER BY \"number\" ASC;".to_string());
+            Some("SELECT * FROM {{ collection }} ORDER BY \"number\" ASC".to_string());
         let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(
             "value3",
@@ -1043,7 +1043,7 @@ mod tests {
         let dataset = vec![DataResult::Ok(data.clone())];
         let mut connector_update = connector.clone();
         connector_update.set_parameters(data);
-        connector_update.query = Some("INSERT INTO {{ collection }} (\"group\",\"string\",\"number\") VALUES ({{ group }},{{ string }},{{ number }}) ON CONFLICT (\"number\") DO UPDATE SET \"group\"=excluded.group,\"string\"=excluded.string;".to_string());
+        connector_update.query = Some("INSERT INTO {{ collection }} (\"group\",\"string\",\"number\") VALUES ({{ group }},{{ string }},{{ number }}) ON CONFLICT (\"number\") DO UPDATE SET \"group\"=excluded.group,\"string\"=excluded.string".to_string());
         connector_update
             .send(&document, &dataset)
             .await
@@ -1051,7 +1051,7 @@ mod tests {
 
         let mut connector_read = connector.clone();
         connector_read.query =
-            Some("SELECT * FROM {{ collection }} ORDER BY \"number\" ASC;".to_string());
+            Some("SELECT * FROM {{ collection }} ORDER BY \"number\" ASC".to_string());
         let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(
             "value3",
@@ -1087,7 +1087,7 @@ mod tests {
         connector.database = "postgres".into();
         connector.collection = "public.send_with_key".into();
         connector.query =
-            Some("SELECT * FROM {{ collection }} WHERE \"number\" = {{ number }} AND \"string\" = {{ string }};".to_string());
+            Some("SELECT * FROM {{ collection }} WHERE \"number\" = {{ number }} AND \"string\" = {{ string }}".to_string());
         let data: Value =
             serde_json::from_str(r#"{"number":1,"string":"value' OR 1=1;--"}"#).unwrap();
         connector.set_parameters(data);
