@@ -136,9 +136,20 @@ impl Psql {
                     query_binding.add("NULL");
                 }
                 Some(Value::String(string)) => {
+                    let mut is_query_binded = false;
+                    if let Ok(date) = string.parse::<NaiveDate>() {
+                        query_binding.add(date);
+                        is_query_binded = true;
+                    }
+                    if let Ok(date) = string.parse::<NaiveDateTime>() {
+                        query_binding.add(date);
+                        is_query_binded = true;
+                    }
                     if let Ok(date) = string.parse::<DateTime<Utc>>() {
                         query_binding.add(date);
-                    } else {
+                        is_query_binded = true;
+                    }
+                    if !is_query_binded {
                         query_binding.add(string);
                     }
                 }
@@ -151,9 +162,15 @@ impl Psql {
                         query_binding.add(number.as_u64().unwrap_or_default() as i64);
                     }
                 }
-                Some(Value::Bool(boolean)) => query_binding.add(boolean),
-                Some(Value::Array(vec)) => query_binding.add(Value::Array(vec.clone())),
-                Some(Value::Object(map)) => query_binding.add(Value::Object(map.clone())),
+                Some(Value::Bool(boolean)) => {
+                    query_binding.add(boolean);
+                },
+                Some(Value::Array(vec)) => {
+                    query_binding.add(Value::Array(vec.clone()));
+                },
+                Some(Value::Object(map)) => {
+                    query_binding.add(Value::Object(map.clone()));
+                },
                 None => {
                     warn!(
                         pattern = pattern_captured.as_str(),
