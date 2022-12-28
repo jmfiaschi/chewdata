@@ -2,7 +2,7 @@ include .env
 export $(shell sed "s/=.*//" .env)
 
 .SILENT:
-.PHONY: build exec test bench help minio minio-install httpbin clean docs debug
+.PHONY: build exec test bench help minio minio-install httpbin clean docs debug keycloak
 
 debug:
 	@rustup -V
@@ -109,10 +109,15 @@ adminer:
 	echo "${YELLOW}Host: http://localhost:8081${NC}"
 	@docker-compose up -d adminer
 
+keycloak:
+	echo "${BLUE}Run keycloak${NC}"
+	echo "${YELLOW}Host: http://localhost:8083${NC}"
+	@docker-compose up -d keycloak
+
 semantic-release:
 	@npx semantic-release
 
-start: debug minio minio\:install httpbin mongo adminer
+start: debug minio minio\:install httpbin mongo adminer keycloak
 
 stop:
 	@docker-compose down
