@@ -59,7 +59,7 @@ impl fmt::Debug for Jwt {
             .field("format", &self.format)
             .field("key", &obfuscate_key)
             .field("payload", &self.payload)
-            .field("token", &obfuscate_token)
+            .field("token_value", &obfuscate_token)
             .finish()
     }
 }
