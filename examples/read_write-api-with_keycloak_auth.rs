@@ -34,7 +34,7 @@ async fn main() -> io::Result<()> {
             "method": "get",
             "auth": {
                 "type": "jwt",
-                "refresh_connector": {
+                "connector": {
                     "type": "curl",
                     "endpoint": "http://localhost:8083/auth/realms/test/protocol/openid-connect",
                     "path": "/token",
@@ -57,7 +57,7 @@ async fn main() -> io::Result<()> {
                 },
                 "format": "rsa_components",
                 "payload": "client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password",
-                "refresh_document": {
+                "document": {
                     "metadata": {
                         "mime_type": "application",
                         "mime_subtype": "x-www-form-urlencoded"
