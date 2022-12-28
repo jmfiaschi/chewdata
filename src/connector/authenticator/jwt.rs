@@ -19,13 +19,14 @@ pub struct Jwt {
     pub algorithm: Algorithm,
     pub refresh_connector: Option<Box<ConnectorType>>,
     pub refresh_document: Box<Jsonl>,
-    #[serde(alias = "refresh_token")]
-    pub refresh_token_name: String,
     pub jwk: Option<Value>,
     pub format: Format,
     pub key: String,
     pub payload: Box<Value>,
-    pub token: Option<String>,
+    #[serde(alias = "token_field_name")]
+    pub token_name: String,
+    #[serde(alias = "token")]
+    pub token_value: Option<String>,
 }
 
 impl fmt::Debug for Jwt {
@@ -39,7 +40,7 @@ impl fmt::Debug for Jwt {
                 .as_str(),
         );
 
-        let mut obfuscate_token = self.token.clone().unwrap_or_default();
+        let mut obfuscate_token = self.token_value.clone().unwrap_or_default();
         obfuscate_token.replace_range(
             0..(obfuscate_token.len() / 2),
             (0..(obfuscate_token.len() / 2))
@@ -52,7 +53,7 @@ impl fmt::Debug for Jwt {
             .field("algorithm", &self.algorithm)
             .field("refresh_connector", &self.refresh_connector)
             .field("refresh_document", &self.refresh_document)
-            .field("refresh_token_name", &self.refresh_token_name)
+            .field("token_name", &self.token_name)
             .field("jwk", &self.jwk)
             .field("format", &self.format)
             .field("key", &obfuscate_key)
@@ -87,12 +88,12 @@ impl Default for Jwt {
             algorithm: Algorithm::HS256,
             refresh_connector: None,
             refresh_document: Box::new(Jsonl::default()),
-            refresh_token_name: "token".to_string(),
             jwk: None,
             format: Format::Secret,
             key: "".to_string(),
             payload: Box::new(Value::Null),
-            token: None,
+            token_name: "token".to_string(),
+            token_value: None,
         }
     }
 }
@@ -105,15 +106,15 @@ impl Jwt {
     /// ```no_run
     /// use chewdata::connector::authenticator::jwt::Jwt;
     ///
-    /// let token = "jwt".to_string();
+    /// let token_value = "jwt".to_string();
     ///
-    /// let mut auth = Jwt::new(token.clone());
+    /// let mut auth = Jwt::new(token_value.clone());
     ///
-    /// assert_eq!(token, auth.token.unwrap());
+    /// assert_eq!(token_value, auth.token_value.unwrap());
     /// ```
-    pub fn new(token: String) -> Self {
+    pub fn new(token_value: String) -> Self {
         Jwt {
-            token: Some(token),
+            token_value: Some(token_value),
             ..Default::default()
         }
     }
@@ -143,7 +144,7 @@ impl Jwt {
     ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///    ).unwrap();
     ///    auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-    ///    auth.refresh_token_name = "token".to_string();
+    ///    auth.token_name = "token".to_string();
     ///    auth.refresh_document.metadata = Metadata {
     ///        mime_type: Some("application".to_string()),
     ///        mime_subtype: Some("json".to_string()),
@@ -152,7 +153,7 @@ impl Jwt {
     ///    auth.refresh(Value::Null).await.unwrap();
     ///
     ///    assert!(
-    ///        10 < auth.token.unwrap().len(),
+    ///        10 < auth.token_value.unwrap().len(),
     ///        "The token should be refresh"
     ///    );
     ///
@@ -202,10 +203,10 @@ impl Jwt {
             }
         };
 
-        match payload.get(self.refresh_token_name.clone()) {
-            Some(Value::String(token)) => {
-                info!(token = token.as_str(), "JWT refreshed with success");
-                self.token = Some(token.clone());
+        match payload.get(self.token_name.clone()) {
+            Some(Value::String(token_value)) => {
+                info!(token_value = token_value.as_str(), "JWT refreshed with success");
+                self.token_value = Some(token_value.clone());
                 Ok(())
             }
             _ => Err(Error::new(
@@ -218,26 +219,26 @@ impl Jwt {
     }
     pub fn decode(
         &self,
-        token: &str,
+        token_value: &str,
     ) -> jsonwebtoken::errors::Result<jsonwebtoken::TokenData<Value>> {
         match self.format.clone() {
             Format::Secret => decode::<Value>(
-                token,
+                token_value,
                 &DecodingKey::from_secret(self.key.as_ref()),
                 &Validation::new(self.algorithm),
             ),
             Format::Base64Secret => decode::<Value>(
-                token,
+                token_value,
                 &DecodingKey::from_base64_secret(self.key.as_ref())?,
                 &Validation::new(self.algorithm),
             ),
             Format::RsaPem => decode::<Value>(
-                token,
+                token_value,
                 &DecodingKey::from_rsa_pem(self.key.as_ref())?,
                 &Validation::new(self.algorithm),
             ),
             Format::RsaDer => decode::<Value>(
-                token,
+                token_value,
                 &DecodingKey::from_rsa_der(self.key.as_ref()),
                 &Validation::new(self.algorithm),
             ),
@@ -253,18 +254,18 @@ impl Jwt {
                     })
                 });
                 decode::<Value>(
-                    token,
+                    token_value,
                     &DecodingKey::from_rsa_components(modulus.as_str(), exponent.as_str())?,
                     &Validation::new(self.algorithm),
                 )
             }
             Format::EcDer => decode::<Value>(
-                token,
+                token_value,
                 &DecodingKey::from_ec_der(self.key.as_ref()),
                 &Validation::new(self.algorithm),
             ),
             Format::EcPem => decode::<Value>(
-                token,
+                token_value,
                 &DecodingKey::from_ec_pem(self.key.as_ref())?,
                 &Validation::new(self.algorithm),
             ),
@@ -302,7 +303,7 @@ impl Authenticator for Jwt {
     ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///     ).unwrap();
     ///     auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-    ///     auth.refresh_token_name = "token".to_string();
+    ///     auth.token_name = "token".to_string();
     ///     auth.refresh_document.metadata = Metadata {
     ///         mime_type: Some("application".to_string()),
     ///         mime_subtype: Some("json".to_string()),
@@ -323,23 +324,23 @@ impl Authenticator for Jwt {
     /// ```
     #[instrument]
     async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)> {
-        let mut token_option = self.token.clone();
+        let mut token_option = self.token_value.clone();
 
         if let (None, Some(_)) = (token_option.clone(), self.refresh_connector.clone()) {
             self.refresh(parameters.clone()).await?;
-            token_option = self.token.clone();
+            token_option = self.token_value.clone();
         }
 
-        if let Some(token) = token_option.clone() {
-            if token.has_mustache() {
-                let mut token = token;
-                token.replace_mustache(parameters.clone());
-                token_option = Some(token);
+        if let Some(token_value) = token_option.clone() {
+            if token_value.has_mustache() {
+                let mut token_value = token_value;
+                token_value.replace_mustache(parameters.clone());
+                token_option = Some(token_value);
             }
         }
 
-        if let (Some(token), Some(_)) = (token_option.clone(), self.refresh_connector.clone()) {
-            match self.decode(token.as_ref()) {
+        if let (Some(token_value), Some(_)) = (token_option.clone(), self.refresh_connector.clone()) {
+            match self.decode(token_value.as_ref()) {
                 Ok(jwt_payload) => {
                     let mut claim_payload =
                         self.payload.get("claims").unwrap_or(&Value::Null).clone();
@@ -349,17 +350,17 @@ impl Authenticator for Jwt {
                     }
 
                     if !claim_payload.eq(&jwt_payload.claims) {
-                        token_option = self.token.clone();
+                        token_option = self.token_value.clone();
                     }
                 }
                 Err(e) => {
                     match e.kind() {
                         jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
                             self.refresh(parameters).await?;
-                            token_option = self.token.clone();
+                            token_option = self.token_value.clone();
                         }
                         _ => {
-                            self.token = None;
+                            self.token_value = None;
                             warn!(
                                 error = e.to_string().as_str(),
                                 "Can't decode the Java Web Token"
@@ -372,8 +373,8 @@ impl Authenticator for Jwt {
         }
 
         Ok(match token_option {
-            Some(token) => {
-                let bearer = base64::encode(token);
+            Some(token_value) => {
+                let bearer = base64::encode(token_value);
                 (
                     headers::AUTHORIZATION.to_string().into_bytes(),
                     format!("Bearer {}", bearer).into_bytes(),
@@ -401,9 +402,9 @@ mod tests {
 
     #[test]
     fn new() {
-        let token = "jwt".to_string();
-        let auth = Jwt::new(token.clone());
-        assert_eq!(token, auth.token.unwrap());
+        let token_value = "jwt".to_string();
+        let auth = Jwt::new(token_value.clone());
+        assert_eq!(token_value, auth.token_value.unwrap());
     }
     #[async_std::test]
     async fn refresh_with_jwt_builder() {
@@ -418,7 +419,7 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token_name = "token".to_string();
+        auth.token_name = "token".to_string();
         auth.refresh_document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),
@@ -427,7 +428,7 @@ mod tests {
         auth.refresh(Value::Null).await.unwrap();
 
         assert!(
-            10 < auth.token.unwrap().len(),
+            10 < auth.token_value.unwrap().len(),
             "The token should be refresh"
         );
     }
@@ -442,7 +443,7 @@ mod tests {
         let mut auth = Jwt::default();
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
         auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token_name = "access_token".to_string();
+        auth.token_name = "access_token".to_string();
         auth.refresh_document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
@@ -451,7 +452,7 @@ mod tests {
         auth.refresh(Value::Null).await.unwrap();
 
         assert!(
-            10 < auth.token.unwrap().len(),
+            10 < auth.token_value.unwrap().len(),
             "The token should be refresh"
         );
     }
@@ -468,7 +469,7 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token_name = "token".to_string();
+        auth.token_name = "token".to_string();
         auth.refresh_document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),
@@ -505,7 +506,7 @@ mod tests {
         auth.jwk = Some(jwk);
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
         auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token_name = "access_token".to_string();
+        auth.token_name = "access_token".to_string();
         auth.refresh_document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
@@ -531,7 +532,7 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token_name = "token".to_string();
+        auth.token_name = "token".to_string();
         auth.refresh_document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),

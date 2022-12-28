@@ -40,7 +40,7 @@ async fn main() -> io::Result<()> {
                     "path": "/token",
                     "method": "post"
                 },
-                "refresh_token_name":"access_token",
+                "token_name":"access_token",
                 "algorithm":"RS256",
                 "jwk": {
                     "kid": "jPc8FWeTOrgybc2_xBrShjNYUE5kiKTvpwSlNrNGUFA",

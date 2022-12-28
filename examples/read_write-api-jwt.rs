@@ -40,7 +40,7 @@ async fn main() -> io::Result<()> {
                     "path": "/tokens",
                     "method": "post"
                 },
-                "refresh_token":"token",
+                "token_name":"token",
                 "key": "my_key",
                 "payload": {
                     "alg":"HS256",
