@@ -122,11 +122,8 @@ impl BucketSelect {
             env::set_var("AWS_SECRET_ACCESS_KEY", secret);
         }
         let provider = CredentialsProviderChain::default_provider().await;
-        let endpoint = Endpoint::immutable(
-            self.endpoint
-                .parse()
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
-        );
+        let endpoint = Endpoint::immutable(&self.endpoint)
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
         let config = aws_config::from_env()
             .endpoint_resolver(endpoint)
             .region(Region::new(self.region.clone()))
