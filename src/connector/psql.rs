@@ -92,7 +92,7 @@ impl Psql {
         let mut map = Map::default();
         let regex = regex::Regex::new("\\{{2}([^}]*)\\}{2}")
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-        let mut query_sanitized = query.clone();
+        let mut query_sanitized = query;
         let mut query_binding: PgArguments = Default::default();
         let mut count = 1;
 
