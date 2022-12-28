@@ -19,7 +19,8 @@ pub struct Jwt {
     pub algorithm: Algorithm,
     pub refresh_connector: Option<Box<ConnectorType>>,
     pub refresh_document: Box<Jsonl>,
-    pub refresh_token: String,
+    #[serde(alias = "refresh_token")]
+    pub refresh_token_name: String,
     pub jwk: Option<Value>,
     pub format: Format,
     pub key: String,
@@ -29,15 +30,6 @@ pub struct Jwt {
 
 impl fmt::Debug for Jwt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut obfuscate_refresh_token = self.refresh_token.clone();
-        obfuscate_refresh_token.replace_range(
-            0..(obfuscate_refresh_token.len() / 2),
-            (0..(obfuscate_refresh_token.len() / 2))
-                .map(|_| "#")
-                .collect::<String>()
-                .as_str(),
-        );
-
         let mut obfuscate_key = self.key.clone();
         obfuscate_key.replace_range(
             0..(obfuscate_key.len() / 2),
@@ -60,7 +52,7 @@ impl fmt::Debug for Jwt {
             .field("algorithm", &self.algorithm)
             .field("refresh_connector", &self.refresh_connector)
             .field("refresh_document", &self.refresh_document)
-            .field("refresh_token", &obfuscate_refresh_token)
+            .field("refresh_token_name", &self.refresh_token_name)
             .field("jwk", &self.jwk)
             .field("format", &self.format)
             .field("key", &obfuscate_key)
@@ -95,7 +87,7 @@ impl Default for Jwt {
             algorithm: Algorithm::HS256,
             refresh_connector: None,
             refresh_document: Box::new(Jsonl::default()),
-            refresh_token: "token".to_string(),
+            refresh_token_name: "token".to_string(),
             jwk: None,
             format: Format::Secret,
             key: "".to_string(),
@@ -151,7 +143,7 @@ impl Jwt {
     ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///    ).unwrap();
     ///    auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-    ///    auth.refresh_token = "token".to_string();
+    ///    auth.refresh_token_name = "token".to_string();
     ///    auth.refresh_document.metadata = Metadata {
     ///        mime_type: Some("application".to_string()),
     ///        mime_subtype: Some("json".to_string()),
@@ -210,9 +202,9 @@ impl Jwt {
             }
         };
 
-        match payload.get(self.refresh_token.clone()) {
+        match payload.get(self.refresh_token_name.clone()) {
             Some(Value::String(token)) => {
-                info!(token = token.as_str(), "JWT refreshed with succes");
+                info!(token = token.as_str(), "JWT refreshed with success");
                 self.token = Some(token.clone());
                 Ok(())
             }
@@ -310,7 +302,7 @@ impl Authenticator for Jwt {
     ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///     ).unwrap();
     ///     auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-    ///     auth.refresh_token = "token".to_string();
+    ///     auth.refresh_token_name = "token".to_string();
     ///     auth.refresh_document.metadata = Metadata {
     ///         mime_type: Some("application".to_string()),
     ///         mime_subtype: Some("json".to_string()),
@@ -402,6 +394,8 @@ impl Authenticator for Jwt {
 mod tests {
     use super::*;
     use crate::connector::curl::Curl;
+    use crate::connector::Connector;
+    use crate::document::json::Json;
     use crate::Metadata;
     use http_types::Method;
 
@@ -412,7 +406,7 @@ mod tests {
         assert_eq!(token, auth.token.unwrap());
     }
     #[async_std::test]
-    async fn refresh() {
+    async fn refresh_with_jwt_builder() {
         let mut refresh_connector = Curl::default();
         refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         refresh_connector.path = "/tokens".to_string();
@@ -424,7 +418,7 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token = "token".to_string();
+        auth.refresh_token_name = "token".to_string();
         auth.refresh_document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),
@@ -438,7 +432,31 @@ mod tests {
         );
     }
     #[async_std::test]
-    async fn authenticate() {
+    async fn refresh_with_keycloak() {
+        let mut refresh_connector = Curl::default();
+        refresh_connector.endpoint =
+            "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
+        refresh_connector.path = "/token".to_string();
+        refresh_connector.method = Method::Post;
+
+        let mut auth = Jwt::default();
+        auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
+        auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
+        auth.refresh_token_name = "access_token".to_string();
+        auth.refresh_document.metadata = Metadata {
+            mime_type: Some("application".to_string()),
+            mime_subtype: Some("x-www-form-urlencoded".to_string()),
+            ..Default::default()
+        };
+        auth.refresh(Value::Null).await.unwrap();
+
+        assert!(
+            10 < auth.token.unwrap().len(),
+            "The token should be refresh"
+        );
+    }
+    #[async_std::test]
+    async fn authenticate_jwt_builder() {
         let mut refresh_connector = Curl::default();
         refresh_connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         refresh_connector.path = "/tokens".to_string();
@@ -450,7 +468,7 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token = "token".to_string();
+        auth.refresh_token_name = "token".to_string();
         auth.refresh_document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),
@@ -460,6 +478,43 @@ mod tests {
         let (auth_name, auth_value) = auth.authenticate(Value::Null).await.unwrap();
         assert_eq!(auth_name, "authorization".to_string().into_bytes());
         assert_eq!(auth_value, "Bearer ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SkhhWFpsYms1aGJXVWlPaUpLYjJodWJua2lMQ0pwWVhRaU9qRTFPVGswTmpJM05UVXNJbVY0Y0NJNk16TXhOVFkwTVRZd056ZDkuQXFsUk4yeDZUMGJFMXBKSlowV1BRcm1MaUszN2lUODl6bExCaVJHNVp1MA==".as_bytes().to_vec());
+    }
+    #[async_std::test]
+    async fn authenticate_with_keycloak() {
+        let mut jwk_document = Json::default();
+        jwk_document.entry_path = Some("/keys".to_string());
+
+        let mut jwk_connector = Curl::default();
+        jwk_connector.endpoint =
+            "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
+        jwk_connector.path = "/certs".to_string();
+        jwk_connector.method = Method::Get;
+        let mut datastream = jwk_connector.fetch(&jwk_document).await.unwrap().unwrap();
+        datastream.next().await.unwrap();
+        let jwk = datastream.next().await.unwrap().to_value();
+
+        let mut refresh_connector = Curl::default();
+        refresh_connector.endpoint =
+            "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
+        refresh_connector.path = "/token".to_string();
+        refresh_connector.method = Method::Post;
+
+        let mut auth = Jwt::default();
+        auth.algorithm = Algorithm::RS256;
+        auth.format = Format::RsaComponents;
+        auth.jwk = Some(jwk);
+        auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
+        auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
+        auth.refresh_token_name = "access_token".to_string();
+        auth.refresh_document.metadata = Metadata {
+            mime_type: Some("application".to_string()),
+            mime_subtype: Some("x-www-form-urlencoded".to_string()),
+            ..Default::default()
+        };
+
+        let (auth_name, auth_value) = auth.authenticate(Value::Null).await.unwrap();
+        assert_eq!(auth_name, "authorization".to_string().into_bytes());
+        assert!(100 < auth_value.len(), "The token is not in a good format");
     }
     #[async_std::test]
     async fn authenticate_with_token_in_param() {
@@ -476,7 +531,7 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector = Some(Box::new(ConnectorType::Curl(refresh_connector)));
-        auth.refresh_token = "token".to_string();
+        auth.refresh_token_name = "token".to_string();
         auth.refresh_document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),

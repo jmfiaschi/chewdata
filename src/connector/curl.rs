@@ -283,8 +283,20 @@ impl Connector for Curl {
         let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
+        let mut req = client.request(self.method, url);
+
+        // Force the headers
+        for (key, value) in self.headers.iter() {
+            req = req.header(
+                HeaderName::from_bytes(key.clone().into_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                HeaderValue::from_bytes(value.clone().into_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            );
+        }
+
         let res = client
-            .head(url)
+            .send(req.build())
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -352,8 +364,20 @@ impl Connector for Curl {
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
+        let mut req = client.request(self.method, url);
+
+        // Force the headers
+        for (key, value) in self.headers.iter() {
+            req = req.header(
+                HeaderName::from_bytes(key.clone().into_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                HeaderValue::from_bytes(value.clone().into_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            );
+        }
+
         let mut res = client
-            .send(client.request(self.method, url))
+            .send(req.build())
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -445,11 +469,23 @@ impl Connector for Curl {
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url).body(buffer);
+        let mut req = client.request(self.method, url).body(buffer.clone());
 
-        // Force to replace the `application/octet-stream` but the connector content type.
+        // Force to replace the `application/octet-stream` by the connector content type.
         if !self.metadata().content_type().is_empty() {
             req = req.header(headers::CONTENT_TYPE, self.metadata().content_type());
+        }
+
+        req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
+
+        // Force the headers
+        for (key, value) in self.headers.iter() {
+            req = req.header(
+                HeaderName::from_bytes(key.clone().into_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                HeaderValue::from_bytes(value.clone().into_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            );
         }
 
         let mut res = client
@@ -520,8 +556,20 @@ impl Connector for Curl {
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
+        let mut req = client.request(self.method, url);
+
+        // Force the headers
+        for (key, value) in self.headers.iter() {
+            req = req.header(
+                HeaderName::from_bytes(key.clone().into_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                HeaderValue::from_bytes(value.clone().into_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            );
+        }
+
         let mut res = client
-            .delete(url)
+            .send(req.build())
             .await
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
@@ -987,7 +1035,7 @@ pub struct CursorPaginator {
     pub document_type: DocumentType,
     #[serde(skip)]
     pub connector: Option<Box<Curl>>,
-    #[serde(rename="next")]
+    #[serde(rename = "next")]
     pub next_token: Option<String>,
 }
 

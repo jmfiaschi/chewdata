@@ -148,9 +148,15 @@ impl Document for Jsonl {
 
         for (pos, data) in dataset.iter().enumerate() {
             let record = data.to_value();
-            match self.is_pretty {
-                true => serde_json::to_writer_pretty(&mut buf, &record.clone())?,
-                false => serde_json::to_writer(&mut buf, &record.clone())?,
+            match record.clone() {
+                Value::String(string) => {
+                    // Avoid to put '"' for a single string
+                    buf.append(&mut string.as_bytes().to_vec());
+                },
+                _ => match self.is_pretty {
+                    true => serde_json::to_writer_pretty(&mut buf, &record)?,
+                    false => serde_json::to_writer(&mut buf, &record)?,
+                }
             };
             trace!(
                 record = format!("{:?}", record).as_str(),

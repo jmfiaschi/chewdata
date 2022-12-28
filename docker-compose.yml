@@ -109,6 +109,28 @@ services:
         ports:
             - 8082:8080
 
+    keycloak:
+        image: jboss/keycloak
+        restart: always
+        environment:
+            - KEYCLOAK_LOGLEVEL=DEBUG
+            - DB_VENDOR=postgres
+            - DB_USER=${PSQL_USERNAME}
+            - DB_DATABASE=${PSQL_DB}
+            - DB_PASSWORD=${PSQL_PASSWORD}
+            - DB_PORT=5432
+            - DB_ADDR=psql
+            - KEYCLOAK_USER=${KEYCLOAK_USER}
+            - KEYCLOAK_PASSWORD=${KEYCLOAK_PASSWORD}
+            - KEYCLOAK_STATISTICS=all
+            - KEYCLOAK_IMPORT=/tmp/import/realm-import.json
+        depends_on:
+            - psql
+        ports:
+            - "8083:8080"
+        volumes:
+            - ./.config/realm-import.json:/tmp/import/realm-import.json
+
 ## By default this config uses default local driver,
 ## For custom volumes replace with volume driver configuration.
 volumes:
