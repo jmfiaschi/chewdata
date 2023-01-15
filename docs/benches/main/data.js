@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1659133874928,
+  "lastUpdate": 1673820419874,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1295,6 +1295,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 28887,
             "range": "± 467",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f286108cceebf1580e084c733c4e12e064683884",
+          "message": "release 1.13.0 (#37)\n\n* fix(curl): parameters can have value paginator.next for cursor paginator\r\n\r\n* fix(.env): remove CARGO_INCREMENTAL=1\r\n\r\n* fix(cargo): use only postgres for sqlx\r\n\r\n* feat(release): replace semantic-release-rust by standard cli\r\n\r\n* refactor(connector): remove paginator::stream mutable\r\n\r\n* refacto(jwt): reword token value & token name\r\n\r\n* perf(send & fetch): replace &box(T) by  &T\r\n\r\n* lint(documents): convert &vec[u8] into &[u8]\r\n\r\n* feat(examples): add example for psql\r\n\r\n* fix(psql): query sanitized and add example\r\n\r\n* feat(jwt): with Keycloak",
+          "timestamp": "2023-01-15T22:39:56+01:00",
+          "tree_id": "0f21c7688121123d3e8db7676a396651dbde38cb",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/f286108cceebf1580e084c733c4e12e064683884"
+        },
+        "date": 1673820418367,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5261,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5165,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 230429,
+            "range": "± 1420",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 28082,
+            "range": "± 54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 11526,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 16849,
+            "range": "± 66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 314209,
+            "range": "± 2351",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 25276,
+            "range": "± 33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 25761,
+            "range": "± 44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 25422,
+            "range": "± 50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 25691,
+            "range": "± 55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 25646,
+            "range": "± 41",
             "unit": "ns/iter"
           }
         ]
