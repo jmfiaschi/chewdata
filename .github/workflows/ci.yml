@@ -116,6 +116,10 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: release
