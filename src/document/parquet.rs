@@ -14,7 +14,7 @@ use serde_json::Value;
 use std::io;
 use std::sync::Arc;
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Parquet {
     #[serde(rename = "metadata")]
@@ -26,7 +26,7 @@ pub struct Parquet {
     pub options: Option<ParquetOptions>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ParquetOptions {
     version: Option<usize>,
@@ -118,10 +118,11 @@ impl Document for Parquet {
     /// assert_eq!(expected_data, data);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
+        let bytes = Bytes::copy_from_slice(buffer);
         let entry_path_option = self.entry_path.clone();
-        let read_from_cursor = SerializedFileReader::new(Bytes::from(buffer.clone()))
+        let read_from_cursor = SerializedFileReader::new(bytes)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
         let rows = read_from_cursor
@@ -177,7 +178,7 @@ impl Document for Parquet {
     }
     /// See [`Document::write`] for more details.
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut arrow_value = dataset.iter().map(|data| Ok(data.to_value()));
         let schema = match self.schema.clone() {
             Some(value) => Schema::from(&value),
@@ -246,10 +247,10 @@ impl Document for Parquet {
                 });
             }
         }
-        
+
         let properties = properties_builder.build();
         let mut buffer = Vec::new();
-        
+
         {
             let mut writer = ArrowWriter::try_new(
                 &mut buffer,
@@ -340,7 +341,7 @@ mod tests {
     }
     #[test]
     fn write() {
-        let mut document = Parquet::default();
+        let document = Parquet::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         ),

@@ -122,11 +122,8 @@ impl BucketSelect {
             env::set_var("AWS_SECRET_ACCESS_KEY", secret);
         }
         let provider = CredentialsProviderChain::default_provider().await;
-        let endpoint = Endpoint::immutable(
-            self.endpoint
-                .parse()
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
-        );
+        let endpoint = Endpoint::immutable(&self.endpoint)
+            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
         let config = aws_config::from_env()
             .endpoint_resolver(endpoint)
             .region(Region::new(self.region.clone()))
@@ -501,7 +498,7 @@ impl Connector for BucketSelect {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = BucketSelect::default();
     ///     connector.metadata = Metadata {
@@ -511,7 +508,7 @@ impl Connector for BucketSelect {
     ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -521,7 +518,7 @@ impl Connector for BucketSelect {
     /// }
     /// ```
     #[instrument]
-    async fn fetch(&mut self, document: Box<dyn Document>) -> Result<Option<DataStream>> {
+    async fn fetch(&mut self, document: &dyn Document) -> Result<Option<DataStream>> {
         let mut buffer = Vec::default();
         let path = self.path();
 
@@ -571,7 +568,7 @@ impl Connector for BucketSelect {
     #[instrument]
     async fn send(
         &mut self,
-        _document: Box<dyn Document>,
+        _document: &dyn Document,
         _dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         unimplemented!("Can't send data to the remote document. Use the bucket connector instead of this connector")
@@ -652,7 +649,7 @@ impl Paginator for BucketSelectPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let connector = self.connector.clone();
         let mut paths = self.paths.clone();
@@ -749,7 +746,7 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = BucketSelect::default();
         connector.metadata = Metadata {
@@ -759,7 +756,7 @@ mod tests {
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.query = "select * from s3object".to_string();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -953,7 +950,7 @@ mod tests {
             ..Json::default().metadata
         };
 
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
 
         let mut stream = paginator.stream().await.unwrap();
@@ -979,7 +976,7 @@ mod tests {
             ..Json::default().metadata
         };
 
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
 

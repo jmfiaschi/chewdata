@@ -11,7 +11,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: lint
       - run: rustup component add clippy
       - uses: actions-rs/clippy-check@v1
         with:
@@ -20,78 +23,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
       - run: cp .env.ci .env
-      - uses: falti/dotenv-action@v0.2.6
-      - uses: Swatinem/rust-cache@v1
+      - uses: falti/dotenv-action@v1
+      - uses: Swatinem/rust-cache@v2
         with:
-          sharedKey: build
+          shared-key: build
+      - run: make setup
       - run: make build
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - run: cp .env.ci .env
-      - uses: falti/dotenv-action@v0.2.6
-      - uses: Swatinem/rust-cache@v1
-        with:
-          sharedKey: release
-      - run: make release
-  unit-tests:
-    needs: [build, lint]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - run: cp .env.ci .env
-      - uses: falti/dotenv-action@v0.2.6
-      - uses: Swatinem/rust-cache@v1
-        with:
-          sharedKey: build
-      - run: make unit-tests
-  integration-tests:
-    needs: [build, lint]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - run: cp .env.ci .env
-      - uses: falti/dotenv-action@v0.2.6
-      - uses: Swatinem/rust-cache@v1
-        with:
-          sharedKey: build
-      - run: make integration-tests
   benchmark:
-    needs: [build, lint]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: nelonoel/branch-name@v1.0.1
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
       - run: cp .env.ci .env
-      - uses: falti/dotenv-action@v0.2.6
-      - uses: Swatinem/rust-cache@v1
+      - uses: falti/dotenv-action@v1
+      - uses: Swatinem/rust-cache@v2
         with:
-          sharedKey: build
-      - name: Generate benchmark
-        run: make bench | tee output.txt
+          shared-key: benchmark
+      - run: make setup
+      - run: make bench | tee output.txt
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
@@ -104,14 +63,66 @@ jobs:
           fail-on-alert: true
           alert-comment-cc-users: "@jmfiaschi"
           benchmark-data-dir-path: "docs/benches/${{ env.BRANCH_NAME }}"
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
+      - run: make setup
+      - run: make release
+  unit-tests:
+    needs: [build, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build
+      - run: make unit-tests
+  integration-tests:
+    needs: [build, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build
+      - run: make integration-tests
   semantic-release:
     needs: [benchmark, integration-tests, unit-tests, release]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: Swatinem/rust-cache@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
-          sharedKey: release
+          node-version: 18
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
       - name: Install Semantic Release
         run: |
           sudo npm install semantic-release -g
@@ -119,7 +130,6 @@ jobs:
           sudo npm install @semantic-release/git -g
           sudo npm install @semantic-release/github -g
           sudo npm install @semantic-release/exec -g
-          cargo install semantic-release-rust --version 1.0.0-alpha.8
       - name: Run Semantic Release
         run: semantic-release
         env:
@@ -129,18 +139,18 @@ jobs:
     needs: [benchmark, integration-tests, unit-tests, release]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: Swatinem/rust-cache@v1
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
         with:
-          sharedKey: release
-      - uses: docker/login-action@v1
+          shared-key: release
+      - uses: docker/login-action@v2
         with:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       - run: cp .env.ci .env
       - run: CHEWDATA_TAG=$(make version) && echo "CHEWDATA_TAG=$CHEWDATA_TAG" >> $GITHUB_ENV
-      - uses: docker/setup-buildx-action@v1
-      - uses: docker/build-push-action@v2
+      - uses: docker/setup-buildx-action@v2
+      - uses: docker/build-push-action@v3
         with:
           context: .
           push: true

@@ -1,8 +1,8 @@
 include .env
-export $(shell sed 's/=.*//' .env)
+export $(shell sed "s/=.*//" .env)
 
 .SILENT:
-.PHONY: build exec test bench help minio minio-install httpbin clean docs debug
+.PHONY: build exec test bench help minio minio-install httpbin clean docs debug keycloak
 
 debug:
 	@rustup -V
@@ -14,14 +14,18 @@ help: ## Display all commands.
 	@echo "$(YELLOW)cat data.json | make run file=[FILE_PATH]${NC}\n"
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
+setup:
+	@cargo install cargo-edit
+	@cargo install cargo-criterion
+	@cargo install cargo-tarpaulin
+
 build: ## Build the script in local without examples
-	@cargo clean
 	@cargo build --lib --bins --tests --benches --all-features
 
 run: debug
 run: ## Launch the script in local
 	@if [ "$(json)" ]; then\
-		cargo run ${json};\
+		cargo run '$(json)';\
 	fi
 	@if [ "$(file)" ]; then\
 		cargo run -- --file $(file);\
@@ -39,7 +43,6 @@ example:
 	@cargo run --example $(name)
 
 release: ## Released the script in local
-	@cargo clean
 	@cargo build --release --lib --bins --all-features
 
 test: start unit-tests integration-tests
@@ -62,7 +65,6 @@ lint:
 
 coverage: start
 coverage:
-	@cargo install cargo-tarpaulin
 	@cargo tarpaulin --out Xml --verbose --skip-clean --timeout 1200
 
 coverage\:ut: start
@@ -73,11 +75,9 @@ coverage\:ut:
 
 coverage\:it: start
 coverage\:it:
-	@cargo install cargo-tarpaulin
 	@cargo tarpaulin --out Xml --verbose --doc --tests --skip-clean --timeout 1200
 
 bench:
-	@cargo install cargo-criterion
 	@cargo criterion --benches --output-format bencher --plotting-backend disabled 2>&1
 
 minio:
@@ -109,10 +109,15 @@ adminer:
 	echo "${YELLOW}Host: http://localhost:8081${NC}"
 	@docker-compose up -d adminer
 
+keycloak:
+	echo "${BLUE}Run keycloak${NC}"
+	echo "${YELLOW}Host: http://localhost:8083${NC}"
+	@docker-compose up -d keycloak
+
 semantic-release:
 	@npx semantic-release
 
-start: debug minio minio\:install httpbin mongo adminer
+start: debug minio minio\:install httpbin mongo adminer keycloak
 
 stop:
 	@docker-compose down

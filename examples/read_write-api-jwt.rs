@@ -34,20 +34,20 @@ async fn main() -> io::Result<()> {
             "method": "get",
             "auth": {
                 "type": "jwt",
-                "refresh_connector": {
+                "connector": {
                     "type": "curl",
                     "endpoint": "http://jwtbuilder.jamiekurtz.com",
                     "path": "/tokens",
                     "method": "post"
                 },
-                "refresh_token":"token",
+                "token_name":"token",
                 "key": "my_key",
                 "payload": {
                     "alg":"HS256",
                     "claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},
                     "key":"my_key"
                 },
-                "refresh_document": {
+                "document": {
                     "metadata": {
                         "mime_type": "application",
                         "mime_subtype": "json"

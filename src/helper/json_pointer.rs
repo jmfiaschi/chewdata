@@ -22,8 +22,7 @@ impl JsonPointer for String {
         format!("/{}", self)
             .replace("][", "/")
             .replace(']', "")
-            .replace('[', "/")
-            .replace('.', "/")
+            .replace(['[', '.'], "/")
             .replace("///", "/")
             .replace("//", "/")
     }

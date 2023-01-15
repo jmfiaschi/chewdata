@@ -18,7 +18,7 @@ const DEFAULT_QUOTE_STYLE: &str = "NOT_NUMERIC";
 const DEFAULT_IS_FLEXIBLE: bool = true;
 const DEFAULT_TRIM: &str = "ALL";
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Csv {
     #[serde(rename = "metadata")]
@@ -140,7 +140,7 @@ impl Csv {
         builder
     }
     /// Read csv data with header.
-    fn read_with_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<DataSet> {
+    fn read_with_header(reader: csv::Reader<io::Cursor<&[u8]>>) -> io::Result<DataSet> {
         Ok(reader
             .into_deserialize::<Map<String, Value>>()
             .into_iter()
@@ -163,7 +163,7 @@ impl Csv {
             .collect())
     }
     /// Read csv data without header.
-    fn read_without_header(reader: csv::Reader<io::Cursor<Vec<u8>>>) -> io::Result<DataSet> {
+    fn read_without_header(reader: csv::Reader<io::Cursor<&[u8]>>) -> io::Result<DataSet> {
         Ok(reader
             .into_records()
             .into_iter()
@@ -197,7 +197,7 @@ impl Document for Csv {
         Csv::default().metadata.merge(self.metadata.clone())
     }
     /// See [`Document::read`] for more details.
-    /// 
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -217,20 +217,20 @@ impl Document for Csv {
     /// assert_eq!(expected_data_1, data_1);
     /// assert_eq!(expected_data_2, data_2);
     /// ```
-    /// 
+    ///
     /// ```no_run
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
     /// use chewdata::Metadata;
-    /// 
+    ///
     /// let mut metadata = Metadata::default();
     /// metadata.has_headers = Some(false);
-    /// 
+    ///
     /// let mut document = Csv::default();
     /// document.metadata = metadata;
     /// let buffer = "A1,A2\nB1,B2\n".as_bytes().to_vec();
-    /// 
+    ///
     /// let mut dataset = document.read(&buffer).unwrap().into_iter();
     /// let data_1 = dataset.next().unwrap().to_value();
     /// let data_2 = dataset.next().unwrap().to_value();
@@ -246,10 +246,10 @@ impl Document for Csv {
     /// assert_eq!(expected_data_2, data_2);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let builder_reader = self
             .reader_builder()
-            .from_reader(io::Cursor::new(buffer.clone()));
+            .from_reader(io::Cursor::new(buffer));
         match self.metadata().has_headers {
             Some(false) => Csv::read_without_header(builder_reader),
             _ => Csv::read_with_header(builder_reader),
@@ -263,8 +263,8 @@ impl Document for Csv {
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::DataResult; 
-    /// 
+    /// use chewdata::DataResult;
+    ///
     /// let mut document = Csv::default();
     /// let dataset = vec![DataResult::Ok(
     ///     serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
@@ -281,29 +281,25 @@ impl Document for Csv {
     /// "#.as_bytes().to_vec(), buffer);
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut builder_writer = self.writer_builder().from_writer(Vec::default());
 
         for data in dataset {
             let record = data.to_value();
             match record.clone() {
-                Value::Bool(value) => builder_writer.serialize(value),
-                Value::Number(value) => builder_writer.serialize(value),
-                Value::String(value) => builder_writer.serialize(value),
-                Value::Null => Ok(()),
                 Value::Object(object) => {
                     let mut values = Vec::<Value>::new();
 
-                    for (_, value) in object {
+                    for (_, value) in flatten(&object) {
                         values.push(value);
                     }
 
                     builder_writer.serialize(values)
                 }
-                Value::Array(_) => {
+                _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
-                        format!("Can't transform an array to csv string. {:?}", data),
+                        format!("Can transform only object to csv string. {:?}", record),
                     ))
                 }
             }?;
@@ -327,8 +323,8 @@ impl Document for Csv {
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::DataResult; 
-    /// 
+    /// use chewdata::DataResult;
+    ///
     /// let document = Csv::default();
     /// let dataset = vec![DataResult::Ok(
     ///     serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
@@ -348,7 +344,7 @@ impl Document for Csv {
 
         let header = match data.to_value() {
             Value::Object(object) => {
-                let keys = object
+                let keys = flatten(&object)
                     .into_iter()
                     .map(|(key, _)| key)
                     .collect::<Vec<String>>();
@@ -386,6 +382,66 @@ impl Document for Csv {
             .unwrap_or_else(|| DEFAULT_TERMINATOR.to_string())
             .as_bytes()
             .to_vec())
+    }
+}
+
+fn flatten(json: &Map<String, Value>) -> Map<String, Value> {
+    let mut obj = Map::new();
+    insert_object(&mut obj, None, json);
+    obj
+}
+
+fn insert_object(
+    base_json: &mut Map<String, Value>,
+    base_key: Option<&str>,
+    object: &Map<String, Value>,
+) {
+    for (key, value) in object {
+        let new_key = base_key.map_or_else(|| key.clone(), |base_key| format!("{base_key}.{key}"));
+
+        if let Some(array) = value.as_array() {
+            insert_array(base_json, Some(&new_key), array);
+        } else if let Some(object) = value.as_object() {
+            insert_object(base_json, Some(&new_key), object);
+        } else {
+            insert_value(base_json, &new_key, value.clone());
+        }
+    }
+}
+
+fn insert_array(base_json: &mut Map<String, Value>, base_key: Option<&str>, array: &[Value]) {
+    for (key, value) in array.iter().enumerate() {
+        let new_key = base_key.map_or_else(
+            || key.clone().to_string(),
+            |base_key| format!("{base_key}.{key}"),
+        );
+        if let Some(object) = value.as_object() {
+            insert_object(base_json, Some(&new_key), object);
+        } else if let Some(sub_array) = value.as_array() {
+            insert_array(base_json, Some(&new_key), sub_array);
+        } else {
+            insert_value(base_json, &new_key, value.clone());
+        }
+    }
+}
+
+fn insert_value(base_json: &mut Map<String, Value>, key: &str, to_insert: Value) {
+    debug_assert!(!to_insert.is_object());
+    debug_assert!(!to_insert.is_array());
+
+    // does the field aleardy exists?
+    if let Some(value) = base_json.get_mut(key) {
+        // is it already an array
+        if let Some(array) = value.as_array_mut() {
+            array.push(to_insert);
+        // or is there a collision
+        } else {
+            let value = std::mem::take(value);
+            base_json[key] = serde_json::json!([value, to_insert]);
+        }
+        // if it does not exist we can push the value untouched
+    } else {
+        base_json.insert(key.to_string(), serde_json::json!(to_insert));
     }
 }
 
@@ -471,7 +527,7 @@ mod tests {
     }
     #[test]
     fn write() {
-        let mut document = Csv::default();
+        let document = Csv::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];
@@ -490,6 +546,33 @@ mod tests {
         let buffer = document.write(&dataset).unwrap();
         assert_eq!(
             r#""line_2"
+"#
+            .as_bytes()
+            .to_vec(),
+            buffer
+        );
+    }
+    #[test]
+    fn write_object() {
+        let document = Csv::default();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(
+                r#"{"column_1":{"field_1":"value_1","field_2":["value_2","value_3"]}}"#,
+            )
+            .unwrap(),
+        )];
+        let buffer = document.header(&dataset).unwrap();
+        assert_eq!(
+            r#""column_1.field_1","column_1.field_2.0","column_1.field_2.1"
+"#
+            .as_bytes()
+            .to_vec(),
+            buffer
+        );
+
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(
+            r#""value_1","value_2","value_3"
 "#
             .as_bytes()
             .to_vec(),

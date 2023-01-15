@@ -186,13 +186,13 @@ impl Connector for Mongodb {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     let datastream = connector.fetch(document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -204,7 +204,7 @@ impl Connector for Mongodb {
     #[instrument]
     async fn fetch(
         &mut self,
-        document: Box<dyn ChewdataDocument>,
+        document: &dyn ChewdataDocument,
     ) -> std::io::Result<Option<DataStream>> {
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
@@ -256,7 +256,7 @@ impl Connector for Mongodb {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -267,7 +267,7 @@ impl Connector for Mongodb {
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///
     ///     Ok(())
     /// }
@@ -275,7 +275,7 @@ impl Connector for Mongodb {
     #[instrument(skip(dataset))]
     async fn send(
         &mut self,
-        _document: Box<dyn ChewdataDocument>,
+        _document: &dyn ChewdataDocument,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         let hostname = self.endpoint.clone();
@@ -364,7 +364,7 @@ impl Connector for Mongodb {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -374,12 +374,12 @@ impl Connector for Mongodb {
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1];
-    ///     connector.send(document.clone(), &dataset).await.unwrap();
+    ///     connector.send(&document, &dataset).await.unwrap();
     ///     connector.erase().await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.filter = Default::default();
-    ///     let datastream = connector_read.fetch(document).await.unwrap();
+    ///     let datastream = connector_read.fetch(&document).await.unwrap();
     ///     assert!(datastream.is_none(), "The datastream should be empty");
     ///
     ///     Ok(())
@@ -617,9 +617,10 @@ impl Paginator for OffsetPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = match self.connector.clone() {
+        let mut paginator = self.clone();
+        let connector = match paginator.connector.clone() {
             Some(connector) => Ok(connector),
             None => Err(Error::new(
                 ErrorKind::Interrupted,
@@ -631,9 +632,9 @@ impl Paginator for OffsetPaginator {
         let limit = self.limit;
         let mut skip = self.skip;
 
-        let count_opt = match self.count {
+        let count_opt = match paginator.count {
             Some(count) => Some(count),
-            None => self.count().await?,
+            None => paginator.count().await?,
         };
 
         let stream = Box::pin(stream! {
@@ -701,8 +702,6 @@ impl Paginator for CursorPaginator {
     async fn count(&mut self) -> Result<Option<usize>> {
         Ok(None)
     }
-    /// See [`Paginator::set_document`] for more details.
-    fn set_document(&mut self, _document: Box<dyn ChewdataDocument>) {}
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples
@@ -732,7 +731,7 @@ impl Paginator for CursorPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let connector = match self.connector.clone() {
             Some(connector) => Ok(connector),
@@ -820,13 +819,13 @@ mod tests {
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
         connector.collection = "startup_log".into();
-        let datastream = connector.fetch(document).await.unwrap().unwrap();
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero"
@@ -834,7 +833,7 @@ mod tests {
     }
     #[async_std::test]
     async fn send_new_data() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -845,16 +844,16 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
-        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(
             "value1",
             datastream
@@ -882,7 +881,7 @@ mod tests {
     }
     #[async_std::test]
     async fn update_existing_data() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -893,17 +892,17 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
         let mut datastream = connector_read
-            .fetch(document.clone())
+            .fetch(&document)
             .await
             .unwrap()
             .unwrap();
@@ -914,11 +913,11 @@ mod tests {
         result3.merge_in("/_id", data_1_id).unwrap();
         let expected_result3 = DataResult::Ok(result3);
         let dataset = vec![expected_result3.clone()];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
-        let mut datastream = connector_read.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(
             "value3",
             datastream
@@ -946,7 +945,7 @@ mod tests {
     }
     #[async_std::test]
     async fn erase() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -956,12 +955,12 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1];
-        connector.send(document.clone(), &dataset).await.unwrap();
+        connector.send(&document, &dataset).await.unwrap();
         connector.erase().await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
-        let datastream = connector_read.fetch(document).await.unwrap();
+        let datastream = connector_read.fetch(&document).await.unwrap();
         assert!(datastream.is_none(), "The datastream should be empty");
     }
     #[async_std::test]
@@ -994,7 +993,7 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_offset_count_with_skip_and_limit() {
-        let document = Box::new(Json::default());
+        let document = Json::default();
 
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -1005,20 +1004,20 @@ mod tests {
             limit: 1,
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut paginate = paginator.stream().await.unwrap();
         let mut connector = paginate.next().await.transpose().unwrap().unwrap();
 
-        let mut datastream = connector.fetch(document.clone()).await.unwrap().unwrap();
+        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
         let data_1 = datastream.next().await.unwrap();
 
         let mut connector = paginate.next().await.transpose().unwrap().unwrap();
-        let mut datastream = connector.fetch(document).await.unwrap().unwrap();
+        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
         let data_2 = datastream.next().await.unwrap();
         assert!(
             data_1 != data_2,
-            "The content of this two stream is not different."
+            "The content of this two stream are not different."
         );
     }
     #[async_std::test]
@@ -1032,7 +1031,7 @@ mod tests {
             limit: 1,
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();
@@ -1050,7 +1049,7 @@ mod tests {
             skip: 0,
             ..Default::default()
         });
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         let connector = stream.next().await.transpose().unwrap();

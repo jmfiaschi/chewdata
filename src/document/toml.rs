@@ -8,7 +8,7 @@ use std::io;
 const DEFAULT_SUBTYPE: &str = "toml";
 const DEFAULT_TERMINATOR: &str = "---";
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Toml {
     #[serde(rename = "metadata")]
@@ -56,7 +56,7 @@ impl Document for Toml {
     /// assert_eq!(expected_data, data);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let record: Value = toml::from_slice(buffer)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
@@ -105,7 +105,7 @@ impl Document for Toml {
     /// "#.as_bytes().to_vec(), buffer);
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
 
         for data in dataset {
@@ -157,7 +157,7 @@ key_2 = "value_2"
     }
     #[test]
     fn write() {
-        let mut document = Toml::default();
+        let document = Toml::default();
         let dataset = vec![DataResult::Ok(
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];

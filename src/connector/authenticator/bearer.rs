@@ -58,8 +58,7 @@ impl Bearer {
     pub fn new(token: &str) -> Self {
         Bearer {
             token: token.to_string(),
-            is_base64: false,
-            ..Default::default()
+            is_base64: false
         }
     }
 }

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::io;
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Xml {
     #[serde(rename = "metadata")]
@@ -179,7 +179,7 @@ impl Document for Xml {
     /// assert_eq!(expected_data_2, data_2);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
         let entry_path = self.entry_path.clone();
         let str = std::str::from_utf8(buffer)
@@ -263,7 +263,7 @@ impl Document for Xml {
     /// );
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
         let header = self.header(dataset)?;
         let footer = self.footer(dataset)?;

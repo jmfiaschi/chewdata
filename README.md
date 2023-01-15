@@ -16,9 +16,9 @@ This application is a light ETL in rust that can be used as a connector between 
 | Configuration formats allowed            | `json` [E], `yaml`     [E]                                                                              | The project need a jobs configuration in input                     |
 | Read data in parallel or sequential mode | `cursor`[E] , `offset`     [E]                                                                          | With this type of paginator, the data can be read in different way |
 
-> [E] Feature enabled by default with the `--no-default-features` argument
->  
-> [D] Feature must be enabled with the `--no-default-features` argument
+> [E] - Feature `E`nabled by default. Use `--no-default-features` argument to remove all enabled features by default.
+>
+> [D] - Feature `D`isabled and must be enabled with the `--features` argument.
 
 More useful information:
 
@@ -65,7 +65,7 @@ If you want some examples to discover this project, go in this section [./exampl
 If you run the program without parameters, the application will wait until you write json data. By default, the program write json data in the output and the program stop when you enter empty value.
 
 ```Bash
-$ cargo run 
+$ cargo run
 $ [{"key":"value"},{"name":"test"}]
 $ enter
 [{"key":"value"},{"name":"test"}]
@@ -74,14 +74,14 @@ $ enter
 Another example without etl configuration and with file in input
 
 ```Bash
-$ cat ./data/multi_lines.json | cargo run 
+$ cat ./data/multi_lines.json | cargo run
 [{...}]
 ```
 
 or
 
 ```Bash
-$ cat ./data/multi_lines.json | make run 
+$ cat ./data/multi_lines.json | make run
 [{...}]
 ```
 

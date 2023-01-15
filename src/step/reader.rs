@@ -88,7 +88,7 @@ impl Step for Reader {
     #[instrument]
     async fn exec(&self) -> io::Result<()> {
         let mut connector = self.connector_type.clone().boxed_inner();
-        let document = self.document_type.clone().boxed_inner();
+        let document = self.document_type.ref_inner();
         connector.set_metadata(connector.metadata().merge(document.metadata()));
 
         match connector.is_variable() {
@@ -116,7 +116,7 @@ impl Step for Reader {
                     exec_connector(
                         self,
                         &mut connector,
-                        &document,
+                        document,
                         &Some(step_context_received),
                     )
                     .await?
@@ -125,7 +125,7 @@ impl Step for Reader {
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
-                    exec_connector(self, &mut connector, &document, &None).await?
+                    exec_connector(self, &mut connector, document, &None).await?
                 }
             }
             false => {
@@ -141,7 +141,7 @@ impl Step for Reader {
                     exec_connector(
                         self,
                         &mut connector,
-                        &document,
+                        document,
                         &Some(step_context_received),
                     )
                     .await?
@@ -150,7 +150,7 @@ impl Step for Reader {
                 // If data has not been received and the channel has been close, run last time the step.
                 // It arrive when the previous step don't push data through the pipe.
                 if !has_data_been_received {
-                    exec_connector(self, &mut connector, &document, &None).await?
+                    exec_connector(self, &mut connector, document, &None).await?
                 }
             }
         };
@@ -165,11 +165,11 @@ impl Step for Reader {
 async fn exec_connector<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
-    document: &'step Box<dyn Document>,
+    document: &'step dyn Document,
     context: &'step Option<StepContext>,
 ) -> io::Result<()> {
     // todo: remove paginator mutability
-    let mut paginator = connector.paginator().await?;
+    let paginator = connector.paginator().await?;
     let mut stream = paginator.stream().await?;
 
     match paginator.is_parallelizable() {
@@ -222,10 +222,10 @@ async fn exec_connector<'step>(
 async fn send_data_into_pipe<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
-    document: &'step Box<dyn Document>,
+    document: &'step dyn Document,
     context: &'step Option<StepContext>,
 ) -> io::Result<Option<()>> {
-    let mut dataset = match connector.fetch(document.clone()).await? {
+    let mut dataset = match connector.fetch(document).await? {
         Some(dataset) => dataset,
         None => return Ok(None),
     };

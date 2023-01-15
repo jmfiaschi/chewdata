@@ -120,9 +120,9 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     /// Path of the document
     fn path(&self) -> String;
     /// Fetch data from the resource and set the inner of the connector.
-    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>>;
+    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>>;
     /// Send the data from the inner connector to the remote resource.
-    async fn send(&mut self, document: Box<dyn Document>, dataset: &DataSet) -> std::io::Result<Option<DataStream>>;
+    async fn send(&mut self, document: &dyn Document, dataset: &DataSet) -> std::io::Result<Option<DataStream>>;
     /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
@@ -157,10 +157,8 @@ impl Clone for Box<dyn Connector> {
 
 #[async_trait]
 pub trait Paginator: std::fmt::Debug + Unpin {
-    /// Update the document in the paginator. Used to find the total of items in a payload
-    fn set_document(&mut self, _document: Box<dyn Document>) {}
     /// Get the stream of connectors
-    async fn stream(&mut self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>>;
+    async fn stream(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>>;
     /// Try to fetch the number of item in the connector.
     /// None: Can't retrieve the total of item for any reason.
     /// Some(count): Retrieve the total of item and store the value in the paginator.

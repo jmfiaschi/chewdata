@@ -61,7 +61,7 @@ impl Connector for Io {
     }
     /// See [`Connector::fetch`] for more details.
     #[instrument]
-    async fn fetch(&mut self, document: Box<dyn Document>) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let stdin = BufReader::new(stdin());
 
         trace!("Fetch lines");
@@ -92,7 +92,7 @@ impl Connector for Io {
     }
     /// See [`Connector::send`] for more details.
     #[instrument(skip(dataset))]
-    async fn send(&mut self, mut document: Box<dyn Document>, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
+    async fn send(&mut self, document: &dyn Document, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut buffer = Vec::default();
 
         buffer.append(&mut document.header(dataset)?);
@@ -160,7 +160,7 @@ impl Paginator for IoPaginator {
     /// ```
     #[instrument]
     async fn stream(
-        &mut self,
+        &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let new_connector = self.connector.clone();
         let stream = Box::pin(stream! {
@@ -185,7 +185,7 @@ mod tests {
     #[async_std::test]
     async fn paginator_stream() {
         let connector = Io::default();
-        let mut paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator().await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert!(

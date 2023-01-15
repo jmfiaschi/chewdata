@@ -35,12 +35,12 @@ async fn main() -> Result<()> {
     trace!("Chewdata start...");
     let args = application().get_matches();
 
-    if args.value_of("version").is_some() {
+    if args.get_one::<String>("version").is_some() {
         return Ok(());
     }
 
     trace!("Transform the config in input into steps.");
-    let steps: Vec<StepType> = match (args.value_of(ARG_JSON), args.value_of(ARG_FILE)) {
+    let steps: Vec<StepType> = match (args.get_one::<String>(ARG_JSON), args.get_one::<String>(ARG_FILE)) {
         (None, Some(file_path)) => match file_path.split('.').collect::<Vec<&str>>().last() {
             Some(v) => match *v {
                     "json" => {
@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
         .await
 }
 
-fn application() -> Command<'static> {
+fn application() -> Command {
     Command::new("chewdata")
         .version(version!())
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
@@ -99,7 +99,7 @@ fn application() -> Command<'static> {
             Arg::new("json")
                 .value_name("JSON")
                 .help("Init steps with a json configuration in input")
-                .takes_value(true)
+                .number_of_values(1)
                 .required(false)
                 .index(1),
         )
@@ -109,7 +109,7 @@ fn application() -> Command<'static> {
                 .long("file")
                 .value_name("FILE")
                 .help("Init steps with file configuration in input")
-                .takes_value(true)
+                .number_of_values(1)
                 .required(false),
         )
 }

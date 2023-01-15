@@ -7,7 +7,7 @@ use std::io;
 
 const DEFAULT_TERMINATOR: &str = "\n";
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Text {
     #[serde(rename = "metadata")]
@@ -49,9 +49,9 @@ impl Document for Text {
     /// assert_eq!(r#"My text1 \n My text 2"#, data);
     /// ```
     #[instrument]
-    fn read(&self, buffer: &Vec<u8>) -> io::Result<DataSet> {
+    fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let record = Value::String(
-            String::from_utf8(buffer.clone())
+            String::from_utf8(buffer.to_vec())
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         );
         trace!(
@@ -76,7 +76,7 @@ impl Document for Text {
     /// assert_eq!(r#"My text"#.as_bytes().to_vec(), buffer);
     /// ```
     #[instrument(skip(dataset))]
-    fn write(&mut self, dataset: &DataSet) -> io::Result<Vec<u8>> {
+    fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
         for data in dataset {
             let record = data.to_value();
@@ -104,7 +104,7 @@ mod tests {
     }
     #[test]
     fn write() {
-        let mut document = Text::default();
+        let document = Text::default();
         let dataset = vec![DataResult::Ok(Value::String("My text".to_string()))];
         let buffer = document.write(&dataset).unwrap();
         assert_eq!(r#"My text"#.as_bytes().to_vec(), buffer);

@@ -1,3 +1,100 @@
+# [1.13.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.13.0-beta.2...v1.13.0-beta.3) (2023-01-15)
+
+
+### Bug Fixes
+
+* **ci:** add toolchain for semantic-release ([691636c](https://github.com/jmfiaschi/chewdata/commit/691636cb91ef823042dd7af8da1ecafb9ed8c436))
+* **ci:** upgrade node version for semantic-release ([ef1c786](https://github.com/jmfiaschi/chewdata/commit/ef1c786a45725967e1ddf15362ca57afe5b930fa))
+* **lint:** add eq in the derive ([6efa0e4](https://github.com/jmfiaschi/chewdata/commit/6efa0e464843975cb90aaeb84d6c2b2c8055632e))
+* **lint:** replace consecutive ([ce1f985](https://github.com/jmfiaschi/chewdata/commit/ce1f985907913592dd8a63554af84374521343d3))
+* **psql:** query sanitized and add example ([8d3cc47](https://github.com/jmfiaschi/chewdata/commit/8d3cc478d2190f43ba8728e121926b7e5e181494))
+* **psql:** query sanitized and add example ([5168f6f](https://github.com/jmfiaschi/chewdata/commit/5168f6facfd2e74f64f50dde85d7ae547e5b6a8a))
+
+
+### Features
+
+* **examples:** add example for psql ([829bf69](https://github.com/jmfiaschi/chewdata/commit/829bf69795a03062980a10758747f48e0e17213c))
+* **examples:** add example for psql ([5133b97](https://github.com/jmfiaschi/chewdata/commit/5133b97b145b939593eebfd4f59d9c35fa3024fe))
+* **jwt:** with Keycloak ([fa1fb69](https://github.com/jmfiaschi/chewdata/commit/fa1fb6930b361b39376d0df99248ad037e7de746))
+* **jwt:** with Keycloak ([1343fff](https://github.com/jmfiaschi/chewdata/commit/1343ffffa9a3687c02c2cd672dd075c9be4060e1))
+
+
+### Performance Improvements
+
+* **send & fetch:** replace &box(T) by  &T ([4c158f8](https://github.com/jmfiaschi/chewdata/commit/4c158f839e2652e6261fa410e65af59d11fa3d83))
+
+# [1.13.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.13.0-beta.1...v1.13.0-beta.2) (2022-11-27)
+
+
+### Bug Fixes
+
+* **lint:** add eq in the derive ([941d5c1](https://github.com/jmfiaschi/chewdata/commit/941d5c1736aacaa95d48b3a9f339fea2d9290bfd))
+* **lint:** replace consecutive ([f939566](https://github.com/jmfiaschi/chewdata/commit/f939566f63da624356d82bda92617fdad35ce407))
+
+
+### Performance Improvements
+
+* **send & fetch:** replace &box(T) by  &T ([adf8257](https://github.com/jmfiaschi/chewdata/commit/adf8257afd67d2bc51928690f2c4c2012df760c3))
+
+# [1.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.2...v1.13.0-beta.1) (2022-11-25)
+
+
+### Bug Fixes
+
+* **.env:** remove CARGO_INCREMENTAL=1 ([345ed48](https://github.com/jmfiaschi/chewdata/commit/345ed48b3c64588130a11290112ab47c6b288171))
+* **cargo:** use only postgres for sqlx ([be24f70](https://github.com/jmfiaschi/chewdata/commit/be24f703e3466dcb20c3ae6e3f79296fd13ab6c2))
+* **curl:** parameters can have value paginator.next for cursor paginator ([bdc2849](https://github.com/jmfiaschi/chewdata/commit/bdc2849924f26c3b2db95872eec8e008fe0738a3))
+* **lint:** add cache ([b22e6a4](https://github.com/jmfiaschi/chewdata/commit/b22e6a4997291c975ed212a6d71845e8d5358afb))
+* **linter:** update files ([a416438](https://github.com/jmfiaschi/chewdata/commit/a4164388ed258ad2d10f89619df91278d82dcb91))
+* **makefile:** remove cargo clean during the build phase and use the cache. win time during the compilation ([48014b0](https://github.com/jmfiaschi/chewdata/commit/48014b0a1f1144e6d7819bd4677bd46e0c973761))
+* **release:** remove semantic-release-rust ([2b26a3a](https://github.com/jmfiaschi/chewdata/commit/2b26a3a0f8d26b789ca70d86bfb0915b4d9ccca6))
+* **release:** verify condition ([55a306b](https://github.com/jmfiaschi/chewdata/commit/55a306b97295e357673e3772e08fb80df9a0d9f4))
+* **release:** verify condition ([a712beb](https://github.com/jmfiaschi/chewdata/commit/a712bebfef329ccc277bc64a893a66b0a252fe37))
+* **release:** verify condition ([11944f8](https://github.com/jmfiaschi/chewdata/commit/11944f8965c1676c817b544d2e38e9634567da8b))
+* **window:** replace sh script by sql sript and avoid issue with text format ([2426dfe](https://github.com/jmfiaschi/chewdata/commit/2426dfe94edd16a096ce817c0b45fbdd4a048780))
+
+
+### Features
+
+* **cargo:** optimize dependencies ([9a1886b](https://github.com/jmfiaschi/chewdata/commit/9a1886b5ccdb9083a17d55b9157fff99e5add0c5))
+* **cargo:** optimize dependencies ([b62b99d](https://github.com/jmfiaschi/chewdata/commit/b62b99d67e005dfa62457aad277871463d492f5f))
+* **cargo:** ugrade criterion ([aa050ad](https://github.com/jmfiaschi/chewdata/commit/aa050ad739c9088812470810ed28efbf228c12af))
+* **cargo:** upgrade version ([37d3d12](https://github.com/jmfiaschi/chewdata/commit/37d3d12b12e066284d624ad99e0b67620d69ac59))
+* **cicd:** upgrade versions ([0969db0](https://github.com/jmfiaschi/chewdata/commit/0969db055d43404216d487067abe25128b93d4b4))
+* **clap:** upgrade version ([d08d517](https://github.com/jmfiaschi/chewdata/commit/d08d51729de4030cfde7717e17154ea22ca9e904))
+* **csv:** flatten object & array ([8ced5e6](https://github.com/jmfiaschi/chewdata/commit/8ced5e6d510442062e3a8c2a5f14d17a2e82fc59))
+* **makefile:** add setup command to install cargo extensions ([6a09f6e](https://github.com/jmfiaschi/chewdata/commit/6a09f6ee3694355ba30f080877fa7e3030a7dfb0))
+* **makefile:** add setup command to install cargo extensions ([9114262](https://github.com/jmfiaschi/chewdata/commit/9114262201984e9cabd265cd159058fd610560ae))
+* **release:** replace semantic-release-rust by standard cli ([f7c5609](https://github.com/jmfiaschi/chewdata/commit/f7c560960d13e00309b6d958f8220ba3ef4a7175))
+* **serde_yaml:** upgrade version ([ec36d46](https://github.com/jmfiaschi/chewdata/commit/ec36d46095a62ec0f0cedfb7caf77fd0e6bc824e))
+
+# [1.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.2...v1.13.0-beta.1) (2022-11-25)
+
+
+### Bug Fixes
+
+* **.env:** remove CARGO_INCREMENTAL=1 ([345ed48](https://github.com/jmfiaschi/chewdata/commit/345ed48b3c64588130a11290112ab47c6b288171))
+* **cargo:** use only postgres for sqlx ([be24f70](https://github.com/jmfiaschi/chewdata/commit/be24f703e3466dcb20c3ae6e3f79296fd13ab6c2))
+* **curl:** parameters can have value paginator.next for cursor paginator ([bdc2849](https://github.com/jmfiaschi/chewdata/commit/bdc2849924f26c3b2db95872eec8e008fe0738a3))
+* **linter:** add cache ([b22e6a4](https://github.com/jmfiaschi/chewdata/commit/b22e6a4997291c975ed212a6d71845e8d5358afb))
+* **linter:** update files ([a416438](https://github.com/jmfiaschi/chewdata/commit/a4164388ed258ad2d10f89619df91278d82dcb91))
+* **makefile:** remove cargo clean during the build phase and use the cache. win time during the compilation ([48014b0](https://github.com/jmfiaschi/chewdata/commit/48014b0a1f1144e6d7819bd4677bd46e0c973761))
+* **release:** remove semantic-release-rust ([2b26a3a](https://github.com/jmfiaschi/chewdata/commit/2b26a3a0f8d26b789ca70d86bfb0915b4d9ccca6))
+* **window:** replace sh script by sql script and avoid issue with text format ([2426dfe](https://github.com/jmfiaschi/chewdata/commit/2426dfe94edd16a096ce817c0b45fbdd4a048780))
+
+
+### Features
+
+* **cargo:** optimize dependencies ([9a1886b](https://github.com/jmfiaschi/chewdata/commit/9a1886b5ccdb9083a17d55b9157fff99e5add0c5))
+* **cargo:** ugrade criterion ([aa050ad](https://github.com/jmfiaschi/chewdata/commit/aa050ad739c9088812470810ed28efbf228c12af))
+* **cargo:** upgrade version ([37d3d12](https://github.com/jmfiaschi/chewdata/commit/37d3d12b12e066284d624ad99e0b67620d69ac59))
+* **cicd:** upgrade version ([0969db0](https://github.com/jmfiaschi/chewdata/commit/0969db055d43404216d487067abe25128b93d4b4))
+* **clap:** upgrade version ([d08d517](https://github.com/jmfiaschi/chewdata/commit/d08d51729de4030cfde7717e17154ea22ca9e904))
+* **csv:** flatten object & array ([8ced5e6](https://github.com/jmfiaschi/chewdata/commit/8ced5e6d510442062e3a8c2a5f14d17a2e82fc59))
+* **makefile:** add setup command to install cargo extensions ([6a09f6e](https://github.com/jmfiaschi/chewdata/commit/6a09f6ee3694355ba30f080877fa7e3030a7dfb0))
+* **release:** replace semantic-release-rust by standard cli ([f7c5609](https://github.com/jmfiaschi/chewdata/commit/f7c560960d13e00309b6d958f8220ba3ef4a7175))
+* **serde_yaml:** upgrade version ([ec36d46](https://github.com/jmfiaschi/chewdata/commit/ec36d46095a62ec0f0cedfb7caf77fd0e6bc824e))
+
 ## [1.12.2](https://github.com/jmfiaschi/chewdata/compare/v1.12.1...v1.12.2) (2022-07-29)
 
 
