@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673796043902,
+  "lastUpdate": 1673815434734,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -8361,6 +8361,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 25348,
             "range": "± 54",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jmfiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "ce868bac1df24a330254e914e3e0ef410552147a",
+          "message": "Merge branch 'beta' of github.com:jmfiaschi/chewdata into beta",
+          "timestamp": "2023-01-15T21:25:59+01:00",
+          "tree_id": "37e94d0cde8025d295d5c1c1af6a2939a07d9d06",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/ce868bac1df24a330254e914e3e0ef410552147a"
+        },
+        "date": 1673815433367,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 6932,
+            "range": "± 369",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 6974,
+            "range": "± 224",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 339904,
+            "range": "± 8349",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 35846,
+            "range": "± 1219",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 14301,
+            "range": "± 523",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 22355,
+            "range": "± 627",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 457405,
+            "range": "± 12890",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 33095,
+            "range": "± 2421",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 33571,
+            "range": "± 1497",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 33529,
+            "range": "± 1259",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 33348,
+            "range": "± 1266",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 33116,
+            "range": "± 1580",
             "unit": "ns/iter"
           }
         ]
