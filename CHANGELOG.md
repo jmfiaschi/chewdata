@@ -1,3 +1,28 @@
+# [1.13.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.13.0-beta.2...v1.13.0-beta.3) (2023-01-15)
+
+
+### Bug Fixes
+
+* **ci:** add toolchain for semantic-release ([691636c](https://github.com/jmfiaschi/chewdata/commit/691636cb91ef823042dd7af8da1ecafb9ed8c436))
+* **ci:** upgrade node version for semantic-release ([ef1c786](https://github.com/jmfiaschi/chewdata/commit/ef1c786a45725967e1ddf15362ca57afe5b930fa))
+* **lint:** add eq in the derive ([6efa0e4](https://github.com/jmfiaschi/chewdata/commit/6efa0e464843975cb90aaeb84d6c2b2c8055632e))
+* **lint:** replace consecutive ([ce1f985](https://github.com/jmfiaschi/chewdata/commit/ce1f985907913592dd8a63554af84374521343d3))
+* **psql:** query sanitized and add example ([8d3cc47](https://github.com/jmfiaschi/chewdata/commit/8d3cc478d2190f43ba8728e121926b7e5e181494))
+* **psql:** query sanitized and add example ([5168f6f](https://github.com/jmfiaschi/chewdata/commit/5168f6facfd2e74f64f50dde85d7ae547e5b6a8a))
+
+
+### Features
+
+* **examples:** add example for psql ([829bf69](https://github.com/jmfiaschi/chewdata/commit/829bf69795a03062980a10758747f48e0e17213c))
+* **examples:** add example for psql ([5133b97](https://github.com/jmfiaschi/chewdata/commit/5133b97b145b939593eebfd4f59d9c35fa3024fe))
+* **jwt:** with Keycloak ([fa1fb69](https://github.com/jmfiaschi/chewdata/commit/fa1fb6930b361b39376d0df99248ad037e7de746))
+* **jwt:** with Keycloak ([1343fff](https://github.com/jmfiaschi/chewdata/commit/1343ffffa9a3687c02c2cd672dd075c9be4060e1))
+
+
+### Performance Improvements
+
+* **send & fetch:** replace &box(T) by  &T ([4c158f8](https://github.com/jmfiaschi/chewdata/commit/4c158f839e2652e6261fa410e65af59d11fa3d83))
+
 # [1.13.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.13.0-beta.1...v1.13.0-beta.2) (2022-11-27)
 
 
