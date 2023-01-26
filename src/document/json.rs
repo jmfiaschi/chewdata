@@ -47,6 +47,9 @@ impl Document for Json {
     }
     /// See [`Document::has_data`] for more details.
     fn has_data(&self, buf: &[u8]) -> io::Result<bool> {
+        if buf == br#"{}"#.to_vec() {
+            return Ok(false);
+        }
         if buf == br#"[]"#.to_vec() {
             return Ok(false);
         }
@@ -163,19 +166,36 @@ impl Document for Json {
         let mut buf = Vec::new();
         let dataset_len = dataset.len();
 
+        let serialize_value_into_buffer =
+            |pos: &usize, buf: &mut Vec<u8>, value: &Value| -> io::Result<()> {
+                let mut new_buf = buf;
+                match self.is_pretty {
+                    true => serde_json::to_writer_pretty(&mut new_buf, &value)?,
+                    false => serde_json::to_writer(&mut new_buf, &value)?,
+                };
+                trace!(
+                    record = format!("{:?}", value).as_str(),
+                    "Record serialized"
+                );
+                if pos + 1 < dataset_len {
+                    new_buf.append(&mut DEFAULT_TERMINATOR.as_bytes().to_vec());
+                }
+
+                Ok(())
+            };
+
         for (pos, data) in dataset.iter().enumerate() {
             let record = data.to_value();
-            match self.is_pretty {
-                true => serde_json::to_writer_pretty(&mut buf, &record.clone())?,
-                false => serde_json::to_writer(&mut buf, &record.clone())?,
+            match record {
+                Value::Array(array) => {
+                    for array_value in array {
+                        serialize_value_into_buffer(&pos, &mut buf, &array_value)?;
+                    }
+                }
+                _ => {
+                    serialize_value_into_buffer(&pos, &mut buf, &record)?;
+                }
             };
-            trace!(
-                record = format!("{:?}", record).as_str(),
-                "Record serialized"
-            );
-            if pos + 1 < dataset_len {
-                buf.append(&mut DEFAULT_TERMINATOR.as_bytes().to_vec());
-            }
         }
 
         Ok(buf)
@@ -297,16 +317,44 @@ mod tests {
         assert_eq!(expected_data, data);
     }
     #[test]
-    fn write() {
+    fn write_object() {
         let document = Json::default();
-        let dataset = vec![DataResult::Ok(
-            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
-        ),
-        DataResult::Ok(
-            serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap(),
-        )];
+        let dataset = vec![
+            DataResult::Ok(serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap()),
+            DataResult::Ok(serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap()),
+        ];
         let buffer = document.write(&dataset).unwrap();
-        assert_eq!(r#"{"column_1":"line_1"},{"column_1":"line_2"}"#.as_bytes().to_vec(), buffer);
+        assert_eq!(
+            r#"{"column_1":"line_1"},{"column_1":"line_2"}"#.as_bytes().to_vec(),
+            buffer
+        );
+    }
+    #[test]
+    fn write_array() {
+        let document = Json::default();
+        let dataset = vec![
+            DataResult::Ok(
+                serde_json::from_str(r#"[{"column_1":"line_1"},{"column_1":"line_2"}]"#).unwrap(),
+            ),
+            DataResult::Ok(serde_json::from_str(r#"{"column_1":"line_3"}"#).unwrap()),
+        ];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(
+            r#"{"column_1":"line_1"},{"column_1":"line_2"},{"column_1":"line_3"}"#
+                .as_bytes()
+                .to_vec(),
+            buffer
+        );
+    }
+    #[test]
+    fn write_array_string() {
+        let document = Json::default();
+        let dataset = vec![
+            DataResult::Ok(serde_json::from_str(r#"["a","b"]"#).unwrap()),
+            DataResult::Ok(serde_json::from_str(r#""c""#).unwrap()),
+        ];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(r#""a","b","c""#.as_bytes().to_vec(), buffer);
     }
     #[test]
     fn header() {
