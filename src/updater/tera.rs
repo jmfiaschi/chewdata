@@ -131,7 +131,9 @@ impl Tera {
         engine.register_filter("merge", filters::object::merge);
         engine.register_function("uuid_v4", function::uuid_v4);
         engine.register_function("base64_encode", function::base64_encode);
+        engine.register_filter("base64_encode", filters::string::base64_encode);
         engine.register_function("base64_decode", function::base64_decode);
+        engine.register_filter("base64_decode", filters::string::base64_decode);
         engine.register_filter("search", filters::object::search);
         // faker
         engine.register_function("fake_words", faker::words);
