@@ -114,6 +114,15 @@ keycloak:
 	echo "${YELLOW}Host: http://localhost:8083${NC}"
 	@docker-compose up -d keycloak
 
+rabbitmq:
+	echo "${BLUE}Run rabbitmq${NC}"
+	echo "${YELLOW}Host: http://localhost:15672${NC}"
+	@docker-compose up -d rabbitmq
+	echo "${BLUE}Init rabbitmq${NC}"
+	curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/exchanges/%2f/users.event -d"{\"type\":\"direct\",\"auto_delete\":false,\"durable\":true,\"internal\":false,\"arguments\":{}}"
+	curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/queues/%2f/users.events -d"{\"auto_delete\":false,\"durable\":true,\"arguments\":{}}"
+	curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X POST ${RABBITMQ_ENDPOINT}/api/bindings/%2f/e/users.event/q/users.events -d"{\"routing_key\":\"\",\"arguments\":{}}"
+
 semantic-release:
 	@npx semantic-release
 

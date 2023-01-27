@@ -131,6 +131,15 @@ services:
         volumes:
             - ./.config/realm-import.json:/tmp/import/realm-import.json
 
+    rabbitmq:
+        image: rabbitmq:3-management-alpine
+        environment:
+            - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME}
+            - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+        ports:
+            - 5672:5672
+            - 15672:15672
+
 ## By default this config uses default local driver,
 ## For custom volumes replace with volume driver configuration.
 volumes:
