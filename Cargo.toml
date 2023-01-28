@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "1.13.0-beta.3"
+version = "1.13.0-beta.1"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2021"
 description = "Extract Transform and Load data"
@@ -19,7 +19,7 @@ path = "benches/benchmark.rs"
 [dependencies]
 # Logs
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
-tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter"] }
+tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter","tracing-log"] }
 tracing-futures = { version = "0.2", default-features = false, features= ["std", "std-future"] }
 tracing-appender = { version = "0.2", default-features = false }
 glob = { version = "0.3", default-features = false }
@@ -62,7 +62,7 @@ aws-config = { version = "0.52.0", optional = true }
 aws-sdk-s3 = { version = "0.22.0", default-features = false, optional = true, features = ["rustls","rt-tokio"] }
 byteorder = { version = "1.4", default-features = false, optional = true, features = ["std"] }
 jsonwebtoken = { version = "8.1", default-features = false, features = ["use_pem"], optional = true }
-surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
+surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding","middleware-logger"], optional = true }
 http-types = { version = "2.12", default-features = false, optional = true }
 mongodb = { version = "2.3", default-features = false, features = ["async-std-runtime"], optional = true }
 async-compat = { version = "0.2", default-features = false, optional = true }

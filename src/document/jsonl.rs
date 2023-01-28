@@ -105,6 +105,15 @@ impl Document for Jsonl {
                         }
                     };
                 }
+                (Ok(Value::Array(records)), None) => {
+                    for record in records {
+                        trace!(
+                            record = format!("{:?}", record).as_str(),
+                            "Record deserialized"
+                        );
+                        dataset.push(DataResult::Ok(record));
+                    }
+                }
                 (Ok(record), None) => {
                     trace!(
                         record = format!("{:?}", record).as_str(),
@@ -146,25 +155,42 @@ impl Document for Jsonl {
         let mut buf = Vec::new();
         let dataset_len = dataset.len();
 
+        let serialize_value_into_buffer =
+            |pos: &usize, buf: &mut Vec<u8>, value: &Value| -> io::Result<()> {
+                let mut new_buf = buf;
+                match value {
+                    Value::String(string) => {
+                        // Avoid to put '"' for a single string
+                        new_buf.append(&mut string.as_bytes().to_vec());
+                    }
+                    _ => match self.is_pretty {
+                        true => serde_json::to_writer_pretty(&mut new_buf, &value)?,
+                        false => serde_json::to_writer(&mut new_buf, &value)?,
+                    },
+                };
+                trace!(
+                    record = format!("{:?}", value).as_str(),
+                    "Record serialized"
+                );
+                if pos + 1 < dataset_len {
+                    new_buf.append(&mut DEFAULT_TERMINATOR.as_bytes().to_vec());
+                }
+
+                Ok(())
+            };
+
         for (pos, data) in dataset.iter().enumerate() {
             let record = data.to_value();
-            match record.clone() {
-                Value::String(string) => {
-                    // Avoid to put '"' for a single string
-                    buf.append(&mut string.as_bytes().to_vec());
-                },
-                _ => match self.is_pretty {
-                    true => serde_json::to_writer_pretty(&mut buf, &record)?,
-                    false => serde_json::to_writer(&mut buf, &record)?,
+            match record {
+                Value::Array(array) => {
+                    for array_value in array {
+                        serialize_value_into_buffer(&pos, &mut buf, &array_value)?;
+                    }
+                }
+                _ => {
+                    serialize_value_into_buffer(&pos, &mut buf, &record)?;
                 }
             };
-            trace!(
-                record = format!("{:?}", record).as_str(),
-                "Record serialized"
-            );
-            if pos + 1 < dataset_len {
-                buf.append(&mut DEFAULT_TERMINATOR.as_bytes().to_vec());
-            }
         }
 
         Ok(buf)
@@ -172,6 +198,9 @@ impl Document for Jsonl {
     /// See [`Document::has_data`] for more details.
     fn has_data(&self, buf: &[u8]) -> io::Result<bool> {
         if buf == br#"{}"#.to_vec() {
+            return Ok(false);
+        }
+        if buf == br#"[]"#.to_vec() {
             return Ok(false);
         }
         Ok(!buf.is_empty())
@@ -220,7 +249,9 @@ mod tests {
         let mut document = Jsonl::default();
         document.entry_path = Some("/array*/*".to_string());
         let buffer = r#"{"array1":[{"field":"value1"},{"field":"value2"}]}
-{"array1":[{"field":"value3"},{"field":"value4"}]}"#.as_bytes().to_vec();
+{"array1":[{"field":"value3"},{"field":"value4"}]}"#
+            .as_bytes()
+            .to_vec();
         let expected_data: Value = serde_json::from_str(r#"{"field":"value1"}"#).unwrap();
         let mut dataset = document.read(&buffer).unwrap().into_iter();
         let data = dataset.next().unwrap().to_value();
@@ -230,23 +261,64 @@ mod tests {
     fn read_data_without_finding_entry_path() {
         let mut document = Jsonl::default();
         document.entry_path = Some("/not_found/*".to_string());
-        let buffer = r#"{"array1":[{"field":"value1"},{"field":"value2"}]}"#.as_bytes().to_vec();
+        let buffer = r#"{"array1":[{"field":"value1"},{"field":"value2"}]}"#
+            .as_bytes()
+            .to_vec();
         let expected_data: Value = serde_json::from_str(r#"{"array1":[{"field":"value1"},{"field":"value2"}],"_error":"Entry path '/not_found/*' not found."}"#).unwrap();
         let mut dataset = document.read(&buffer).unwrap().into_iter();
         let data = dataset.next().unwrap().to_value();
         assert_eq!(expected_data, data);
     }
     #[test]
-    fn write() {
+    fn write_object() {
         let document = Jsonl::default();
-        let dataset = vec![DataResult::Ok(
-            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
-        ),
-        DataResult::Ok(
-            serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap(),
-        )];
+        let dataset = vec![
+            DataResult::Ok(serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap()),
+            DataResult::Ok(serde_json::from_str(r#"{"column_1":"line_2"}"#).unwrap()),
+        ];
         let buffer = document.write(&dataset).unwrap();
-        assert_eq!(r#"{"column_1":"line_1"}
-{"column_1":"line_2"}"#.as_bytes().to_vec(), buffer);
+        assert_eq!(
+            r#"{"column_1":"line_1"}
+{"column_1":"line_2"}"#
+                .as_bytes()
+                .to_vec(),
+            buffer
+        );
+    }
+    #[test]
+    fn write_array() {
+        let document = Jsonl::default();
+        let dataset = vec![
+            DataResult::Ok(
+                serde_json::from_str(r#"[{"column_1":"line_1"},{"column_1":"line_2"}]"#).unwrap(),
+            ),
+            DataResult::Ok(serde_json::from_str(r#"{"column_1":"line_3"}"#).unwrap()),
+        ];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(
+            r#"{"column_1":"line_1"}
+{"column_1":"line_2"}
+{"column_1":"line_3"}"#
+                .as_bytes()
+                .to_vec(),
+            buffer
+        );
+    }
+    #[test]
+    fn write_array_string() {
+        let document = Jsonl::default();
+        let dataset = vec![
+            DataResult::Ok(serde_json::from_str(r#"["a","b"]"#).unwrap()),
+            DataResult::Ok(serde_json::from_str(r#""c""#).unwrap()),
+        ];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(
+            r#"a
+b
+c"#
+            .as_bytes()
+            .to_vec(),
+            buffer
+        );
     }
 }

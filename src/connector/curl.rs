@@ -2,13 +2,14 @@ use super::authenticator::AuthenticatorType;
 use super::{Connector, Paginator};
 use crate::document::{Document, DocumentType};
 use crate::helper::mustache::Mustache;
-use crate::{DataSet, DataStream, Metadata};
+use crate::{DataResult, DataSet, DataStream, Metadata};
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use http_types::headers::HeaderName;
 use http_types::headers::HeaderValue;
 use json_value_merge::Merge;
+use json_value_remove::Remove;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::convert::TryInto;
@@ -142,6 +143,13 @@ impl Curl {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
         Ok(client)
+    }
+    /// Return parameter's values without context
+    fn parameters_without_context(&self) -> Result<Value> {
+        let mut parameters_without_context = self.parameters.clone();
+        parameters_without_context.remove("/steps")?;
+        parameters_without_context.remove("/paginator")?;
+        Ok(parameters_without_context)
     }
 }
 
@@ -280,10 +288,16 @@ impl Connector for Curl {
     #[instrument]
     async fn len(&mut self) -> Result<usize> {
         let client = self.client().await?;
-        let url = Url::parse(format!("{}{}", self.endpoint, self.path()).as_str())
+        let path = self.path();
+
+        if path.has_mustache() {
+            warn!(path, "This path is not fully resolved");
+        }
+
+        let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url);
+        let mut req = client.request(Method::Head, url.clone());
 
         // Force the headers
         for (key, value) in self.headers.iter() {
@@ -295,6 +309,8 @@ impl Connector for Curl {
             );
         }
 
+        info!(url = url.as_str(), "Ready to get the resource's length");
+
         let res = client
             .send(req.build())
             .await
@@ -302,9 +318,9 @@ impl Connector for Curl {
 
         if !res.status().is_success() {
             trace!(
-                connector = format!("{:?}", self).as_str(),
+                url = url.as_str(),
                 status = res.status().to_string().as_str(),
-                "Can't get the len of the remote document with method HEAD"
+                "Can't get the length of the remote document with method HEAD"
             );
 
             return Ok(0);
@@ -320,6 +336,7 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         info!(
+            url = url.as_str(),
             len = content_length,
             "The connector found data in the resource"
         );
@@ -358,13 +375,33 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            warn!(path, "This path is not fully resolved");
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url);
+        let mut req = client.request(self.method, url.clone());
+
+        match self.method {
+            Method::Post | Method::Put | Method::Patch => {
+                let mut buffer = Vec::default();
+
+                let dataset = vec![DataResult::Ok(self.parameters_without_context()?)];
+                buffer.append(&mut document.header(&dataset)?);
+                buffer.append(&mut document.write(&dataset)?);
+                buffer.append(&mut document.footer(&dataset)?);
+
+                req = req.body(buffer.clone());
+                req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
+            }
+            _ => (),
+        };
+
+        // Force to replace the `application/octet-stream` by the connector content type.
+        if !self.metadata().content_type().is_empty() {
+            req = req.header(headers::CONTENT_TYPE, self.metadata().content_type());
+        }
 
         // Force the headers
         for (key, value) in self.headers.iter() {
@@ -375,6 +412,8 @@ impl Connector for Curl {
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
             );
         }
+
+        info!(url = url.as_str(), "Ready to fetch data from the resource");
 
         let mut res = client
             .send(req.build())
@@ -398,7 +437,7 @@ impl Connector for Curl {
         }
 
         info!(
-            path = path,
+            url = url.as_str(),
             "The connector fetch data into the resource with success"
         );
 
@@ -455,28 +494,35 @@ impl Connector for Curl {
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         let client = self.client().await?;
-        let mut buffer = Vec::default();
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            warn!(path, "This path is not fully resolved");
         }
-
-        buffer.append(&mut document.header(dataset)?);
-        buffer.append(&mut document.write(dataset)?);
-        buffer.append(&mut document.footer(dataset)?);
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url).body(buffer.clone());
+        let mut req = client.request(self.method, url.clone());
+
+        match self.method {
+            Method::Post | Method::Put | Method::Patch => {
+                let mut buffer = Vec::default();
+
+                buffer.append(&mut document.header(&dataset)?);
+                buffer.append(&mut document.write(&dataset)?);
+                buffer.append(&mut document.footer(&dataset)?);
+
+                req = req.body(buffer.clone());
+                req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
+            }
+            _ => (),
+        };
 
         // Force to replace the `application/octet-stream` by the connector content type.
         if !self.metadata().content_type().is_empty() {
             req = req.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
-
-        req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
 
         // Force the headers
         for (key, value) in self.headers.iter() {
@@ -487,6 +533,8 @@ impl Connector for Curl {
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
             );
         }
+
+        info!(url = url.as_str(), "Ready to send data into the resource");
 
         let mut res = client
             .send(req.build())
@@ -520,7 +568,7 @@ impl Connector for Curl {
         }
 
         info!(
-            path = path,
+            url = url.as_str(),
             "The connector send data into the resource with success"
         );
         Ok(None)
@@ -550,13 +598,13 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            warn!(path, "This path is not fully resolved");
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url);
+        let mut req = client.request(self.method, url.clone());
 
         // Force the headers
         for (key, value) in self.headers.iter() {
@@ -567,6 +615,8 @@ impl Connector for Curl {
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
             );
         }
+
+        info!(url = url.as_str(), "Ready to erase data in the resource");
 
         let mut res = client
             .send(req.build())
@@ -587,7 +637,7 @@ impl Connector for Curl {
         }
 
         info!(
-            path = path,
+            url = url.as_str(),
             "The connector erase data in the resource with success"
         );
         Ok(())
@@ -1127,6 +1177,7 @@ impl Paginator for CursorPaginator {
 
                 new_parameters
                     .merge_in("/paginator/limit", Value::String(limit.to_string()))?;
+                new_connector.set_parameters(new_parameters);
 
                 document.set_entry_path(entry_path.clone());
 

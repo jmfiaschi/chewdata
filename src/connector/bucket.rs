@@ -858,7 +858,7 @@ mod tests {
         connector.path = "data/out/test_bucket_send".to_string();
         connector.erase().await.unwrap();
         let expected_result1 =
-            DataResult::Ok(serde_json::from_str(r#"[{"column1":"value1"}]"#).unwrap());
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
         connector.send(&document, &dataset).await.unwrap();
 
@@ -871,7 +871,7 @@ mod tests {
         assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
 
         let expected_result2 =
-            DataResult::Ok(serde_json::from_str(r#"[{"column1":"value2"}]"#).unwrap());
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
         connector.send(&document, &dataset).await.unwrap();
 

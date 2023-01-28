@@ -1,7 +1,6 @@
 use super::Authenticator;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
-use crate::DataResult;
 use crate::{connector::ConnectorType, document::jsonl::Jsonl};
 use async_std::prelude::StreamExt;
 use async_trait::async_trait;
@@ -180,11 +179,10 @@ impl Jwt {
                 .metadata()
                 .merge(self.document.metadata()),
         );
-
-        let dataset = vec![DataResult::Ok(payload)];
+        connector.set_parameters(payload);
 
         let mut datastream = match connector
-            .send(&*self.document, &dataset)
+            .fetch(&*self.document)
             .await?
         {
             Some(datastream) => datastream,

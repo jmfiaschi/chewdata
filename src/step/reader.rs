@@ -91,69 +91,40 @@ impl Step for Reader {
         let document = self.document_type.ref_inner();
         connector.set_metadata(connector.metadata().merge(document.metadata()));
 
-        match connector.is_variable() {
-            true => {
-                // Used to check if one data has been received.
-                let mut has_data_been_received = false;
+        // Used to check if one data has been received.
+        let mut has_data_been_received = false;
 
-                let mut receiver_stream = super::receive(self as &dyn Step).await?;
-                while let Some(step_context_received) = receiver_stream.next().await {
-                    if !has_data_been_received {
-                        has_data_been_received = true;
-                    }
-
-                    if !step_context_received
-                        .data_result()
-                        .is_type(self.data_type.as_ref())
-                    {
-                        trace!("This step handle only this data type");
-                        super::send(self as &dyn Step, &step_context_received.clone()).await?;
-                        continue;
-                    }
-
-                    connector.set_parameters(step_context_received.to_value()?);
-
-                    exec_connector(
-                        self,
-                        &mut connector,
-                        document,
-                        &Some(step_context_received),
-                    )
-                    .await?
-                }
-
-                // If data has not been received and the channel has been close, run last time the step.
-                // It arrive when the previous step don't push data through the pipe.
-                if !has_data_been_received {
-                    exec_connector(self, &mut connector, document, &None).await?
-                }
+        let mut receiver_stream = super::receive(self as &dyn Step).await?;
+        while let Some(step_context_received) = receiver_stream.next().await {
+            if !has_data_been_received {
+                has_data_been_received = true;
             }
-            false => {
-                // Used to check if one data has been received.
-                let mut has_data_been_received = false;
 
-                let mut receiver_stream = super::receive(self as &dyn Step).await?;
-                while let Some(step_context_received) = receiver_stream.next().await {
-                    if !has_data_been_received {
-                        has_data_been_received = true;
-                    }
-
-                    exec_connector(
-                        self,
-                        &mut connector,
-                        document,
-                        &Some(step_context_received),
-                    )
-                    .await?
-                }
-
-                // If data has not been received and the channel has been close, run last time the step.
-                // It arrive when the previous step don't push data through the pipe.
-                if !has_data_been_received {
-                    exec_connector(self, &mut connector, document, &None).await?
-                }
+            if !step_context_received
+                .data_result()
+                .is_type(self.data_type.as_ref())
+            {
+                trace!("This step handle only this data type");
+                super::send(self as &dyn Step, &step_context_received.clone()).await?;
+                continue;
             }
-        };
+
+            connector.set_parameters(step_context_received.to_value()?);
+
+            exec_connector(
+                self,
+                &mut connector,
+                document,
+                &Some(step_context_received),
+            )
+            .await?
+        }
+
+        // If data has not been received and the channel has been close, run last time the step.
+        // It arrive when the previous step don't push data through the pipe.
+        if !has_data_been_received {
+            exec_connector(self, &mut connector, document, &None).await?
+        }
 
         Ok(())
     }
