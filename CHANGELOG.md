@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/jmfiaschi/chewdata/compare/v1.12.2...v1.13.0) (2023-01-28)
+
+
+### Features
+
+* **rabbitmq:** support publish & consume ([#38](https://github.com/jmfiaschi/chewdata/issues/38)) ([9d708b6](https://github.com/jmfiaschi/chewdata/commit/9d708b60fcc62c696f0af753c5b4b11bc496f63b))
+
 # [1.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.2...v1.13.0-beta.1) (2023-01-28)
 
 
