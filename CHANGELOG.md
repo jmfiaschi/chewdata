@@ -1,3 +1,21 @@
+# [1.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.12.2...v1.13.0-beta.1) (2023-01-28)
+
+
+### Bug Fixes
+
+* **json:** write better array and handle empty data with [] ([ec11990](https://github.com/jmfiaschi/chewdata/commit/ec1199051959b23c530027542d1e6f0b2c5a0181))
+* **json:** write better array and handle empty data with [] ([04199e4](https://github.com/jmfiaschi/chewdata/commit/04199e4f4525aa231985d8eeacf401d2eb7596a0))
+* **json:** write better array and handle empty data with {} ([be998fa](https://github.com/jmfiaschi/chewdata/commit/be998faf98ede085c0d570e755ed0e73be5d6266))
+* **project:** version ([5ec922f](https://github.com/jmfiaschi/chewdata/commit/5ec922f509471821cf9eeb47144430059caba55e))
+
+
+### Features
+
+* **base64:** add filters encode & decode ([c20bdf1](https://github.com/jmfiaschi/chewdata/commit/c20bdf1173e0c89a26e2c7a62b2ccf7a74c21060))
+* **curl:** fetch can have a body for POST/PATCH/PUT ([d12e79b](https://github.com/jmfiaschi/chewdata/commit/d12e79b88d6340ba92e2c56abc77f10ccd0199b0))
+* **rabbitmq:**  publish and consume data ([fe9b5a7](https://github.com/jmfiaschi/chewdata/commit/fe9b5a75e9439650d71e3f2ae153421fbeb6abd7))
+* **tracing:** add tracing-log and  display lib logs ([701af48](https://github.com/jmfiaschi/chewdata/commit/701af48db05ad39e29931674add612c40706fb3a))
+
 # [1.13.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.13.0-beta.2...v1.13.0-beta.3) (2023-01-15)
 
 
