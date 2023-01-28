@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673820419874,
+  "lastUpdate": 1674940756301,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1391,6 +1391,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 25646,
             "range": "± 41",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9d708b60fcc62c696f0af753c5b4b11bc496f63b",
+          "message": "feat(rabbitmq): support publish & consume (#38)\n\n* fix(json): write better array and handle empty data with {}\r\n\r\n* fix(jsonl): write better array and handle empty data with []\r\n\r\n* feat(tracing): add tracing-log and  display lib logs\r\n\r\n* feat(base64): add filters encode & decode\r\n\r\n* refactor(reader): simplify the code\r\n\r\n* feat(curl): fetch can have a body for POST/PATCH/PUT\r\n\r\n* feat(rabbitmq):  publish and consume data\r\n\r\n* refactor(jwt): replace send by fetch data\r\n\r\n* refactor(example): rename files",
+          "timestamp": "2023-01-28T21:48:11+01:00",
+          "tree_id": "426fcdd93a5ce9d22dfc5867e3b264db0cef2671",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/9d708b60fcc62c696f0af753c5b4b11bc496f63b"
+        },
+        "date": 1674940755057,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 6040,
+            "range": "± 365",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5598,
+            "range": "± 231",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 289824,
+            "range": "± 27682",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 29924,
+            "range": "± 1431",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 11850,
+            "range": "± 524",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 18541,
+            "range": "± 1304",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 335781,
+            "range": "± 19127",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 27897,
+            "range": "± 1547",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 27304,
+            "range": "± 1483",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 27446,
+            "range": "± 1082",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 27260,
+            "range": "± 1219",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 27598,
+            "range": "± 1300",
             "unit": "ns/iter"
           }
         ]
