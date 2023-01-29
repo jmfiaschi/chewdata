@@ -326,7 +326,7 @@ mod tests {
             sender_input.try_send(step_context).unwrap();
         });
         validator.exec().await.unwrap();
-        for step_context in receiver_output.try_recv() {
+        while let Ok(step_context) = receiver_output.try_recv() {
             let error_result = step_context
                 .data_result()
                 .to_value()
@@ -365,7 +365,7 @@ mod tests {
             sender_input.try_send(step_context).unwrap();
         });
         validator.exec().await.unwrap();
-        for step_context in receiver_output.try_recv() {
+        while let Ok(step_context) = receiver_output.try_recv() {
             let error_result = step_context
                 .data_result()
                 .to_value()
