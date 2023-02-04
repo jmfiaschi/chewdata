@@ -117,7 +117,7 @@ impl Document for Parquet {
     /// let expected_data: Value = serde_json::from_str(json_expected_str).unwrap();
     /// assert_eq!(expected_data, data);
     /// ```
-    #[instrument]
+    #[instrument(skip(buffer), name = "parquet::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
         let bytes = Bytes::copy_from_slice(buffer);
@@ -177,7 +177,7 @@ impl Document for Parquet {
         Ok(dataset)
     }
     /// See [`Document::write`] for more details.
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "parquet::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut arrow_value = dataset.iter().map(|data| Ok(data.to_value()));
         let schema = match self.schema.clone() {

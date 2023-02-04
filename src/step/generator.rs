@@ -80,7 +80,7 @@ impl Step for Generator {
     fn sleep(&self) -> u64 {
         self.wait
     }
-    #[instrument]
+    #[instrument(name = "generator::exec")]
     async fn exec(&self) -> io::Result<()> {
         let mut has_data_been_received = false;
         let mut receiver_stream = super::receive(self as &dyn Step).await?;

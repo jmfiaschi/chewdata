@@ -24,7 +24,6 @@ use serde_json::{Map, Value};
 use std::io::Result;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
-use tracing_futures::WithSubscriber;
 
 pub async fn exec(
     step_types: Vec<StepType>,
@@ -64,7 +63,7 @@ pub async fn exec(
 
     for step in steps {
         handles.push(task::spawn(
-            async move { step.exec().await }.with_current_subscriber(),
+            async move { step.exec().await },
         ));
     }
 

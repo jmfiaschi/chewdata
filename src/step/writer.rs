@@ -91,7 +91,7 @@ impl Step for Writer {
     fn sleep(&self) -> u64 {
         self.wait
     }
-    #[instrument]
+    #[instrument(name = "writer::exec")]
     async fn exec(&self) -> io::Result<()> {
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.clone().boxed_inner();

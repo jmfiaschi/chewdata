@@ -81,7 +81,7 @@ impl Step for Eraser {
     fn sleep(&self) -> u64 {
         self.wait
     }
-    #[instrument]
+    #[instrument(name = "ereaser::exec")]
     async fn exec(&self) -> io::Result<()> {
         let connector_type = self.connector_type.clone();
         let mut connector = connector_type.boxed_inner();

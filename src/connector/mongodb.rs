@@ -155,23 +155,26 @@ impl Connector for Mongodb {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument(name = "mongodb::len")]
     async fn len(&mut self) -> Result<usize> {
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
-        let collection = self.collection.clone();
+        let collection_name = self.collection.clone();
 
         let client = match Client::with_uri_str(&hostname).await {
             Ok(client) => client,
             Err(e) => return Err(Error::new(ErrorKind::Interrupted, e)),
         };
         let db = client.database(&database);
-        let collection = db.collection::<Document>(&collection);
-        let count = collection
+        let collection = db.collection::<Document>(&collection_name);
+        let len = collection
             .estimated_document_count(None)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        Ok(count as usize)
+        info!(len, "Number of records found in the resource");
+
+        Ok(len as usize)
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -201,7 +204,7 @@ impl Connector for Mongodb {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "mongodb::fetch")]
     async fn fetch(
         &mut self,
         document: &dyn ChewdataDocument,
@@ -272,7 +275,7 @@ impl Connector for Mongodb {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "mongodb::send")]
     async fn send(
         &mut self,
         _document: &dyn ChewdataDocument,
@@ -385,7 +388,7 @@ impl Connector for Mongodb {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "mongodb::erase")]
     async fn erase(&mut self) -> Result<()> {
         let hostname = self.endpoint.clone();
         let database = self.database.clone();
@@ -478,7 +481,7 @@ impl MetadataCounter {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "metadata_counter::count")]
     pub async fn count(&self, connector: Mongodb) -> Result<Option<usize>> {
         let count = connector.clone().len().await?;
 
@@ -561,6 +564,7 @@ impl Paginator for OffsetPaginator {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument(name = "offset_paginator::count")]
     async fn count(&mut self) -> Result<Option<usize>> {
         let connector = match self.connector {
             Some(ref mut connector) => Ok(connector),
@@ -615,7 +619,7 @@ impl Paginator for OffsetPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "offset_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
@@ -729,7 +733,7 @@ impl Paginator for CursorPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "cursor_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
@@ -901,11 +905,7 @@ mod tests {
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
-        let mut datastream = connector_read
-            .fetch(&document)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         let data_1 = datastream.next().await.unwrap();
         let data_1_id = data_1.to_value().search("/_id").unwrap().unwrap();
 

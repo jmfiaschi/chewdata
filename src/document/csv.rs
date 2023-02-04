@@ -245,7 +245,7 @@ impl Document for Csv {
     /// assert_eq!(expected_data_1, data_1);
     /// assert_eq!(expected_data_2, data_2);
     /// ```
-    #[instrument]
+    #[instrument(skip(buffer), name = "csv::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let builder_reader = self
             .reader_builder()
@@ -280,7 +280,7 @@ impl Document for Csv {
     /// assert_eq!(r#""line_2"
     /// "#.as_bytes().to_vec(), buffer);
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "csv::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut builder_writer = self.writer_builder().from_writer(Vec::default());
 

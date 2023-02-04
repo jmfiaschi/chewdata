@@ -85,7 +85,7 @@ impl Step for Reader {
     fn sleep(&self) -> u64 {
         self.wait
     }
-    #[instrument]
+    #[instrument(name = "reader::exec")]
     async fn exec(&self) -> io::Result<()> {
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.ref_inner();

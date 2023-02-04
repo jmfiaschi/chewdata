@@ -97,7 +97,7 @@ impl Step for Transformer {
     fn sleep(&self) -> u64 {
         self.wait
     }
-    #[instrument]
+    #[instrument(name = "transformer::exec")]
     async fn exec(&self) -> io::Result<()> {
         let referentials = match self.referentials.clone() {
             Some(referentials) => Some(referentials_reader_into_value(referentials).await?),

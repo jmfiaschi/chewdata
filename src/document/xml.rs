@@ -178,7 +178,7 @@ impl Document for Xml {
     /// let expected_data_2: Value = serde_json::from_str(r#"{"_":"value_2"}"#).unwrap();
     /// assert_eq!(expected_data_2, data_2);
     /// ```
-    #[instrument]
+    #[instrument(skip(buffer), name = "xml::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
         let entry_path = self.entry_path.clone();
@@ -262,7 +262,7 @@ impl Document for Xml {
     ///     buffer
     /// );
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "xml::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
         let header = self.header(dataset)?;

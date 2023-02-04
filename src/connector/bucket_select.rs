@@ -466,7 +466,7 @@ impl Connector for BucketSelect {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "bucket_select::len")]
     async fn len(&mut self) -> Result<usize> {
         let mut connector = self.clone();
         connector.query = format!(
@@ -482,7 +482,8 @@ impl Connector for BucketSelect {
 
         let len = connector.fetch_length().await.unwrap_or_default();
 
-        info!(len = len, "The connector found data in the resource");
+        info!(len, "The connector found data in the resource");
+        
         Ok(len)
     }
     /// See [`Connector::fetch`] for more details.
@@ -517,7 +518,7 @@ impl Connector for BucketSelect {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "bucket_select::fetch")]
     async fn fetch(&mut self, document: &dyn Document) -> Result<Option<DataStream>> {
         let mut buffer = Vec::default();
         let path = self.path();
@@ -565,7 +566,7 @@ impl Connector for BucketSelect {
         })))
     }
     /// See [`Connector::send`] for more details.
-    #[instrument]
+    #[instrument(skip(_dataset), name = "bucket_select::send")]
     async fn send(
         &mut self,
         _document: &dyn Document,
@@ -647,7 +648,7 @@ impl Paginator for BucketSelectPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "bucket_select_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
