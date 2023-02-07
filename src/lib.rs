@@ -269,7 +269,7 @@ impl DataResult {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StepContext {
     steps_result: Value,
     data_result: DataResult,

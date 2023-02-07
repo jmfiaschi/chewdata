@@ -157,3 +157,60 @@ impl Step for Transformer {
         self.name.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+    use std::io::{Error, ErrorKind};
+    use std::thread;
+
+    #[async_std::test]
+    async fn exec_with_different_data_result_type() {
+        let mut step = Transformer::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let error = Error::new(ErrorKind::InvalidData, "My error");
+        let step_context =
+            StepContext::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let expected_step_context = step_context.clone();
+
+        thread::spawn(move || {
+            sender_input.try_send(step_context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+    }
+    #[async_std::test]
+    async fn exec_with_same_data_result_type() {
+        let mut step = Transformer::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let step_context =
+            StepContext::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+            
+        let mut expected_step_context = step_context.clone();
+        let data2: Value = serde_json::from_str(r#"{"field_1":"value_2"}"#).unwrap();
+        expected_step_context
+            .insert_step_result("my_step".to_string(), DataResult::Ok(data2))
+            .unwrap();
+
+        thread::spawn(move || {
+            sender_input.try_send(step_context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.name = "my_step".to_string();
+        step.actions = serde_json::from_str(r#"[{"field":"field_1","pattern": "value_2"}]"#).unwrap();
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+    }
+}

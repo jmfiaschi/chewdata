@@ -6,8 +6,8 @@ use crate::step::Step;
 use crate::updater::{ActionType, UpdaterType};
 use crate::StepContext;
 use crate::{step::reader::Reader, updater::Action};
-use async_trait::async_trait;
 use async_channel::{Receiver, Sender};
+use async_trait::async_trait;
 use futures::StreamExt;
 use json_value_merge::Merge;
 use json_value_search::Search;
@@ -201,7 +201,7 @@ impl Step for Validator {
                     Value::Object(_) => Ok(value),
                     _ => Err(Error::new(
                         ErrorKind::InvalidInput,
-                        format!("The validation's result must be an object of boolean and not '{:?}'", value),
+                        format!("The validation's result must be a boolean and not '{:?}'", value),
                     )),
                 })
                 .and_then(|value| {
@@ -279,6 +279,53 @@ mod tests {
     use super::*;
     use std::thread;
 
+    #[async_std::test]
+    async fn exec_with_different_data_result_type() {
+        let mut step = Validator::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let error = Error::new(ErrorKind::InvalidData, "My error");
+        let step_context =
+            StepContext::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let expected_step_context = step_context.clone();
+
+        thread::spawn(move || {
+            sender_input.try_send(step_context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+    }
+    #[async_std::test]
+    async fn exec_with_same_data_result_type() {
+        let mut step = Validator::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let step_context =
+            StepContext::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+
+        let mut expected_step_context = step_context.clone();
+        expected_step_context
+            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
+            .unwrap();
+
+        thread::spawn(move || {
+            sender_input.try_send(step_context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.name = "my_step".to_string();
+        step.rules = serde_json::from_str(r#"{"rule_1": {"pattern": "true"}}"#).unwrap();
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+    }
     #[async_std::test]
     async fn exec() {
         let (sender_input, receiver_input) = async_channel::unbounded();
