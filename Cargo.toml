@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "1.13.0"
+version = "1.14.0-beta.1"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2021"
 description = "Extract Transform and Load data"
@@ -22,6 +22,9 @@ tracing = { version = "0.1", default-features = false, features = ["std", "attri
 tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter","tracing-log"] }
 tracing-futures = { version = "0.2", default-features = false, features= ["std", "std-future"] }
 tracing-appender = { version = "0.2", default-features = false }
+tracing-opentelemetry = { version = "0.18", default-features = false, features= ["tracing-log"] }
+opentelemetry = { version = "0.18", default-features = false, features= ["trace","rt-async-std"]}
+opentelemetry-jaeger = { version = "0.17", default-features = false, features= ["rt-async-std"]}
 glob = { version = "0.3", default-features = false }
 env_applier = { version = "0.1", default-features = false }
 serde_json =  { version = "1.0", default-features = false, features= ["std"] }
@@ -83,6 +86,7 @@ bearer = []
 curl = ["surf","jsonwebtoken","http-types"]
 mongodb = ["dep:mongodb"]
 psql = ["sqlx","sqlx/postgres"]
+apm = []
 default = [
     'xml',
     'csv',

@@ -60,7 +60,7 @@ impl Connector for Io {
         Ok(false)
     }
     /// See [`Connector::fetch`] for more details.
-    #[instrument]
+    #[instrument(name = "io::fetch")]
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let stdin = BufReader::new(stdin());
 
@@ -91,7 +91,7 @@ impl Connector for Io {
         })))
     }
     /// See [`Connector::send`] for more details.
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "io::send")]
     async fn send(&mut self, document: &dyn Document, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut buffer = Vec::default();
 
@@ -158,7 +158,7 @@ impl Paginator for IoPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "io_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {

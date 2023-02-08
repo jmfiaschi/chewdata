@@ -164,13 +164,13 @@ impl Psql {
                 }
                 Some(Value::Bool(boolean)) => {
                     query_binding.add(boolean);
-                },
+                }
                 Some(Value::Array(vec)) => {
                     query_binding.add(Value::Array(vec.clone()));
-                },
+                }
                 Some(Value::Object(map)) => {
                     query_binding.add(Value::Object(map.clone()));
-                },
+                }
                 None => {
                     warn!(
                         pattern = pattern_captured.as_str(),
@@ -260,18 +260,21 @@ impl Connector for Psql {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument(name = "psql::len")]
     async fn len(&mut self) -> Result<usize> {
         let (query_sanitized, _) = self.query_sanitized(
             "SELECT COUNT(1) FROM {{ collection }}".to_string(),
             Value::Null,
         )?;
 
-        let count: i64 = sqlx::query_scalar(query_sanitized.as_str())
+        let len: i64 = sqlx::query_scalar(query_sanitized.as_str())
             .fetch_one(self.client().await?)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        Ok(count as usize)
+        info!(len, "Number of records found in the resource");
+
+        Ok(len as usize)
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -309,7 +312,7 @@ impl Connector for Psql {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "psql::fetch")]
     async fn fetch(&mut self, _document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let parameters = self.parameters.clone();
         let (query_sanitized, binding) = match self.query.clone() {
@@ -455,7 +458,7 @@ impl Connector for Psql {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "psql::send")]
     async fn send(
         &mut self,
         _document: &dyn Document,
@@ -545,7 +548,7 @@ impl Connector for Psql {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "psql::erase")]
     async fn erase(&mut self) -> Result<()> {
         let (query_sanitized, _) =
             self.query_sanitized("DELETE FROM {{ collection }}".to_string(), Value::Null)?;
@@ -625,7 +628,7 @@ impl ScanCounter {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "scan_counter::count")]
     pub async fn count(&self, connector: Psql) -> Result<Option<usize>> {
         let count = connector.clone().len().await?;
 
@@ -760,7 +763,7 @@ impl Paginator for OffsetPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "offset_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
@@ -950,20 +953,14 @@ mod tests {
         );
         let dataset = vec![expected_result1.clone()];
         let mut connector_update = connector.clone();
-        connector_update
-            .send(&document, &dataset)
-            .await
-            .unwrap();
+        connector_update.send(&document, &dataset).await.unwrap();
 
         let expected_result2 = DataResult::Ok(
             serde_json::from_str(r#"{"number":111,"group":1,"string":"value2"}"#).unwrap(),
         );
         let dataset = vec![expected_result2.clone()];
         let mut connector_update = connector.clone();
-        connector_update
-            .send(&document, &dataset)
-            .await
-            .unwrap();
+        connector_update.send(&document, &dataset).await.unwrap();
 
         let data: Value =
             serde_json::from_str(r#"{"number":110,"group":1,"string":"value3"}"#).unwrap();
@@ -971,10 +968,7 @@ mod tests {
         let mut connector_update = connector.clone();
         connector_update.set_parameters(data);
         connector_update.query = Some("UPDATE {{ collection }} SET \"group\" = {{ group }}, \"string\" = {{ string }} WHERE \"number\" = {{ number }}".to_string());
-        connector_update
-            .send(&document, &dataset)
-            .await
-            .unwrap();
+        connector_update.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.query =
@@ -1023,20 +1017,14 @@ mod tests {
         );
         let dataset = vec![expected_result1.clone()];
         let mut connector_update = connector.clone();
-        connector_update
-            .send(&document, &dataset)
-            .await
-            .unwrap();
+        connector_update.send(&document, &dataset).await.unwrap();
 
         let expected_result2 = DataResult::Ok(
             serde_json::from_str(r#"{"number":111,"group":1,"string":"value2"}"#).unwrap(),
         );
         let dataset = vec![expected_result2.clone()];
         let mut connector_update = connector.clone();
-        connector_update
-            .send(&document, &dataset)
-            .await
-            .unwrap();
+        connector_update.send(&document, &dataset).await.unwrap();
 
         let data: Value =
             serde_json::from_str(r#"{"number":110,"group":1,"string":"value3"}"#).unwrap();
@@ -1044,10 +1032,7 @@ mod tests {
         let mut connector_update = connector.clone();
         connector_update.set_parameters(data);
         connector_update.query = Some("INSERT INTO {{ collection }} (\"group\",\"string\",\"number\") VALUES ({{ group }},{{ string }},{{ number }}) ON CONFLICT (\"number\") DO UPDATE SET \"group\"=excluded.group,\"string\"=excluded.string".to_string());
-        connector_update
-            .send(&document, &dataset)
-            .await
-            .unwrap();
+        connector_update.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.query =

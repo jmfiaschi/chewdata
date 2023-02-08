@@ -110,8 +110,13 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
+    #[instrument(name = "in_memory::len")]
     async fn len(&mut self) -> io::Result<usize> {
-        Ok(self.memory.lock().await.get_ref().len())
+        let len = self.memory.lock().await.get_ref().len();
+
+        info!(len = len, "Size of data found in the resource");
+
+        Ok(len)
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
@@ -152,7 +157,7 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "in_memory::fetch")]
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let resource = self.memory.lock().await;
         info!("The connector fetch data with success");
@@ -207,7 +212,7 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "in_memory::send")]
     async fn send(
         &mut self,
         document: &dyn Document,
@@ -268,7 +273,7 @@ impl Connector for InMemory {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "in_memory::erase")]
     async fn erase(&mut self) -> io::Result<()> {
         let mut memory = self.memory.lock().await;
         *memory = Cursor::default();
@@ -322,7 +327,7 @@ impl Paginator for InMemoryPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "in_memory_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {

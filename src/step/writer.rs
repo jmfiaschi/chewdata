@@ -91,7 +91,7 @@ impl Step for Writer {
     fn sleep(&self) -> u64 {
         self.wait
     }
-    #[instrument]
+    #[instrument(name = "writer::exec")]
     async fn exec(&self) -> io::Result<()> {
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.clone().boxed_inner();
@@ -101,6 +101,7 @@ impl Step for Writer {
 
         // Use to init the connector during the loop
         let default_connector = connector.clone();
+        let mut last_step_context_received = None;
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(step_context_received) = receiver_stream.next().await {
@@ -112,6 +113,7 @@ impl Step for Writer {
                 super::send(self as &dyn Step, &step_context_received.clone()).await?;
                 continue;
             }
+            last_step_context_received = Some(step_context_received.clone());
 
             {
                 // If the path change and the inner connector not empty, the connector
@@ -123,11 +125,10 @@ impl Step for Writer {
                         Ok(_) => {
                             info!("Dataset sended with success into the connector");
                             for data in dataset {
-                                super::send(
-                                    self as &dyn Step,
-                                    &StepContext::new(self.name(), data)?,
-                                )
-                                .await?;
+                                let mut step_context = step_context_received.clone();
+                                step_context.insert_step_result(self.name(), data)?;
+
+                                super::send(self as &dyn Step, &step_context).await?;
                             }
                         }
                         Err(e) => {
@@ -142,17 +143,16 @@ impl Step for Writer {
                             );
 
                             for data in dataset {
-                                super::send(
-                                    self as &dyn Step,
-                                    &StepContext::new(
-                                        self.name(),
-                                        DataResult::Err((
-                                            data.to_value(),
-                                            io::Error::new(e.kind(), e.to_string()),
-                                        )),
-                                    )?,
-                                )
-                                .await?;
+                                let mut step_context = step_context_received.clone();
+                                step_context.insert_step_result(
+                                    self.name(),
+                                    DataResult::Err((
+                                        data.to_value(),
+                                        io::Error::new(e.kind(), e.to_string()),
+                                    )),
+                                )?;
+
+                                super::send(self as &dyn Step, &step_context).await?;
                             }
                         }
                     };
@@ -169,8 +169,9 @@ impl Step for Writer {
                     Ok(_) => {
                         info!("Dataset sended with success into the connector");
                         for data in dataset {
-                            super::send(self as &dyn Step, &StepContext::new(self.name(), data)?)
-                                .await?;
+                            let mut step_context = step_context_received.clone();
+                            step_context.insert_step_result(self.name(), data)?;
+                            super::send(self as &dyn Step, &step_context).await?;
                         }
                     }
                     Err(e) => {
@@ -185,17 +186,16 @@ impl Step for Writer {
                         );
 
                         for data in dataset {
-                            super::send(
-                                self as &dyn Step,
-                                &StepContext::new(
-                                    self.name(),
-                                    DataResult::Err((
-                                        data.to_value(),
-                                        io::Error::new(e.kind(), e.to_string()),
-                                    )),
-                                )?,
-                            )
-                            .await?;
+                            let mut step_context = step_context_received.clone();
+                            step_context.insert_step_result(
+                                self.name(),
+                                DataResult::Err((
+                                    data.to_value(),
+                                    io::Error::new(e.kind(), e.to_string()),
+                                )),
+                            )?;
+
+                            super::send(self as &dyn Step, &step_context).await?;
                         }
                     }
                 };
@@ -214,8 +214,16 @@ impl Step for Writer {
                 Ok(_) => {
                     info!("Dataset sended with success into the connector");
                     for data in dataset {
-                        super::send(self as &dyn Step, &StepContext::new(self.name(), data)?)
-                            .await?;
+                        let step_context = match &last_step_context_received {
+                            Some(step_context_received) => {
+                                let mut step_context = step_context_received.clone();
+                                step_context.insert_step_result(self.name(), data)?;
+                                step_context
+                            }
+                            None => StepContext::new(self.name(), data)?,
+                        };
+
+                        super::send(self as &dyn Step, &step_context).await?;
                     }
                 }
                 Err(e) => {
@@ -230,17 +238,28 @@ impl Step for Writer {
                     );
 
                     for data in dataset {
-                        super::send(
-                            self as &dyn Step,
-                            &StepContext::new(
+                        let step_context = match &last_step_context_received {
+                            Some(step_context_received) => {
+                                let mut step_context = step_context_received.clone();
+                                step_context.insert_step_result(
+                                    self.name(),
+                                    DataResult::Err((
+                                        data.to_value(),
+                                        io::Error::new(e.kind(), e.to_string()),
+                                    )),
+                                )?;
+                                step_context
+                            }
+                            None => StepContext::new(
                                 self.name(),
                                 DataResult::Err((
                                     data.to_value(),
                                     io::Error::new(e.kind(), e.to_string()),
                                 )),
                             )?,
-                        )
-                        .await?;
+                        };
+
+                        super::send(self as &dyn Step, &step_context).await?;
                     }
                 }
             };
@@ -253,5 +272,63 @@ impl Step for Writer {
     }
     fn name(&self) -> String {
         self.name.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::connector::in_memory::InMemory;
+
+    use super::*;
+    use serde_json::Value;
+    use std::io::{Error, ErrorKind};
+    use std::thread;
+
+    #[async_std::test]
+    async fn exec_with_different_data_result_type() {
+        let mut step = Writer::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let error = Error::new(ErrorKind::InvalidData, "My error");
+        let step_context =
+            StepContext::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let expected_step_context = step_context.clone();
+
+        thread::spawn(move || {
+            sender_input.try_send(step_context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+    }
+    #[async_std::test]
+    async fn exec_with_same_data_result_type() {
+        let mut step = Writer::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let step_context =
+            StepContext::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+
+        let mut expected_step_context = step_context.clone();
+        expected_step_context
+            .insert_step_result("my_step".to_string(), DataResult::Ok(data.clone()))
+            .unwrap();
+
+        thread::spawn(move || {
+            sender_input.try_send(step_context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.name = "my_step".to_string();
+        step.connector_type = ConnectorType::InMemory(InMemory::default());
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
     }
 }

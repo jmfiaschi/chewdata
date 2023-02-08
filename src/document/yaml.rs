@@ -64,7 +64,7 @@ impl Document for Yaml {
     /// let expected_data: Value = serde_yaml::from_slice(&buffer).unwrap();
     /// assert_eq!(expected_data, data);
     /// ```
-    #[instrument]
+    #[instrument(skip(buffer), name = "yaml::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
 
@@ -118,7 +118,7 @@ impl Document for Yaml {
     ///     buffer
     /// );
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "yaml::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
 

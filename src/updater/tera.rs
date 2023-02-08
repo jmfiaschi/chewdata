@@ -24,7 +24,7 @@ impl fmt::Display for Tera {
 }
 
 impl Updater for Tera {
-    #[instrument]
+    #[instrument(name = "tera::update")]
     fn update(
         &self,
         object: Value,

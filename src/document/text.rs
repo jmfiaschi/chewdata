@@ -48,7 +48,7 @@ impl Document for Text {
     /// let data = dataset.next().unwrap().to_value();
     /// assert_eq!(r#"My text1 \n My text 2"#, data);
     /// ```
-    #[instrument]
+    #[instrument(skip(buffer), name = "text::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let record = Value::String(
             String::from_utf8(buffer.to_vec())
@@ -75,7 +75,7 @@ impl Document for Text {
     /// let buffer = document.write(&dataset).unwrap();
     /// assert_eq!(r#"My text"#.as_bytes().to_vec(), buffer);
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "text::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
         for data in dataset {

@@ -285,7 +285,7 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "curl::len")]
     async fn len(&mut self) -> Result<usize> {
         let client = self.client().await?;
         let path = self.path();
@@ -331,16 +331,16 @@ impl Connector for Curl {
             .map(|ct_len| ct_len.as_str())
             .unwrap_or("0");
 
-        let content_length = header_value
+        let len = header_value
             .parse::<usize>()
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         info!(
             url = url.as_str(),
-            len = content_length,
-            "The connector found data in the resource"
+            len,
+            "Size of data found in the resource"
         );
-        Ok(content_length)
+        Ok(len)
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -369,7 +369,7 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "curl::fetch")]
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let client = self.client().await?;
         let path = self.path();
@@ -487,7 +487,7 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "curl::send")]
     async fn send(
         &mut self,
         document: &dyn Document,
@@ -592,7 +592,7 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "curl::erase")]
     async fn erase(&mut self) -> Result<()> {
         let client = self.client().await?;
         let path = self.path();
@@ -745,7 +745,7 @@ impl HeaderCounter {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "header_counter::count")]
     pub async fn count(&self, connector: Curl) -> Result<Option<usize>> {
         let mut connector = connector.clone();
         let client = connector.client().await?;
@@ -842,7 +842,7 @@ impl BodyCounter {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "body_counter::count")]
     pub async fn count(
         &self,
         connector: Curl,
@@ -965,7 +965,7 @@ impl Paginator for OffsetPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "offset_paginator::count")]
     async fn count(&mut self) -> Result<Option<usize>> {
         let connector = match self.connector {
             Some(ref mut connector) => Ok(connector),
@@ -1017,7 +1017,7 @@ impl Paginator for OffsetPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "offset_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
@@ -1148,7 +1148,7 @@ impl Paginator for CursorPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "cursor_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {

@@ -55,7 +55,7 @@ impl Document for Toml {
     /// let expected_data: Value = serde_json::from_str(r#"{"Title":{"key_1":"value_1","key_2":"value_2"}}"#).unwrap();
     /// assert_eq!(expected_data, data);
     /// ```
-    #[instrument]
+    #[instrument(skip(buffer), name = "toml::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let record: Value = toml::from_slice(buffer)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -104,7 +104,7 @@ impl Document for Toml {
     /// assert_eq!(r#"column_1 = "line_2"
     /// "#.as_bytes().to_vec(), buffer);
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "toml::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
 

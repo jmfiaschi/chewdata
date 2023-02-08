@@ -1,8 +1,8 @@
 use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, StepContext};
-use async_trait::async_trait;
 use async_channel::{Receiver, Sender};
+use async_trait::async_trait;
 use futures::StreamExt;
 use serde::Deserialize;
 use std::{fmt, io};
@@ -81,7 +81,7 @@ impl Step for Eraser {
     fn sleep(&self) -> u64 {
         self.wait
     }
-    #[instrument]
+    #[instrument(name = "ereaser::exec")]
     async fn exec(&self) -> io::Result<()> {
         let connector_type = self.connector_type.clone();
         let mut connector = connector_type.boxed_inner();
@@ -128,5 +128,61 @@ impl Step for Eraser {
     }
     fn name(&self) -> String {
         self.name.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::connector::in_memory::InMemory;
+    use serde_json::Value;
+    use std::io::{Error, ErrorKind};
+    use std::thread;
+
+    #[async_std::test]
+    async fn exec_with_different_data_result_type() {
+        let mut step = Eraser::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let error = Error::new(ErrorKind::InvalidData, "My error");
+        let step_context =
+            StepContext::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let expected_step_context = step_context.clone();
+
+        thread::spawn(move || {
+            sender_input.try_send(step_context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+    }
+    #[async_std::test]
+    async fn exec_with_same_data_result_type() {
+        let mut step = Eraser::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let step_context =
+            StepContext::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let mut expected_step_context = step_context.clone();
+        expected_step_context
+            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
+            .unwrap();
+
+        thread::spawn(move || {
+            sender_input.try_send(step_context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.connector_type = ConnectorType::InMemory(InMemory::default());
+        step.name = "my_step".to_string();
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
     }
 }

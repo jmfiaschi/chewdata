@@ -4,17 +4,18 @@ extern crate env_applier;
 extern crate version;
 
 use chewdata::step::StepType;
-use clap::{Command, Arg};
+use clap::{Arg, Command};
 use env_applier::EnvApply;
 use serde::Deserialize;
 use std::env;
 use std::fs::File;
+use std::io;
 use std::io::Read;
-use std::io::{Error, ErrorKind, Result, stdout};
+use std::io::{Error, ErrorKind, Result};
 use tracing::*;
-use tracing_futures::WithSubscriber;
+use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{EnvFilter, Layer};
 
 const ARG_JSON: &str = "json";
 const ARG_FILE: &str = "file";
@@ -22,15 +23,31 @@ const DEFAULT_PROCESSORS: &str = r#"[{"type": "r"},{"type": "w"}]"#;
 
 #[async_std::main]
 async fn main() -> Result<()> {
-    let (non_blocking, _guard) = tracing_appender::non_blocking(stdout());
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(non_blocking)
-        // filter spans/events with level TRACE or higher.
-        .with_env_filter(EnvFilter::from_default_env())
-        // build but do not install the subscriber.
-        .finish();
+    let mut layers = Vec::new();
 
-    tracing_subscriber::registry().init();
+    // Install a new OpenTelemetry trace pipeline
+    #[cfg(feature = "apm")]
+    let tracer = opentelemetry_jaeger::new_agent_pipeline()
+        .with_service_name("chewdata")
+        .install_simple()
+        .unwrap();
+
+    // Create new layer for opentelemetry
+    #[cfg(feature = "apm")]
+    let telemetry = tracing_opentelemetry::layer().with_tracer(tracer).boxed();
+    #[cfg(feature = "apm")]
+    layers.push(telemetry);
+
+    // Create new layer for stdout logs
+    let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
+    let layer = tracing_subscriber::fmt::layer()
+        .with_line_number(true)
+        .with_writer(non_blocking)
+        .with_filter(EnvFilter::from_default_env())
+        .boxed();
+    layers.push(layer);
+
+    tracing_subscriber::registry().with(layers).init();
 
     trace!("Chewdata start...");
     let args = application().get_matches();
@@ -85,9 +102,12 @@ async fn main() -> Result<()> {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
     }?;
 
-    chewdata::exec(steps, None, None)
-        .with_subscriber(subscriber)
-        .await
+    chewdata::exec(steps, None, None).await?;
+
+    // Shutdown trace pipeline
+    opentelemetry::global::shutdown_tracer_provider();
+
+    Ok(())
 }
 
 fn application() -> Command {

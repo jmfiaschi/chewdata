@@ -39,7 +39,7 @@ async fn main() -> io::Result<()> {
     let config = serde_json::from_str(config.to_string().as_str())?;
     chewdata::exec(config, Some(receiver_input), Some(sender_output)).await?;
 
-    for step_context in receiver_output.recv().await {
+    while let Ok(step_context) = receiver_output.recv().await {
         println!("{}", step_context.data_result().to_value().to_string());
     }
 

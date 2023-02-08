@@ -288,7 +288,7 @@ impl Connector for Bucket {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "bucket::len")]
     async fn len(&mut self) -> Result<usize> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
@@ -320,7 +320,8 @@ impl Connector for Bucket {
             }
         };
 
-        info!(len = len, "The connector found data in the resource");
+        info!(len, "The connector found data in the resource");
+
         Ok(len)
     }
     /// See [`Connector::fetch`] for more details.
@@ -354,7 +355,7 @@ impl Connector for Bucket {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "bucket::fetch")]
     async fn fetch(&mut self, document: &dyn Document) -> Result<Option<DataStream>> {
         let path = self.path();
 
@@ -452,7 +453,7 @@ impl Connector for Bucket {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "bucket::send")]
     async fn send(
         &mut self,
         document: &dyn Document,
@@ -568,7 +569,7 @@ impl Connector for Bucket {
         self.metadata.clone()
     }
     /// See [`Connector::erase`] for more details.
-    #[instrument]
+    #[instrument(name = "bucket::erase")]
     async fn erase(&mut self) -> Result<()> {
         let path = self.path();
 
@@ -739,7 +740,7 @@ impl Paginator for BucketPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "bucket_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
@@ -863,11 +864,7 @@ mod tests {
         connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read
-            .fetch(&document)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
 
         let expected_result2 =

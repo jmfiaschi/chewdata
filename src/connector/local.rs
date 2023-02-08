@@ -120,7 +120,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "local::len")]
     async fn len(&mut self) -> Result<usize> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
@@ -133,12 +133,12 @@ impl Connector for Local {
         let len = match fs::metadata(self.path()) {
             Ok(metadata) => {
                 let len = metadata.len() as usize;
-                info!(len = len, "The connector found data in the file");
+                info!(len = len, "Size of data found in the resource");
                 len
             }
             Err(_) => {
                 let len = 0;
-                info!(len = len, "The connector not found data in the file");
+                info!(len = len, "The connector not found data in the resource");
                 len
             }
         };
@@ -183,7 +183,7 @@ impl Connector for Local {
     /// connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
     /// assert_eq!(true, connector.is_resource_will_change(params).unwrap());
     /// ```
-    #[instrument]
+    #[instrument(name = "local::is_resource_will_change")]
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
             trace!("The connector stay link to the same file");
@@ -254,7 +254,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "local::fetch")]
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let mut buff = Vec::default();
         let path = self.path();
@@ -327,7 +327,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "local::send")]
     async fn send(
         &mut self,
         document: &dyn Document,
@@ -415,7 +415,7 @@ impl Connector for Local {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "local::erase")]
     async fn erase(&mut self) -> Result<()> {
         let path = self.path();
 
@@ -509,7 +509,7 @@ impl Paginator for LocalPaginator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument]
+    #[instrument(name = "local_paginator::stream")]
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
@@ -616,11 +616,7 @@ mod tests {
         connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read
-            .fetch(&document)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
 
         let expected_result2 =

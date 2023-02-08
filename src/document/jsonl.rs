@@ -63,6 +63,7 @@ impl Document for Jsonl {
     /// let expected_data: Value = serde_json::from_slice(&json_str).unwrap();
     /// assert_eq!(expected_data, data);
     /// ```
+    #[instrument(skip(buffer), name = "jsonl::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let deserializer = serde_json::Deserializer::from_reader(io::Cursor::new(buffer));
         let iterator = deserializer.into_iter::<Value>();
@@ -150,7 +151,7 @@ impl Document for Jsonl {
     /// let buffer = document.write(&dataset).unwrap();
     /// assert_eq!(r#"{"column_1":"line_1"}"#.as_bytes().to_vec(), buffer);
     /// ```
-    #[instrument(skip(dataset))]
+    #[instrument(skip(dataset), name = "jsonl::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buf = Vec::new();
         let dataset_len = dataset.len();

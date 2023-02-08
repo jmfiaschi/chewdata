@@ -1,3 +1,11 @@
+# [1.14.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.13.0...v1.14.0-beta.1) (2023-02-04)
+
+
+### Features
+
+* **monitoring:** add APM feature ([1afbec3](https://github.com/jmfiaschi/chewdata/commit/1afbec3b7316f64fdb6129f761be359d345661c3))
+* **monitoring:** add jaeger tracing ([56f444e](https://github.com/jmfiaschi/chewdata/commit/56f444ecc0fd52dcf011361674ec5a4432e3ad2a))
+
 # [1.13.0](https://github.com/jmfiaschi/chewdata/compare/v1.12.2...v1.13.0) (2023-01-28)
 
 

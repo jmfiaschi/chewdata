@@ -93,7 +93,7 @@ minio\:install:
 
 httpbin:
 	echo "${BLUE}Run httpbin server.${NC}"
-	echo "${YELLOW}Host: http://localhost:8080${NC}"
+	echo "${YELLOW}Host: http://localhost:8080 ${NC}"
 	@docker-compose up -d httpbin
 
 mongo:
@@ -106,17 +106,22 @@ psql:
 
 adminer:
 	echo "${BLUE}Run admin db${NC}"
-	echo "${YELLOW}Host: http://localhost:8081${NC}"
+	echo "${YELLOW}Host: http://localhost:8081 ${NC}"
 	@docker-compose up -d adminer
 
 keycloak:
 	echo "${BLUE}Run keycloak${NC}"
-	echo "${YELLOW}Host: http://localhost:8083${NC}"
+	echo "${YELLOW}Host: http://localhost:8083 ${NC}"
 	@docker-compose up -d keycloak
+
+monitoring:
+	echo "${BLUE}Run monitoring${NC}"
+	echo "${YELLOW}Host: http://localhost:16686 ${NC}"
+	@docker-compose up -d monitoring
 
 rabbitmq:
 	echo "${BLUE}Run rabbitmq${NC}"
-	echo "${YELLOW}Host: http://localhost:15672${NC}"
+	echo "${YELLOW}Host: http://localhost:15672 ${NC}"
 	@docker-compose up -d rabbitmq
 	echo "${BLUE}Init rabbitmq${NC}"
 	curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/exchanges/%2f/users.event -d"{\"type\":\"direct\",\"auto_delete\":false,\"durable\":true,\"internal\":false,\"arguments\":{}}"
