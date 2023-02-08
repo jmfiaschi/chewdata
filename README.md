@@ -15,6 +15,7 @@ This application is a light ETL in rust that can be used as a connector between 
 | Transform data                           | [tera](https://tera.netlify.app/docs)    [E]                                                            | Transform the data in the fly                                      |
 | Configuration formats allowed            | `json` [E], `yaml`     [E]                                                                              | The project need a jobs configuration in input                     |
 | Read data in parallel or sequential mode | `cursor`[E] , `offset`     [E]                                                                          | With this type of paginator, the data can be read in different way |
+| Application Performance Monitoring (APM) | `apm`[D]                                                                                                | Send APM logs into Jaeger                                          |
 
 > [E] - Feature `E`nabled by default. Use `--no-default-features` argument to remove all enabled features by default.
 >
