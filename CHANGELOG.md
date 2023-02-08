@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/jmfiaschi/chewdata/compare/v1.13.0...v1.14.0) (2023-02-08)
+
+
+### Features
+
+* add APM ([738caf1](https://github.com/jmfiaschi/chewdata/commit/738caf1dec709922e0806cd7c596df185b10e623))
+
 # [1.14.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.13.0...v1.14.0-beta.1) (2023-02-04)
 
 
