@@ -1,3 +1,39 @@
+//! This crate is a Rust ETL to Manipulate data everywhere. You can use the program or use the library in your code.
+//! 
+//! # Why to use this ETL ?
+//! 
+//! * No Garbage Collector: This ETL runs without a garbage collector for better stability. Everything is handled by the code in <a href="https://www.rust-lang.org/" target="_blank">Rust</a>.
+//! * Configuration multi versions: The configuration can be saved in different versions. You can retrieve old versions with a "version control system".
+//! * Scalable and Parallelizable: The application is a simple job that can be executed multiple times in different contexts. It is possible to chain commands for complex flows.
+//! * Simple command executable everywhere: Choose your server where you want to execute the ETL : Local, Kube, AWS Lambda, AWS EC2, Web, etc...
+//! * Customize your package: With rust feature flags, enable only required componants.
+//! * Easy to install: Install the ETL with only one command.
+//! 
+//! # How it works
+//! 
+//! The program or to execute the main function, you need to inject the configuration of steps in `Json` or `Yaml` format :
+//! 
+//! Examples:
+//! 
+//! ```json
+//! [
+//!  {"type": "erase"},
+//!  {"type": "reader"},
+//!  {"type": "transformer"},
+//!  {"type": "writer"},
+//!  ...
+//! ]
+//! ```
+//! 
+//! These steps are executed in the `FIFO` order.
+//! 
+//! All steps are linked together by an `input` and `output` context queue. 
+//! When a step finishes handling data, a new context is created base of this data and send into the output queue. The next step will handle this context.
+//! Step1(Context) -> Q1[Contexts] -> StepN(Context) -> QN[Contexts] ->  StepN+1(Context)
+//! Each step runs asynchronously. Each queue contains a limit that can be customized in the step's configuration.
+//! 
+//! Check the module [`step`] to see the list of steps you can use and their configuration.
+//! 
 #![forbid(unsafe_code)]
 
 extern crate glob;
@@ -27,8 +63,8 @@ use std::{collections::HashMap, io};
 
 pub async fn exec(
     step_types: Vec<StepType>,
-    input_receiver: Option<Receiver<StepContext>>,
-    output_sender: Option<Sender<StepContext>>,
+    input_receiver: Option<Receiver<Context>>,
+    output_sender: Option<Sender<Context>>,
 ) -> io::Result<()> {
     let mut steps = Vec::default();
     let mut handles = Vec::default();
@@ -270,21 +306,21 @@ impl DataResult {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StepContext {
-    steps_result: Value,
+pub struct Context {
+    history: Value,
     data_result: DataResult,
 }
 
-impl StepContext {
+impl Context {
     pub fn new(step_name: String, data_result: DataResult) -> Result<Self> {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        let mut steps_result = Value::default();
-        steps_result.merge_in("/steps", Value::Object(map))?;
+        let mut history = Value::default();
+        history.merge_in("/steps", Value::Object(map))?;
 
-        Ok(StepContext {
-            steps_result,
+        Ok(Context {
+            history,
             data_result,
         })
     }
@@ -292,7 +328,7 @@ impl StepContext {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        self.steps_result.merge_in("/steps", Value::Object(map))?;
+        self.history.merge_in("/steps", Value::Object(map))?;
         self.data_result = data_result;
 
         Ok(())
@@ -300,13 +336,13 @@ impl StepContext {
     pub fn data_result(&self) -> DataResult {
         self.data_result.clone()
     }
-    pub fn steps_result(&self) -> Value {
-        self.steps_result.clone()
+    pub fn history(&self) -> Value {
+        self.history.clone()
     }
     pub fn to_value(&self) -> Result<Value> {
         let mut value = self.data_result.to_value();
-        let steps_result: Value = self.steps_result.clone();
-        value.merge_in("steps", steps_result)?;
+        let history: Value = self.history.clone();
+        value.merge_in("steps", history)?;
 
         Ok(value)
     }

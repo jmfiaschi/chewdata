@@ -1,3 +1,4 @@
+//! A step is a simple action.
 pub mod eraser;
 pub mod generator;
 pub mod reader;
@@ -5,7 +6,7 @@ pub mod transformer;
 pub mod validator;
 pub mod writer;
 
-use crate::{DataResult, StepContext};
+use crate::{DataResult, Context};
 use async_channel::{Receiver, Sender, TryRecvError, TrySendError};
 use async_std::{stream, task};
 use async_stream::stream;
@@ -96,20 +97,20 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     fn sleep(&self) -> u64 {
         10
     }
-    fn set_receiver(&mut self, receiver: Receiver<StepContext>);
-    fn receiver(&self) -> Option<&Receiver<StepContext>>;
-    fn set_sender(&mut self, sender: Sender<StepContext>);
-    fn sender(&self) -> Option<&Sender<StepContext>>;
+    fn set_receiver(&mut self, receiver: Receiver<Context>);
+    fn receiver(&self) -> Option<&Receiver<Context>>;
+    fn set_sender(&mut self, sender: Sender<Context>);
+    fn sender(&self) -> Option<&Sender<Context>>;
 }
 
-// Send a step_context through a step and a pipe
-async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext) -> io::Result<()> {
+// Send a context through a step and a pipe
+async fn send<'step>(step: &'step dyn Step, context: &'step Context) -> io::Result<()> {
     let sender = match step.sender() {
         Some(sender) => sender,
         None => return Ok(()),
     };
 
-    while let Err(e) = sender.try_send(step_context.clone()) {
+    while let Err(e) = sender.try_send(context.clone()) {
         match e {
             TrySendError::Full(_) => {
                 trace!(step = format!("{:?}", step).as_str(), sleep = step.sleep(), "The step can't send any data, the pipe is full. It tries later");
@@ -125,22 +126,22 @@ async fn send<'step>(step: &'step dyn Step, step_context: &'step StepContext) ->
     trace!("Step context sended into the pipe");
     Ok(())
 }
-// Receive a step_context through a step and a pipe
-// It return a stream of step_context
+// Receive a context through a step and a pipe
+// It return a stream of context
 async fn receive<'step>(
     step: &'step dyn Step,
-) -> io::Result<Pin<Box<dyn Stream<Item = StepContext> + Send + 'step>>> {
+) -> io::Result<Pin<Box<dyn Stream<Item = Context> + Send + 'step>>> {
     let receiver = match step.receiver() {
         Some(receiver) => receiver,
-        None => return Ok(Box::pin(stream::empty::<StepContext>())),
+        None => return Ok(Box::pin(stream::empty::<Context>())),
     };
     let sleep_time = step.sleep();
     let stream = Box::pin(stream! {
         loop {
             match receiver.try_recv() {
-                Ok(step_context_received) => {
-                    trace!(step = format!("{:?}", step).as_str(), step_context = format!("{:?}", step_context_received).as_str(), "A new step context found in the pipe");
-                    yield step_context_received.clone();
+                Ok(context_received) => {
+                    trace!(step = format!("{:?}", step).as_str(), context = format!("{:?}", context_received).as_str(), "A new step context found in the pipe");
+                    yield context_received.clone();
                 },
                 Err(TryRecvError::Empty) => {
                     trace!(step = format!("{:?}", step).as_str(), sleep = sleep_time, "The pipe is empty. The step tries later");
