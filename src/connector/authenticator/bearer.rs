@@ -1,3 +1,37 @@
+//! Authenticate the request with bearer token.
+//!
+//! ### Configuration
+//!
+//! | key        | alias | Description                                                             | Default Value | Possible Values          |
+//! | ---------- | ----- | ----------------------------------------------------------------------- | ------------- | ------------------------ |
+//! | type       | -     | Required in order to use this authentication                            | `bearer`      | `bearer`                 |
+//! | token      | -     | The bearer token                                                       | `null`        | String                   |
+//! | is_base64  | -     | Specify if the bearer token is encoded in base64                        | `false`       | `false` / `true`         |
+//! | parameters | -     | Use to replace the token with dynamic value in input from the connector | `null`        | List of Key/Value string |
+//!
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "write",
+//!         "connector":{
+//!             "type": "curl",
+//!             "endpoint": "{{ CURL_ENDPOINT }}",
+//!             "path": "/post",
+//!             "method": "post",
+//!             "authenticator": {
+//!                 "type": "bearer",
+//!                 "token": "{{ token }}",
+//!                 "is_base64": false,
+//!                 "parameters": {
+//!                     "token": "my_token"
+//!                 }
+//!             }
+//!         },
+//!     }
+//! ]
+//! ```
 use super::Authenticator;
 use crate::helper::mustache::Mustache;
 use async_trait::async_trait;
@@ -58,7 +92,7 @@ impl Bearer {
     pub fn new(token: &str) -> Self {
         Bearer {
             token: token.to_string(),
-            is_base64: false
+            is_base64: false,
         }
     }
 }
@@ -78,9 +112,9 @@ impl Authenticator for Bearer {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let token = "my_token";
-    /// 
+    ///
     ///     let (auth_name, auth_value) = Bearer::new(token).authenticate(Value::Null).await.unwrap();
-    /// 
+    ///
     ///     assert_eq!(auth_name, "authorization".to_string().into_bytes());
     ///     assert_eq!(auth_value, format!("Bearer {}", token).as_bytes().to_vec());
     ///
@@ -125,6 +159,11 @@ mod tests {
         let (auth_name, auth_value) = Bearer::new(token).authenticate(Value::Null).await.unwrap();
 
         assert_eq!(auth_name, "authorization".to_string().into_bytes());
-        assert_eq!(auth_value, format!("Bearer {}", base64::encode(token)).as_bytes().to_vec());
+        assert_eq!(
+            auth_value,
+            format!("Bearer {}", base64::encode(token))
+                .as_bytes()
+                .to_vec()
+        );
     }
 }
