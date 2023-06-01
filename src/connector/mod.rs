@@ -1,3 +1,5 @@
+pub mod paginator;
+pub mod counter;
 #[cfg(feature = "curl")]
 pub mod authenticator;
 #[cfg(feature = "bucket")]
@@ -25,6 +27,7 @@ use self::io::Io;
 use self::local::Local;
 #[cfg(feature = "mongodb")]
 use self::mongodb::Mongodb;
+use self::paginator::Paginator;
 #[cfg(feature = "psql")]
 use self::psql::Psql;
 use crate::DataSet;
@@ -32,7 +35,6 @@ use crate::document::Document;
 use crate::DataStream;
 use crate::Metadata;
 use async_trait::async_trait;
-use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
@@ -153,16 +155,4 @@ impl Clone for Box<dyn Connector> {
     fn clone(&self) -> Box<dyn Connector> {
         self.clone_box()
     }
-}
-
-#[async_trait]
-pub trait Paginator: std::fmt::Debug + Unpin {
-    /// Get the stream of connectors
-    async fn stream(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>>;
-    /// Try to fetch the number of item in the connector.
-    /// None: Can't retrieve the total of item for any reason.
-    /// Some(count): Retrieve the total of item and store the value in the paginator.
-    async fn count(&mut self) -> Result<Option<usize>>;
-    /// Test if the paginator can be parallelizable.
-    fn is_parallelizable(&self) -> bool;
 }
