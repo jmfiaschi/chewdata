@@ -1,3 +1,54 @@
+//! Authenticate the request with Java Web Token (JWT).
+//!
+//! ### Configuration
+//!
+//! | key               | alias | Description                                                          | Default Value | Possible Values                                                                            |
+//! | ----------------- | ----- | -------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
+//! | type              | -     | Required in order to use this authentication                         | `jwt`         | `jwt`                                                                                      |
+//! | algorithm         | algo  | The algorithm used to build the signing                              | `HS256`       | String                                                                                     |
+//! | refresh_connector | -     | The connector used to refresh the token                              | `null`        | See [Connectors](#connectors)                                                              |
+//! | refresh_token     | -     | The token name used to identify the token into the refresh connector | `token`       | String                                                                                     |
+//! | jwk               | -     | The Json web key used to sign                                        | `null`        | [Object](https://datatracker.ietf.org/doc/html/rfc7517#page-5)                             |
+//! | format            | -     | Define the type of the key used for the signing                      | `secret`      | `secret` / `base64secret` / `rsa_pem` / `rsa_components` / `ec_pem` / `rsa_der` / `ec_der` |
+//! | key               | -     | Key used for the signing                                             | `null`        | String                                                                                     |
+//! | payload           | -     | The jwt payload                                                      | `null`        | Object or Array of objects                                                                 |
+//! | parameters        | -     | The parameters used to remplace variables in the payload             | `null`        | Object or Array of objects                                                                 |
+//! | token             | -     | The token that can be override if necessary                          | `null`        | String                                                                                     |
+//! 
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "write",
+//!         "connector":{
+//!             "type": "curl",
+//!             "endpoint": "{{ CURL_ENDPOINT }}",
+//!             "path": "/post",
+//!             "method": "post",
+//!             "authenticator": {
+//!                 "type": "jwt",
+//!                 "refresh_connector": {
+//!                     "type": "curl",
+//!                     "endpoint": "http://my_api.com",
+//!                     "path": "/tokens",
+//!                     "method": "post"
+//!                 },
+//!                 "refresh_token":"token",
+//!                 "key": "my_key",
+//!                 "payload": {
+//!                     "alg":"HS256",
+//!                     "claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077}
+//!                 },
+//!                 "parameters": {
+//!                     "username": "my_username",
+//!                     "password": "my_username"
+//!                 }
+//!             }
+//!         },
+//!     }
+//! ]
+//! ```
 use super::Authenticator;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
@@ -154,7 +205,7 @@ impl Jwt {
     ///
     ///    assert!(
     ///        10 < auth.token_value.unwrap().len(),
-    ///        "The token should be refresh"
+    ///        "The token should be refresh."
     ///    );
     ///
     ///     Ok(())
@@ -187,7 +238,7 @@ impl Jwt {
         {
             Some(datastream) => datastream,
             None => {
-                trace!("No data have been fetch from the refresh endpoint");
+                trace!("No data have been retrieve from the refresh endpoint.");
                 return Ok(());
             }
         };
@@ -197,20 +248,20 @@ impl Jwt {
             None => {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
-                    "Can't find a jwt token in empty data stream",
+                    "Can't find JWT in empty data stream.",
                 ))
             }
         };
 
         match payload.get(self.token_name.clone()) {
             Some(Value::String(token_value)) => {
-                info!(token_value = token_value.as_str(), "JWT refreshed with success");
+                info!(token_value = token_value.as_str(), "JWT successfully refreshed.");
                 self.token_value = Some(token_value.clone());
                 Ok(())
             }
             _ => Err(Error::new(
                 ErrorKind::InvalidInput,
-                "The jwt token not found in the payload",
+                "JWT not found in the payload.",
             )),
         }?;
 
@@ -362,7 +413,7 @@ impl Authenticator for Jwt {
                             self.token_value = None;
                             warn!(
                                 error = e.to_string().as_str(),
-                                "Can't decode the Java Web Token"
+                                "Can't decode the JWT."
                             );
                             return Err(Error::new(ErrorKind::InvalidInput, e));
                         }
@@ -380,7 +431,7 @@ impl Authenticator for Jwt {
                 )
             }
             None => {
-                warn!("No Java Web Token found for the authentication");
+                warn!("No JWT found for the authentication.");
                 (
                     headers::AUTHORIZATION.to_string().into_bytes(),
                     "Bearer".to_string().into_bytes(),
