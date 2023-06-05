@@ -1,3 +1,51 @@
+//! Read and write data into S3/Minio bucket.
+//!
+//! ### Configuration
+//!
+//! | key               | alias  | Description                                                            | Default Value                    | Possible Values            |
+//! | ----------------- | ------ | ---------------------------------------------------------------------- | -------------------------------- | -------------------------- |
+//! | type              | -      | Required in order to use this connector                                | `bucket`                         | `bucket`                   |
+//! | metadata          | meta   | Override metadata information                                          | `null`                           | [`crate::Metadata`]      |
+//! | endpoint          | -      | Endpoint of the connector                                              | `null`                           | String                     |
+//! | access_key_id     | -      | The access key used for the authentification                           | `null`                           | String                     |
+//! | secret_access_key | -      | The secret access key used for the authentification                    | `null`                           | String                     |
+//! | region            | -      | The bucket's region                                                    | `us-east-1`                      | String                     |
+//! | bucket            | -      | The bucket name                                                        | `null`                           | String                     |
+//! | path              | key    | The path of the resource. Can use `*` in order to read multiple files  | `null`                           | String                     |
+//! | parameters        | params | The parameters used to remplace variables in the path                  | `null`                           | Object or Array of objects |
+//! | limit             | -      | Limit the number of files to read.                                     | `null`                           | Unsigned number            |
+//! | skip              | -      | Skip N files before to start to read the next files                    | `null`                           | Unsigned number            |
+//! | version           | -      | Read a specific version of a file                                      | `null`                           | String                     |
+//! | tags              | -      | List of tags to apply on the file. Used to give more context to a file | `(service:writer:name,chewdata)` | List of Key/Value          |
+//! | cache_control     | -      | Override the file cache controle                                       | `null`                           | String                     |
+//! | expires           | -      | Override the file expire date. In seconds since the Unix epoch                                          | `null`                           | String                     |
+//! 
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "r",
+//!         "connector": {
+//!             "type": "bucket",
+//!             "bucket": "my-bucket",
+//!             "path": "data/*.json*",
+//!             "endpoint":"{{ BUCKET_ENDPOINT }}",
+//!             "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
+//!             "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
+//!             "region": "{{ BUCKET_REGION }}",
+//!             "limit": 10,
+//!             "skip": 0,
+//!             "tags": {
+//!                 "service:writer": "my_service",
+//!                 "service:writer:owner": "my_team_name",
+//!                 "service:writer:env": "dev",
+//!                 "service:writer:context": "example"
+//!             }
+//!         }
+//!     },
+//! ]
+//! ```
 use super::Paginator;
 use crate::connector::Connector;
 use crate::document::Document;
@@ -44,7 +92,6 @@ pub struct Bucket {
     pub version: Option<String>,
     pub tags: HashMap<String, String>,
     pub cache_control: Option<String>,
-    // in seconds since the Unix epoch
     pub expires: Option<i64>,
 }
 
@@ -105,7 +152,6 @@ impl fmt::Display for Bucket {
     }
 }
 
-// Not display the inner for better performance with big data
 impl fmt::Debug for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Bucket")
@@ -167,7 +213,7 @@ impl Connector for Bucket {
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = Box::new(parameters);
     }
-    /// See [`Connector::is_variable_path`] for more details.
+    /// See [`Connector::is_variable`] for more details.
     ///
     /// # Examples
     ///
