@@ -7,7 +7,7 @@
 //! | type          | -     | Required in order to use this connector.                  | `curl`        | `curl`                                                                 |
 //! | metadata      | meta  | Override metadata information.                            | `null`        | [`crate::Metadata`]                                                  |
 //! | authenticator | auth  | Define the authentification that secure the http(s) call. | `null`        | [`crate::connector::authenticator::Authenticator`]                                        |
-//! | endpoint      | -     | The http endpoint of the url like http://my_site.com:80.                            | `null`        | String                                                                 |
+//! | endpoint      | -     | The http endpoint of the url like http://my_site.com:80.  | `null`        | String                                                                 |
 //! | path          | uri   | The path of the resource.                                 | `null`        | String                                                                 |
 //! | method        | -     | The http method to use.                                   | `get`         | [HTTP methods](https://developer.mozilla.org/fr/docs/Web/HTTP/Methods) |
 //! | headers       | -     | The http headers to override.                             | `null`        | List of key/value                                                      |
@@ -16,7 +16,7 @@
 //! | tcp_nodelay   | -     | Enable the TCP nodelay.                                   | `false`       | `true` / `false`                                                       |
 //! | parameters    | -     | Parameters used in the `path` that can be override.       | `null`        | Object or Array of objects                                             |
 //! | paginator     | -     | Paginator parameters.                                     | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
-//! | counter       | count | Use to find the total of elements in the resource.        | `null`        | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
+//! | counter       | count | Use to find the total of elements in the resource. used for the paginator        | `null`        | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
 //!
 //! ### Examples
 //!
