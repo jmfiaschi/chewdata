@@ -13,3 +13,9 @@ pub enum PaginatorType {
     #[serde(rename = "cursor")]
     Cursor(Cursor),
 }
+
+impl Default for PaginatorType {
+    fn default() -> Self {
+        PaginatorType::Offset(Offset::default())
+    }
+}

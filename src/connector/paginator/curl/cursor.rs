@@ -42,7 +42,6 @@
 //!     "next": "274b5dac-5ed6-11ed-9b6a-0242ac120002"
 //! }
 //! ```
-//!
 use crate::connector::Paginator;
 use crate::connector::{curl::Curl, Connector};
 use crate::document::DocumentType;
