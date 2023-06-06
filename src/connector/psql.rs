@@ -1,3 +1,37 @@
+//! Read and write data into postgres database.
+//!
+//! ### Configuration
+//!
+//! | key        | alias           | Description                                      | Default Value | Possible Values         |
+//! | ---------- | --------------- | ------------------------------------------------ | ------------- | ----------------------- |
+//! | type       | -               | Required in order to use this connector          | `psql`        | `psql` / `pgsql` / `pg` |
+//! | endpoint   | `url`           | Endpoint of the connector                        | ``            | String                  |
+//! | database   | `db`            | The database name                                | ``            | String                  |
+//! | collection | `col` / `table` | The collection name                              | ``            | String                  |
+//! | query      | -               | SQL Query to find an element into the collection | ``            | String                  |
+//! | parameters | `params`        | Parameters used to inject into the SQL query     | `null`        | Json structure          |
+//! | paginator  | -               | Paginator parameters                             | [`self::Offset`]        | [`self::Offset`] |
+//! | counter    | count           | Count the number of elements for pagination      | `null`        | [`self::Scan`] |
+//!
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "w",
+//!         "connector":{
+//!             "type": "mongodb",
+//!             "endpoint": "mongodb://admin:admin@localhost:27017",
+//!             "db": "tests",
+//!             "collection": "test",
+//!             "update_options": {
+//!                 "upsert": true
+//!             }
+//!         },
+//!         "thread_number":3
+//!     }
+//! ]
+//! ```
 use super::{Connector, Paginator};
 use crate::helper::json_pointer::JsonPointer;
 use crate::{document::Document, helper::mustache::Mustache, DataResult};
@@ -79,6 +113,8 @@ impl fmt::Debug for Psql {
             .field("database", &self.database)
             .field("parameters", &self.parameters)
             .field("query", &self.query)
+            .field("paginator_type", &self.paginator_type)
+            .field("counter_type", &self.counter_type)
             .field("max_connections", &self.max_connections)
             .finish()
     }
@@ -581,12 +617,12 @@ impl Connector for Psql {
 pub enum CounterType {
     #[serde(alias = "scan")]
     #[serde(skip_serializing)]
-    Scan(ScanCounter),
+    Scan(Scan),
 }
 
 impl Default for CounterType {
     fn default() -> Self {
-        CounterType::Scan(ScanCounter::default())
+        CounterType::Scan(Scan::default())
     }
 }
 
@@ -603,15 +639,15 @@ impl CounterType {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
-pub struct ScanCounter {}
+pub struct Scan {}
 
-impl ScanCounter {
+impl Scan {
     /// Get the number of items from the scan
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::psql::{Psql, ScanCounter};
+    /// use chewdata::connector::psql::{Psql, Scan};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -622,7 +658,7 @@ impl ScanCounter {
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
     ///
-    ///     let counter = ScanCounter::default();
+    ///     let counter = Scan::default();
     ///     assert!(counter.count(connector).await?.is_some());
     ///
     ///     Ok(())
@@ -641,18 +677,18 @@ impl ScanCounter {
 #[serde(tag = "type")]
 pub enum PaginatorType {
     #[serde(alias = "offset")]
-    Offset(OffsetPaginator),
+    Offset(Offset),
 }
 
 impl Default for PaginatorType {
     fn default() -> Self {
-        PaginatorType::Offset(OffsetPaginator::default())
+        PaginatorType::Offset(Offset::default())
     }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
-pub struct OffsetPaginator {
+pub struct Offset {
     pub limit: usize,
     pub skip: usize,
     pub count: Option<usize>,
@@ -662,9 +698,9 @@ pub struct OffsetPaginator {
     pub has_next: bool,
 }
 
-impl Default for OffsetPaginator {
+impl Default for Offset {
     fn default() -> Self {
-        OffsetPaginator {
+        Offset {
             limit: 100,
             skip: 0,
             count: None,
@@ -674,7 +710,7 @@ impl Default for OffsetPaginator {
     }
 }
 
-impl OffsetPaginator {
+impl Offset {
     fn set_connector(&mut self, connector: Psql) -> &mut Self
     where
         Self: Paginator + Sized,
@@ -685,13 +721,13 @@ impl OffsetPaginator {
 }
 
 #[async_trait]
-impl Paginator for OffsetPaginator {
+impl Paginator for Offset {
     /// See [`Paginator::count`] for more details.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{psql::{Psql, PaginatorType, OffsetPaginator, CounterType, ScanCounter}, Connector};
+    /// use chewdata::connector::{psql::{Psql, PaginatorType, Offset, CounterType, Scan}, Connector};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -701,7 +737,7 @@ impl Paginator for OffsetPaginator {
     ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator::default());
+    ///     connector.paginator_type = PaginatorType::Offset(Offset::default());
     ///
     ///     let mut paginator = connector.paginator().await?;
     ///     assert!(paginator.count().await?.is_some());
@@ -720,7 +756,7 @@ impl Paginator for OffsetPaginator {
 
         let mut counter_type = None;
         if connector.counter_type.is_none() {
-            counter_type = Some(CounterType::Scan(ScanCounter::default()));
+            counter_type = Some(CounterType::Scan(Scan::default()));
         }
 
         if let Some(counter_type) = counter_type {
@@ -741,7 +777,7 @@ impl Paginator for OffsetPaginator {
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::{psql::{Psql, PaginatorType, OffsetPaginator}, Connector};
+    /// use chewdata::connector::{psql::{Psql, PaginatorType, Offset}, Connector};
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -751,7 +787,7 @@ impl Paginator for OffsetPaginator {
     ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
+    ///     connector.paginator_type = PaginatorType::Offset(Offset {
     ///         skip: 0,
     ///         limit: 1,
     ///         ..Default::default()
@@ -1085,7 +1121,7 @@ mod tests {
         connector.endpoint = "postgres://admin:admin@localhost".into();
         connector.database = "postgres".into();
         connector.collection = "public.read".into();
-        let counter = ScanCounter::default();
+        let counter = Scan::default();
         assert!(counter.count(connector).await.unwrap().is_some());
     }
     #[async_std::test]
@@ -1094,7 +1130,7 @@ mod tests {
         connector.endpoint = "postgres://admin:admin@localhost".into();
         connector.database = "postgres".into();
         connector.collection = "public.read".into();
-        connector.paginator_type = PaginatorType::Offset(OffsetPaginator::default());
+        connector.paginator_type = PaginatorType::Offset(Offset::default());
         let mut paginator = connector.paginator().await.unwrap();
         assert!(paginator.count().await.unwrap().is_some());
     }
@@ -1106,7 +1142,7 @@ mod tests {
         connector.endpoint = "postgres://admin:admin@localhost".into();
         connector.database = "postgres".into();
         connector.collection = "public.read".into();
-        connector.paginator_type = PaginatorType::Offset(OffsetPaginator {
+        connector.paginator_type = PaginatorType::Offset(Offset {
             skip: 0,
             limit: 1,
             ..Default::default()
