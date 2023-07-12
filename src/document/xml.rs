@@ -1,3 +1,50 @@
+//! Read and Write in Xml format. 
+//!
+//! ### Configuration
+//! 
+//! | key         | alias | Description                                                          | Default Value  | Possible Values                                                                |
+//! | ----------- | ----- | -------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------ |
+//! | type        | -     | Required in order to use this document.                              | `xml`          | `xml`                                                                          |
+//! | metadata    | meta  | Metadata describe the resource.                                      | `null`         | [`crate::Metadata`]                                                            |
+//! | is_pretty   | -     | Display data in readable format for human.                           | `false`        | `false` / `true`                                                               |
+//! | indent_char | -     | Character to use for indentation in pretty mode.                     | `space`        | Simple character                                                               |
+//! | indent_size | -     | Number of indentation to use for each line in pretty mode.           | `4`            | unsigned number                                                                |
+//! | entry_path  | -     | Use this field if you want to target a specific field in the object. | `/root/*/item` | String in [json pointer format](https://datatracker.ietf.org/doc/html/rfc6901) |
+//! 
+//! Examples:
+//! 
+//! ```json
+//! [
+//!     {
+//!         "type": "read",
+//!         "document": {
+//!             "type": "xml",
+//!             "is_pretty": true,
+//!             "indet_char": " ",
+//!             "indent_size": 4,
+//!             "entry_path": "/root/*/item"
+//!         }
+//!     },
+//!     {
+//!         "type": "w"
+//!     }
+//! ]
+//! ```
+//! 
+//! input:
+//! 
+//! ```xml
+//! <root>
+//!     <item field1="value1"/>
+//!     ...
+//! </root>
+//! ```
+//! 
+//! output:
+//! 
+//! ```json
+//! [{"field1":"value1"},...]
+//! ```
 use crate::document::Document;
 use crate::helper::json_pointer::JsonPointer;
 use crate::{DataResult, DataSet, Metadata};

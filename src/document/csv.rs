@@ -1,3 +1,55 @@
+//! Read and Write in CSV format. 
+//!
+//! ### Configuration
+//!
+//! | key         | alias | Description                                                                                                      | Default Value | Possible Values                                  |
+//! | ----------- | ----- | ---------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------ |
+//! | type        | -     | Required in order to use this document.                                                                          | `csv`         | `csv`                                            |
+//! | metadata    | meta  | Metadata describe the resource.                                                                                  | `null`        | [`crate::Metadata`]                              |
+//! | is_flexible | -     | If flexible is true, the application try to match the number of header's fields and the number of line's fields. | `true`        | `true` / `false`                                 |
+//! | quote_style | -     | The quoting style to use when writing CSV.                                                                       | `NOT_NUMERIC` | `NOT_NUMERIC` / `ALWAYS` / `NEVER` / `NECESSARY` |
+//! | trim        | -     | Define where you trim the data. The application can trimmed fields, headers or both.                             | `ALL`         | `ALL` / `FIELDS` / `HEADERS`                     |
+//! 
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "write",
+//!         "document": {
+//!             "type": "csv",
+//!             "is_flexible": true,
+//!             "quote_style": "NOT_NUMERIC",
+//!             "trim": "ALL",
+//!             "metadata": {
+//!                 "has_headers": true,
+//!                 "delimiter": ",",
+//!                 "quote": "\"",
+//!                 "escape": "\\",
+//!                 "comment": "#",
+//!                 "terminator": "\n"
+//!             }
+//!         }
+//!     }
+//! ]
+//! ```
+//! 
+//! input:
+//! 
+//! ```json
+//! [
+//!     {"column1 ": "value1 ", " column2": " value2", ...},
+//!     ...
+//! ]
+//! ```
+//! 
+//! output:
+//! 
+//! ```csv
+//! "column1","column2",...
+//! "value1","value2",...
+//! ...
+//! ```
 extern crate csv;
 
 use crate::document::Document;

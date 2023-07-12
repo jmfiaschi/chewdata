@@ -1,3 +1,33 @@
+//! Read and Write in Yaml format. 
+//!
+//! ### Configuration
+//! 
+//! | key      | alias | Description                             | Default Value | Possible Values       |
+//! | -------- | ----- | --------------------------------------- | ------------- | --------------------- |
+//! | type     | -     | Required in order to use this document. | `yaml`        | `yaml`                |
+//! | metadata | meta  | Metadata describe the resource.         | `null`        | [`crate::Metadata`]   |
+//! 
+//! examples:
+//! 
+//! ```json
+//! [
+//!     {
+//!         "type": "read",
+//!         "document": {
+//!             "type": "yaml"
+//!         }
+//!     }
+//! ]
+//! ```
+//! 
+//! input/output:
+//! 
+//! ```yaml
+//! ---
+//! field: value
+//! ...
+//! 
+//! ```
 use crate::document::Document;
 use crate::Metadata;
 use crate::{DataResult, DataSet};
