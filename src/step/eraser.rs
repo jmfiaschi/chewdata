@@ -2,12 +2,12 @@
 //! 
 //! ### Actions
 //! 
-//! 1 - Get a [`crate::Context`] from the input queue.
-//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].
-//! 3 - Erase the content of the resource.
-//! 4 - Reuse the current [`crate::Context`] and attach the [`crate::DataResult`] to it.
-//! 5 - Push the new [`crate::Context`] into the output queue.
-//! 6 - Go to step 1 until the input queue is not empty.
+//! 1 - Get a [`crate::Context`] from the input queue.  
+//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].  
+//! 3 - Erase the content of the resource.  
+//! 4 - Reuse the current [`crate::Context`] and attach the [`crate::DataResult`] to it.  
+//! 5 - Push the new [`crate::Context`] into the output queue.  
+//! 6 - Go to step 1 until the input queue is not empty.  
 //! 
 //! ### Configuration
 //! 

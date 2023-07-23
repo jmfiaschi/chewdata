@@ -5,12 +5,12 @@
 //!
 //! ### Actions
 //!
-//! 1 - Get a [`crate::Context`] from the input queue.
-//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].
-//! 3 - Validate the data with a list of rules.
-//! 4 - Create a new [`crate::Context`] and attach the [`crate::DataResult`] to it.
-//! 5 - Push the new [`crate::Context`] into the output queue.
-//! 6 - Go to step 1 until the input queue is not empty.
+//! 1 - Get a [`crate::Context`] from the input queue.  
+//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].  
+//! 3 - Validate the data with a list of rules.  
+//! 4 - Create a new [`crate::Context`] and attach the [`crate::DataResult`] to it.  
+//! 5 - Push the new [`crate::Context`] into the output queue.  
+//! 6 - Go to step 1 until the input queue is not empty.  
 //!
 //! ### Configuration
 //!

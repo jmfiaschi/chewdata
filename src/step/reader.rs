@@ -2,13 +2,13 @@
 //!
 //! ### Actions
 //!
-//! 1 - Get a [`crate::Context`] from the input queue.
-//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].
-//! 3 - Put the data in the parameter of the [`crate::connector`].
-//! 4 - Read bytes from the [`crate::document`] through the [`crate::connector`].
-//! 5 - Create a new [`crate::Context`] and attach the [`crate::DataResult`] to it.
-//! 6 - Push the new [`crate::Context`] into the output queue.
-//! 7 - Go to step 1 until the input queue is not empty.
+//! 1 - Get a [`crate::Context`] from the input queue.  
+//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].  
+//! 3 - Put the data in the parameter of the [`crate::connector`].  
+//! 4 - Read bytes from the [`crate::document`] through the [`crate::connector`].  
+//! 5 - Create a new [`crate::Context`] and attach the [`crate::DataResult`] to it.  
+//! 6 - Push the new [`crate::Context`] into the output queue.  
+//! 7 - Go to step 1 until the input queue is not empty.  
 //!
 //! ### Configuration
 //!

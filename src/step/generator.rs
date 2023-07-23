@@ -4,12 +4,12 @@
 //!
 //! ### Actions
 //!
-//! 1 - Get a [`crate::Context`] from the input queue.
-//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].
-//! 3 - Clone the current [`crate::Context`] or it create a new one if empty
-//! 4 - Push the [`crate::Context`] into the output queue.
-//! 5 - Go to the step 3 n times.
-//! 6 - Go to step 1 until the input queue is not empty.
+//! 1 - Get a [`crate::Context`] from the input queue.  
+//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].  
+//! 3 - Clone the current [`crate::Context`] or it create a new one if empty.  
+//! 4 - Push the [`crate::Context`] into the output queue.  
+//! 5 - Go to the step 3 n times.  
+//! 6 - Go to step 1 until the input queue is not empty.  
 //!
 //! ### Configuration
 //!
