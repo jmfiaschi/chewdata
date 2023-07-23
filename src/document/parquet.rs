@@ -1,3 +1,60 @@
+//! Read and Write in Parquet format. 
+//! this class read the resource with good performence but the writing will take time. It is not possible to parallize the writing with multi threads.
+//!
+//! ### Configuration
+//! 
+//! | key        | alias | Description                                                                         | Default Value  | Possible Values                                                                                                    |
+//! | ---------- | ----- | ----------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------ |
+//! | type       | -     | Required in order to use this document.                                             | `parquet`      | `parquet`                                                                                                          |
+//! | metadata   | meta  | Metadata describe the resource.                                                     | `null`         | [`crate::Metadata`]                                                                                                |
+//! | entry_path | -     | Use this field if you want to target a specific field in the object.                | `/root/*/item` | String in [json pointer format](https://datatracker.ietf.org/doc/html/rfc6901)                                     |
+//! | schema     | -     | Schema that describ the fields. If `null` the system try to resolve automatically.  | `null`         | `"fields":[{"name": "number", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false},...]` |
+//! | batch_size | -     | Number of items per page.                                                           | `1000`         | unsigned number                                                                                                    |
+//! | options    | -     | Parquet options.                                                                    | `null`         | [`crate::document::parquet::ParquetOptions`]                                                                        |
+//! 
+//! examples:
+//! 
+//! ```json
+//! [
+//!     {
+//!         "type": "read"
+//!     },
+//!     {
+//!         "type": "write",
+//!         "document":{
+//!             "type":"parquet"
+//!         }
+//!     }
+//! ]
+//! ```
+//! 
+//! input:
+//! 
+//! ```json
+//! [
+//!     {"field1":"value1"},
+//!     ...
+//! ]
+//! ```
+//! 
+//! output: 
+//! 
+//! You need to use a `parquet-tools` in order to analyse the file.
+//! 
+//! #### ParquetOption
+//! 
+//! | key                  | alias | Description                            | Default Value | Possible Values                                                                                                                                                       |
+//! | -------------------- | ----- | -------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+//! | version              | -     | Parquet version.                       | `2`           | `1` / `2`                                                                                                                                                             |
+//! | data_page_size_limit | -     | Page size limit.                       | `null`        | unsigned number                                                                                                                                                       |
+//! | max_row_group_size   | -     | Max row group size.                    | `null`        | unsigned number                                                                                                                                                       |
+//! | created_by           | -     | App/User that the create the resource. | `chewdata`    | String                                                                                                                                                                |
+//! | encoding             | -     | Resource encoding.                     | `PLAIN`       | `PLAIN` / `BIT_PACKED` / `PLAIN_DICTIONARY` / `RLE` / `DELTA_BINARY_PACKED` / `DELTA_LENGTH_BYTE_ARRAY` / `DELTA_BYTE_ARRAY` / `RLE_DICTIONARY` / `BYTE_STREAM_SPLIT` |
+//! | compression          | -     | Resource compression.                  | `GZIP`        | `GZIP` / `UNCOMPRESSED` / `SNAPPY` / `LZO` / `BROTLI` / `LZ4` / `ZSTD`                                                                                                |
+//! | has_dictionary       | -     | Use a dictionary.                      | `null`        | `true` / `false`                                                                                                                                                      |
+//! | has_statistics       | -     | Use statistics.                        | `null`        | `true` / `false`                                                                                                                                                      |
+//! | max_statistics_size  | -     | Max statistics size.                   | `null`        | unsigned number                                                                                                                                                       |
+//! 
 use crate::document::Document;
 use crate::DataResult;
 use crate::{DataSet, Metadata};

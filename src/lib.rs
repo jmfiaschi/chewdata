@@ -1,3 +1,8 @@
+//! This crate is a Rust ETL to Manipulate data everywhere. You can use the program or use the library in your code.
+//! 
+//! # How/Why to use this ETL ?
+//! 
+//! You can find the detail of this project in the [repository](https://github.com/jmfiaschi/chewdata).
 #![forbid(unsafe_code)]
 
 extern crate glob;
@@ -27,8 +32,8 @@ use std::{collections::HashMap, io};
 
 pub async fn exec(
     step_types: Vec<StepType>,
-    input_receiver: Option<Receiver<StepContext>>,
-    output_sender: Option<Sender<StepContext>>,
+    input_receiver: Option<Receiver<Context>>,
+    output_sender: Option<Sender<Context>>,
 ) -> io::Result<()> {
     let mut steps = Vec::default();
     let mut handles = Vec::default();
@@ -270,21 +275,21 @@ impl DataResult {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StepContext {
-    steps_result: Value,
+pub struct Context {
+    history: Value,
     data_result: DataResult,
 }
 
-impl StepContext {
+impl Context {
     pub fn new(step_name: String, data_result: DataResult) -> Result<Self> {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        let mut steps_result = Value::default();
-        steps_result.merge_in("/steps", Value::Object(map))?;
+        let mut history = Value::default();
+        history.merge_in("/steps", Value::Object(map))?;
 
-        Ok(StepContext {
-            steps_result,
+        Ok(Context {
+            history,
             data_result,
         })
     }
@@ -292,7 +297,7 @@ impl StepContext {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        self.steps_result.merge_in("/steps", Value::Object(map))?;
+        self.history.merge_in("/steps", Value::Object(map))?;
         self.data_result = data_result;
 
         Ok(())
@@ -300,13 +305,13 @@ impl StepContext {
     pub fn data_result(&self) -> DataResult {
         self.data_result.clone()
     }
-    pub fn steps_result(&self) -> Value {
-        self.steps_result.clone()
+    pub fn history(&self) -> Value {
+        self.history.clone()
     }
     pub fn to_value(&self) -> Result<Value> {
         let mut value = self.data_result.to_value();
-        let steps_result: Value = self.steps_result.clone();
-        value.merge_in("steps", steps_result)?;
+        let history: Value = self.history.clone();
+        value.merge_in("steps", history)?;
 
         Ok(value)
     }

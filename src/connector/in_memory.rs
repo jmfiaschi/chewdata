@@ -1,10 +1,33 @@
+//! Read and write data through memory. You can use this connector if you want to inject constant in your flow.
+//!
+//! ### Configuration
+//!
+//! | key      | alias              | Description                             | Default Value | Possible Values       |
+//! | -------- | ------------------ | --------------------------------------- | ------------- | --------------------- |
+//! | type     | -                  | Required in order to use this connector | `in_memory`   | `in_memory` / `mem`   |
+//! | metadata | meta               | Override metadata information           | `null`        | [`crate::Metadata`] |
+//! | memory   | value / doc / data | Memory value                            | `null`        | String                |
+//!
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "reader",
+//!         "connector":{
+//!             "type": "in_memory",
+//!             "memory": "{\"username\": \"{{ MY_USERNAME }}\",\"password\": \"{{ MY_PASSWORD }}\"}"
+//!         }
+//!     }
+//! ]
+//! ```
 use super::{Connector, Paginator};
+use crate::connector::paginator::once::Once;
 use crate::document::Document;
 use crate::{DataSet, DataStream, Metadata};
 use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
-use futures::Stream;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{Cursor, Result, Seek, SeekFrom, Write};
@@ -40,7 +63,7 @@ impl fmt::Display for InMemory {
     }
 }
 
-// Not display the inner for better performance with big data
+// Not display the memory for better performance.
 impl fmt::Debug for InMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InMemory")
@@ -114,7 +137,7 @@ impl Connector for InMemory {
     async fn len(&mut self) -> io::Result<usize> {
         let len = self.memory.lock().await.get_ref().len();
 
-        info!(len = len, "Size of data found in the resource");
+        info!(len = len, "Size of data found in the resource.");
 
         Ok(len)
     }
@@ -160,7 +183,7 @@ impl Connector for InMemory {
     #[instrument(name = "in_memory::fetch")]
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let resource = self.memory.lock().await;
-        info!("The connector fetch data with success");
+        info!("The connector fetch data successfully.");
         if !document.has_data(resource.get_ref())? {
             return Ok(None);
         }
@@ -248,7 +271,7 @@ impl Connector for InMemory {
         memory.write_all(&footer)?;
         memory.set_position(0);
 
-        info!("The connector send data into the memory with success");
+        info!("The connector send data into the memory successfully.");
         Ok(None)
     }
     /// See [`Connector::erase`] for more details.
@@ -278,70 +301,12 @@ impl Connector for InMemory {
         let mut memory = self.memory.lock().await;
         *memory = Cursor::default();
 
-        info!("The connector erase data into the memory with success");
+        info!("The connector erase data into the memory successfully.");
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        Ok(Box::pin(InMemoryPaginator::new(self.clone())?))
-    }
-}
-
-#[derive(Debug)]
-pub struct InMemoryPaginator {
-    connector: InMemory,
-}
-
-impl InMemoryPaginator {
-    pub fn new(connector: InMemory) -> Result<Self> {
-        Ok(InMemoryPaginator { connector })
-    }
-}
-
-#[async_trait]
-impl Paginator for InMemoryPaginator {
-    /// See [`Paginator::count`] for more details.
-    async fn count(&mut self) -> Result<Option<usize>> {
-        Ok(None)
-    }
-    /// See [`Paginator::stream`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::in_memory::InMemory;
-    /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let connector = InMemory::default();
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(!paginator.is_parallelizable());
-    ///     let mut stream = paginator.stream().await?;
-    ///
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_none(), "Can't paginate more than one time.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument(name = "in_memory_paginator::stream")]
-    async fn stream(
-        &self,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let new_connector = self.connector.clone();
-        let stream = Box::pin(stream! {
-            trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector and stop");
-            yield Ok(Box::new(new_connector.clone()) as Box<dyn Connector>);
-        });
-
-        Ok(stream)
-    }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        false
+        Ok(Box::pin(Once::new(Box::new(self.clone()))?))
     }
 }
 
@@ -374,7 +339,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
-            "The inner connector should have a size upper than zero"
+            "The inner connector should have a size upper than zero."
         );
     }
     #[async_std::test]
@@ -388,11 +353,7 @@ mod tests {
         connector.send(&document, &dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read
-            .fetch(&document)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
         assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
 
         let expected_result2 =

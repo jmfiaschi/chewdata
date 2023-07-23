@@ -1,3 +1,34 @@
+//! Read and Write in Text format. 
+//!
+//! ### Configuration
+//! 
+//! | key      | alias | Description                             | Default Value | Possible Values       |
+//! | -------- | ----- | --------------------------------------- | ------------- | --------------------- |
+//! | type     | -     | Required in order to use this document. | `text`        | `text`                |
+//! | metadata | meta  | Metadata describe the resource.         | `null`        | [`crate::Metadata`]   |
+//! 
+//! Examples:
+//! 
+//! ```json
+//! [
+//!     {
+//!         "type": "read",
+//!         "document": {
+//!             "type": "text"
+//!         },
+//!         "connector": {
+//!             "type": "mem",
+//!             "data": "Hello world !!!"
+//!         }
+//!     }
+//! ]
+//! ```
+//! 
+//! output:
+//! 
+//! ```text
+//! Hello world !!!
+//! ```
 use crate::document::Document;
 use crate::Metadata;
 use crate::{DataResult, DataSet};

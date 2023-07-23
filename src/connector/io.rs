@@ -1,4 +1,31 @@
+//! Read and write data through standard input and output.
+//!
+//! ### Configuration
+//!
+//! | key      | alias        | Description                                  | Default Value | Possible Values       |
+//! | -------- | ------------ | -------------------------------------------- | ------------- | --------------------- |
+//! | type     | -            | Required in order to use this connector      | `io`          | `io`                  |
+//! | metadata | meta         | Override metadata information                | `null`        | [`crate::Metadata`] |
+//! | eoi      | end_of_input | Last charater that stops the reading in stdin | ``            | string                |
+//!
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "reader",
+//!         "connector":{
+//!             "type": "io",
+//!             "eoi": "",
+//!             "metadata": {
+//!                 ...
+//!             }
+//!         }
+//!     }
+//! ]
+//! ```
 use super::{Connector, Paginator};
+use crate::connector::paginator::once::Once;
 use crate::document::Document;
 use crate::{DataSet, DataStream, Metadata};
 use async_std::io::BufReader;
@@ -26,11 +53,11 @@ fn default_eof() -> String {
     "".to_string()
 }
 
-// Not display the inner for better performance with big data
 impl fmt::Debug for Io {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Io")
             .field("metadata", &self.metadata)
+            .field("eoi", &self.eoi)
             .finish()
     }
 }
@@ -51,7 +78,7 @@ impl Connector for Io {
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
-    /// See [`Connector::is_variable_path`] for more details.
+    /// See [`Connector::is_variable`] for more details.
     fn is_variable(&self) -> bool {
         false
     }
@@ -64,11 +91,11 @@ impl Connector for Io {
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let stdin = BufReader::new(stdin());
 
-        trace!("Fetch lines");
+        trace!("Retreive lines.");
         let mut lines = stdin.lines();
         let mut buf = String::default();
 
-        trace!("Read lines");
+        trace!("Read lines.");
         while let Some(line) = lines.next().await {
             let current_line: String = line?;
             if current_line.eq(self.eoi.as_str()) {
@@ -76,14 +103,14 @@ impl Connector for Io {
             };
             buf = format!("{}{}\n", buf, current_line);
         }
-        trace!("Save lines into the buffer");
+        trace!("Save lines into the buffer.");
         if !document.has_data(buf.as_bytes())? {
             return Ok(None);
         }
 
         let dataset = document.read(&buf.into_bytes())?;
 
-        info!("The connector fetch data with success");
+        info!("The connector fetch data successfully.");
         Ok(Some(Box::pin(stream! {
             for data in dataset {
                 yield data;
@@ -92,7 +119,11 @@ impl Connector for Io {
     }
     /// See [`Connector::send`] for more details.
     #[instrument(skip(dataset), name = "io::send")]
-    async fn send(&mut self, document: &dyn Document, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
+    async fn send(
+        &mut self,
+        document: &dyn Document,
+        dataset: &DataSet,
+    ) -> std::io::Result<Option<DataStream>> {
         let mut buffer = Vec::default();
 
         buffer.append(&mut document.header(dataset)?);
@@ -105,7 +136,7 @@ impl Connector for Io {
         trace!("Flush data into stdout");
         stdout().flush().await?;
 
-        info!("The connector send data into the resource with success");
+        info!("The connector send data into the resource successfully.");
         Ok(None)
     }
     /// See [`Connector::erase`] for more details.
@@ -116,64 +147,7 @@ impl Connector for Io {
     }
     /// See [`Connector::paginator`] for more details.
     async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        Ok(Box::pin(IoPaginator::new(self.clone())?))
-    }
-}
-
-#[derive(Debug)]
-pub struct IoPaginator {
-    connector: Io,
-}
-
-impl IoPaginator {
-    pub fn new(connector: Io) -> Result<Self> {
-        Ok(IoPaginator { connector })
-    }
-}
-
-#[async_trait]
-impl Paginator for IoPaginator {
-    /// See [`Paginator::count`] for more details.
-    async fn count(&mut self) -> Result<Option<usize>> {
-        Ok(None)
-    }
-    /// See [`Paginator::stream`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use chewdata::connector::io::Io;
-    /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let connector = Io::default();
-    ///
-    ///     let mut stream = connector.paginator().await?.stream().await?;
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader");
-    ///     assert!(stream.next().await.transpose()?.is_none(), "Must return only on connector for IO");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument(name = "io_paginator::stream")]
-    async fn stream(
-        &self,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let new_connector = self.connector.clone();
-        let stream = Box::pin(stream! {
-            trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
-            yield Ok(Box::new(new_connector.clone()) as Box<dyn Connector>);
-            trace!("The stream stop to return a new connectors");
-        });
-
-        Ok(stream)
-    }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        false
+        Ok(Box::pin(Once::new(Box::new(self.clone()))?))
     }
 }
 
@@ -190,11 +164,11 @@ mod tests {
         let mut stream = paginator.stream().await.unwrap();
         assert!(
             stream.next().await.transpose().unwrap().is_some(),
-            "Can't get the first reader"
+            "Can't get the first reader."
         );
         assert!(
             stream.next().await.transpose().unwrap().is_none(),
-            "Must return only on connector for IO"
+            "Must return only on connector for IO."
         );
     }
 }

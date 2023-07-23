@@ -1,3 +1,45 @@
+//! Filter data file with S3 select queries and read data into AWS/Minio bucket.
+//! Use Bucket connector in order to write into the bucket.
+//!
+//! ### Configuration
+//!
+//! | key               | alias  | Description                                                                                      | Default Value            | Possible Values                                                                                                        |
+//! | ----------------- | ------ | ------------------------------------------------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+//! | type              | -      | Required in order to use this connector                                                          | `bucket`                 | `bucket`                                                                                                               |
+//! | metadata          | meta   | Override metadata information                                                                    | `null`                   | [`crate::Metadata`]                                                                                                  |
+//! | endpoint          | -      | Endpoint of the connector                                                                        | `null`                   | String                                                                                                                 |
+//! | access_key_id     | -      | The access key used for the authentification                                                     | `null`                   | String                                                                                                                 |
+//! | secret_access_key | -      | The secret access key used for the authentification                                              | `null`                   | String                                                                                                                 |
+//! | region            | -      | The bucket's region                                                                              | `us-east-1`              | String                                                                                                                 |
+//! | bucket            | -      | The bucket name                                                                                  | `null`                   | String                                                                                                                 |
+//! | path              | key    | The path of the resource. Can use `*` in order to read multiple files with the same content type | `null`                   | String                                                                                                                 |
+//! | parameters        | params | The parameters used to remplace variables in the path                                            | `null`                   | Object or Array of objects                                                                                             |
+//! | query             | -      | S3 select query                                                                                  | `select * from s3object` | See [AWS S3 select](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-glacier-select-sql-reference-select.html) |
+//! | limit             | -      | Limit the number of files to read with the wildcard mode in the path                             | `null`                   | Unsigned number                                                                                                        |
+//! | skip              | -      | Skip N files before to start to read the next files with the wildcard mode in the path           | `null`                   | Unsigned number                                                                                                        |
+//!
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "r",
+//!         "connector": {
+//!             "type": "bucket_select",
+//!             "bucket": "my-bucket",
+//!             "path": "data/my_file.jsonl",
+//!             "endpoint": "{{ BUCKET_ENDPOINT }}",
+//!             "access_key_id": "{{ BUCKET_ACCESS_KEY_ID }}",
+//!             "secret_access_key": "{{ BUCKET_SECRET_ACCESS_KEY }}",
+//!             "region": "{{ BUCKET_REGION }}",
+//!             "query": "select * from s3object[*].results[*] r where r.number = 20"
+//!         },
+//!         "document" : {
+//!             "type": "jsonl"
+//!         }
+//!     }
+//! ]
+//! ```
 use super::bucket::{Bucket, BucketPaginator};
 use super::Paginator;
 use crate::connector::Connector;
@@ -96,7 +138,6 @@ impl fmt::Display for BucketSelect {
     }
 }
 
-// Not display the inner for better performance with big data
 impl fmt::Debug for BucketSelect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BucketSelect")
@@ -109,6 +150,7 @@ impl fmt::Debug for BucketSelect {
             .field("parameters", &self.parameters)
             .field("limit", &self.limit)
             .field("skip", &self.skip)
+            .field("timeout", &self.timeout)
             .finish()
     }
 }
@@ -483,7 +525,7 @@ impl Connector for BucketSelect {
         let len = connector.fetch_length().await.unwrap_or_default();
 
         info!(len, "The connector found data in the resource");
-        
+
         Ok(len)
     }
     /// See [`Connector::fetch`] for more details.
@@ -797,7 +839,10 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().compat().await.unwrap())
+            format!(
+                "{:?}",
+                connector.select_object_content().compat().await.unwrap()
+            )
         );
     }
     #[async_std::test]
@@ -834,7 +879,10 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().compat().await.unwrap())
+            format!(
+                "{:?}",
+                connector.select_object_content().compat().await.unwrap()
+            )
         );
     }
     #[async_std::test]
@@ -885,7 +933,10 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().compat().await.unwrap())
+            format!(
+                "{:?}",
+                connector.select_object_content().compat().await.unwrap()
+            )
         );
     }
     #[async_std::test]
@@ -937,7 +988,10 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", select_object_content_expected),
-            format!("{:?}", connector.select_object_content().compat().await.unwrap())
+            format!(
+                "{:?}",
+                connector.select_object_content().compat().await.unwrap()
+            )
         );
     }
     #[async_std::test]

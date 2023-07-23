@@ -1,3 +1,33 @@
+//! Authenticate the request with basic auth.
+//!
+//! ### Configuration
+//!
+//!| key      | alias      | Description                                  | Default Value | Possible Values |
+//!| -------- | ---------- | -------------------------------------------- | ------------- | --------------- |
+//!| type     | -          | Required in order to use this authentication | `basic`       | `basic`         |
+//!| username | user / usr | Username to use for the authentification     | `null`        | String          |
+//!| password | pass / pwd | Password to use for the authentification     | `null`        | String          |
+//!
+//! ### Examples
+//!
+//!```json
+//![
+//!    {
+//!        "type": "read",
+//!        "connector":{
+//!            "type": "curl",
+//!            "endpoint": "{{ CURL_ENDPOINT }}",
+//!            "path": "/get",
+//!            "method": "get",
+//!            "authenticator": {
+//!                "type": "basic",
+//!                "username": "{{ BASIC_USERNAME }}",
+//!                "password": "{{ BASIC_PASSWORD }}",
+//!            }
+//!        },
+//!    }
+//!]
+//!```
 use super::Authenticator;
 use crate::helper::mustache::Mustache;
 use async_trait::async_trait;

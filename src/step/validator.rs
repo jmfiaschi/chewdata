@@ -1,10 +1,108 @@
+//! Check the consistancy of the data.
+//! 
+//! If a data is not valid, an error message is stored in the field `_error` before to share the data to another step and the data is tagged with an error.
+//! Use the `data_type` field of a `step` to target which kind of data a step can handle.
+//!
+//! ### Actions
+//!
+//! 1 - Get a [`crate::Context`] from the input queue.  
+//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].  
+//! 3 - Validate the data with a list of rules.  
+//! 4 - Create a new [`crate::Context`] and attach the [`crate::DataResult`] to it.  
+//! 5 - Push the new [`crate::Context`] into the output queue.  
+//! 6 - Go to step 1 until the input queue is not empty.  
+//!
+//! ### Configuration
+//!
+//! | key             | alias   | Description                                                                                                       | Default Value | Possible Values                                 |
+//! | --------------- | ------- | ----------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------- |
+//! | type            | -       | Required in order to use transformer step                                                                         | `transformer` | `transformer` / `transform` / `t`               |
+//! | updater         | u       | Updater type used as a template engine for transformation                                                         | `tera`        | `tera`                                          |
+//! | referentials    | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the validation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
+//! | name            | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                |
+//! | description     | desc    | Describ your step and give more visibility                                                                        | `null`        | String                                          |
+//! | data_type       | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                    |
+//! | thread_number   | threads | Parallelize the step in multiple threads                                                                          | `1`           | unsigned number                                 |
+//! | rules           | -       | List of [`self::Rule`] indexed by their names                                                                     | `null`        | `{"rule_0": Rule,"rule_1": Rule}`               |
+//! | input_name      | input   | Input name variable can be used in the pattern action                                                             | `input`       | String                                          |
+//! | output_name     | output  | Output name variable can be used in the pattern action                                                            | `output`      | String                                          |
+//! | error_separator | -       | Separator use to delimite two errors                                                                              | `\r\n`        | String                                          |
+//! | wait            | sleep   | Time in millisecond to wait before to fetch data result from the previous queue                                   | `10`          | unsigned number                                 |
+//! 
+//! ### Rule
+//! 
+//! | key     | Description                                                                                                                                                                                     | Default Value | Possible Values                                   |
+//! | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------- |
+//! | pattern | Pattern in [django template language](https://docs.djangoproject.com/en/3.1/topics/templates/) format used to test a field. If the result of the pattern is not a boolean, an error will raised | `null`        | `{% if true %} true {% else %} false {% endif %}` |
+//! | message | Message to display if the render pattern is false. If the message is empty, a default value is rendered                                                                                         | `string`      | `My error message`                                |
+//! 
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "validator",
+//!         "updater": {
+//!             "type": "tera"
+//!         },
+//!         "referentials": {
+//!             "mapping_ref": {
+//!                 "connector": {
+//!                     "type": "mem",
+//!                     "data": "[{\"mapping_code\":\"value_to_map\",\"mapping_value\":\"value mapped\"},{\"mapping_code\":\"value_to_map_2\",\"mapping_value\":\"value mapped 2\"}]"
+//!                 }
+//!             }
+//!         },
+//!         "name": "my_validator",
+//!         "description": "My description of the step",
+//!         "data_type": "ok",
+//!         "thread_number": 1,
+//!         "rules": {
+//!             "number_rule": {
+//!                 "pattern": "{% if input.number == 10  %} true {% else %} false {% endif %}",
+//!                 "message": "The number field value must be equal to 10"
+//!             },
+//!             "text_rule": {
+//!                 "pattern": "{% if input.text is matching('.*hello world.*') %} true {% else %} false {% endif %}",
+//!                 "message": "The text field value doesn't contain 'Hello World'"
+//!             },
+//!             "code_rule": {
+//!                 "pattern": "{% if mapping_ref | filter(attribute='mapping_code', value=input.code) | length > 0 %} true {% else %} false {% endif %}",
+//!                 "message": "The code field value doesn't match with the referential dataset"
+//!             }
+//!         },
+//!         "input_name": "my_input",
+//!         "output_name": "my_output",
+//!         "error_separator": " & ",
+//!         "wait: 10
+//!     }
+//! ]
+//! ```
+//! 
+//! input:
+//! 
+//! ```json
+//! [
+//!     {"number": 100, "text": "my text", "code": "my_code"},
+//!     ...
+//! ]
+//! ```
+//! 
+//! output:
+//! 
+//! ```json
+//! [
+//!     {"number": 100, "text": "my text", "code": "my_code", "_error":"The number field value must be equal to 10 & The text field value doesn't contain 'Hello World' & The code field value doesn't match with the referential dataset"},
+//!     ...
+//! ]
+//! ```
 use super::super::helper::referentials_reader_into_value;
 use super::DataResult;
 use crate::helper::json_pointer::JsonPointer;
 use crate::helper::mustache::Mustache;
 use crate::step::Step;
 use crate::updater::{ActionType, UpdaterType};
-use crate::StepContext;
+use crate::Context;
 use crate::{step::reader::Reader, updater::Action};
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
@@ -45,9 +143,9 @@ pub struct Validator {
     #[serde(alias = "sleep")]
     pub wait: u64,
     #[serde(skip)]
-    pub receiver: Option<Receiver<StepContext>>,
+    pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
-    pub sender: Option<Sender<StepContext>>,
+    pub sender: Option<Sender<Context>>,
 }
 
 impl Default for Validator {
@@ -87,19 +185,19 @@ impl fmt::Display for Validator {
 #[async_trait]
 impl Step for Validator {
     /// See [`Step::set_receiver`] for more details.
-    fn set_receiver(&mut self, receiver: Receiver<StepContext>) {
+    fn set_receiver(&mut self, receiver: Receiver<Context>) {
         self.receiver = Some(receiver);
     }
     /// See [`Step::receiver`] for more details.
-    fn receiver(&self) -> Option<&Receiver<StepContext>> {
+    fn receiver(&self) -> Option<&Receiver<Context>> {
         self.receiver.as_ref()
     }
     /// See [`Step::set_sender`] for more details.
-    fn set_sender(&mut self, sender: Sender<StepContext>) {
+    fn set_sender(&mut self, sender: Sender<Context>) {
         self.sender = Some(sender);
     }
     /// See [`Step::sender`] for more details.
-    fn sender(&self) -> Option<&Sender<StepContext>> {
+    fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
     }
     /// See [`Step::sleep`] for more details.
@@ -114,7 +212,7 @@ impl Step for Validator {
     /// use serde_json::Value;
     /// use json_value_search::Search;
     /// use chewdata::DataResult;
-    /// use chewdata::StepContext;
+    /// use chewdata::Context;
     /// use chewdata::step::Step;
     /// use chewdata::step::validator::{Validator, Rule};
     /// use std::thread;
@@ -141,14 +239,14 @@ impl Step for Validator {
     ///
     ///     thread::spawn(move || {
     ///         let data = serde_json::from_str(r#"{"number_1":"my_string","number_2":100,"text":"120"}"#).unwrap();
-    ///         let step_context = StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-    ///         sender_input.try_send(step_context).unwrap();
+    ///         let context = Context::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+    ///         sender_input.try_send(context).unwrap();
     ///     });
     ///
     ///     validator.exec().await?;
     ///
-    ///     for step_context in receiver_output.try_recv() {
-    ///         let error_result = step_context.data_result().to_value().search("/_error").unwrap().unwrap();
+    ///     for context in receiver_output.try_recv() {
+    ///         let error_result = context.data_result().to_value().search("/_error").unwrap().unwrap();
     ///         let error_result_expected = Value::String("Err N.1".to_string());
     ///         assert_eq!(error_result_expected, error_result);
     ///     }
@@ -175,12 +273,12 @@ impl Step for Validator {
             .collect();
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
-        while let Some(ref mut step_context_received) = receiver_stream.next().await {
-            let data_result = step_context_received.data_result();
+        while let Some(ref mut context_received) = receiver_stream.next().await {
+            let data_result = context_received.data_result();
 
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &step_context_received.clone()).await?;
+                super::send(self as &dyn Step, &context_received.clone()).await?;
                 continue;
             }
 
@@ -191,7 +289,7 @@ impl Step for Validator {
                 .updater()
                 .update(
                     record.clone(),
-                    step_context_received.steps_result(),
+                    context_received.history(),
                     referentials.clone(),
                     actions.clone(),
                     self.input_name.clone(),
@@ -254,8 +352,8 @@ impl Step for Validator {
                 Err(e) => DataResult::Err((record.clone(), e)),
             };
 
-            step_context_received.insert_step_result(self.name(), new_data_result)?;
-            super::send(self as &dyn Step, &step_context_received.clone()).await?;
+            context_received.insert_step_result(self.name(), new_data_result)?;
+            super::send(self as &dyn Step, &context_received.clone()).await?;
         }
 
         Ok(())
@@ -286,19 +384,19 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let step_context =
-            StepContext::new("before".to_string(), DataResult::Err((data, error))).unwrap();
-        let expected_step_context = step_context.clone();
+        let context =
+            Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let expected_context = context.clone();
 
         thread::spawn(move || {
-            sender_input.try_send(step_context).unwrap();
+            sender_input.try_send(context).unwrap();
         });
 
         step.receiver = Some(receiver_input);
         step.sender = Some(sender_output);
         step.exec().await.unwrap();
 
-        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+        assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
     #[async_std::test]
     async fn exec_with_same_data_result_type() {
@@ -306,16 +404,16 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let step_context =
-            StepContext::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context =
+            Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
 
-        let mut expected_step_context = step_context.clone();
-        expected_step_context
+        let mut expected_context = context.clone();
+        expected_context
             .insert_step_result("my_step".to_string(), DataResult::Ok(data))
             .unwrap();
 
         thread::spawn(move || {
-            sender_input.try_send(step_context).unwrap();
+            sender_input.try_send(context).unwrap();
         });
 
         step.receiver = Some(receiver_input);
@@ -324,7 +422,7 @@ mod tests {
         step.rules = serde_json::from_str(r#"{"rule_1": {"pattern": "true"}}"#).unwrap();
         step.exec().await.unwrap();
 
-        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+        assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
     #[async_std::test]
     async fn exec() {
@@ -368,13 +466,13 @@ mod tests {
             let data =
                 serde_json::from_str(r#"{"number_1":"my_string","number_2":100,"text":"120"}"#)
                     .unwrap();
-            let step_context =
-                StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-            sender_input.try_send(step_context).unwrap();
+            let context =
+                Context::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+            sender_input.try_send(context).unwrap();
         });
         validator.exec().await.unwrap();
-        while let Ok(step_context) = receiver_output.try_recv() {
-            let error_result = step_context
+        while let Ok(context) = receiver_output.try_recv() {
+            let error_result = context
                 .data_result()
                 .to_value()
                 .search("/_error")
@@ -407,13 +505,13 @@ mod tests {
         };
         thread::spawn(move || {
             let data = serde_json::from_str(r#"{"number":100}"#).unwrap();
-            let step_context =
-                StepContext::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
-            sender_input.try_send(step_context).unwrap();
+            let context =
+                Context::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+            sender_input.try_send(context).unwrap();
         });
         validator.exec().await.unwrap();
-        while let Ok(step_context) = receiver_output.try_recv() {
-            let error_result = step_context
+        while let Ok(context) = receiver_output.try_recv() {
+            let error_result = context
                 .data_result()
                 .to_value()
                 .search("/_error")

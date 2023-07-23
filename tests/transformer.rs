@@ -59,7 +59,7 @@ fn it_should_apply_simple_transformation() {
         (
             "filesize",
             "{{ input.filesize | filesizeformat }}",
-            "976.56 KB",
+            "976.56 kB",
         ),
         (
             "round",

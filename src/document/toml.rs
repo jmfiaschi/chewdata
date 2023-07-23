@@ -1,3 +1,32 @@
+//! Read and Write in Toml format. 
+//!
+//! ### Configuration
+//! 
+//! | key      | alias | Description                             | Default Value | Possible Values       |
+//! | -------- | ----- | --------------------------------------- | ------------- | --------------------- |
+//! | type     | -     | Required in order to use this document. | `toml`        | `toml`                |
+//! | metadata | meta  | Metadata describe the resource.         | `null`        | [`crate::Metadata`]   |
+//! 
+//! examples:
+//! 
+//! ```json
+//! [
+//!     {
+//!         "type": "read",
+//!         "document": {
+//!             "type": "toml"
+//!         }
+//!     }
+//! ]
+//! ```
+//! 
+//! input/output:
+//! 
+//! ```toml
+//! [[line]]
+//! field= value
+//! ...
+//! ```
 use crate::document::Document;
 use crate::Metadata;
 use crate::{DataResult, DataSet};

@@ -1,3 +1,36 @@
+//! Read and write data in local files.
+//! It is possible to read multiple files with wildcards.
+//! If you want to write dynamically in different files,
+//! use the [mustache](http://mustache.github.io/) variable that will be replaced with the data in input.
+//!
+//! ### Configuration
+//!
+//! | key        | alias  | Description                                                                                      | Default Value | Possible Values       |
+//! | ---------- | ------ | ------------------------------------------------------------------------------------------------ | ------------- | --------------------- |
+//! | type       | -      | Required in order to use this connector                                                          | `local`       | `local`               |
+//! | metadata   | meta   | Override metadata information                                                                    | `null`        | [`crate::Metadata`] |
+//! | path       | -      | Path of a file or list of files. Allow wildcard charater `*` and mustache variables              | `null`        | String                |
+//! | parameters | params | Variable that can be use in the path. Parameters of the connector is merged with the current data | `null`        | List of key and value |
+//!
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "reader",
+//!         "connector":{
+//!             "type": "local",
+//!             "path": "./{{ folder }}/*.json",
+//!             "metadata": {
+//!                 "content-type": "application/json; charset=utf-8"
+//!             },
+//!             "parameters": {
+//!                 "folder": "my_folder"
+//!             }
+//!         }
+//!     }
+//! ]
+//! ```
 use super::{Connector, Paginator};
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
@@ -149,7 +182,7 @@ impl Connector for Local {
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;
     }
-    /// See [`Connector::is_variable_path`] for more details.
+    /// See [`Connector::is_variable`] for more details.
     ///
     /// # Examples
     ///

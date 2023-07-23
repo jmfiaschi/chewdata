@@ -61,18 +61,67 @@ If all the test pass, the project is ready. read the Makefile in order to see, w
 
 If you want some examples to discover this project, go in this section [./examples](./examples/)
 
-### Run the ETL
+### Setup from cargo package
 
-If you run the program without parameters, the application will wait until you write json data. By default, the program write json data in the output and the program stop when you enter empty value.
+#### Default installation
+
+This command will install the project with all features.
+
+```bash
+cargo install chewdata
+```
+
+#### With minimal features
+
+If you need just read/write json file, transform and store them into the local environment.
+
+```bash
+cargo install chewdata --no-default-features
+```
+
+#### With custom features
+
+If you want to specify some features to add to your installation
+
+```bash
+cargo install chewdata --no-default-features --features "xml bucket"
+```
+
+Please, referer to the [features documentation](/docs/componants/features)</a>.
+
+### Run
+
+First of all, you can check how the command works with the option `--help`
+
+```bash
+chewdata --help
+...
+USAGE:
+    chewdata [OPTIONS] [JSON]
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -f, --file <FILE>    Init steps with file configuration in input
+
+ARGS:
+    <JSON>    Init steps with a json configuration in input
+```
+
+#### Without configuration
+
+It is possible to run the command without configuration, the application will wait until you write `json` data. By default, the program write json data in the output and the program stop when you enter empty value.
 
 ```Bash
 $ cargo run
 $ [{"key":"value"},{"name":"test"}]
-$ enter
+$ --enter--
 [{"key":"value"},{"name":"test"}]
 ```
 
-Another example without etl configuration and with file in input
+Another examples without configuration and with file in input
 
 ```Bash
 $ cat ./data/multi_lines.json | cargo run
@@ -86,7 +135,16 @@ $ cat ./data/multi_lines.json | make run
 [{...}]
 ```
 
-Another example, With a json etl configuration in argument
+or
+
+```Bash
+$ cat ./data/multi_lines.json | chewdata
+[{...}]
+```
+
+#### With configuration
+
+The configuration is usefull to customize a list of steps.
 
 ```Bash
 $ cat ./data/multi_lines.csv | cargo run '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
@@ -100,7 +158,14 @@ $ cat ./data/multi_lines.csv | make run json='[{\"type\":\"reader\",\"document\"
 [{...}] // Will transform the csv data into json format
 ```
 
-Another example, With etl file configuration in argument
+or
+
+```Bash
+$ cat ./data/multi_lines.csv | chewdata '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
+[{...}] // Will transform the csv data into json format
+```
+
+Another example, With file configuration in argument
 
 ```Bash
 $ echo '[{"type":"reader","connector":{"type":"io"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
@@ -116,17 +181,57 @@ $ cat ./data/multi_lines.csv | make run file=my_etl.conf.json
 [{...}]
 ```
 
-It is possible to use alias and default value to decrease the configuration length
+or
 
 ```Bash
-$ echo '[{"type":"r","doc":{"type":"csv"}},{"type":"w"}]' > my_etl.conf.json
-$ cat ./data/multi_lines.csv | make run file=my_etl.conf.json
+$ echo '[{"type":"reader","connector":{"type":"io"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
+$ cat ./data/multi_lines.csv | chewdata --file my_etl.conf.json
 [{...}]
 ```
 
-## How to contribute
+PS: It's possible to replace Json configuration file by Yaml format.
 
-In progress...
+### Chain commands
+
+It is possible to chain chewdata program :
+
+```bash
+task_A=$(echo '{"variable": "a"}' | chewdata '[{"type":"r"},{"type":"transformer","actions":[{"field":"/","pattern":"{{ input | json_encode() }}"},{"field":"value","pattern":"10"}]},{"type":"w", "doc":{"type":"jsonl"}}]') &&\
+task_B=$(echo '{"variable": "b"}' | chewdata '[{"type":"r"},{"type":"transformer","actions":[{"field":"/","pattern":"{{ input | json_encode() }}"},{"field":"value","pattern":"20"}]},{"type":"w", "doc":{"type":"jsonl"}}]') &&\
+echo $task_A | VAR_B=$task_B chewdata '[{"type":"r"},{"type":"transformer","actions":[{"field":"var_b","pattern":"{{ get_env(name=\"VAR_B\") }}"},{"field":"result","pattern":"{{ output.var_b.value * input.value }}"},{"field":"var_b","type":"remove"}]},{"type":"w"}]'
+[{"result":200}]
+```
+
+# How it works ?
+
+This program execute `steps` from a configuration file that you need to inject in `Json` or `Yaml` format :
+
+Example:
+
+```json
+[
+ {"type": "erase"},
+ {"type": "reader"},
+ {"type": "transformer"},
+ {"type": "writer"},
+ ...
+]
+```
+
+These `steps` are executed in the `FIFO` order.
+
+All `steps` are linked together by an `input` and `output` context queue. 
+When a step finishes handling data, a new context is created and send into the output queue. The next step will handle this new context.
+Step1(Context) -> Q1[Contexts] -> StepN(Context) -> QN[Contexts] ->  StepN+1(Context)
+Each step runs asynchronously. Each queue contains a limit that can be customized in the step's configuration.
+
+Check the module [`step`] to see the list of steps you can use and their configuration. Check the folder [/examples](./examples) to have some examples how to use and build a configuration file.  
+
+## How to contribute ?
+
+Follow the [GitHub flow](https://guides.github.com/introduction/flow/).
+
+Folow the [Semantic release Specification](https://semantic-release.gitbook.io/semantic-release/)
 
 After code modifications, please run all tests.
 
@@ -137,5 +242,5 @@ make test
 ## Useful links
 
 * [Benchmark report](https://jmfiaschi.github.io/chewdata/benches/main/)
-* [Documentation](https://jmfiaschi.github.io/chewdata-docs/)
+* [Documentation](https://docs.rs/chewdata/latest/chewdata/)
 * [Package](https://crates.io/crates/chewdata)

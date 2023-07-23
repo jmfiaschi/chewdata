@@ -60,13 +60,13 @@ pub async fn referentials_reader_into_value(
 
         loop {
             match receiver.try_recv() {
-                Ok(step_context_received) => {
-                    let value = step_context_received.data_result().to_value();
+                Ok(context_received) => {
+                    let value = context_received.data_result().to_value();
                     trace!(
                         value = format!("{:?}", value).as_str(),
                         "A new referential value found in the pipe"
                     );
-                    values.push(step_context_received.data_result().to_value());
+                    values.push(context_received.data_result().to_value());
                     continue;
                 }
                 Err(TryRecvError::Empty) => {

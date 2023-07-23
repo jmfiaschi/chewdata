@@ -2,13 +2,13 @@ pub mod basic;
 pub mod bearer;
 pub mod jwt;
 
+use async_trait::async_trait;
 use basic::Basic;
 use bearer::Bearer;
 use jwt::Jwt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Result;
-use async_trait::async_trait;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]

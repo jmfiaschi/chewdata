@@ -1,3 +1,52 @@
+//! Read and Write in JSON Lines format. 
+//!
+//! ### Configuration
+//! 
+//! | key        | alias | Description                                                       | Default Value | Possible Values                                                                |
+//! | ---------- | ----- | ----------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------ |
+//! | type       | -     | Required in order to use this document.                           | `jsonl`       | `jsonl`                                                                        |
+//! | metadata   | meta  | Metadata describe the resource.                                   | `null`        | [`crate::Metadata`]                                                            |
+//! | is_pretty  | -     | Display data in readable format for human.                        | `false`       | `false` / `true`                                                               |
+//! | entry_path | -     | Use this field if you want target a specific field in the object. | `null`        | String in [json pointer format](https://datatracker.ietf.org/doc/html/rfc6901) |
+//! 
+//! Examples:
+//! 
+//! ```json
+//! [
+//!     {
+//!         "type": "read",
+//!         "document": {
+//!             "type": "jsonl",
+//!             "entry_path": "/field1"
+//!         }
+//!     },
+//!     {
+//!         "type": "write",
+//!         "document": {
+//!             "type": "jsonl",
+//!             "is_pretty": true
+//!         }
+//!     }
+//! ]
+//! ```
+//! 
+//! input:
+//! 
+//! ```jsonl
+//! [
+//!     { "field1":"value1", ... },
+//!     { "field1":"value2", ... },
+//!     ...
+//! ]
+//! ```
+//! 
+//! output:
+//! 
+//! ```jsonl
+//! value1
+//! value2
+//! ...
+//! ```
 use crate::document::Document;
 use crate::DataResult;
 use crate::{DataSet, Metadata};

@@ -1,8 +1,52 @@
+//! Read the content of a [`crate::document`] through a [`crate::connector`].
+//!
+//! ### Actions
+//!
+//! 1 - Get a [`crate::Context`] from the input queue.  
+//! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].  
+//! 3 - Put the data in the parameter of the [`crate::connector`].  
+//! 4 - Read bytes from the [`crate::document`] through the [`crate::connector`].  
+//! 5 - Create a new [`crate::Context`] and attach the [`crate::DataResult`] to it.  
+//! 6 - Push the new [`crate::Context`] into the output queue.  
+//! 7 - Go to step 1 until the input queue is not empty.  
+//!
+//! ### Configuration
+//!
+//! | key         | alias | Description                                                                     | Default Value | Possible Values                              |
+//! | ----------- | ----- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |
+//! | type        | -     | Required in order to use reader step                                            | `reader`      | `reader` / `read` / `r`                      |
+//! | connector   | conn  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
+//! | document    | doc   | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]   |
+//! | name        | alias | Step name                                                                        | `null`        | Auto generate alphanumeric value             |
+//! | description | desc  | Describ your step and give more visibility                                      | `null`        | String                                       |
+//! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
+//! | wait        | sleep | Time in millisecond to wait before to fetch data result from the previous queue | `10`          | unsigned number                              |
+//!
+//! ### Examples
+//!
+//! ```json
+//! [
+//!     {
+//!         "type": "reader",
+//!         "name": "read_a",
+//!         "description": "My description of the step",
+//!         "connector": {
+//!             "type": "io"
+//!         },
+//!         "document": {
+//!             "type": "json"
+//!         },
+//!         "data_type": "ok",
+//!         "wait: 10
+//!     }
+//!     ...
+//! ]
+//! ```
 use crate::connector::Connector;
 use crate::document::{Document, DocumentType};
 use crate::step::Step;
 use crate::DataResult;
-use crate::{connector::ConnectorType, StepContext};
+use crate::{connector::ConnectorType, Context};
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -29,9 +73,9 @@ pub struct Reader {
     #[serde(alias = "sleep")]
     pub wait: u64,
     #[serde(skip)]
-    pub receiver: Option<Receiver<StepContext>>,
+    pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
-    pub sender: Option<Sender<StepContext>>,
+    pub sender: Option<Sender<Context>>,
 }
 
 impl Default for Reader {
@@ -66,19 +110,19 @@ impl fmt::Display for Reader {
 #[async_trait]
 impl Step for Reader {
     /// See [`Step::set_receiver`] for more details.
-    fn set_receiver(&mut self, receiver: Receiver<StepContext>) {
+    fn set_receiver(&mut self, receiver: Receiver<Context>) {
         self.receiver = Some(receiver);
     }
     /// See [`Step::receiver`] for more details.
-    fn receiver(&self) -> Option<&Receiver<StepContext>> {
+    fn receiver(&self) -> Option<&Receiver<Context>> {
         self.receiver.as_ref()
     }
     /// See [`Step::set_sender`] for more details.
-    fn set_sender(&mut self, sender: Sender<StepContext>) {
+    fn set_sender(&mut self, sender: Sender<Context>) {
         self.sender = Some(sender);
     }
     /// See [`Step::sender`] for more details.
-    fn sender(&self) -> Option<&Sender<StepContext>> {
+    fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
     }
     /// See [`Step::sleep`] for more details.
@@ -95,23 +139,23 @@ impl Step for Reader {
         let mut has_data_been_received = false;
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
-        while let Some(step_context_received) = receiver_stream.next().await {
+        while let Some(context_received) = receiver_stream.next().await {
             if !has_data_been_received {
                 has_data_been_received = true;
             }
 
-            if !step_context_received
+            if !context_received
                 .data_result()
                 .is_type(self.data_type.as_ref())
             {
                 trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &step_context_received.clone()).await?;
+                super::send(self as &dyn Step, &context_received.clone()).await?;
                 continue;
             }
 
-            connector.set_parameters(step_context_received.to_value()?);
+            connector.set_parameters(context_received.to_value()?);
 
-            exec_connector(self, &mut connector, document, &Some(step_context_received)).await?
+            exec_connector(self, &mut connector, document, &Some(context_received)).await?
         }
 
         // If data has not been received and the channel has been close, run last time the step.
@@ -131,7 +175,7 @@ async fn exec_connector<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
     document: &'step dyn Document,
-    context: &'step Option<StepContext>,
+    context: &'step Option<Context>,
 ) -> io::Result<()> {
     // todo: remove paginator mutability
     let paginator = connector.paginator().await?;
@@ -188,7 +232,7 @@ async fn send_data_into_pipe<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
     document: &'step dyn Document,
-    context: &'step Option<StepContext>,
+    context: &'step Option<Context>,
 ) -> io::Result<Option<()>> {
     let mut dataset = match connector.fetch(document).await? {
         Some(dataset) => dataset,
@@ -201,7 +245,7 @@ async fn send_data_into_pipe<'step>(
                 context.insert_step_result(step.name(), data_result)?;
                 context.clone()
             }
-            None => StepContext::new(step.name(), data_result)?,
+            None => Context::new(step.name(), data_result)?,
         };
 
         super::send(step as &dyn Step, &context).await?;
@@ -226,19 +270,18 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let step_context =
-            StepContext::new("before".to_string(), DataResult::Err((data, error))).unwrap();
-        let expected_step_context = step_context.clone();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let expected_context = context.clone();
 
         thread::spawn(move || {
-            sender_input.try_send(step_context).unwrap();
+            sender_input.try_send(context).unwrap();
         });
 
         step.receiver = Some(receiver_input);
         step.sender = Some(sender_output);
         step.exec().await.unwrap();
 
-        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+        assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
     #[async_std::test]
     async fn exec_with_same_data_result_type() {
@@ -246,17 +289,16 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let step_context =
-            StepContext::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
 
-        let mut expected_step_context = step_context.clone();
+        let mut expected_context = context.clone();
         let data2: Value = serde_json::from_str(r#"{"field_1":"value_2"}"#).unwrap();
-        expected_step_context
+        expected_context
             .insert_step_result("my_step".to_string(), DataResult::Ok(data2))
             .unwrap();
 
         thread::spawn(move || {
-            sender_input.try_send(step_context).unwrap();
+            sender_input.try_send(context).unwrap();
         });
 
         step.receiver = Some(receiver_input);
@@ -265,6 +307,6 @@ mod tests {
         step.connector_type = ConnectorType::InMemory(InMemory::new(r#"{"field_1":"value_2"}"#));
         step.exec().await.unwrap();
 
-        assert_eq!(expected_step_context, receiver_output.recv().await.unwrap());
+        assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
 }
