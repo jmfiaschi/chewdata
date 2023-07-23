@@ -1,3 +1,17 @@
+# [1.15.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0-beta.1) (2023-07-23)
+
+
+### Bug Fixes
+
+* **tests:** change expected filesize unit ([76b077c](https://github.com/jmfiaschi/chewdata/commit/76b077c3ed11f30fe2fb3aa40fe65627e99e50b0))
+
+
+### Features
+
+* **auth:** improve the documentation ([cb2ea76](https://github.com/jmfiaschi/chewdata/commit/cb2ea76875f438c58781d3efedb2a9003a62cd80))
+* **curl:** improve the documentation and code ([ec1e008](https://github.com/jmfiaschi/chewdata/commit/ec1e00857f83d75724b577ec4fe88edf1f57670c))
+* **io&memory:** improve the documentation and refacto ([3f94517](https://github.com/jmfiaschi/chewdata/commit/3f945173cc53f2e75d8958ac3e8591300b1794ee))
+
 # [1.14.0](https://github.com/jmfiaschi/chewdata/compare/v1.13.0...v1.14.0) (2023-02-08)
 
 
