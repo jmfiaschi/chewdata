@@ -1,39 +1,8 @@
 //! This crate is a Rust ETL to Manipulate data everywhere. You can use the program or use the library in your code.
 //! 
-//! # Why to use this ETL ?
+//! # How/Why to use this ETL ?
 //! 
-//! * No Garbage Collector: This ETL runs without a garbage collector for better stability. Everything is handled by the code in <a href="https://www.rust-lang.org/" target="_blank">Rust</a>.
-//! * Configuration multi versions: The configuration can be saved in different versions. You can retrieve old versions with a "version control system".
-//! * Scalable and Parallelizable: The application is a simple job that can be executed multiple times in different contexts. It is possible to chain commands for complex flows.
-//! * Simple command executable everywhere: Choose your server where you want to execute the ETL : Local, Kube, AWS Lambda, AWS EC2, Web, etc...
-//! * Customize your package: With rust feature flags, enable only required componants.
-//! * Easy to install: Install the ETL with only one command.
-//! 
-//! # How it works
-//! 
-//! The program or to execute the main function, you need to inject the configuration of steps in `Json` or `Yaml` format :
-//! 
-//! Examples:
-//! 
-//! ```json
-//! [
-//!  {"type": "erase"},
-//!  {"type": "reader"},
-//!  {"type": "transformer"},
-//!  {"type": "writer"},
-//!  ...
-//! ]
-//! ```
-//! 
-//! These steps are executed in the `FIFO` order.
-//! 
-//! All steps are linked together by an `input` and `output` context queue. 
-//! When a step finishes handling data, a new context is created base of this data and send into the output queue. The next step will handle this context.
-//! Step1(Context) -> Q1[Contexts] -> StepN(Context) -> QN[Contexts] ->  StepN+1(Context)
-//! Each step runs asynchronously. Each queue contains a limit that can be customized in the step's configuration.
-//! 
-//! Check the module [`step`] to see the list of steps you can use and their configuration.
-//! 
+//! You can find the detail of this project in the [repository](https://github.com/jmfiaschi/chewdata).
 #![forbid(unsafe_code)]
 
 extern crate glob;

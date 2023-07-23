@@ -202,7 +202,32 @@ echo $task_A | VAR_B=$task_B chewdata '[{"type":"r"},{"type":"transformer","acti
 [{"result":200}]
 ```
 
-## How to contribute
+# How it works ?
+
+This program execute `steps` from a configuration file that you need to inject in `Json` or `Yaml` format :
+
+Example:
+
+```json
+[
+ {"type": "erase"},
+ {"type": "reader"},
+ {"type": "transformer"},
+ {"type": "writer"},
+ ...
+]
+```
+
+These `steps` are executed in the `FIFO` order.
+
+All `steps` are linked together by an `input` and `output` context queue. 
+When a step finishes handling data, a new context is created and send into the output queue. The next step will handle this new context.
+Step1(Context) -> Q1[Contexts] -> StepN(Context) -> QN[Contexts] ->  StepN+1(Context)
+Each step runs asynchronously. Each queue contains a limit that can be customized in the step's configuration.
+
+Check the module [`step`] to see the list of steps you can use and their configuration. Check the folder [/examples](./examples) to have some examples how to use and build a configuration file.  
+
+## How to contribute ?
 
 Follow the [GitHub flow](https://guides.github.com/introduction/flow/).
 
