@@ -136,8 +136,10 @@ impl Paginator for Offset {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use chewdata::connector::{mongodb::{Mongodb, PaginatorType, Offset}, Connector};
+    /// ```
+    /// use chewdata::connector::{mongodb::Mongodb, Connector};
+    /// use chewdata::connector::paginator::mongodb::offset::Offset;
+    /// use chewdata::connector::paginator::mongodb::PaginatorType;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
