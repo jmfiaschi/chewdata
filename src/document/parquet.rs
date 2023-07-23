@@ -10,7 +10,7 @@
 //! | entry_path | -     | Use this field if you want to target a specific field in the object.                | `/root/*/item` | String in [json pointer format](https://datatracker.ietf.org/doc/html/rfc6901)                                     |
 //! | schema     | -     | Schema that describ the fields. If `null` the system try to resolve automatically.  | `null`         | `"fields":[{"name": "number", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false},...]` |
 //! | batch_size | -     | Number of items per page.                                                           | `1000`         | unsigned number                                                                                                    |
-//! | options    | -     | Parquet options.                                                                    | `null`         | [`crate::document::parquet::ParquetOption`]                                                                        |
+//! | options    | -     | Parquet options.                                                                    | `null`         | [`crate::document::parquet::ParquetOptions`]                                                                        |
 //! 
 //! examples:
 //! 

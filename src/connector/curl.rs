@@ -2,12 +2,12 @@
 //!
 //! ### Configuration
 //!
-//! | key           | alias | Description                                              | Default Value | Possible Values                                                        |
-//! | ------------- | ----- | -------------------------------------------------------- | ------------- | ---------------------------------------------------------------------- |
+//! | key           | alias | Description                                              | Default Value | Possible Values                                                         |
+//! | ------------- | ----- | -------------------------------------------------------- | ------------- | ----------------------------------------------------------------------- |
 //! | type          | -     | Required in order to use this connector.                  | `curl`        | `curl`                                                                 |
-//! | metadata      | meta  | Override metadata information.                            | `null`        | [`crate::Metadata`]                                                  |
-//! | authenticator | auth  | Define the authentification that secure the http(s) call. | `null`        | [`crate::connector::authenticator::Authenticator`]                                        |
-//! | endpoint      | -     | The http endpoint of the url like http://my_site.com:80.  | `null`        | String                                                                 |
+//! | metadata      | meta  | Override metadata information.                            | `null`        | [`crate::Metadata`]                                                    |
+//! | authenticator | auth  | Define the authentification that secure the http(s) call. | `null`        | [`crate::connector::authenticator::Authenticator`]                     |
+//! | endpoint      | -     | The http endpoint of the url like <http://my_site.com:80>.| `null`        | String                                                                 |
 //! | path          | uri   | The path of the resource.                                 | `null`        | String                                                                 |
 //! | method        | -     | The http method to use.                                   | `get`         | [HTTP methods](https://developer.mozilla.org/fr/docs/Web/HTTP/Methods) |
 //! | headers       | -     | The http headers to override.                             | `null`        | List of key/value                                                      |
