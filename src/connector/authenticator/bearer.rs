@@ -1,6 +1,6 @@
 //! Authenticate the request with bearer token.
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key        | alias | Description                                                             | Default Value | Possible Values          |
 //! | ---------- | ----- | ----------------------------------------------------------------------- | ------------- | ------------------------ |

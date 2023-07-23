@@ -1,7 +1,7 @@
 //! Read and Write in Parquet format. 
 //! this class read the resource with good performence but the writing will take time. It is not possible to parallize the writing with multi threads.
 //!
-//! ### Configuration
+//! ### Configuration
 //! 
 //! | key        | alias | Description                                                                         | Default Value  | Possible Values                                                                                                    |
 //! | ---------- | ----- | ----------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------ |

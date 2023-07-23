@@ -3,7 +3,7 @@
 //! If you want to write dynamically in different files,
 //! use the [mustache](http://mustache.github.io/) variable that will be replaced with the data in input.
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key        | alias  | Description                                                                                      | Default Value | Possible Values       |
 //! | ---------- | ------ | ------------------------------------------------------------------------------------------------ | ------------- | --------------------- |

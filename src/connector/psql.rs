@@ -1,6 +1,6 @@
 //! Read and write data into postgres database.
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key        | alias           | Description                                      | Default Value | Possible Values         |
 //! | ---------- | --------------- | ------------------------------------------------ | ------------- | ----------------------- |

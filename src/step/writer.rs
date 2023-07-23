@@ -9,7 +9,7 @@
 //! 6 - Push the [`crate::Context`] into the output queue.  
 //! 7 - Go to step 1 until the input queue is not empty.  
 //! 
-//! ### Configuration
+//! ### Configuration
 //! 
 //! | key           | alias   | Description                                                                     | Default Value | Possible Values                              |
 //! | ------------- | ------- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |

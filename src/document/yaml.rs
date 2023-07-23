@@ -1,6 +1,6 @@
 //! Read and Write in Yaml format. 
 //!
-//! ### Configuration
+//! ### Configuration
 //! 
 //! | key      | alias | Description                             | Default Value | Possible Values       |
 //! | -------- | ----- | --------------------------------------- | ------------- | --------------------- |

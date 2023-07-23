@@ -1,6 +1,6 @@
 //! Authenticate the request with Java Web Token (JWT).
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key               | alias | Description                                                          | Default Value | Possible Values                                                                            |
 //! | ----------------- | ----- | -------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------ |

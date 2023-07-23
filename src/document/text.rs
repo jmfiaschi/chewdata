@@ -1,6 +1,6 @@
 //! Read and Write in Text format. 
 //!
-//! ### Configuration
+//! ### Configuration
 //! 
 //! | key      | alias | Description                             | Default Value | Possible Values       |
 //! | -------- | ----- | --------------------------------------- | ------------- | --------------------- |

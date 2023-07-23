@@ -11,7 +11,7 @@
 //! 5 - Go to the step 3 n times.  
 //! 6 - Go to step 1 until the input queue is not empty.  
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key          | alias | Description                                                                     | Default Value | Possible Values                  |
 //! | ------------ | ----- | ------------------------------------------------------------------------------- | ------------- | -------------------------------- |

@@ -1,6 +1,6 @@
 //! Read and write data through memory. You can use this connector if you want to inject constant in your flow.
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key      | alias              | Description                             | Default Value | Possible Values       |
 //! | -------- | ------------------ | --------------------------------------- | ------------- | --------------------- |

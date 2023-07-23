@@ -1,7 +1,7 @@
 //! Filter data file with S3 select queries and read data into AWS/Minio bucket.
 //! Use Bucket connector in order to write into the bucket.
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key               | alias  | Description                                                                                      | Default Value            | Possible Values                                                                                                        |
 //! | ----------------- | ------ | ------------------------------------------------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |

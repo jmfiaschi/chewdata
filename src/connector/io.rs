@@ -1,6 +1,6 @@
 //! Read and write data through standard input and output.
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key      | alias        | Description                                  | Default Value | Possible Values       |
 //! | -------- | ------------ | -------------------------------------------- | ------------- | --------------------- |

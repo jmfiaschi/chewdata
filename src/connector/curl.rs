@@ -1,6 +1,6 @@
 //! Read and write data through http(s) connector.
 //!
-//! ### Configuration
+//! ### Configuration
 //!
 //! | key           | alias | Description                                              | Default Value | Possible Values                                                         |
 //! | ------------- | ----- | -------------------------------------------------------- | ------------- | ----------------------------------------------------------------------- |
