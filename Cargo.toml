@@ -22,9 +22,9 @@ tracing = { version = "0.1", default-features = false, features = ["std", "attri
 tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter","tracing-log"] }
 tracing-futures = { version = "0.2", default-features = false, features= ["std", "std-future"] }
 tracing-appender = { version = "0.2", default-features = false }
-tracing-opentelemetry = { version = "0.18", default-features = false, features= ["tracing-log"] }
-opentelemetry = { version = "0.18", default-features = false, features= ["trace","rt-async-std"]}
-opentelemetry-jaeger = { version = "0.17", default-features = false, features= ["rt-async-std"]}
+tracing-opentelemetry = { version = "0.19", default-features = false, features= ["tracing-log"] }
+opentelemetry = { version = "0.19", default-features = false, features= ["trace","rt-async-std"]}
+opentelemetry-jaeger = { version = "0.18", default-features = false, features= ["rt-async-std"]}
 glob = { version = "0.3", default-features = false }
 env_applier = { version = "0.1", default-features = false }
 serde_json =  { version = "1.0", default-features = false, features= ["std"] }
@@ -38,20 +38,20 @@ futures = { version = "0.3", default-features = false, features = ["std", "async
 async-std = { version = "1.12", default-features = false, features = ["std","attributes"] }
 async-trait = { version = "0.1", default-features = false }
 async-stream = { version = "0.3", default-features = false }
-async-channel = { version = "1.7", default-features = false }
+async-channel = { version = "1.9", default-features = false }
 mime = { version = "0.3", default-features = false }
-base64 = { version = "0.20.0", default-features = false, features = ["std"] }
-regex = { version = "1.7" }
+base64 = { version = "0.21", default-features = false, features = ["std"] }
+regex = { version = "1.9" }
 chrono = { version = "0.4", default-features = false, features = ["std","clock"] }
-fake = { version = "2.5", default-features = false, features = ["random_color"] }
-clap = { version = "4.0" }
+fake = { version = "2.6", default-features = false, features = ["random_color"] }
+clap = { version = "4.3" }
 version = { version = "3.0", default-features = false}
 serde_yaml = { version = "0.9", default-features = false }
 # Lock local files
 fs2 = { version = "0.4", default-features = false }
 # For Templates
-tera = { version = "1.17", default-features = false, features = ["builtins"] }
-uuid = { version = "1.2", features = ["std", "v4"] }
+tera = { version = "1.19", default-features = false, features = ["builtins"] }
+uuid = { version = "1.4", features = ["std", "v4"] }
 # For readers
 jxon = { version = "0.9", default-features = false, optional = true }
 csv = { version = "1.1", default-features = false, optional = true }
