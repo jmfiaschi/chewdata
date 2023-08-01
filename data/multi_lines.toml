@@ -2,7 +2,9 @@
 number = 10
 group = 1456
 string = "value to test"
-long-string = "Long val\nto test"
+long-string = """
+Long val
+to test"""
 boolean = true
 special_char = "é"
 rename_this = "field must be renamed"
@@ -18,7 +20,9 @@ remove_field = "field to remove"
 number = 20
 group = 1456
 string = "value to test 2"
-long-string = "Long val\nto test 2"
+long-string = """
+Long val
+to test 2"""
 boolean = true
 special_char = "à"
 rename_this = "field must be renamed 2"
@@ -34,7 +38,9 @@ remove_field = "field to remove 2"
 number = 30
 group = 1456
 string = "value to test 3"
-long-string = "Long val\nto test 3"
+long-string = """
+Long val
+to test 3"""
 boolean = true
 special_char = "€"
 rename_this = "field must be renamed 3"

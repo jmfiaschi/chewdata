@@ -19,7 +19,7 @@
 //! | tags              | -      | List of tags to apply on the file. Used to give more context to a file | `(service:writer:name,chewdata)` | List of Key/Value          |
 //! | cache_control     | -      | Override the file cache controle                                       | `null`                           | String                     |
 //! | expires           | -      | Override the file expire date. In seconds since the Unix epoch                                          | `null`                           | String                     |
-//! 
+//!
 //! ### Examples
 //!
 //! ```json
@@ -56,8 +56,9 @@ use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
 use aws_config::meta::credentials::CredentialsProviderChain;
-use aws_sdk_s3::types::DateTime;
-use aws_sdk_s3::{Client, Endpoint, Region};
+use aws_sdk_s3::config::Region;
+use aws_sdk_s3::primitives::DateTime;
+use aws_sdk_s3::Client;
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -181,16 +182,14 @@ impl Bucket {
             env::set_var("AWS_SECRET_ACCESS_KEY", secret);
         }
         let provider = CredentialsProviderChain::default_provider().await;
-        let endpoint = Endpoint::immutable(&self.endpoint)
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-        let config = aws_config::from_env()
-            .endpoint_resolver(endpoint)
+        let config = aws_sdk_s3::Config::builder()
+            .endpoint_url(&self.endpoint)
             .region(Region::new(self.region.clone()))
             .credentials_provider(provider)
-            .load()
-            .await;
+            .force_path_style(true)
+            .build();
 
-        Ok(Client::new(&config))
+        Ok(Client::from_conf(config))
     }
     fn tagging(&self) -> String {
         let mut tagging = String::default();
