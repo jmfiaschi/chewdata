@@ -12,16 +12,19 @@ async fn main() -> io::Result<()> {
     let mut layers = Vec::new();
 
     // Install a new OpenTelemetry trace pipeline
+    #[cfg(feature = "apm")]
     let tracer = opentelemetry_jaeger::new_agent_pipeline()
         .with_service_name("chewdata")
         .install_simple()
         .unwrap();
 
     // Create new layer for opentelemetry
+    #[cfg(feature = "apm")]
     let telemetry = tracing_opentelemetry::layer()
         .with_tracer(tracer)
         //.with_filter(EnvFilter::from_default_env())
         .boxed();
+    #[cfg(feature = "apm")]
     layers.push(telemetry);
 
     // Create new layer for stdout logs
@@ -83,6 +86,7 @@ async fn main() -> io::Result<()> {
     chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None, None).await?;
 
     // Shutdown trace pipeline
+    #[cfg(feature = "apm")]
     opentelemetry::global::shutdown_tracer_provider();
 
     Ok(())

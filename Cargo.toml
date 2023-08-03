@@ -20,11 +20,10 @@ path = "benches/benchmark.rs"
 # Logs
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
 tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter","tracing-log"] }
-tracing-futures = { version = "0.2", default-features = false, features= ["std", "std-future"] }
 tracing-appender = { version = "0.2", default-features = false }
 tracing-opentelemetry = { version = "0.19", default-features = false, features= ["tracing-log"] }
-opentelemetry = { version = "0.19", default-features = false, features= ["trace","rt-async-std"]}
-opentelemetry-jaeger = { version = "0.18", default-features = false, features= ["rt-async-std"]}
+opentelemetry = { version = "0.19", default-features = false, features= ["trace","rt-async-std"], optional = true}
+opentelemetry-jaeger = { version = "0.18", default-features = false, features= ["rt-async-std"], optional = true}
 glob = { version = "0.3", default-features = false }
 env_applier = { version = "0.1", default-features = false }
 serde_json =  { version = "1.0", default-features = false, features= ["std"] }
@@ -76,18 +75,18 @@ sqlx = { version = "0.7", default-features = false, features = ["runtime-async-s
 criterion = { version = "0.5", default-features = false, features = ["rayon", "plotters", "cargo_bench_support", "async_std","async_futures"] }
 
 [features]
-xml = ["jxon"]
+xml = ["dep:jxon"]
 csv = ["dep:csv"]
 toml = ["dep:toml"]
-parquet = ["dep:parquet","byteorder","arrow-json","bytes","arrow-integration-test"]
-bucket = ["aws-sdk-s3","aws-config","async-compat"]
+parquet = ["dep:parquet","dep:byteorder","dep:arrow-json","dep:bytes","dep:arrow-integration-test"]
+bucket = ["dep:aws-sdk-s3","dep:aws-config","dep:async-compat"]
 basic = []
 jwt = []
 bearer = []
-curl = ["surf","jsonwebtoken","http-types"]
+curl = ["dep:surf","dep:jsonwebtoken","dep:http-types"]
 mongodb = ["dep:mongodb"]
 psql = ["sqlx","sqlx/postgres"]
-apm = []
+apm = ["dep:opentelemetry","dep:opentelemetry-jaeger"]
 default = [
     'xml',
     'csv',

@@ -40,7 +40,7 @@ example:
 		echo "$(RED)USAGE: example name=[EXAMPLE_NAME]${NC}";\
 		cargo run --example;exit 1;\
 	fi
-	@cargo run --example $(name)
+	@cargo run --example $(name) --features "default apm"
 
 release: ## Released the script in local
 	@cargo build --release --lib --bins --all-features
