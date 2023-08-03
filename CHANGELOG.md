@@ -1,3 +1,19 @@
+# [1.15.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0-beta.1) (2023-08-03)
+
+
+### Bug Fixes
+
+* **main:** enable opentelemetry if apm feature declared ([78bb366](https://github.com/jmfiaschi/chewdata/commit/78bb3667ec575327061b29f3e29fa063bf4519ba))
+
+
+### Features
+
+* **cargo:** upgrade versions ([0dfa817](https://github.com/jmfiaschi/chewdata/commit/0dfa817af0728e301eace5c19f17f3f948d2bf4a))
+* **cargo:** upgrade versions for toml & bucket ([792e2cf](https://github.com/jmfiaschi/chewdata/commit/792e2cf80daa7bb9d49383ab3bdf4f260cf693df))
+* **example:** update tracing ([3b3a1da](https://github.com/jmfiaschi/chewdata/commit/3b3a1da806a89a913dbbe19bef276bcdf0391dfc))
+* **parquet:** upgrade versions and improve ([f771f97](https://github.com/jmfiaschi/chewdata/commit/f771f97a6a2823c32d794ce7c01c8fde1b2f2ed9))
+* **project:** improve the documentation and refacto ([#40](https://github.com/jmfiaschi/chewdata/issues/40)) ([ef44555](https://github.com/jmfiaschi/chewdata/commit/ef445559c4aacd66b315ae7b2f5a6eb789ab7e79))
+
 # [1.15.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0-beta.1) (2023-07-29)
 
 
