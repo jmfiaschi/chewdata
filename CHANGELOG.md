@@ -1,3 +1,15 @@
+# [1.15.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.1...v1.15.0-beta.2) (2023-08-04)
+
+
+### Bug Fixes
+
+* **cargo:** upgrade version ([b6c5d1a](https://github.com/jmfiaschi/chewdata/commit/b6c5d1ada202be5a1885853f1e707ed4599841f4))
+
+
+### Features
+
+* **cargo:** upgrade version ([b53c145](https://github.com/jmfiaschi/chewdata/commit/b53c145fb4141571d8c4fc8d47ed286505483059))
+
 # [1.15.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0-beta.1) (2023-08-03)
 
 
