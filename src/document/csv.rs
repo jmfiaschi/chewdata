@@ -195,7 +195,6 @@ impl Csv {
     fn read_with_header(reader: csv::Reader<io::Cursor<&[u8]>>) -> io::Result<DataSet> {
         Ok(reader
             .into_deserialize::<Map<String, Value>>()
-            .into_iter()
             .map(|record_result| match record_result {
                 Ok(record) => {
                     trace!(
@@ -218,7 +217,6 @@ impl Csv {
     fn read_without_header(reader: csv::Reader<io::Cursor<&[u8]>>) -> io::Result<DataSet> {
         Ok(reader
             .into_records()
-            .into_iter()
             .map(|record_result| match record_result {
                 Ok(record) => {
                     trace!(

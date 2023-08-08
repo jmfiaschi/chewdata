@@ -111,7 +111,7 @@ impl Default for Bucket {
             region: "us-west-2".to_string(),
             bucket: String::default(),
             path: String::default(),
-            parameters: Box::new(Value::default()),
+            parameters: Box::<Value>::default(),
             limit: None,
             skip: 0,
             version: None,
@@ -564,7 +564,7 @@ impl Connector for Bucket {
         if 0 == file_len {
             cursor.write_all(&header)?;
         }
-        if 0 < file_len && file_len > (header.len() as usize + footer.len() as usize) {
+        if 0 < file_len && file_len > (header.len() + footer.len()) {
             cursor.write_all(&terminator)?;
         }
         cursor.write_all(&body)?;

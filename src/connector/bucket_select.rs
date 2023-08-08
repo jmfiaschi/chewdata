@@ -101,7 +101,7 @@ impl Default for BucketSelect {
             region: "us-west-2".to_string(),
             bucket: String::default(),
             path: String::default(),
-            parameters: Box::new(Value::default()),
+            parameters: Box::<Value>::default(),
             timeout: None,
             limit: None,
             skip: 0,

@@ -272,7 +272,7 @@ impl Document for Parquet {
             .build_decoder()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let values: Vec<Value> = dataset.into_iter().map(|data| data.to_value()).collect();
+        let values: Vec<Value> = dataset.iter().map(|data| data.to_value()).collect();
         decoder
             .serialize(&values)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;

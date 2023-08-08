@@ -139,7 +139,7 @@ impl Default for Jwt {
         Jwt {
             algorithm: Algorithm::HS256,
             connector: None,
-            document: Box::new(Jsonl::default()),
+            document: Box::<Jsonl>::default(),
             jwk: None,
             format: Format::Secret,
             key: "".to_string(),

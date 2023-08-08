@@ -108,7 +108,7 @@ impl Default for Curl {
             endpoint: "".into(),
             path: "".into(),
             method: Method::Get,
-            headers: Box::new(HashMap::default()),
+            headers: Box::<HashMap<String, String>>::default(),
             timeout: Some(5),
             keepalive: true,
             tcp_nodelay: false,
@@ -557,9 +557,9 @@ impl Connector for Curl {
             Method::Post | Method::Put | Method::Patch => {
                 let mut buffer = Vec::default();
 
-                buffer.append(&mut document.header(&dataset)?);
-                buffer.append(&mut document.write(&dataset)?);
-                buffer.append(&mut document.footer(&dataset)?);
+                buffer.append(&mut document.header(dataset)?);
+                buffer.append(&mut document.write(dataset)?);
+                buffer.append(&mut document.footer(dataset)?);
 
                 req = req.body(buffer.clone());
                 req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
