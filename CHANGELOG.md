@@ -1,3 +1,16 @@
+# [1.15.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.3...v1.15.0-beta.4) (2023-08-08)
+
+
+### Bug Fixes
+
+* **lint:** fix warnings ([410ced0](https://github.com/jmfiaschi/chewdata/commit/410ced0f682ef20fd46987b1ba29472159083387))
+* **release:** apply --allow-dirty due to cargo.toml version change ([e473a21](https://github.com/jmfiaschi/chewdata/commit/e473a21b18e07a104146e59d7bc1f235bb43c6a2))
+
+
+### Features
+
+* **release:** speedup the CI ([e87b71c](https://github.com/jmfiaschi/chewdata/commit/e87b71c38d05fbd25049851f4132fd04e5773b2f))
+
 # [1.15.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.2...v1.15.0-beta.3) (2023-08-08)
 
 
