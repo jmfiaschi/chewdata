@@ -65,17 +65,17 @@ lint:
 
 coverage: start
 coverage:
-	@cargo tarpaulin --out Xml --verbose --skip-clean --timeout 1200
+	@cargo tarpaulin --out Xml --skip-clean --jobs 1
 
 coverage\:ut: start
 coverage\:ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --out Xml --verbose --lib --skip-clean --timeout 1200 --jobs 1
+	@cargo +nightly tarpaulin --out Xml --lib --skip-clean --jobs 1
 
 coverage\:it: start
 coverage\:it:
-	@cargo tarpaulin --out Xml --verbose --doc --tests --skip-clean --timeout 1200
+	@cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1
 
 bench:
 	@cargo criterion --benches --output-format bencher --plotting-backend disabled 2>&1
