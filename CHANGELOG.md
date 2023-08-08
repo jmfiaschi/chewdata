@@ -1,3 +1,10 @@
+# [1.15.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.2...v1.15.0-beta.3) (2023-08-08)
+
+
+### Bug Fixes
+
+* **makefile:** set number of // jobs ([0c54668](https://github.com/jmfiaschi/chewdata/commit/0c54668960ee5357716725094577404a64009948))
+
 # [1.15.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.1...v1.15.0-beta.2) (2023-08-04)
 
 
