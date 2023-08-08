@@ -20,8 +20,8 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "cargo set-version ${nextRelease.version} && cargo package --no-verify",
-        "publishCmd": "cargo publish --no-verify"
+        "prepareCmd": "cargo set-version ${nextRelease.version} && cargo package --no-verify --allow-dirty",
+        "publishCmd": "cargo publish --no-verify --allow-dirty"
       }
     ],
     [
