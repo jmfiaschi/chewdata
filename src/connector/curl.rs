@@ -6,7 +6,7 @@
 //! | ------------- | ----- | -------------------------------------------------------- | ------------- | ----------------------------------------------------------------------- |
 //! | type          | -     | Required in order to use this connector.                  | `curl`        | `curl`                                                                 |
 //! | metadata      | meta  | Override metadata information.                            | `null`        | [`crate::Metadata`]                                                    |
-//! | authenticator | auth  | Define the authentification that secure the http(s) call. | `null`        | [`crate::connector::authenticator::Authenticator`]                     |
+//! | authenticator | auth  | Define the authentification that secure the http(s) call. | `null`        | [`crate::connector::authenticator::basic::Basic`] / [`crate::connector::authenticator::bearer::Bearer`] / [`crate::connector::authenticator::jwt::Jwt`] |
 //! | endpoint      | -     | The http endpoint of the url like <http://my_site.com:80>.| `null`        | String                                                                 |
 //! | path          | uri   | The path of the resource.                                 | `null`        | String                                                                 |
 //! | method        | -     | The http method to use.                                   | `get`         | [HTTP methods](https://developer.mozilla.org/fr/docs/Web/HTTP/Methods) |

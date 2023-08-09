@@ -80,9 +80,6 @@ csv = ["dep:csv"]
 toml = ["dep:toml"]
 parquet = ["dep:parquet","dep:byteorder","dep:arrow-json","dep:bytes","dep:arrow-integration-test"]
 bucket = ["dep:aws-sdk-s3","dep:aws-config","dep:async-compat"]
-basic = []
-jwt = []
-bearer = []
 curl = ["dep:surf","dep:jsonwebtoken","dep:http-types"]
 mongodb = ["dep:mongodb"]
 psql = ["sqlx","sqlx/postgres"]
@@ -94,9 +91,6 @@ default = [
     'parquet',
     'bucket',
     'curl',
-    'basic',
-    'jwt',
-    'bearer',
     'mongodb',
     'psql',
     'tracing/max_level_trace',
