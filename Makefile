@@ -20,7 +20,7 @@ setup:
 	@cargo install cargo-tarpaulin
 
 build: ## Build the script in local without examples
-	@cargo build --lib --bins --tests --benches --all-features
+	@cargo build --lib --bins --tests --benches --features "xml csv parquet toml bucket curl mongodb psql"
 
 run: debug
 run: ## Launch the script in local
@@ -40,7 +40,7 @@ example:
 		echo "$(RED)USAGE: example name=[EXAMPLE_NAME]${NC}";\
 		cargo run --example;exit 1;\
 	fi
-	@cargo run --example $(name) --all-features
+	@cargo run --example $(name)  --all-features
 
 release: ## Released with minimum features
 	@cargo build --release --lib --bins
@@ -48,7 +48,7 @@ release: ## Released with minimum features
 test: start unit-tests integration-tests
 
 test\:docs:
-	@cargo test --doc --all-features
+	@cargo test --doc  --features "xml csv parquet toml bucket curl mongodb psql"
 
 test\:docs\:by_feature:
 	@cargo test --doc
@@ -62,7 +62,7 @@ test\:docs\:by_feature:
 	@cargo test --doc --features "psql"
 
 test\:libs:
-	@cargo test --lib --all-features
+	@cargo test --lib  --features "xml csv parquet toml bucket curl mongodb psql"
 
 test\:libs\:by_feature:
 	@cargo test --lib
@@ -76,31 +76,31 @@ test\:libs\:by_feature:
 	@cargo test --lib --features "psql"
 
 test\:integration:
-	@cargo test --tests --all-features
+	@cargo test --tests  --features "xml csv parquet toml bucket curl mongodb psql"
 
 unit-tests: start test\:libs
 
 integration-tests: start test\:docs test\:integration
 
 lint:
-	@cargo clippy --all-features
+	@cargo clippy  --features "xml csv parquet toml bucket curl mongodb psql"
 
 coverage: start
 coverage:
-	@cargo tarpaulin --out Xml --skip-clean --jobs 1 --all-features
+	@cargo tarpaulin --out Xml --skip-clean --jobs 1  --features "xml csv parquet toml bucket curl mongodb psql"
 
 coverage\:ut: start
 coverage\:ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --out Xml --lib --skip-clean --jobs 1 --all-features
+	@cargo +nightly tarpaulin --out Xml --lib --skip-clean --jobs 1  --features "xml csv parquet toml bucket curl mongodb psql"
 
 coverage\:it: start
 coverage\:it:
-	@cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1 --all-features
+	@cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1  --features "xml csv parquet toml bucket curl mongodb psql"
 
 bench:
-	@cargo criterion --benches --output-format bencher --plotting-backend disabled --all-features 2>&1
+	@cargo criterion --benches --output-format bencher --plotting-backend disabled  --features "xml csv parquet toml bucket curl mongodb psql" 2>&1
 
 minio:
 	echo "${BLUE}Run Minio server.${NC}"
