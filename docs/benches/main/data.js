@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1675889677649,
+  "lastUpdate": 1691565932263,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1583,6 +1583,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 23073,
             "range": "± 46",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "819fa0d81f19a984a5c2ed4904d4c97d3859a262",
+          "message": "feat(parquet): upgrade versions and improve code (#42)\n\n* doc(readme): how to change log level\r\n* feat(cargo): upgrade versions\r\n* feat(cargo): upgrade versions for toml & bucket\r\n* feat(example): update tracing\r\n* fix(main): enable opentelemetry if apm feature declared\r\n* fix(makefile): set number of // jobs\r\n* feat(release): speedup the CI",
+          "timestamp": "2023-08-09T08:45:21+02:00",
+          "tree_id": "30643008a0c4f5064c968072c8d28bc60afcfdac",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/819fa0d81f19a984a5c2ed4904d4c97d3859a262"
+        },
+        "date": 1691565930981,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5727,
+            "range": "± 284",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5634,
+            "range": "± 263",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 436182,
+            "range": "± 23375",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 33495,
+            "range": "± 1671",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 15874,
+            "range": "± 458",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 22293,
+            "range": "± 1164",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 333854,
+            "range": "± 14098",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 40206,
+            "range": "± 1339",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 41194,
+            "range": "± 2183",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 39808,
+            "range": "± 1779",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 40723,
+            "range": "± 1759",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 41124,
+            "range": "± 3084",
             "unit": "ns/iter"
           }
         ]
