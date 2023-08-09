@@ -1,3 +1,59 @@
+# [1.15.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.3...v1.15.0-beta.4) (2023-08-08)
+
+
+### Bug Fixes
+
+* **lint:** fix warnings ([410ced0](https://github.com/jmfiaschi/chewdata/commit/410ced0f682ef20fd46987b1ba29472159083387))
+* **release:** apply --allow-dirty due to cargo.toml version change ([e473a21](https://github.com/jmfiaschi/chewdata/commit/e473a21b18e07a104146e59d7bc1f235bb43c6a2))
+
+
+### Features
+
+* **release:** speedup the CI ([e87b71c](https://github.com/jmfiaschi/chewdata/commit/e87b71c38d05fbd25049851f4132fd04e5773b2f))
+
+# [1.15.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.2...v1.15.0-beta.3) (2023-08-08)
+
+
+### Bug Fixes
+
+* **makefile:** set number of // jobs ([0c54668](https://github.com/jmfiaschi/chewdata/commit/0c54668960ee5357716725094577404a64009948))
+
+# [1.15.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.1...v1.15.0-beta.2) (2023-08-04)
+
+
+### Bug Fixes
+
+* **cargo:** upgrade version ([b6c5d1a](https://github.com/jmfiaschi/chewdata/commit/b6c5d1ada202be5a1885853f1e707ed4599841f4))
+
+
+### Features
+
+* **cargo:** upgrade version ([b53c145](https://github.com/jmfiaschi/chewdata/commit/b53c145fb4141571d8c4fc8d47ed286505483059))
+
+# [1.15.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0-beta.1) (2023-08-03)
+
+
+### Bug Fixes
+
+* **main:** enable opentelemetry if apm feature declared ([78bb366](https://github.com/jmfiaschi/chewdata/commit/78bb3667ec575327061b29f3e29fa063bf4519ba))
+
+
+### Features
+
+* **cargo:** upgrade versions ([0dfa817](https://github.com/jmfiaschi/chewdata/commit/0dfa817af0728e301eace5c19f17f3f948d2bf4a))
+* **cargo:** upgrade versions for toml & bucket ([792e2cf](https://github.com/jmfiaschi/chewdata/commit/792e2cf80daa7bb9d49383ab3bdf4f260cf693df))
+* **example:** update tracing ([3b3a1da](https://github.com/jmfiaschi/chewdata/commit/3b3a1da806a89a913dbbe19bef276bcdf0391dfc))
+* **parquet:** upgrade versions and improve ([f771f97](https://github.com/jmfiaschi/chewdata/commit/f771f97a6a2823c32d794ce7c01c8fde1b2f2ed9))
+* **project:** improve the documentation and refacto ([#40](https://github.com/jmfiaschi/chewdata/issues/40)) ([ef44555](https://github.com/jmfiaschi/chewdata/commit/ef445559c4aacd66b315ae7b2f5a6eb789ab7e79))
+
+# [1.15.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0-beta.1) (2023-07-29)
+
+
+### Features
+
+* **cargo:** upgrade versions ([0dfa817](https://github.com/jmfiaschi/chewdata/commit/0dfa817af0728e301eace5c19f17f3f948d2bf4a))
+* **project:** improve the documentation and refacto ([#40](https://github.com/jmfiaschi/chewdata/issues/40)) ([ef44555](https://github.com/jmfiaschi/chewdata/commit/ef445559c4aacd66b315ae7b2f5a6eb789ab7e79))
+
 # [1.15.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0-beta.1) (2023-07-23)
 
 

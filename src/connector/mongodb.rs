@@ -522,7 +522,7 @@ impl Metadata {
         let count = connector.clone().len().await?;
 
         info!(count = count, "The counter count with success");
-        Ok(Some(count as usize))
+        Ok(Some(count))
     }
 }
 

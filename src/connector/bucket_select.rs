@@ -51,13 +51,14 @@ use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
 use aws_config::meta::credentials::CredentialsProviderChain;
-use aws_sdk_s3::client::fluent_builders::SelectObjectContent;
-use aws_sdk_s3::model::{
+use aws_sdk_s3::config::Region;
+use aws_sdk_s3::operation::select_object_content::builders::SelectObjectContentFluentBuilder;
+use aws_sdk_s3::types::{
     CompressionType, CsvInput, CsvOutput, ExpressionType, FileHeaderInfo, InputSerialization,
     JsonInput, JsonOutput, JsonType, OutputSerialization, ParquetInput,
     SelectObjectContentEventStream,
 };
-use aws_sdk_s3::{Client, Endpoint, Region};
+use aws_sdk_s3::Client;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -100,7 +101,7 @@ impl Default for BucketSelect {
             region: "us-west-2".to_string(),
             bucket: String::default(),
             path: String::default(),
-            parameters: Box::new(Value::default()),
+            parameters: Box::<Value>::default(),
             timeout: None,
             limit: None,
             skip: 0,
@@ -164,19 +165,17 @@ impl BucketSelect {
             env::set_var("AWS_SECRET_ACCESS_KEY", secret);
         }
         let provider = CredentialsProviderChain::default_provider().await;
-        let endpoint = Endpoint::immutable(&self.endpoint)
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-        let config = aws_config::from_env()
-            .endpoint_resolver(endpoint)
+        let config = aws_sdk_s3::Config::builder()
+            .endpoint_url(&self.endpoint)
             .region(Region::new(self.region.clone()))
             .credentials_provider(provider)
-            .load()
-            .await;
+            .force_path_style(true)
+            .build();
 
-        Ok(Client::new(&config))
+        Ok(Client::from_conf(config))
     }
     /// Get a Select object Content Request object with a BucketSelect connector.
-    pub async fn select_object_content(&self) -> Result<SelectObjectContent> {
+    pub async fn select_object_content(&self) -> Result<SelectObjectContentFluentBuilder> {
         let metadata = self.metadata();
         let path = self.path();
 
@@ -547,9 +546,9 @@ impl Connector for BucketSelect {
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
-    ///     connector.path = "data/one_line.json".to_string();
+    ///     connector.path = "/data/one_line.json".to_string();
     ///     connector.endpoint = "http://localhost:9000".to_string();
-    ///     connector.bucket = "my-bucket".to_string();
+    ///     connector.bucket = "my-bucket/".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(

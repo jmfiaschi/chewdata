@@ -35,6 +35,7 @@
 use super::Authenticator;
 use crate::helper::mustache::Mustache;
 use async_trait::async_trait;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -136,10 +137,10 @@ impl Authenticator for Bearer {
         }
 
         if self.is_base64 {
-            token = base64::encode(token);
+            token = base64::engine::general_purpose::STANDARD.encode(token);
         }
 
-        let bearer = base64::encode(token);
+        let bearer = base64::engine::general_purpose::STANDARD.encode(token);
 
         Ok((
             headers::AUTHORIZATION.to_string().into_bytes(),
@@ -161,9 +162,12 @@ mod tests {
         assert_eq!(auth_name, "authorization".to_string().into_bytes());
         assert_eq!(
             auth_value,
-            format!("Bearer {}", base64::encode(token))
-                .as_bytes()
-                .to_vec()
+            format!(
+                "Bearer {}",
+                base64::engine::general_purpose::STANDARD.encode(token)
+            )
+            .as_bytes()
+            .to_vec()
         );
     }
 }

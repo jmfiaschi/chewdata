@@ -1,14 +1,14 @@
-//! Read and Write in Toml format. 
+//! Read and Write in Toml format.
 //!
 //! ### Configuration
-//! 
+//!
 //! | key      | alias | Description                             | Default Value | Possible Values       |
 //! | -------- | ----- | --------------------------------------- | ------------- | --------------------- |
 //! | type     | -     | Required in order to use this document. | `toml`        | `toml`                |
 //! | metadata | meta  | Metadata describe the resource.         | `null`        | [`crate::Metadata`]   |
-//! 
+//!
 //! examples:
-//! 
+//!
 //! ```json
 //! [
 //!     {
@@ -19,9 +19,9 @@
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! input/output:
-//! 
+//!
 //! ```toml
 //! [[line]]
 //! field= value
@@ -86,7 +86,9 @@ impl Document for Toml {
     /// ```
     #[instrument(skip(buffer), name = "toml::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
-        let record: Value = toml::from_slice(buffer)
+        let str_buffer = std::str::from_utf8(buffer)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let record: Value = toml::from_str(str_buffer)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         Ok(match record {
@@ -139,19 +141,9 @@ impl Document for Toml {
 
         for data in dataset {
             let record = data.to_value();
-            // Transform serde_json::Value to toml::Value
-            let toml_value = toml::value::Value::try_from(record.clone())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-            let mut toml = String::new();
-            toml_value
-                .serialize(&mut toml::Serializer::new(&mut toml))
-                .map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("Can't write the data into the connector. {}", e),
-                    )
-                })?;
+            let toml = toml::to_string(&record.clone())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
             trace!(
                 record = format!("{:?}", record).as_str(),

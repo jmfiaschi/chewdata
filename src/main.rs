@@ -105,6 +105,7 @@ async fn main() -> Result<()> {
     chewdata::exec(steps, None, None).await?;
 
     // Shutdown trace pipeline
+    #[cfg(feature = "apm")]
     opentelemetry::global::shutdown_tracer_provider();
 
     Ok(())

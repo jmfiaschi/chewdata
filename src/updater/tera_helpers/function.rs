@@ -1,3 +1,4 @@
+use base64::Engine;
 use serde_json::value::Value;
 use std::collections::HashMap;
 use tera::*;
@@ -65,41 +66,17 @@ pub fn base64_encode(args: &HashMap<String, Value>) -> Result<Value> {
             ))
         }
     };
-    let engine = match args.get("config") {
+    let encode_string = match args.get("config") {
         Some(config) => match from_value::<String>(config.clone()) {
             Ok(config) => match config.to_uppercase().as_str() {
-                "STANDARD_NO_PAD" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::STANDARD,
-                    base64::engine::fast_portable::NO_PAD,
-                ),
-                "URL_SAFE" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::URL_SAFE,
-                    base64::engine::fast_portable::PAD,
-                ),
-                "URL_SAFE_NO_PAD" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::URL_SAFE,
-                    base64::engine::fast_portable::NO_PAD,
-                ),
-                "CRYPT" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::CRYPT,
-                    base64::engine::fast_portable::PAD,
-                ),
-                "BCRYPT" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::BCRYPT,
-                    base64::engine::fast_portable::PAD,
-                ),
-                "IMAP_MUTF7" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::IMAP_MUTF7,
-                    base64::engine::fast_portable::PAD,
-                ),
-                "BIN_HEX" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::BIN_HEX,
-                    base64::engine::fast_portable::PAD,
-                ),
-                _ => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::STANDARD,
-                    base64::engine::fast_portable::PAD,
-                ),
+                "STANDARD_NO_PAD" => {
+                    base64::engine::general_purpose::STANDARD_NO_PAD.encode(decode_string)
+                }
+                "URL_SAFE" => base64::engine::general_purpose::URL_SAFE.encode(decode_string),
+                "URL_SAFE_NO_PAD" => {
+                    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(decode_string)
+                }
+                _ => base64::engine::general_purpose::STANDARD.encode(decode_string),
             },
             Err(_) => {
                 return Err(Error::msg(format!(
@@ -108,12 +85,8 @@ pub fn base64_encode(args: &HashMap<String, Value>) -> Result<Value> {
                 )));
             }
         },
-        None => base64::engine::fast_portable::FastPortable::from(
-            &base64::alphabet::STANDARD,
-            base64::engine::fast_portable::PAD,
-        ),
+        None => base64::engine::general_purpose::STANDARD.encode(decode_string),
     };
-    let encode_string = base64::encode_engine(decode_string, &engine);
 
     Ok(Value::String(encode_string))
 }
@@ -149,41 +122,17 @@ pub fn base64_decode(args: &HashMap<String, Value>) -> Result<Value> {
             ))
         }
     };
-    let engine = match args.get("config") {
+    let decode_string = match args.get("config") {
         Some(config) => match from_value::<String>(config.clone()) {
             Ok(config) => match config.to_uppercase().as_str() {
-                "STANDARD_NO_PAD" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::STANDARD,
-                    base64::engine::fast_portable::NO_PAD,
-                ),
-                "URL_SAFE" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::URL_SAFE,
-                    base64::engine::fast_portable::PAD,
-                ),
-                "URL_SAFE_NO_PAD" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::URL_SAFE,
-                    base64::engine::fast_portable::NO_PAD,
-                ),
-                "CRYPT" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::CRYPT,
-                    base64::engine::fast_portable::PAD,
-                ),
-                "BCRYPT" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::BCRYPT,
-                    base64::engine::fast_portable::PAD,
-                ),
-                "IMAP_MUTF7" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::IMAP_MUTF7,
-                    base64::engine::fast_portable::PAD,
-                ),
-                "BIN_HEX" => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::BIN_HEX,
-                    base64::engine::fast_portable::PAD,
-                ),
-                _ => base64::engine::fast_portable::FastPortable::from(
-                    &base64::alphabet::STANDARD,
-                    base64::engine::fast_portable::PAD,
-                ),
+                "STANDARD_NO_PAD" => {
+                    base64::engine::general_purpose::STANDARD_NO_PAD.decode(encode_string)
+                }
+                "URL_SAFE" => base64::engine::general_purpose::URL_SAFE.decode(encode_string),
+                "URL_SAFE_NO_PAD" => {
+                    base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(encode_string)
+                }
+                _ => base64::engine::general_purpose::STANDARD.decode(encode_string),
             },
             Err(_) => {
                 return Err(Error::msg(format!(
@@ -192,21 +141,12 @@ pub fn base64_decode(args: &HashMap<String, Value>) -> Result<Value> {
                 )));
             }
         },
-        None => base64::engine::fast_portable::FastPortable::from(
-            &base64::alphabet::STANDARD,
-            base64::engine::fast_portable::PAD,
-        ),
-    };
-
-    let decode_string = match base64::decode_engine(encode_string, &engine) {
-        Ok(bytes) => String::from_utf8_lossy(bytes.as_slice()).to_string(),
-        Err(e) => {
-            return Err(Error::msg(format!(
-                "Function `base64_decode` can't decode the value. {}",
-                e
-            )))
-        }
-    };
+        None => base64::engine::general_purpose::STANDARD.decode(encode_string),
+    }
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))
+    .and_then(|res| {
+        String::from_utf8(res).map_err(|e| std::io::Error::new(std::io::ErrorKind::Unsupported, e))
+    })?;
 
     Ok(Value::String(decode_string))
 }
@@ -276,7 +216,10 @@ mod tests {
     #[test]
     fn base64_decode() {
         let mut args = HashMap::new();
-        args.insert("value".to_string(), Value::String("bXlfdGVzdA==".to_string()));
+        args.insert(
+            "value".to_string(),
+            Value::String("bXlfdGVzdA==".to_string()),
+        );
         let value = super::base64_decode(&args).unwrap();
         assert_eq!("my_test", value.as_str().unwrap());
     }

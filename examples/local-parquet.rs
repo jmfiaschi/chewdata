@@ -1,19 +1,21 @@
 use std::io;
-use tracing_futures::WithSubscriber;
-use tracing_subscriber;
+use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{self, Layer};
 
 #[async_std::main]
 async fn main() -> io::Result<()> {
+    let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
-    let subscriber = tracing_subscriber::fmt()
+    let layer = tracing_subscriber::fmt::layer()
         .with_line_number(true)
         .with_writer(non_blocking)
-        .with_env_filter(EnvFilter::from_default_env())
-        .finish();
+        .with_filter(EnvFilter::from_default_env())
+        .boxed();
+    layers.push(layer);
 
-    tracing_subscriber::registry().init();
+    tracing_subscriber::registry().with(layers).init();
 
     let config = r#"
     [
@@ -30,20 +32,7 @@ async fn main() -> io::Result<()> {
                 "type": "parquet",
                 "schema": {
                     "fields":[
-                        {"name": "number", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false},
-                        {"name": "group", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false},
-                        {"name": "string", "type": {"name": "utf8"}, "nullable": false},
-                        {"name": "long-string", "type": {"name": "utf8"}, "nullable": false},
-                        {"name": "boolean", "type": {"name": "bool"}, "nullable": false},
-                        {"name": "special_char", "type": {"name": "utf8"}, "nullable": false},
-                        {"name": "rename_this", "type": {"name": "utf8"}, "nullable": false},
-                        {"name": "date", "type": {"name": "utf8"}, "nullable": false},
-                        {"name": "filesize", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false},
-                        {"name": "round", "type": { "name": "floatingpoint", "precision": "DOUBLE"}, "nullable": false},
-                        {"name": "url", "type": {"name": "utf8"}, "nullable": false},
-                        {"name": "list_to_sort", "type":{"name": "utf8"}, "nullable": true},
-                        {"name": "code", "type": {"name": "utf8"}, "nullable": false},
-                        {"name": "remove_field", "type": {"name": "utf8"}, "nullable": false}
+                        {"name": "number", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false}
                     ]
                 }
             },
@@ -54,8 +43,6 @@ async fn main() -> io::Result<()> {
         }
     ]
     "#;
-    
-    chewdata::exec(serde_json::from_str(config)?, None, None)
-        .with_subscriber(subscriber)
-        .await
+
+    chewdata::exec(serde_json::from_str(config)?, None, None).await
 }

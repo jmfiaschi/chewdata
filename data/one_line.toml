@@ -1,7 +1,9 @@
 number = 10
 group = 1456
 string = "value to test"
-long-string = "Long val\nto test"
+long-string = """
+Long val
+to test"""
 boolean = true
 special_char = "é"
 rename_this = "field must be renamed"

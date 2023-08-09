@@ -31,6 +31,7 @@
 use super::Authenticator;
 use crate::helper::mustache::Mustache;
 use async_trait::async_trait;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -117,6 +118,7 @@ impl Authenticator for Basic {
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic, Authenticator};
     /// use async_std::prelude::*;
     /// use std::io;
+    /// use base64::Engine;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
@@ -134,7 +136,7 @@ impl Authenticator for Basic {
     ///         auth_value,
     ///         format!(
     ///             "Basic {}",
-    ///             base64::encode(format!("{}:{}", "my_username", "my_password"))
+    ///             base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", "my_username", "my_password"))
     ///         )
     ///         .as_bytes()
     ///         .to_vec()
@@ -161,7 +163,8 @@ impl Authenticator for Basic {
             password.replace_mustache(parameters);
         }
 
-        let basic = base64::encode(format!("{}:{}", username, password));
+        let basic =
+            base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", username, password));
 
         Ok((
             headers::AUTHORIZATION.as_str().as_bytes().to_vec(),
@@ -189,7 +192,8 @@ mod tests {
             auth_value,
             format!(
                 "Basic {}",
-                base64::encode(format!("{}:{}", username, password))
+                base64::engine::general_purpose::STANDARD
+                    .encode(format!("{}:{}", username, password))
             )
             .as_bytes()
             .to_vec()
@@ -199,7 +203,8 @@ mod tests {
     async fn authenticate_with_username_password_in_param() {
         let username = "{{ username }}";
         let password = "{{ password }}";
-        let parameters = serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
+        let parameters =
+            serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
 
         let (auth_name, auth_value) = Basic::new(username, password)
             .authenticate(parameters)
@@ -211,7 +216,8 @@ mod tests {
             auth_value,
             format!(
                 "Basic {}",
-                base64::encode(format!("{}:{}", "my_username", "my_password"))
+                base64::engine::general_purpose::STANDARD
+                    .encode(format!("{}:{}", "my_username", "my_password"))
             )
             .as_bytes()
             .to_vec()

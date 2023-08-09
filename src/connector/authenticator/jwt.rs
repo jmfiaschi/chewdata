@@ -14,7 +14,7 @@
 //! | payload           | -     | The jwt payload                                                      | `null`        | Object or Array of objects                                                                 |
 //! | parameters        | -     | The parameters used to remplace variables in the payload             | `null`        | Object or Array of objects                                                                 |
 //! | token             | -     | The token that can be override if necessary                          | `null`        | String                                                                                     |
-//! 
+//!
 //! ### Examples
 //!
 //! ```json
@@ -55,6 +55,7 @@ use crate::helper::mustache::Mustache;
 use crate::{connector::ConnectorType, document::jsonl::Jsonl};
 use async_std::prelude::StreamExt;
 use async_trait::async_trait;
+use base64::Engine;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -138,7 +139,7 @@ impl Default for Jwt {
         Jwt {
             algorithm: Algorithm::HS256,
             connector: None,
-            document: Box::new(Jsonl::default()),
+            document: Box::<Jsonl>::default(),
             jwk: None,
             format: Format::Secret,
             key: "".to_string(),
@@ -225,17 +226,10 @@ impl Jwt {
         }
 
         let mut connector = connector_type.boxed_inner();
-        connector.set_metadata(
-            connector
-                .metadata()
-                .merge(self.document.metadata()),
-        );
+        connector.set_metadata(connector.metadata().merge(self.document.metadata()));
         connector.set_parameters(payload);
 
-        let mut datastream = match connector
-            .fetch(&*self.document)
-            .await?
-        {
+        let mut datastream = match connector.fetch(&*self.document).await? {
             Some(datastream) => datastream,
             None => {
                 trace!("No data have been retrieve from the refresh endpoint.");
@@ -255,7 +249,10 @@ impl Jwt {
 
         match payload.get(self.token_name.clone()) {
             Some(Value::String(token_value)) => {
-                info!(token_value = token_value.as_str(), "JWT successfully refreshed.");
+                info!(
+                    token_value = token_value.as_str(),
+                    "JWT successfully refreshed."
+                );
                 self.token_value = Some(token_value.clone());
                 Ok(())
             }
@@ -411,10 +408,7 @@ impl Authenticator for Jwt {
                         }
                         _ => {
                             self.token_value = None;
-                            warn!(
-                                error = e.to_string().as_str(),
-                                "Can't decode the JWT."
-                            );
+                            warn!(error = e.to_string().as_str(), "Can't decode the JWT.");
                             return Err(Error::new(ErrorKind::InvalidInput, e));
                         }
                     };
@@ -424,7 +418,7 @@ impl Authenticator for Jwt {
 
         Ok(match token_option {
             Some(token_value) => {
-                let bearer = base64::encode(token_value);
+                let bearer = base64::engine::general_purpose::STANDARD.encode(token_value);
                 (
                     headers::AUTHORIZATION.to_string().into_bytes(),
                     format!("Bearer {}", bearer).into_bytes(),
