@@ -1,3 +1,11 @@
+# [1.15.0](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0) (2023-08-09)
+
+
+### Features
+
+* **parquet:** upgrade versions and improve code ([#42](https://github.com/jmfiaschi/chewdata/issues/42)) ([819fa0d](https://github.com/jmfiaschi/chewdata/commit/819fa0d81f19a984a5c2ed4904d4c97d3859a262))
+* **project:** improve the documentation and refacto ([#40](https://github.com/jmfiaschi/chewdata/issues/40)) ([ef44555](https://github.com/jmfiaschi/chewdata/commit/ef445559c4aacd66b315ae7b2f5a6eb789ab7e79))
+
 # [1.15.0-beta.4](https://github.com/jmfiaschi/chewdata/compare/v1.15.0-beta.3...v1.15.0-beta.4) (2023-08-08)
 
 
