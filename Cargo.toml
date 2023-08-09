@@ -34,7 +34,7 @@ json_value_search =  { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde-with-expand-env = { version = "1.1", default-features = false }
 futures = { version = "0.3", default-features = false, features = ["std", "async-await", "executor"] }
-async-std = { version = "1.12", default-features = false, features = ["std","attributes"] }
+async-std = { version = "1.12", default-features = true, features = ["attributes"] } # default option required or async_std::io::{stdin, stdout} not found.
 async-trait = { version = "0.1", default-features = false }
 async-stream = { version = "0.3", default-features = false }
 async-channel = { version = "1.9", default-features = false }
