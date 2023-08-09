@@ -26,7 +26,7 @@ opentelemetry = { version = "0.19", default-features = false, features= ["trace"
 opentelemetry-jaeger = { version = "0.18", default-features = false, features= ["rt-async-std"], optional = true}
 glob = { version = "0.3", default-features = false }
 env_applier = { version = "0.1", default-features = false }
-serde_json =  { version = "1.0", default-features = false, features= ["std"] }
+serde_json =  { version = "1.0", default-features = false, features= ["std","preserve_order"] }
 json_value_merge = { version = "1.1", default-features = false }
 json_value_remove = { version = "1.0", default-features = false }
 json_value_resolve =  { version = "1.0", default-features = false }
@@ -54,7 +54,7 @@ uuid = { version = "1.4", features = ["std", "v4"] }
 # For readers
 jxon = { version = "0.9", default-features = false, optional = true }
 csv = { version = "1.1", default-features = false, optional = true }
-toml = { version = "0.7", default-features = false, optional = true, features = ["parse", "display", "preserve_order"] }
+toml = { version = "0.7", default-features = false, optional = true, features = ["parse", "display"] }
 parquet = { version = "45.0", default-features = false, optional = true, features = ["cli","arrow","flate2","brotli","lz4","zstd","snap"] }
 arrow-json = { version = "45.0", default-features = false, optional = true } # used to create the batch with json_value
 arrow-integration-test = { version = "45.0", default-features = false, optional = true } # used to transform json_value to schema
@@ -85,14 +85,6 @@ mongodb = ["dep:mongodb"]
 psql = ["sqlx","sqlx/postgres"]
 apm = ["dep:opentelemetry","dep:opentelemetry-jaeger"]
 default = [
-    'xml',
-    'csv',
-    'toml',
-    'parquet',
-    'bucket',
-    'curl',
-    'mongodb',
-    'psql',
     'tracing/max_level_trace',
     'tracing/release_max_level_info'
 ]
