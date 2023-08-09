@@ -1,13 +1,18 @@
 use chewdata::connector::Connector;
+#[cfg(feature = "csv")]
 use chewdata::document::csv::Csv;
 use chewdata::document::json::Json;
 use chewdata::document::jsonl::Jsonl;
+#[cfg(feature = "parquet")]
 use chewdata::document::parquet::Parquet;
+#[cfg(feature = "toml")]
 use chewdata::document::toml::Toml;
 use chewdata::document::yaml::Yaml;
+#[cfg(feature = "xml")]
+use chewdata::document::xml::Xml;
 use chewdata::document::Document;
 use chewdata::updater::{Action, ActionType, UpdaterType};
-use chewdata::{connector::in_memory::InMemory, document::xml::Xml};
+use chewdata::connector::in_memory::InMemory;
 use criterion::async_executor::FuturesExecutor;
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures::stream::StreamExt;
@@ -15,7 +20,7 @@ use serde_json::Value;
 use std::{fs::OpenOptions, io::Read};
 
 fn document_read_benchmark(c: &mut Criterion) {
-    let readers: [(&str, &str, Box<dyn Document>); 7] = [
+    let readers: Vec<(&str, &str, Box<dyn Document>)> = vec![
         ("json", "data/one_line.json", Box::new(Json::default())),
         ("jsonl", "data/one_line.jsonl", Box::new(Jsonl::default())),
         #[cfg(feature = "xml")]

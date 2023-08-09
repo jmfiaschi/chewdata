@@ -398,7 +398,7 @@ impl Connector for Curl {
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::document::json::Json;
     /// use surf::http::Method;
-    /// use async_std::stream::StreamExt;
+    /// use futures::StreamExt;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -713,7 +713,6 @@ impl Connector for Curl {
 
 #[cfg(test)]
 mod tests {
-    use async_std::stream::StreamExt;
     use json_value_search::Search;
 
     use super::*;
@@ -726,6 +725,7 @@ mod tests {
     use crate::document::xml::Xml;
     use crate::document::DocumentType;
     use crate::DataResult;
+    use futures::StreamExt;
 
     #[test]
     fn is_variable() {

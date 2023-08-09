@@ -265,7 +265,7 @@ impl Connector for InMemory {
         if 0 == resource_len {
             memory.write_all(&header)?;
         }
-        if 0 < resource_len && resource_len > (header.len() + footer.len() as usize) {
+        if 0 < resource_len && resource_len > (header.len() + footer.len()) {
             memory.write_all(&terminator)?;
         }
         memory.write_all(&body)?;

@@ -40,45 +40,67 @@ example:
 		echo "$(RED)USAGE: example name=[EXAMPLE_NAME]${NC}";\
 		cargo run --example;exit 1;\
 	fi
-	@cargo run --example $(name) --features "default apm"
+	@cargo run --example $(name) --all-features
 
-release: ## Released the script in local
-	@cargo build --release --lib --bins --all-features
+release: ## Released with minimum features
+	@cargo build --release --lib --bins
 
 test: start unit-tests integration-tests
 
 test\:docs:
-	@cargo test --doc -- $(name)
+	@cargo test --doc --all-features
+
+test\:docs\:by_feature:
+	@cargo test --doc
+	@cargo test --doc --features "xml"
+	@cargo test --doc --features "csv"
+	@cargo test --doc --features "parquet"
+	@cargo test --doc --features "toml"
+	@cargo test --doc --features "bucket csv"
+	@cargo test --doc --features "curl xml"
+	@cargo test --doc --features "mongodb"
+	@cargo test --doc --features "psql"
 
 test\:libs:
-	@cargo test --lib -- $(name)
+	@cargo test --lib --all-features
+
+test\:libs\:by_feature:
+	@cargo test --lib
+	@cargo test --lib --features "xml"
+	@cargo test --lib --features "csv"
+	@cargo test --lib --features "parquet"
+	@cargo test --lib --features "toml"
+	@cargo test --lib --features "bucket csv"
+	@cargo test --lib --features "curl xml"
+	@cargo test --lib --features "mongodb"
+	@cargo test --lib --features "psql"
 
 test\:integration:
-	@cargo test --tests -- $(name)
+	@cargo test --tests --all-features
 
 unit-tests: start test\:libs
 
 integration-tests: start test\:docs test\:integration
 
 lint:
-	@cargo clippy
+	@cargo clippy --all-features
 
 coverage: start
 coverage:
-	@cargo tarpaulin --out Xml --skip-clean --jobs 1
+	@cargo tarpaulin --out Xml --skip-clean --jobs 1 --all-features
 
 coverage\:ut: start
 coverage\:ut:
 	@rustup toolchain install nightly
 	@cargo install cargo-tarpaulin
-	@cargo +nightly tarpaulin --out Xml --lib --skip-clean --jobs 1
+	@cargo +nightly tarpaulin --out Xml --lib --skip-clean --jobs 1 --all-features
 
 coverage\:it: start
 coverage\:it:
-	@cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1
+	@cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1 --all-features
 
 bench:
-	@cargo criterion --benches --output-format bencher --plotting-backend disabled 2>&1
+	@cargo criterion --benches --output-format bencher --plotting-backend disabled --all-features 2>&1
 
 minio:
 	echo "${BLUE}Run Minio server.${NC}"

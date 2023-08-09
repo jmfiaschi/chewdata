@@ -377,8 +377,7 @@ impl Connector for Bucket {
     /// use chewdata::connector::{bucket::Bucket, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
-    /// use async_std::stream::StreamExt;
-    /// use surf::http::Method;
+    /// use futures::StreamExt;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -818,6 +817,7 @@ mod tests {
     use super::*;
     use crate::document::json::Json;
     use crate::DataResult;
+    use futures::StreamExt;
 
     #[test]
     fn is_variable() {
