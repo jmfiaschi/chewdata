@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1691565932263,
+  "lastUpdate": 1692812634820,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1679,6 +1679,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 41124,
             "range": "± 3084",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "40cd6d9a94f8bb24944558ddfd468d9a6e30f264",
+          "message": "feat(xml): replace jxon by quick-xml (#43)\n\n* fix(async-std): use default option to avoid issue with --no-default-features\r\n\r\n* fix(local): remove useless features by default\r\n\r\n* fix(features): fix compile error when run features one by one\r\n\r\n* fix(features): specify features to test\r\n\r\n* doc(help): add more usage examples\r\n\r\n* chore(parquet): fix warning lint\r\n\r\n* feat(xml): remove jxon library in order to use quick-xml\r\n\r\n* fix(xml): add xml2json only if xml feature enable",
+          "timestamp": "2023-08-23T19:08:48+02:00",
+          "tree_id": "caa7f08e45432f05d30a649c9f32d8b34439228f",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/40cd6d9a94f8bb24944558ddfd468d9a6e30f264"
+        },
+        "date": 1692812634101,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 4516,
+            "range": "± 305",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 4413,
+            "range": "± 288",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 470001,
+            "range": "± 25084",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 28005,
+            "range": "± 3244",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 13059,
+            "range": "± 913",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 16874,
+            "range": "± 1089",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 273808,
+            "range": "± 16381",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 30237,
+            "range": "± 1885",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 30948,
+            "range": "± 1421",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 30456,
+            "range": "± 1773",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 30295,
+            "range": "± 2077",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 30075,
+            "range": "± 1659",
             "unit": "ns/iter"
           }
         ]
