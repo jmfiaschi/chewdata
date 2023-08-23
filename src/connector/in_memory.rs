@@ -165,6 +165,7 @@ impl Connector for InMemory {
     /// use chewdata::document::jsonl::Jsonl;
     /// use async_std::io::{Read, Write};
     /// use async_std::prelude::*;
+    /// use futures::StreamExt;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -264,7 +265,7 @@ impl Connector for InMemory {
         if 0 == resource_len {
             memory.write_all(&header)?;
         }
-        if 0 < resource_len && resource_len > (header.len() + footer.len() as usize) {
+        if 0 < resource_len && resource_len > (header.len() + footer.len()) {
             memory.write_all(&terminator)?;
         }
         memory.write_all(&body)?;
@@ -315,7 +316,7 @@ mod tests {
     use super::*;
     use crate::document::jsonl::Jsonl;
     use crate::DataResult;
-    use async_std::prelude::StreamExt;
+    use futures::StreamExt;
 
     #[async_std::test]
     async fn len() {

@@ -1,3 +1,26 @@
+# [1.16.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.15.1-beta.1...v1.16.0-beta.1) (2023-08-23)
+
+
+### Bug Fixes
+
+* **xml:** add xml2json only if xml feature enable ([1fda46e](https://github.com/jmfiaschi/chewdata/commit/1fda46e89e0fdad2a7f446521ef35f89481f2ed3))
+
+
+### Features
+
+* **xml:** remove jxon library in order to use quick-xml ([1e9d24e](https://github.com/jmfiaschi/chewdata/commit/1e9d24e2ee557ffc3f03ea36c63a9fe086466fa8))
+
+## [1.15.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.15.0...v1.15.1-beta.1) (2023-08-09)
+
+
+### Bug Fixes
+
+* **async-std:** use default option to avoid issue with --no-default-features ([45a5397](https://github.com/jmfiaschi/chewdata/commit/45a53972925292a242fb2e548ac2dbfa5d168cc8))
+* **curl:** remove useless features ([27356b3](https://github.com/jmfiaschi/chewdata/commit/27356b3c7e0533a8028357837e61b0fe050e59b7))
+* **features:** fix compile error when run features one by one ([f3ca965](https://github.com/jmfiaschi/chewdata/commit/f3ca9650a43d9c18f5df615498ed0b292f8700dc))
+* **features:** specify features to test ([c7ae46a](https://github.com/jmfiaschi/chewdata/commit/c7ae46a59a00fc20c11c26780eb24060514a62e9))
+* **local:** remove useless features by default ([d86ced2](https://github.com/jmfiaschi/chewdata/commit/d86ced2ad6e27d3721269ce3b97b8a3c769154e5))
+
 # [1.15.0](https://github.com/jmfiaschi/chewdata/compare/v1.14.0...v1.15.0) (2023-08-09)
 
 

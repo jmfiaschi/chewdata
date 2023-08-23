@@ -1,18 +1,21 @@
-//! Read and Write in Xml format. 
+//! Read and Write in Xml format.
 //!
 //! ### Configuration
-//! 
+//!
 //! | key         | alias | Description                                                          | Default Value  | Possible Values                                                                |
 //! | ----------- | ----- | -------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------ |
 //! | type        | -     | Required in order to use this document.                              | `xml`          | `xml`                                                                          |
 //! | metadata    | meta  | Metadata describe the resource.                                      | `null`         | [`crate::Metadata`]                                                            |
 //! | is_pretty   | -     | Display data in readable format for human.                           | `false`        | `false` / `true`                                                               |
-//! | indent_char | -     | Character to use for indentation in pretty mode.                     | `space`        | Simple character                                                               |
+//! | indent_char | -     | Character to use for indentation in pretty mode.                     | ` `            | Simple character                                                               |
 //! | indent_size | -     | Number of indentation to use for each line in pretty mode.           | `4`            | unsigned number                                                                |
-//! | entry_path  | -     | Use this field if you want to target a specific field in the object. | `/root/*/item` | String in [json pointer format](https://datatracker.ietf.org/doc/html/rfc6901) |
-//! 
+//! | entry_path  | -     | Use this field if you want to target a specific field in the object. The 'root' is extracted from this field. If it's not possible, the field 'root' will be used. | `/root/*/item` | String in [json pointer format](https://datatracker.ietf.org/doc/html/rfc6901) |
+//! | attribute_key | -   | Key use to identify attribute xml value .                            | `@`            | Simple character                                                               |
+//! | text_key    | -     | Key use to identify text xml value.                                  | `$`            | Simple character                                                               |
+//! | root        | -     | root value by default to us by default. If the root can't be determine, this field is used.    | `root`            | String                                            |
+//!
 //! Examples:
-//! 
+//!
 //! ```json
 //! [
 //!     {
@@ -22,7 +25,10 @@
 //!             "is_pretty": true,
 //!             "indet_char": " ",
 //!             "indent_size": 4,
-//!             "entry_path": "/root/*/item"
+//!             "entry_path": "/root/item",
+//!             "attribute_key": "@",
+//!             "text_key": "$",
+//!             "root": "root"
 //!         }
 //!     },
 //!     {
@@ -30,29 +36,30 @@
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! input:
-//! 
+//!
 //! ```xml
 //! <root>
 //!     <item field1="value1"/>
 //!     ...
 //! </root>
 //! ```
-//! 
+//!
 //! output:
-//! 
+//!
 //! ```json
 //! [{"field1":"value1"},...]
 //! ```
 use crate::document::Document;
-use crate::helper::json_pointer::JsonPointer;
+use crate::helper::xml2json::JsonConfig;
 use crate::{DataResult, DataSet, Metadata};
 use json_value_merge::Merge;
 use json_value_search::Search;
+use quick_xml::se::Serializer;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
@@ -62,9 +69,14 @@ pub struct Xml {
     #[serde(alias = "meta")]
     pub metadata: Metadata,
     pub is_pretty: bool,
-    pub indent_char: u8,
+    pub indent_char: char,
     pub indent_size: usize,
+    #[serde(alias = "attk")]
+    pub attribute_key: char,
+    #[serde(alias = "txtk")]
+    pub text_key: char,
     // Elements to target
+    pub root: String,
     pub entry_path: String,
 }
 
@@ -79,115 +91,66 @@ impl Default for Xml {
         Xml {
             metadata,
             is_pretty: false,
-            indent_char: b' ',
+            indent_char: ' ',
             indent_size: 4,
+            attribute_key: '@',
+            text_key: '$',
             entry_path: "/".to_string(),
+            root: "root".to_string(),
         }
     }
 }
 
 impl Xml {
-    /// Convert Number/Bool to String. Jxon not handle Number/Bool/Null transformation.
-    /// Todo : https://github.com/definitelynobody/jxon/blob/948bea9475ca836ab2a253d87ae04b1d60a00258/src/to_xml.rs#L16-L18
-    fn convert_numeric_to_string(json_value: &mut Value) {
-        match json_value {
-            Value::Array(vec) => {
-                for value in vec {
-                    Xml::convert_numeric_to_string(value);
-                }
-            }
-            Value::Object(map) => {
-                for (_string, value) in map.iter_mut() {
-                    Xml::convert_numeric_to_string(value);
-                }
-            }
-            Value::Bool(value) => *json_value = Value::String(value.to_string()),
-            Value::Number(value) => *json_value = Value::String(value.to_string()),
-            Value::Null => *json_value = Value::String("".to_string()),
-            _ => (),
-        }
-    }
-    // jxon add some characteres. This function clean the json_value and normalize it.
-    // Use this method after the convertion xml_to_json.
-    fn clean_json_value(value: &mut Value) -> io::Result<()> {
-        let remove_added_char = Regex::new(r#"\$([^"]+)"#).unwrap();
-        let new_json: String = remove_added_char
-            .replace_all(value.to_string().as_ref(), "$1")
-            .to_string();
-        let transform_string_to_scalar =
-            Regex::new(r#""([1-9][[:digit:]]+|[0-9][0-9]*\.[0-9]+|true|false)""#).unwrap();
-        let new_json_transformed: String = transform_string_to_scalar
-            .replace_all(new_json.as_ref(), "$1")
-            .to_string();
-        *value = serde_json::from_str(new_json_transformed.as_ref())?;
-        Ok(())
-    }
-    // jxon add some characteres in order to define attributes.
-    // This function add this attribute '$' for every fields except "_". Use this method before the convertion json_to_xml.
-    fn add_attribute_character(value: &mut Value) -> io::Result<()> {
-        let re = Regex::new(r#""([^_]|[^"]{2,})": *""#).unwrap();
-        let new_json: String = re
-            .replace_all(value.to_string().as_ref(), r#""$$$1":""#)
-            .to_string();
-        *value = serde_json::from_str(new_json.as_ref())?;
-        Ok(())
-    }
-    // Remove cumulative array into a value, useful after a search.
-    fn trim_array(value: &Value) -> Value {
-        match value {
-            Value::Array(vec) => {
-                if vec.len() > 1 {
-                    value.clone()
-                } else {
-                    Xml::trim_array(&vec[0])
-                }
-            }
-            _ => value.clone(),
-        }
-    }
-    /// Build json value with entry_path
-    fn value_entry_path(&self, value: Value) -> io::Result<Value> {
-        let mut fields: Vec<&str> = self.entry_path.split('/').collect();
-        let last_field_opt = fields.pop();
-        let mut value_entry_path: Value = Value::Null;
+    /// Convert a json value into xml.
+    fn convert_value_to_xml(&self, value: &Value) -> io::Result<String> {
+        let mut buffer = String::new();
+        let entry_path_root = self.entry_path_root();
+        let mut ser = Serializer::with_root(&mut buffer, Some(entry_path_root.as_str())).unwrap();
 
-        if let Some(last_field) = last_field_opt {
-            match last_field.parse::<usize>() {
-                Ok(_) => {
-                    value_entry_path
-                        .merge_in(&self.entry_path.to_string().to_json_pointer(), value)?;
-                }
-                Err(_) => match last_field {
-                    "*" => {
-                        value_entry_path
-                            .merge_in(&self.entry_path.to_string().to_json_pointer(), value)?;
-                    }
-                    _ => {
-                        value_entry_path.merge_in(
-                            &self.entry_path.to_string().to_json_pointer(),
-                            Value::Array(vec![value]),
-                        )?;
-                    }
-                },
-            }
+        if self.is_pretty {
+            ser.indent(self.indent_char, self.indent_size);
+        }
+        ser.expand_empty_elements(true);
+
+        value
+            .serialize(ser)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+        Ok(buffer)
+    }
+    fn convert_xml_to_value(&self, buffer: &[u8]) -> io::Result<Value> {
+        let mut config = JsonConfig::new();
+        config.attrkey(self.attribute_key);
+        config.charkey(self.text_key);
+
+        config.finalize().build_from_xml(buffer)
+    }
+    // Return the root from the entry path. If empty, take the root parameter.
+    fn entry_path_root(&self) -> String {
+        let mut entry_path_splitted = self.entry_path.split('/').collect::<Vec<&str>>();
+
+        if entry_path_splitted.is_empty() {
+            return self.root.clone();
         }
 
-        Ok(value_entry_path)
-    }
-    /// Document an entry xml with the entry_path.
-    fn xml_entry_path(&self) -> io::Result<String> {
-        let entry_path_value = self.value_entry_path(Value::Object(Map::default()))?;
-        self.value_to_xml(&entry_path_value)
-    }
-    /// Transform a json value to xml.
-    fn value_to_xml(&self, value: &Value) -> io::Result<String> {
-        let indent = match self.is_pretty {
-            true => Some((self.indent_char, self.indent_size)),
-            false => None,
-        };
+        // remove the first empty element
+        entry_path_splitted.remove(0);
 
-        jxon::json_to_xml(value.to_string().as_ref(), indent)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))
+        match entry_path_splitted.first() {
+            Some(first) => {
+                if !first.is_empty() {
+                    return first.to_string();
+                }
+                self.root.clone()
+            }
+            None => self.root.clone(),
+        }
+    }
+    // Return the entry path without the root value.
+    fn entry_path_without_root(&self) -> String {
+        self.entry_path
+            .replacen(format!("/{}", self.entry_path_root()).as_str(), "", 1)
     }
 }
 
@@ -210,7 +173,7 @@ impl Document for Xml {
     /// use serde_json::Value;
     ///
     /// let mut document = Xml::default();
-    /// document.entry_path = "/root/*/item".to_string();
+    /// document.entry_path = "/root/item".to_string();
     /// let buffer = r#"<root>
     /// <item>value_1</item>
     /// <item>value_2</item>
@@ -229,41 +192,29 @@ impl Document for Xml {
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
         let entry_path = self.entry_path.clone();
-        let str = std::str::from_utf8(buffer)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
-        let mut root_element: Value = jxon::xml_to_json(str).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Can't parse the xml. {}", e),
-            )
-        })?;
-        Xml::clean_json_value(&mut root_element)?;
+        let root_element = self.convert_xml_to_value(buffer)?;
 
         match root_element.clone().search(&entry_path)? {
-            Some(record) => {
-                let record_trimmed = Xml::trim_array(&record);
-                match record_trimmed {
-                    Value::Array(vec) => vec.into_iter().for_each(|record| {
-                        trace!(
-                            record = format!("{:?}", &record).as_str(),
-                            "Record deserialized"
-                        );
-                        dataset.push(DataResult::Ok(record));
-                    }),
-                    _ => {
-                        trace!(
-                            record = format!("{:?}", &record_trimmed).as_str(),
-                            "Record deserialized"
-                        );
-                        dataset.push(DataResult::Ok(record_trimmed));
-                    }
+            Some(record) => match record {
+                Value::Array(vec) => vec.into_iter().for_each(|record| {
+                    trace!(
+                        record = format!("{:?}", &record).as_str(),
+                        "Record deserialized"
+                    );
+                    dataset.push(DataResult::Ok(record));
+                }),
+                _ => {
+                    trace!(
+                        record = format!("{:?}", &record).as_str(),
+                        "Record deserialized"
+                    );
+                    dataset.push(DataResult::Ok(record));
                 }
-            }
+            },
             None => {
                 warn!(
                     entry_path = format!("{:?}", entry_path).as_str(),
-                    record = format!("{:?}", root_element.clone()).as_str(),
+                    record = format!("{:?}", root_element).as_str(),
                     "Entry path not found"
                 );
                 dataset.push(DataResult::Err((
@@ -289,51 +240,51 @@ impl Document for Xml {
     /// use serde_json::Value;
     ///
     /// let mut document = Xml::default();
-    /// document.entry_path = "/root/*/item".to_string();
+    /// document.entry_path = "/custom_root".to_string();
     /// let dataset = vec![DataResult::Ok(
-    ///     serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#).unwrap(),
+    ///     serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
     /// )];
     /// let buffer = document.write(&dataset).unwrap();
-    /// assert_eq!(
-    ///     r#"<item><object column_1="line_1"/></item>"#.as_bytes().to_vec(),
-    ///     buffer
-    /// );
-    /// let dataset = vec![DataResult::Ok(
-    ///     serde_json::from_str(r#"{"object":[{"column_1":"line_2"}]}"#).unwrap(),
-    /// )];
-    /// let buffer = document.write(&dataset).unwrap();
-    /// assert_eq!(
-    ///     r#"<item><object column_1="line_2"/></item>"#
-    ///         .as_bytes()
-    ///         .to_vec(),
-    ///     buffer
-    /// );
+    /// assert_eq!(r#"<column_1>line_1</column_1>"#.as_bytes().to_vec(), buffer);
     /// ```
     #[instrument(skip(dataset), name = "xml::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
-        let header = self.header(dataset)?;
-        let footer = self.footer(dataset)?;
+        let entry_path_root = &self.entry_path_root();
+        let values = Value::Array(
+            dataset
+                .iter()
+                .map(|data| data.to_value())
+                .collect::<Vec<Value>>(),
+        );
+        let mut value = Value::default();
 
-        for data in dataset {
-            let record = data.to_value();
-            let mut new_value = self.value_entry_path(record.clone())?;
-            Xml::convert_numeric_to_string(&mut new_value);
-            Xml::add_attribute_character(&mut new_value)?;
+        let re = Regex::new(
+            format!(
+                r#"^(?<descriptor><[?]xml[^>]*>)?(?<root_open_tag><{root}[^>]*>){newline}(?<body>.*){newline}(?<root_close_tag><\/{root}>)$"#,
+                root = entry_path_root, newline = match self.is_pretty {
+                    true => "\\\\n",
+                    false => ""
+                }
+            )
+            .as_str(),
+        )
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-            trace!(
-                record = format!("{:?}", record).as_str(),
-                "Record serialized"
-            );
+        value.merge_in("/", values)?;
 
-            let mut xml_new_value = self.value_to_xml(&new_value)?;
-            if !header.is_empty() && !footer.is_empty() {
-                xml_new_value = xml_new_value.replace(std::str::from_utf8(&header).unwrap(), "");
-                xml_new_value = xml_new_value.replace(std::str::from_utf8(&footer).unwrap(), "");
-            }
+        let mut xml_with_root = self.convert_value_to_xml(&value)?;
+        xml_with_root = xml_with_root.replace('\n', "\\n");
 
-            buffer.append(&mut xml_new_value.as_bytes().to_vec());
-        }
+        let mut xml_without_root = re.replace(xml_with_root.as_str(), "$body").to_string();
+        xml_without_root = xml_without_root.replace("\\n", "\n");
+
+        trace!(
+            xml = format!("{:?}", &xml_without_root).as_str(),
+            "Record serialized"
+        );
+
+        buffer.append(&mut xml_without_root.as_bytes().to_vec());
 
         Ok(buffer)
     }
@@ -345,33 +296,27 @@ impl Document for Xml {
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::DataResult;
     ///
     /// let mut document = Xml::default();
-    /// document.entry_path = "/root/*/item".to_string();
-    /// let dataset = vec![DataResult::Ok(
-    ///     serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#).unwrap(),
-    /// )];
-    /// let buffer = document.header(&dataset).unwrap();
+    /// document.entry_path = "/root".to_string();
+    /// let buffer = document.header(&vec![]).unwrap();
     /// assert_eq!(
     ///     r#"<root>"#.as_bytes().to_vec(),
     ///     buffer
     /// );
     /// ```
     fn header(&self, _dataset: &DataSet) -> io::Result<Vec<u8>> {
-        let xml_entry_path = match self.xml_entry_path() {
-            Ok(xml) => xml,
-            Err(e) => {
-                warn!(
-                    entry_path = self.entry_path.clone().as_str(),
-                    error = e.to_string().as_str(),
-                    "Can't generate the xml entry path start"
-                );
-                "".to_string()
-            }
-        };
+        let mut value = Value::default();
+        value.merge_in(
+            &self.entry_path_without_root(),
+            match self.is_pretty {
+                true => Value::String("\n".to_string()),
+                false => Value::default(),
+            },
+        )?;
+        let xml_with_entry_path = self.convert_value_to_xml(&value)?;
 
-        let header: String = xml_entry_path
+        let header: String = xml_with_entry_path
             .split('<')
             .filter(|node| !node.contains('/') && !node.is_empty())
             .map(|node| format!("<{}", node))
@@ -387,33 +332,27 @@ impl Document for Xml {
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
-    /// use chewdata::DataResult;
     ///
     /// let mut document = Xml::default();
-    /// document.entry_path = "/root/*/item".to_string();
-    /// let dataset = vec![DataResult::Ok(
-    ///     serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#).unwrap(),
-    /// )];
-    /// let buffer = document.footer(&dataset).unwrap();
+    /// document.entry_path = "/root".to_string();
+    /// let buffer = document.footer(&vec![]).unwrap();
     /// assert_eq!(
     ///     r#"</root>"#.as_bytes().to_vec(),
     ///     buffer
     /// );
     /// ```
     fn footer(&self, _dataset: &DataSet) -> io::Result<Vec<u8>> {
-        let xml_entry_path = match self.xml_entry_path() {
-            Ok(xml) => xml,
-            Err(e) => {
-                warn!(
-                    entry_path = self.entry_path.clone().as_str(),
-                    error = e.to_string().as_str(),
-                    "Can't generate the xml entry path end"
-                );
-                "".to_string()
-            }
-        };
+        let mut value = Value::default();
+        value.merge_in(
+            &self.entry_path_without_root(),
+            match self.is_pretty {
+                true => Value::String("\n".to_string()),
+                false => Value::default(),
+            },
+        )?;
+        let xml_with_entry_path = self.convert_value_to_xml(&value)?;
 
-        let footer: String = xml_entry_path
+        let footer: String = xml_with_entry_path
             .split('>')
             .filter(|node| node.contains("</") && !node.is_empty())
             .map(|node| format!("{}>", node))
@@ -430,7 +369,7 @@ impl Document for Xml {
     /// use chewdata::document::Document;
     ///
     /// let mut document = Xml::default();
-    /// document.entry_path = "/root/*/item".to_string();
+    /// document.entry_path = "/root".to_string();
     /// let buffer = r#"<root><item column_1="line_1"/></root>"#.as_bytes();
     /// assert_eq!(true, document.has_data(buffer).unwrap());
     /// ```
@@ -439,17 +378,13 @@ impl Document for Xml {
             return Ok(false);
         }
 
-        let str = std::str::from_utf8(buffer)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
-        let data_value = jxon::xml_to_json(str)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
-
-        if data_value.search(self.entry_path.as_str())?.is_none() {
-            return Ok(false);
+        let data_value = self.convert_xml_to_value(buffer)?;
+        match data_value.search(self.entry_path.as_str())? {
+            Some(Value::Array(array)) => Ok(!array.is_empty()),
+            Some(Value::String(string)) => Ok(!string.is_empty()),
+            Some(Value::Bool(_)) | Some(Value::Number(_)) | Some(Value::Object(_)) => Ok(true),
+            _ => Ok(false),
         }
-
-        Ok(!buffer.is_empty())
     }
 }
 
@@ -458,103 +393,160 @@ mod tests {
     use super::*;
 
     #[test]
-    fn read_data_in_target_position() {
+    fn read_data_with_elements() {
         let mut document = Xml::default();
-        document.entry_path = "/root/*/item".to_string();
-        let buffer = r#"<root>
-<item key_1="value_1" />
-<item key_1="value_2" />
-</root>"#
+        document.entry_path = "/custom_root/item".to_string();
+        let buffer = r#"<custom_root>
+<item><key_1>value_1</key_1></item>
+<item><key_1>value_2</key_1></item>
+</custom_root>"#
             .as_bytes()
             .to_vec();
         let mut dataset = document.read(&buffer).unwrap().into_iter();
         let data_1 = dataset.next().unwrap().to_value();
-        let expected_data_1: Value = serde_json::from_str(r#"{"key_1":"value_1"}"#).unwrap();
+        let expected_data_1: Value =
+            serde_json::from_str(r#"{"key_1":[{"$text":"value_1"}]}"#).unwrap();
         assert_eq!(expected_data_1, data_1);
         let data_2 = dataset.next().unwrap().to_value();
-        let expected_data_2: Value = serde_json::from_str(r#"{"key_1":"value_2"}"#).unwrap();
+        let expected_data_2: Value =
+            serde_json::from_str(r#"{"key_1":[{"$text":"value_2"}]}"#).unwrap();
         assert_eq!(expected_data_2, data_2);
     }
     #[test]
-    fn read_data_in_body() {
+    fn read_data_with_element_attributs() {
         let mut document = Xml::default();
-        document.entry_path = "/root/*/item".to_string();
-        let buffer = r#"<root>
-<item>value_1</item>
-<item>value_2</item>
-</root>"#
+        document.entry_path = "/custom_root/item".to_string();
+        document.attribute_key = '&';
+        let buffer = r#"<custom_root>
+<item attr_1="value_1"/>
+<item attr_1="value_2"/>
+</custom_root>"#
             .as_bytes()
             .to_vec();
         let mut dataset = document.read(&buffer).unwrap().into_iter();
         let data_1 = dataset.next().unwrap().to_value();
-        let expected_data_1: Value = serde_json::from_str(r#"{"_":"value_1"}"#).unwrap();
+        let expected_data_1: Value = serde_json::from_str(r#"{"&attr_1":"value_1"}"#).unwrap();
         assert_eq!(expected_data_1, data_1);
         let data_2 = dataset.next().unwrap().to_value();
-        let expected_data_2: Value = serde_json::from_str(r#"{"_":"value_2"}"#).unwrap();
+        let expected_data_2: Value = serde_json::from_str(r#"{"&attr_1":"value_2"}"#).unwrap();
+        assert_eq!(expected_data_2, data_2);
+    }
+    #[test]
+    fn read_data_with_text() {
+        let mut document = Xml::default();
+        document.entry_path = "/custom_root/item".to_string();
+        document.text_key = '$';
+        let buffer = r#"<custom_root>
+<item>value_1</item>
+<item>value_2</item>
+</custom_root>"#
+            .as_bytes()
+            .to_vec();
+        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let data_1 = dataset.next().unwrap().to_value();
+        let expected_data_1: Value = serde_json::from_str(r#"{"$text":"value_1"}"#).unwrap();
+        assert_eq!(expected_data_1, data_1);
+        let data_2 = dataset.next().unwrap().to_value();
+        let expected_data_2: Value = serde_json::from_str(r#"{"$text":"value_2"}"#).unwrap();
         assert_eq!(expected_data_2, data_2);
     }
     #[test]
     fn write() {
         let mut document = Xml::default();
-        document.entry_path = "/root/*/item".to_string();
+        document.entry_path = "/custom_root".to_string();
         let dataset = vec![DataResult::Ok(
-            serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#).unwrap(),
+            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];
         let buffer = document.write(&dataset).unwrap();
-        assert_eq!(
-            r#"<item><object column_1="line_1"/></item>"#.as_bytes().to_vec(),
-            buffer
-        );
-        let dataset = vec![DataResult::Ok(
-            serde_json::from_str(r#"{"object":[{"column_1":"line_2"}]}"#).unwrap(),
-        )];
-        let buffer = document.write(&dataset).unwrap();
-        assert_eq!(
-            r#"<item><object column_1="line_2"/></item>"#.as_bytes().to_vec(),
-            buffer
-        );
+        assert_eq!(r#"<column_1>line_1</column_1>"#.as_bytes().to_vec(), buffer);
     }
     #[test]
-    fn header() {
+    fn write_with_object_in_sub_level() {
         let mut document = Xml::default();
-        document.entry_path = "/root/*/item".to_string();
+        document.entry_path = "/custom_root/item".to_string();
         let dataset = vec![DataResult::Ok(
-            serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#).unwrap(),
+            serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];
-        let buffer = document.header(&dataset).unwrap();
+        let buffer = document.write(&dataset).unwrap();
+        println!("buffer {}", std::str::from_utf8(&buffer).unwrap());
+        assert_eq!(r#"<column_1>line_1</column_1>"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn write_with_attribute_key() {
+        let mut document = Xml::default();
+        document.entry_path = "/root".to_string();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"elt":{"@column_1":"line_1"}}"#).unwrap(),
+        )];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(r#"<elt column_1="line_1"/>"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn write_with_text_key() {
+        let mut document = Xml::default();
+        document.entry_path = "/root".to_string();
+        let dataset = vec![DataResult::Ok(
+            serde_json::from_str(r#"{"elt":{"$text":"value_1"}}"#).unwrap(),
+        )];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(r#"<elt>value_1</elt>"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn header_without_first_level() {
+        let mut document = Xml::default();
+        document.entry_path = "/root".to_string();
+        let buffer = document.header(&vec![]).unwrap();
         assert_eq!(r#"<root>"#.as_bytes().to_vec(), buffer);
     }
     #[test]
-    fn footer() {
+    fn header_with_first_level() {
         let mut document = Xml::default();
-        document.entry_path = "/root/*/item".to_string();
-        let dataset = vec![DataResult::Ok(
-            serde_json::from_str(r#"{"object":[{"column_1":"line_1"}]}"#).unwrap(),
-        )];
-        let buffer = document.footer(&dataset).unwrap();
+        document.entry_path = "/root/item".to_string();
+        let buffer = document.header(&vec![]).unwrap();
+        assert_eq!(r#"<root><item>"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn footer_without_first_level() {
+        let mut document = Xml::default();
+        document.entry_path = "/root".to_string();
+        let buffer = document.footer(&vec![]).unwrap();
         assert_eq!(r#"</root>"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn footer_with_first_level() {
+        let mut document = Xml::default();
+        document.entry_path = "/root/item".to_string();
+        let buffer = document.footer(&vec![]).unwrap();
+        assert_eq!(r#"</item></root>"#.as_bytes().to_vec(), buffer);
     }
     #[test]
     fn has_data_with_empty_document() {
         let mut document = Xml::default();
-        document.entry_path = "/root/*/item".to_string();
+        document.entry_path = "/root".to_string();
         let buffer = r#"<root></root>"#.as_bytes();
         assert_eq!(false, document.has_data(&buffer).unwrap());
         let buffer = r#"<root/>"#.as_bytes();
         assert_eq!(false, document.has_data(buffer).unwrap());
     }
     #[test]
-    fn has_data_with_empty_remote_document() {
+    fn has_data_with_first_level() {
         let mut document = Xml::default();
-        document.entry_path = "/root/*/item".to_string();
+        document.entry_path = "/root/item".to_string();
         let buffer = r#""#.as_bytes();
         assert_eq!(false, document.has_data(buffer).unwrap());
     }
     #[test]
-    fn has_data_with_not_empty_remote_document() {
+    fn has_data_with_not_empty_document() {
         let mut document = Xml::default();
-        document.entry_path = "/root/*/item".to_string();
+        document.entry_path = "/root".to_string();
         let buffer = r#"<root><item column_1="line_1"/></root>"#.as_bytes();
         assert_eq!(true, document.has_data(buffer).unwrap());
+    }
+    #[test]
+    fn has_data_with_bad_entry_point() {
+        let mut document = Xml::default();
+        document.entry_path = "/root/value".to_string();
+        let buffer = r#"<root><item column_1="line_1"/></root>"#.as_bytes();
+        assert_eq!(false, document.has_data(buffer).unwrap());
     }
 }

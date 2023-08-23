@@ -323,6 +323,7 @@ impl Connector for Psql {
     /// use serde_json::Value;
     /// use async_std::prelude::*;
     /// use std::io;
+    /// use futures::StreamExt;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
@@ -857,7 +858,7 @@ mod tests {
     use super::*;
     use crate::document::json::Json;
     use crate::DataResult;
-    use async_std::prelude::StreamExt;
+    use futures::StreamExt;
 
     #[async_std::test]
     async fn len() {

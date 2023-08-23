@@ -334,6 +334,7 @@ impl Authenticator for Jwt {
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt, Authenticator};
     /// use async_std::prelude::*;
     /// use std::io;
+    /// use futures::StreamExt;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {

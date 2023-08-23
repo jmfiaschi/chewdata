@@ -6,7 +6,7 @@
 //! | ------------- | ----- | -------------------------------------------------------- | ------------- | ----------------------------------------------------------------------- |
 //! | type          | -     | Required in order to use this connector.                  | `curl`        | `curl`                                                                 |
 //! | metadata      | meta  | Override metadata information.                            | `null`        | [`crate::Metadata`]                                                    |
-//! | authenticator | auth  | Define the authentification that secure the http(s) call. | `null`        | [`crate::connector::authenticator::Authenticator`]                     |
+//! | authenticator | auth  | Define the authentification that secure the http(s) call. | `null`        | [`crate::connector::authenticator::basic::Basic`] / [`crate::connector::authenticator::bearer::Bearer`] / [`crate::connector::authenticator::jwt::Jwt`] |
 //! | endpoint      | -     | The http endpoint of the url like <http://my_site.com:80>.| `null`        | String                                                                 |
 //! | path          | uri   | The path of the resource.                                 | `null`        | String                                                                 |
 //! | method        | -     | The http method to use.                                   | `get`         | [HTTP methods](https://developer.mozilla.org/fr/docs/Web/HTTP/Methods) |
@@ -398,7 +398,7 @@ impl Connector for Curl {
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::document::json::Json;
     /// use surf::http::Method;
-    /// use async_std::stream::StreamExt;
+    /// use futures::StreamExt;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -713,7 +713,6 @@ impl Connector for Curl {
 
 #[cfg(test)]
 mod tests {
-    use async_std::stream::StreamExt;
     use json_value_search::Search;
 
     use super::*;
@@ -726,6 +725,7 @@ mod tests {
     use crate::document::xml::Xml;
     use crate::document::DocumentType;
     use crate::DataResult;
+    use futures::StreamExt;
 
     #[test]
     fn is_variable() {

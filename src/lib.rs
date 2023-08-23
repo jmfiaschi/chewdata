@@ -95,6 +95,7 @@ pub struct Metadata {
     pub language: Option<String>,
 }
 
+#[allow(dead_code)]
 impl Metadata {
     fn merge(self, metadata: Metadata) -> Metadata {
         Metadata {

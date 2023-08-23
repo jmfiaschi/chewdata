@@ -535,7 +535,7 @@ impl Connector for BucketSelect {
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
-    /// use async_std::stream::StreamExt;
+    /// use futures::StreamExt;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -720,7 +720,10 @@ impl Paginator for BucketSelectPaginator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::document::{csv::Csv, json::Json, jsonl::Jsonl};
+    use crate::document::{json::Json, jsonl::Jsonl};
+    #[cfg(feature = "csv")]
+    use crate::document::csv::Csv;
+    use futures::StreamExt;
 
     #[test]
     fn is_variable() {
@@ -884,6 +887,7 @@ mod tests {
             )
         );
     }
+    #[cfg(feature = "csv")]
     #[async_std::test]
     async fn csv_with_header() {
         let mut connector = BucketSelect::default();
@@ -938,6 +942,7 @@ mod tests {
             )
         );
     }
+    #[cfg(feature = "csv")]
     #[async_std::test]
     async fn csv_without_header() {
         let mut connector = BucketSelect::default();

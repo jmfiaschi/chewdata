@@ -51,7 +51,7 @@ fn it_should_read_file_in_local_with_one_line() {
         formats.push(("toml", r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.toml"},"document":{"type":"toml"}},{"type":"w"}]"#));
     }
     if cfg!(feature = "xml") {
-        formats.push(("xml",r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.xml"},"document":{"type":"xml","entry_path": "/root/*/item"}},{"type":"w"}]"#));
+        formats.push(("xml",r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.xml"},"document":{"type":"xml"}},{"type":"t","actions":[{"field":"/","pattern":"{{ input.item | replace_key(from='@(.*)', to='$1') | json_encode() }}"}]},{"type":"w"}]"#));
     }
     for (format, config) in formats {
         let data_file_path = format!("{}/{}.{}", "data", "one_line", format);

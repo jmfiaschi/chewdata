@@ -267,17 +267,18 @@ impl Connector for Local {
     ///
     /// ```no_run
     /// use chewdata::connector::local::Local;
-    /// use chewdata::document::toml::Toml;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
     /// use async_std::io::{Read, Write};
     /// use async_std::prelude::*;
+    /// use futures::StreamExt;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Toml::default();
+    ///     let document = Json::default();
     ///     let mut connector = Local::default();
-    ///     connector.path = "./Cargo.toml".to_string();
+    ///     connector.path = "./data/one_line.json".to_string();
     ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
@@ -427,14 +428,14 @@ impl Connector for Local {
     /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
-    /// use chewdata::document::toml::Toml;
+    /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Toml::default();
+    ///     let document = Json::default();
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/out/test_local_erase".to_string();
     ///     let expected_result =
@@ -570,10 +571,11 @@ impl Paginator for LocalPaginator {
 
 #[cfg(test)]
 mod tests {
+    use futures::StreamExt;
+
     use super::*;
-    use crate::document::{json::Json, toml::Toml};
+    use crate::document::json::Json;
     use crate::DataResult;
-    use async_std::prelude::StreamExt;
 
     #[test]
     fn is_variable() {
@@ -609,7 +611,7 @@ mod tests {
     #[async_std::test]
     async fn len() {
         let mut connector = Local::default();
-        connector.path = "./Cargo.toml".to_string();
+        connector.path = "./data/one_line.json".to_string();
         assert!(
             0 < connector.len().await.unwrap(),
             "The length of the document is not greather than 0"
@@ -620,16 +622,16 @@ mod tests {
     #[async_std::test]
     async fn is_empty() {
         let mut connector = Local::default();
-        connector.path = "./Cargo.toml".to_string();
+        connector.path = "./data/one_line.json".to_string();
         assert_eq!(false, connector.is_empty().await.unwrap());
         connector.path = "./null_file".to_string();
         assert_eq!(true, connector.is_empty().await.unwrap());
     }
     #[async_std::test]
     async fn fetch() {
-        let document = Toml::default();
+        let document = Json::default();
         let mut connector = Local::default();
-        connector.path = "./Cargo.toml".to_string();
+        connector.path = "./data/one_line.json".to_string();
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
@@ -664,7 +666,7 @@ mod tests {
     }
     #[async_std::test]
     async fn erase() {
-        let document = Toml::default();
+        let document = Json::default();
 
         let mut connector = Local::default();
         connector.path = "./data/out/test_local_erase".to_string();
