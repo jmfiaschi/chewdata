@@ -44,7 +44,7 @@ example: ##		USAGE: make example name=local-json
 		echo "$(RED)USAGE: example name=[EXAMPLE_NAME]${NC}";\
 		cargo run --example;exit 1;\
 	fi
-	@cargo run --example $(name)  --all-features
+	@RUST_LOG=info cargo run --example $(name)  --all-features
 
 release: ##	Released with minimum features.
 release: ##		USAGE: make release

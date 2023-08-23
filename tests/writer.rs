@@ -31,9 +31,18 @@ fn debug_dir() -> PathBuf {
 #[test]
 fn it_should_write_file_in_local_with_one_line() {
     let mut formats = vec![
-        ("json", r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#),
-        ("jsonl",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#),
-        ("yml",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}"}}]"#)
+        (
+            "json",
+            r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#,
+        ),
+        (
+            "jsonl",
+            r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#,
+        ),
+        (
+            "yml",
+            r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}"}}]"#,
+        ),
     ];
     if cfg!(feature = "csv") {
         formats.push(("csv", r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}"}}]"#));
@@ -42,7 +51,7 @@ fn it_should_write_file_in_local_with_one_line() {
         formats.push(("toml", r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}"}}]"#));
     }
     if cfg!(feature = "xml") {
-        formats.push(("xml",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true,"entry_path":"/root/*/item"}}]"#));
+        formats.push(("xml",r#"[{"type":"e","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"}},{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","actions":[{"field":"/item","pattern":"{{ input | replace_key(from='.*', to='@$0') | json_encode() }}"}]},{"type":"w","connector":{"type":"local","path":"{{ APP_FILE_PATH_OUTPUT }}"},"document":{"type":"{{ APP_FORMAT_OUTPUT }}","is_pretty":true}}]"#));
     }
     for (format, config) in &formats {
         let output_file_path = format!("{}/{}.{}", "data/out", "one_line", format);

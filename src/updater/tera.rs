@@ -129,6 +129,8 @@ impl Tera {
         engine.autoescape_on(vec![]);
         // register new filter
         engine.register_filter("merge", filters::object::merge);
+        engine.register_filter("replace_key", filters::object::replace_key);
+        engine.register_filter("replace_value", filters::object::replace_value);
         engine.register_function("uuid_v4", function::uuid_v4);
         engine.register_function("base64_encode", function::base64_encode);
         engine.register_filter("base64_encode", filters::string::base64_encode);
