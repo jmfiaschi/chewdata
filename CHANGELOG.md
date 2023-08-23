@@ -1,3 +1,15 @@
+# [1.16.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.15.1-beta.1...v1.16.0-beta.1) (2023-08-23)
+
+
+### Bug Fixes
+
+* **xml:** add xml2json only if xml feature enable ([1fda46e](https://github.com/jmfiaschi/chewdata/commit/1fda46e89e0fdad2a7f446521ef35f89481f2ed3))
+
+
+### Features
+
+* **xml:** remove jxon library in order to use quick-xml ([1e9d24e](https://github.com/jmfiaschi/chewdata/commit/1e9d24e2ee557ffc3f03ea36c63a9fe086466fa8))
+
 ## [1.15.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.15.0...v1.15.1-beta.1) (2023-08-09)
 
 
