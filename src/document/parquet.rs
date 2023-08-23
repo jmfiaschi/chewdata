@@ -246,7 +246,7 @@ impl Document for Parquet {
         let schema = match (&self.schema, dataset.first()) {
             (Some(schema_value_params), Some(data_result)) => {
                 let schema_from_data = infer_json_schema_from_iterator(
-                    vec![Ok(data_result.to_value().clone())].into_iter(),
+                    vec![Ok(data_result.to_value())].into_iter(),
                 )
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
@@ -261,7 +261,7 @@ impl Document for Parquet {
             (None, Some(data_result)) => {
                 // Fetch the first data in order to guess the schema.
                 infer_json_schema_from_iterator(
-                    vec![Ok(data_result.to_value().clone())].into_iter(),
+                    vec![Ok(data_result.to_value())].into_iter(),
                 )
             }
             (_, None) => return Ok(vec![]),
@@ -374,7 +374,7 @@ impl Document for Parquet {
             let mut writer = ArrowWriter::try_new(&mut buffer, Arc::new(schema), Some(properties))
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-            writer.write(&batch.clone())?;
+            writer.write(&batch)?;
 
             writer.close()?;
         }
