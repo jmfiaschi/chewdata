@@ -6,6 +6,8 @@ use std::{collections::HashMap, io, time::Duration};
 
 pub mod json_pointer;
 pub mod mustache;
+
+#[cfg(feature = "xml")]
 pub mod xml2json;
 
 /// Replace a HashMap of readers by HashMap of Values. Each Value indexed by the referencial name.
