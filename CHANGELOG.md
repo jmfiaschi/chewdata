@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/jmfiaschi/chewdata/compare/v1.15.0...v1.16.0) (2023-08-23)
+
+
+### Features
+
+* **xml:** replace jxon by quick-xml ([#43](https://github.com/jmfiaschi/chewdata/issues/43)) ([40cd6d9](https://github.com/jmfiaschi/chewdata/commit/40cd6d9a94f8bb24944558ddfd468d9a6e30f264))
+
 # [1.16.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.15.1-beta.1...v1.16.0-beta.1) (2023-08-23)
 
 
