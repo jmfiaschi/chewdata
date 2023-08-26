@@ -246,7 +246,7 @@ impl Step for Validator {
     ///     validator.exec().await?;
     ///
     ///     for context in receiver_output.try_recv() {
-    ///         let error_result = context.data_result().to_value().search("/_error").unwrap().unwrap();
+    ///         let error_result = context.input().to_value().search("/_error").unwrap().unwrap();
     ///         let error_result_expected = Value::String("Err N.1".to_string());
     ///         assert_eq!(error_result_expected, error_result);
     ///     }

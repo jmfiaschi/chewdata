@@ -56,7 +56,7 @@ async fn main() -> io::Result<()> {
     chewdata::exec(config, Some(receiver_input), Some(sender_output)).await?;
 
     while let Ok(context) = receiver_output.recv().await {
-        println!("{}", context.data_result().to_value().to_string());
+        println!("{}", context.input().to_value().to_string());
     }
 
     Ok(())
