@@ -403,7 +403,7 @@ mod tests {
             ),
         ];
         let buffer = document.write(&dataset).unwrap();
-        println!("buffer {}", std::str::from_utf8(&buffer).unwrap());
+
         assert_eq!(
             r#"{"column_1":"line_1"},{"column_1":"line_2"},{"column_1":"line_3"},{"column_1":"line_4"},{"column_1":"line_5"}"#
                 .as_bytes()

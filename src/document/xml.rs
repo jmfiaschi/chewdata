@@ -468,7 +468,7 @@ mod tests {
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];
         let buffer = document.write(&dataset).unwrap();
-        println!("buffer {}", std::str::from_utf8(&buffer).unwrap());
+        
         assert_eq!(r#"<column_1>line_1</column_1>"#.as_bytes().to_vec(), buffer);
     }
     #[test]
