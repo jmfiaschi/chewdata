@@ -24,7 +24,7 @@ async fn main() -> io::Result<()> {
         "type": "r",
         "connector": {
             "type": "local",
-            "path": "./data/out/commoncrawl.jsonl"
+            "path": "./data/out/commoncrawl.{{ metadata.mime_subtype }}"
         },
         "document": {
             "type":"jsonl"
@@ -34,7 +34,7 @@ async fn main() -> io::Result<()> {
         "connector": {
             "type": "bucket",
             "bucket": "my-bucket",
-            "path": "data/out/commoncrawl.jsonl",
+            "path": "data/out/commoncrawl.{{ metadata.mime_subtype }}",
             "endpoint": "{{ BUCKET_ENDPOINT }}",
             "region": "{{ BUCKET_REGION }}"
         },
@@ -53,7 +53,7 @@ async fn main() -> io::Result<()> {
         "connector": {
             "type": "bucket_select",
             "bucket": "my-bucket",
-            "path": "data/out/commoncrawl.jsonl",
+            "path": "data/out/commoncrawl.{{ metadata.mime_subtype }}",
             "endpoint": "{{ BUCKET_ENDPOINT }}",
             "region": "{{ BUCKET_REGION }}",
             "query": "select * from s3object where length = '2044'"

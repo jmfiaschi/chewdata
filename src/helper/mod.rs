@@ -64,12 +64,12 @@ pub async fn referentials_reader_into_value(
         loop {
             match receiver.try_recv() {
                 Ok(context_received) => {
-                    let value = context_received.data_result().to_value();
+                    let value = context_received.input().to_value();
                     trace!(
                         value = format!("{:?}", value).as_str(),
                         "A new referential value found in the pipe"
                     );
-                    values.push(context_received.data_result().to_value());
+                    values.push(context_received.input().to_value());
                     continue;
                 }
                 Err(TryRecvError::Empty) => {

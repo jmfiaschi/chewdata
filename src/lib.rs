@@ -277,8 +277,9 @@ impl DataResult {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
-    history: Value,
-    data_result: DataResult,
+    // Previous steps history
+    steps: Value,
+    input: DataResult,
 }
 
 impl Context {
@@ -286,33 +287,30 @@ impl Context {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        let mut history = Value::default();
-        history.merge_in("/steps", Value::Object(map))?;
-
         Ok(Context {
-            history,
-            data_result,
+            steps: Value::Object(map),
+            input: data_result,
         })
     }
     pub fn insert_step_result(&mut self, step_name: String, data_result: DataResult) -> Result<()> {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        self.history.merge_in("/steps", Value::Object(map))?;
-        self.data_result = data_result;
+        self.steps.merge(Value::Object(map));
+        self.input = data_result;
 
         Ok(())
     }
-    pub fn data_result(&self) -> DataResult {
-        self.data_result.clone()
+    pub fn input(&self) -> DataResult {
+        self.input.clone()
     }
-    pub fn history(&self) -> Value {
-        self.history.clone()
+    pub fn steps(&self) -> Value {
+        self.steps.clone()
     }
     pub fn to_value(&self) -> Result<Value> {
-        let mut value = self.data_result.to_value();
-        let history: Value = self.history.clone();
-        value.merge_in("steps", history)?;
+        let mut value = Value::default();
+        value.merge_in("input", self.input.to_value())?;
+        value.merge_in("steps", self.steps.clone())?;
 
         Ok(value)
     }

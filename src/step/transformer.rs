@@ -194,7 +194,7 @@ impl Step for Transformer {
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(ref mut context_received) = receiver_stream.next().await {
-            let data_result = context_received.data_result();
+            let data_result = context_received.input();
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
                 super::send(self as &dyn Step, &context_received.clone()).await?;
@@ -205,7 +205,7 @@ impl Step for Transformer {
 
             let new_data_result = match self.updater_type.updater().update(
                 record.clone(),
-                context_received.history(),
+                context_received.steps(),
                 referentials.clone(),
                 self.actions.clone(),
                 self.input_name.clone(),

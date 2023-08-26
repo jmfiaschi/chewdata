@@ -145,7 +145,7 @@ impl Step for Reader {
             }
 
             if !context_received
-                .data_result()
+                .input()
                 .is_type(self.data_type.as_ref())
             {
                 trace!("This step handle only this data type");

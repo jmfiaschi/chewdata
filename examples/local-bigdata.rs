@@ -36,7 +36,7 @@ async fn main() -> io::Result<()> {
         "type": "w",
         "connector": {
             "type": "local",
-            "path": "./data/out/commoncrawl.jsonl"
+            "path": "./data/out/commoncrawl.{{ metadata.mime_subtype }}"
         },
         "document": {
             "type":"jsonl"

@@ -35,7 +35,7 @@ async fn main() -> io::Result<()> {
             "type": "r",
             "connector": {
                 "type": "local",
-                "path": "./data/multi_lines.json"
+                "path": "./data/multi_lines.{{ metadata.mime_subtype }}"
             }
         },
         {
@@ -56,7 +56,7 @@ async fn main() -> io::Result<()> {
             "connector": {
                 "type": "bucket",
                 "bucket": "my-bucket",
-                "path": "data/out/db.jsonl",
+                "path": "data/out/db.{{ metadata.mime_subtype }}",
                 "endpoint":"{{ BUCKET_ENDPOINT }}",
                 "region": "{{ BUCKET_REGION }}",
                 "tags": {
