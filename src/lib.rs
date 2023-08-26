@@ -309,9 +309,8 @@ impl Context {
     }
     pub fn to_value(&self) -> Result<Value> {
         let mut value = Value::default();
-        value.merge_in("input", self.input.to_value())?;
-        value.merge_in("steps", self.steps.clone())?;
-
+        value.merge_in("/input", self.input.to_value())?;
+        value.merge_in("/steps", self.steps.clone())?;
         Ok(value)
     }
 }
