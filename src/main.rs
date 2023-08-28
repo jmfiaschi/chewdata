@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        serde_json::from_str(env::Vars::apply(buf).as_str())
+                        deser_hjson::from_str(&env::Vars::apply(buf).as_str())
                             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
                     },
                     "yaml"|"yml" => {
@@ -92,11 +92,8 @@ async fn main() -> Result<()> {
                 "The format of the config file is not found. Valid config file formats are [json, yaml].",
             ))
         }
-        (Some(json), None) => {
-            serde_json::from_str(env::Vars::apply(json.to_string()).as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
-        }
-        (Some(json), Some(_file)) => {
-            serde_json::from_str(env::Vars::apply(json.to_string()).as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+        (Some(json), _) => {
+            deser_hjson::from_str(env::Vars::apply(json.to_string()).as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
         }
         _ => serde_json::from_str(DEFAULT_PROCESSORS)
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
@@ -119,7 +116,7 @@ fn application() -> Command {
         .arg(
             Arg::new("json")
                 .value_name("JSON")
-                .help("Init steps with a json configuration in input")
+                .help("Init steps with a json/hjson configuration in input")
                 .number_of_values(1)
                 .required(false)
                 .index(1),
