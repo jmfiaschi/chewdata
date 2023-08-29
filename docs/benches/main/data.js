@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1692812634820,
+  "lastUpdate": 1693296541787,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1775,6 +1775,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 30075,
             "range": "± 1659",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5473c7cd20d057da16abe1a64d93ca4b0ca4c201",
+          "message": "feat(configuration): support hjson in the configuration by default (#44)\n\n* refacto(context): rename context's fields\r\n\r\n* feat(local): erase multi files with wildcard in the path.\r\n\r\n* fix(json): write an array generate data without terminator\r\n\r\n* fix(transformer): if new result contain array, the transformer send each element from the array\r\n\r\n* feat(configuration): support hjson in the configuration by default\r\n\r\n* chore(cargo): upgrade version",
+          "timestamp": "2023-08-29T09:37:02+02:00",
+          "tree_id": "bfa4008526f3b215317b56abdb52755d7c33fdc8",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/5473c7cd20d057da16abe1a64d93ca4b0ca4c201"
+        },
+        "date": 1693296540558,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 4791,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 4657,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 340202,
+            "range": "± 3154",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 29515,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 13007,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 18639,
+            "range": "± 87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 193530,
+            "range": "± 1143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 28812,
+            "range": "± 86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 29202,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 29470,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 28709,
+            "range": "± 77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 29387,
+            "range": "± 52",
             "unit": "ns/iter"
           }
         ]
