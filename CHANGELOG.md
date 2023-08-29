@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/jmfiaschi/chewdata/compare/v1.16.0...v1.17.0) (2023-08-29)
+
+
+### Features
+
+* **configuration:** support hjson in the configuration by default ([#44](https://github.com/jmfiaschi/chewdata/issues/44)) ([5473c7c](https://github.com/jmfiaschi/chewdata/commit/5473c7cd20d057da16abe1a64d93ca4b0ca4c201))
+
 # [1.17.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.16.0...v1.17.0-beta.1) (2023-08-28)
 
 
