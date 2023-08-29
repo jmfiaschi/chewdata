@@ -169,7 +169,7 @@ impl Step for Generator {
             }
 
             if !context_received
-                .data_result()
+                .input()
                 .is_type(self.data_type.as_ref())
             {
                 trace!("This step handle only this data type");
@@ -179,7 +179,7 @@ impl Step for Generator {
 
             for _ in 0..dataset_size {
                 let mut context = context_received.clone();
-                context.insert_step_result(self.name(), context.data_result())?;
+                context.insert_step_result(self.name(), context.input())?;
                 super::send(self as &dyn Step, &context).await?;
             }
         }

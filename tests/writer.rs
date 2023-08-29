@@ -131,7 +131,7 @@ fn it_should_read_data_call_api_4xx() {
 }
 #[test]
 fn it_should_write_file_with_dynamic_name() {
-    let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","actions":[{"field":"now","pattern":"{{ now(timestamp=false, utc=true) | date(format='%Y%m%d') }}"}]},{"type":"e","connector":{"type":"local","path":"./data/out/{{ now }}.json"}},{"type":"w","connector":{"type":"local","path":"./data/out/{{ now }}.json"}}]"#;
+    let config = r#"[{"type":"r","connector":{"type":"local","path":"./data/one_line.json"}},{"type":"t","actions":[{"field":"now","pattern":"{{ now(timestamp=false, utc=true) | date(format='%Y%m%d') }}"}]},{"type":"e","connector":{"type":"local","path":"./data/out/{{ input.now }}.json"}},{"type":"w","connector":{"type":"local","path":"./data/out/{{ input.now }}.json"}}]"#;
     let output_file_path = format!("{}/{}.{}", "data/out", Utc::now().format("%Y%m%d"), "json");
     println!("Try to test this file '{}'.", output_file_path);
     let output = Command::new(debug_dir().join(APP_NAME))

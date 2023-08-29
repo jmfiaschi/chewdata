@@ -194,7 +194,7 @@ impl Step for Transformer {
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(ref mut context_received) = receiver_stream.next().await {
-            let data_result = context_received.data_result();
+            let data_result = context_received.input();
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
                 super::send(self as &dyn Step, &context_received.clone()).await?;
@@ -203,37 +203,46 @@ impl Step for Transformer {
 
             let record = data_result.to_value();
 
-            let new_data_result = match self.updater_type.updater().update(
+            match self.updater_type.updater().update(
                 record.clone(),
-                context_received.history(),
+                context_received.steps(),
                 referentials.clone(),
                 self.actions.clone(),
                 self.input_name.clone(),
                 self.output_name.clone(),
             ) {
-                Ok(new_record) => {
-                    if Value::Null == new_record {
+                Ok(new_record) => match new_record {
+                    Value::Array(array) => {
+                        for array_value in array {
+                            context_received
+                                .insert_step_result(self.name(), DataResult::Ok(array_value))?;
+                            super::send(self as &dyn Step, &context_received.clone()).await?;
+                        }
+                    }
+                    Value::Null => {
                         trace!(
                             record = format!("{}", new_record).as_str(),
                             "Record skip because the value si null"
                         );
                         continue;
                     }
-
-                    DataResult::Ok(new_record)
-                }
+                    _ => {
+                        context_received
+                            .insert_step_result(self.name(), DataResult::Ok(new_record))?;
+                        super::send(self as &dyn Step, &context_received.clone()).await?;
+                    }
+                },
                 Err(e) => {
                     warn!(
                         record = format!("{}", record).as_str(),
                         error = format!("{}", e).as_str(),
                         "The transformer's updater raise an error"
                     );
-                    DataResult::Err((record, e))
+                    context_received
+                        .insert_step_result(self.name(), DataResult::Err((record, e)))?;
+                    super::send(self as &dyn Step, &context_received.clone()).await?;
                 }
             };
-
-            context_received.insert_step_result(self.name(), new_data_result)?;
-            super::send(self as &dyn Step, &context_received.clone()).await?;
         }
 
         Ok(())
@@ -299,5 +308,41 @@ mod tests {
         step.exec().await.unwrap();
 
         assert_eq!(expected_context, receiver_output.recv().await.unwrap());
+    }
+    #[async_std::test]
+    async fn exec_with_array() {
+        let mut step = Transformer::default();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+
+        let mut expected_context_1 = context.clone();
+        let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
+        expected_context_1
+            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
+            .unwrap();
+
+        let mut expected_context_2 = context.clone();
+        let data: Value = serde_json::from_str(r#"{"field_1":"value_2"}"#).unwrap();
+        expected_context_2
+            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
+            .unwrap();
+
+        thread::spawn(move || {
+            sender_input.try_send(context).unwrap();
+        });
+
+        step.receiver = Some(receiver_input);
+        step.sender = Some(sender_output);
+        step.name = "my_step".to_string();
+        step.actions = serde_json::from_str(
+            r#"[{"pattern": "[{\"field_1\":\"value_1\"},{\"field_1\":\"value_2\"}]"}]"#,
+        )
+        .unwrap();
+        step.exec().await.unwrap();
+
+        assert_eq!(expected_context_1, receiver_output.recv().await.unwrap());
+        assert_eq!(expected_context_2, receiver_output.recv().await.unwrap());
     }
 }

@@ -123,7 +123,7 @@ OPTIONS:
     -f, --file <FILE>    Init steps with file configuration in input
 
 ARGS:
-    <JSON>    Init steps with a json configuration in input
+    <JSON>    Init steps with a json/hjson configuration in input
 ```
 
 #### Without configuration
@@ -160,7 +160,7 @@ $ cat ./data/multi_lines.json | chewdata
 
 #### With configuration
 
-The configuration is usefull to customize a list of steps.
+The configuration is usefull to customize a list of steps. It support [`hjson`](https://hjson.github.io/) format in order to enrich it.
 
 ```Bash
 $ cat ./data/multi_lines.csv | cargo run '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'

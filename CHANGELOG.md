@@ -1,3 +1,17 @@
+# [1.17.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.16.0...v1.17.0-beta.1) (2023-08-28)
+
+
+### Bug Fixes
+
+* **json:** write an array generate data without terminator ([18632ef](https://github.com/jmfiaschi/chewdata/commit/18632ef824382f4239d867b008cd6ed99a18c381))
+* **transformer:** if new result contain array, the transformer send each element from the array ([2658e96](https://github.com/jmfiaschi/chewdata/commit/2658e96dbfd78c3b61a05ce7a790d80718f03518))
+
+
+### Features
+
+* **configuration:** support hjson in the configuration by default ([800f6d1](https://github.com/jmfiaschi/chewdata/commit/800f6d1a1e76d95e9f963568bb323a947930277d))
+* **local:** erase multi files with wildcard in the path. ([5d91ad9](https://github.com/jmfiaschi/chewdata/commit/5d91ad93ea1d3bc26c099dd62a1a73daa4a9237b))
+
 # [1.16.0](https://github.com/jmfiaschi/chewdata/compare/v1.15.0...v1.16.0) (2023-08-23)
 
 

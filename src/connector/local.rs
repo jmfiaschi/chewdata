@@ -457,13 +457,19 @@ impl Connector for Local {
             warn!(path = path, "This path is not fully resolved");
         }
 
-        OpenOptions::new()
-            .read(false)
-            .create(true)
-            .append(false)
-            .write(true)
-            .truncate(true)
-            .open(path.as_str())?;
+        let paths = glob(path.as_str()).map_err(|e| Error::new(ErrorKind::NotFound, e))?;
+        for path_result in paths {
+            match path_result {
+                Ok(path) => OpenOptions::new()
+                    .read(false)
+                    .create(true)
+                    .append(false)
+                    .write(true)
+                    .truncate(true)
+                    .open(path.display().to_string())?,
+                Err(e) => return Err(Error::new(ErrorKind::NotFound, e)),
+            };
+        }
 
         info!(path = path, "The connector erase the file with success");
         Ok(())
@@ -666,6 +672,20 @@ mod tests {
     }
     #[async_std::test]
     async fn erase() {
+        let document = Json::default();
+
+        let mut connector = Local::default();
+        connector.path = "./data/out/test_local_erase".to_string();
+        let expected_result =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        let dataset = vec![expected_result];
+        connector.send(&document, &dataset).await.unwrap();
+        connector.erase().await.unwrap();
+        let datastream = connector.fetch(&document).await.unwrap();
+        assert!(datastream.is_none(), "No datastream with empty body");
+    }
+    #[async_std::test]
+    async fn erase_with_wildcard() {
         let document = Json::default();
 
         let mut connector = Local::default();

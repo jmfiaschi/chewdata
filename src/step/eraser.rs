@@ -140,7 +140,7 @@ impl Step for Eraser {
             }
 
             if !context_received
-                .data_result()
+                .input()
                 .is_type(self.data_type.as_ref())
             {
                 trace!("This step handle only this data type");
@@ -158,7 +158,7 @@ impl Step for Eraser {
             }
 
             context_received
-                .insert_step_result(self.name(), context_received.data_result())?;
+                .insert_step_result(self.name(), context_received.input())?;
             super::send(self as &dyn Step, &context_received.clone()).await?;
         }
 

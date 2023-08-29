@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "1.16.0"
+version = "1.17.0-beta.1"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2021"
 description = "Extract Transform and Load data"
@@ -46,6 +46,7 @@ fake = { version = "2.6", default-features = false, features = ["random_color"] 
 clap = { version = "4.3" }
 version = { version = "3.0", default-features = false}
 serde_yaml = { version = "0.9", default-features = false }
+deser-hjson = { version = "2.1", default-features = false }
 # Lock local files
 fs2 = { version = "0.4", default-features = false }
 # For Templates
@@ -55,9 +56,9 @@ uuid = { version = "1.4", features = ["std", "v4"] }
 quick-xml = { version = "0.30", default-features = false, optional = true, features = ["serialize"] }
 csv = { version = "1.1", default-features = false, optional = true }
 toml = { version = "0.7", default-features = false, optional = true, features = ["parse", "display"] }
-parquet = { version = "45.0", default-features = false, optional = true, features = ["cli","arrow","flate2","brotli","lz4","zstd","snap"] }
-arrow-json = { version = "45.0", default-features = false, optional = true } # used to create the batch with json_value
-arrow-integration-test = { version = "45.0", default-features = false, optional = true } # used to transform json_value to schema
+parquet = { version = "46.0", default-features = false, optional = true, features = ["cli","arrow","flate2","brotli","lz4","zstd","snap"] }
+arrow-json = { version = "46.0", default-features = false, optional = true } # used to create the batch with json_value
+arrow-integration-test = { version = "46.0", default-features = false, optional = true } # used to transform json_value to schema
 bytes = { version = "1.4", default-features = false, optional = true, features = ["std"] }
 # For Connectors
 ## bucket
@@ -93,8 +94,5 @@ default = [
 lto = true
 
 [package.metadata.docs.rs]
-# document all features
 all-features = true
-# defines the configuration attribute `docs_rs` to enable feature requirements
-# See https://stackoverflow.com/questions/61417452
 rustdoc-args = ["--cfg", "docs_rs"]

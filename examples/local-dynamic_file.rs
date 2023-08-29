@@ -27,21 +27,21 @@ async fn main() -> io::Result<()> {
             "type": "e",
             "connector":{
                 "type": "local",
-                "path": "./data/out/erase_test_{{ steps.file_ids.id }}.json"
+                "path": "./data/out/erase_test_{{ steps.file_ids.id }}.*"
             }
         },
         {
             "type": "reader",
             "connector":{
                 "type": "local",
-                "path": "./data/multi_lines.json"
+                "path": "./data/multi_lines.{{ metadata.mime_subtype }}"
             }
         },
         { 
             "type": "writer",
             "connector":{
                 "type": "local",
-                "path": "./data/out/erase_test_{{ steps.file_ids.id }}.json"
+                "path": "./data/out/erase_test_{{ steps.file_ids.id }}.{{ metadata.mime_subtype }}"
             }
         }
     ]

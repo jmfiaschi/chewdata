@@ -165,7 +165,7 @@ impl Step for Writer {
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(context_received) = receiver_stream.next().await {
             if !context_received
-                .data_result()
+                .input()
                 .is_type(self.data_type.as_ref())
             {
                 trace!("This step handle only this data type");
@@ -221,7 +221,7 @@ impl Step for Writer {
             }
 
             connector.set_parameters(context_received.to_value()?);
-            dataset.push(context_received.data_result());
+            dataset.push(context_received.input());
 
             if self.dataset_size <= dataset.len() && document.can_append() {
                 match connector.send(&*document, &dataset).await {
