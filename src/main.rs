@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     let steps: Vec<StepType> = match (args.get_one::<String>(ARG_JSON), args.get_one::<String>(ARG_FILE)) {
         (None, Some(file_path)) => match file_path.split('.').collect::<Vec<&str>>().last() {
             Some(v) => match *v {
-                    "json" => {
+                    "json"|"hjson" => {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
@@ -84,12 +84,12 @@ async fn main() -> Result<()> {
                     },
                     format => Err(Error::new(
                         ErrorKind::NotFound,
-                        format!("The format of the config file '{}' is not handle. Valid config file formats are [json, yaml].", format),
+                        format!("The format of the config file '{}' is not handle. Valid config file formats are [json, hjson, yaml].", format),
                     )),
             }
             None => Err(Error::new(
                 ErrorKind::NotFound,
-                "The format of the config file is not found. Valid config file formats are [json, yaml].",
+                "The format of the config file is not found. Valid config file formats are [json, hjson, yaml].",
             ))
         }
         (Some(json), _) => {
