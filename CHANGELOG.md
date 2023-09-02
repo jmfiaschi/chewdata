@@ -1,3 +1,10 @@
+## [1.17.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.17.0...v1.17.1-beta.1) (2023-09-02)
+
+
+### Bug Fixes
+
+* **main:** accept hjson file extension ([00d924a](https://github.com/jmfiaschi/chewdata/commit/00d924a96d126ffb1a33722be7c7fe810cfa8ebc))
+
 # [1.17.0](https://github.com/jmfiaschi/chewdata/compare/v1.16.0...v1.17.0) (2023-08-29)
 
 
