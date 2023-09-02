@@ -19,7 +19,6 @@
 //! | description   | desc    | Describe your step and give more visibility                                     | `null`        | String                                       |
 //! | exclude_paths | exclude | resource to exclude for the erase step                                          | `null`        | List of string                               |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                                 |
-//! | wait          | sleep   | Time in millisecond to wait before to fetch data result from the previous queue | `10`          | unsigned number                              |
 //! 
 //! ### Examples
 //! 
@@ -36,8 +35,7 @@
 //!         },
 //!         "exclude_paths": [
 //!             "file1.json"
-//!         ],
-//!         "wait: 10
+//!         ]
 //!     }
 //! ]
 //! ```
@@ -64,9 +62,6 @@ pub struct Eraser {
     pub data_type: String,
     #[serde(alias = "exclude")]
     pub exclude_paths: Vec<String>,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
-    #[serde(alias = "sleep")]
-    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
@@ -84,7 +79,6 @@ impl Default for Eraser {
             exclude_paths: Vec::default(),
             receiver: None,
             sender: None,
-            wait: 10,
         }
     }
 }
@@ -119,10 +113,6 @@ impl Step for Eraser {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
-    }
-    /// See [`Step::sleep`] for more details.
-    fn sleep(&self) -> u64 {
-        self.wait
     }
     #[instrument(name = "ereaser::exec")]
     async fn exec(&self) -> io::Result<()> {

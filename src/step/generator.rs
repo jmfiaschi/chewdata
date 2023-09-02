@@ -20,7 +20,6 @@
 //! | description  | desc  | Describ your step and give more visibility                                      | `null`        | String                           |
 //! | data_type    | data  | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                     |
 //! | dataset_size | batch | Stack size limit before to push data into the resource though the connector     | `1000`        | unsigned number                  |
-//! | wait         | sleep | Time in millisecond to wait before to fetch data result from the previous queue | `10`          | unsigned number                  |
 //! 
 //! ### Examples
 //!
@@ -32,7 +31,6 @@
 //!         "description": "My description of the step",
 //!         "data_type": "ok",
 //!         "dataset_size": 1000,
-//!         "wait: 10
 //!     },
 //!     {
 //!         "type": "transformer",
@@ -98,9 +96,6 @@ pub struct Generator {
     #[serde(alias = "batch")]
     #[serde(alias = "size")]
     pub dataset_size: usize,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
-    #[serde(alias = "sleep")]
-    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
@@ -117,7 +112,6 @@ impl Default for Generator {
             dataset_size: 1,
             receiver: None,
             sender: None,
-            wait: 10,
         }
     }
 }
@@ -152,10 +146,6 @@ impl Step for Generator {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
-    }
-    /// See [`Step::sleep`] for more details.
-    fn sleep(&self) -> u64 {
-        self.wait
     }
     #[instrument(name = "generator::exec")]
     async fn exec(&self) -> io::Result<()> {

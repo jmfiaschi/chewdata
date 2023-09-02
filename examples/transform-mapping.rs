@@ -30,7 +30,6 @@ async fn main() -> io::Result<()> {
         "alias": "transform",
         "description": "Create a new identifier 'new_id'",
         "data_type": "ok",
-        "wait": 100,
         "threads": 3,
         "actions": [
             {

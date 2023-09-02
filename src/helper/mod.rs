@@ -1,8 +1,7 @@
 use crate::step::{reader::Reader, Step};
-use async_channel::TryRecvError;
 use async_std::task;
 use serde_json::Value;
-use std::{collections::HashMap, io, time::Duration};
+use std::{collections::HashMap, io};
 
 pub mod json_pointer;
 pub mod mustache;
@@ -52,7 +51,6 @@ pub async fn referentials_reader_into_value(
     for (name, referential) in referentials {
         let (sender, receiver) = async_channel::unbounded();
         let mut values: Vec<Value> = Vec::new();
-        let sleep_time = referential.sleep();
 
         task::spawn(async move {
             let mut task_referential = referential.clone();
@@ -62,7 +60,7 @@ pub async fn referentials_reader_into_value(
         .await?;
 
         loop {
-            match receiver.try_recv() {
+            match receiver.recv().await {
                 Ok(context_received) => {
                     let value = context_received.input().to_value();
                     trace!(
@@ -72,16 +70,11 @@ pub async fn referentials_reader_into_value(
                     values.push(context_received.input().to_value());
                     continue;
                 }
-                Err(TryRecvError::Empty) => {
-                    trace!(
-                        sleep = sleep_time,
-                        "The pipe is empty. Tries to fetch referential data later"
+                Err(e) => {
+                    info!(
+                        error = format!("{:?}", e).as_str(),
+                        "The channel is disconnected.",
                     );
-                    task::sleep(Duration::from_millis(sleep_time)).await;
-                    continue;
-                }
-                Err(TryRecvError::Closed) => {
-                    trace!("The pipe is disconnected, no more referential value to handle");
                     break;
                 }
             };

@@ -20,7 +20,6 @@
 //! | name        | alias | Step name                                                                        | `null`        | Auto generate alphanumeric value             |
 //! | description | desc  | Describ your step and give more visibility                                      | `null`        | String                                       |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
-//! | wait        | sleep | Time in millisecond to wait before to fetch data result from the previous queue | `10`          | unsigned number                              |
 //!
 //! ### Examples
 //!
@@ -37,7 +36,6 @@
 //!             "type": "json"
 //!         },
 //!         "data_type": "ok",
-//!         "wait: 10
 //!     }
 //!     ...
 //! ]
@@ -69,9 +67,6 @@ pub struct Reader {
     pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
-    #[serde(alias = "sleep")]
-    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
@@ -89,7 +84,6 @@ impl Default for Reader {
             data_type: DataResult::OK.to_string(),
             receiver: None,
             sender: None,
-            wait: 10,
         }
     }
 }
@@ -124,10 +118,6 @@ impl Step for Reader {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
-    }
-    /// See [`Step::sleep`] for more details.
-    fn sleep(&self) -> u64 {
-        self.wait
     }
     #[instrument(name = "reader::exec")]
     async fn exec(&self) -> io::Result<()> {

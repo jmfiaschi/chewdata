@@ -27,7 +27,6 @@
 //! | input_name      | input   | Input name variable can be used in the pattern action                                                             | `input`       | String                                          |
 //! | output_name     | output  | Output name variable can be used in the pattern action                                                            | `output`      | String                                          |
 //! | error_separator | -       | Separator use to delimite two errors                                                                              | `\r\n`        | String                                          |
-//! | wait            | sleep   | Time in millisecond to wait before to fetch data result from the previous queue                                   | `10`          | unsigned number                                 |
 //! 
 //! ### Rule
 //! 
@@ -73,8 +72,7 @@
 //!         },
 //!         "input_name": "my_input",
 //!         "output_name": "my_output",
-//!         "error_separator": " & ",
-//!         "wait: 10
+//!         "error_separator": " & "
 //!     }
 //! ]
 //! ```
@@ -139,9 +137,6 @@ pub struct Validator {
     pub output_name: String,
     #[serde(alias = "separator")]
     pub error_separator: String,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
-    #[serde(alias = "sleep")]
-    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
@@ -164,7 +159,6 @@ impl Default for Validator {
             error_separator: "\r\n".to_string(),
             receiver: None,
             sender: None,
-            wait: 10,
         }
     }
 }
@@ -199,10 +193,6 @@ impl Step for Validator {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
-    }
-    /// See [`Step::sleep`] for more details.
-    fn sleep(&self) -> u64 {
-        self.wait
     }
     /// This step validate the values of a dataset.
     ///

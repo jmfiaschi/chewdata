@@ -23,7 +23,6 @@
 //! | actions       | -       | List of [`crate::updater::Action`]                                                                                | `null`        | See [`crate::updater::Action`]                           |
 //! | input_name    | input   | Input name variable can be used in the pattern action                                                             | `input`       | String                                          |
 //! | output_name   | output  | Output name variable can be used in the pattern action                                                            | `output`      | String                                          |
-//! | wait          | sleep   | Time in millisecond to wait before to fetch data result from the previous queue                                   | `10`          | unsigned number                                 |
 //!
 //! #### Action
 //!
@@ -80,8 +79,7 @@
 //!             }
 //!         ],
 //!         "input_name": "my_input",
-//!         "output_name": "my_output",
-//!         "wait: 10
+//!         "output_name": "my_output"
 //!     }
 //!     ...
 //! ]
@@ -120,9 +118,6 @@ pub struct Transformer {
     pub input_name: String,
     #[serde(alias = "output")]
     pub output_name: String,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
-    #[serde(alias = "sleep")]
-    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
@@ -144,7 +139,6 @@ impl Default for Transformer {
             output_name: "output".to_string(),
             receiver: None,
             sender: None,
-            wait: 10,
         }
     }
 }
@@ -180,10 +174,6 @@ impl Step for Transformer {
     /// See [`Step::sender`] for more details.
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
-    }
-    /// See [`Step::sleep`] for more details.
-    fn sleep(&self) -> u64 {
-        self.wait
     }
     #[instrument(name = "transformer::exec")]
     async fn exec(&self) -> io::Result<()> {

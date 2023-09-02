@@ -6,16 +6,16 @@ pub mod transformer;
 pub mod validator;
 pub mod writer;
 
-use crate::{DataResult, Context};
-use async_channel::{Receiver, Sender, TryRecvError, TrySendError};
-use async_std::{stream, task};
+use crate::{Context, DataResult};
+use async_channel::{Receiver, Sender};
+use async_std::stream;
 use async_stream::stream;
 use async_trait::async_trait;
 use eraser::Eraser;
 use futures::Stream;
 use reader::Reader;
 use serde::Deserialize;
-use std::{io, pin::Pin, time::Duration};
+use std::{io, pin::Pin};
 use transformer::Transformer;
 use validator::Validator;
 use writer::Writer;
@@ -93,10 +93,6 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     fn name(&self) -> String {
         "default".to_string()
     }
-    // It the pipe doesn't contain any data to fetch or no receiver is ready, the step sleep before to retry without blocking the thread.
-    fn sleep(&self) -> u64 {
-        10
-    }
     fn set_receiver(&mut self, receiver: Receiver<Context>);
     fn receiver(&self) -> Option<&Receiver<Context>>;
     fn set_sender(&mut self, sender: Sender<Context>);
@@ -110,23 +106,30 @@ async fn send<'step>(step: &'step dyn Step, context: &'step Context) -> io::Resu
         None => return Ok(()),
     };
 
-    while let Err(e) = sender.try_send(context.clone()) {
-        match e {
-            TrySendError::Full(_) => {
-                trace!(step = format!("{:?}", step).as_str(), sleep = step.sleep(), "The step can't send any data, the pipe is full. It tries later");
-                task::sleep(Duration::from_millis(step.sleep())).await;
-            }
-            TrySendError::Closed(_) => return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                format!("The step '{}' has been disconnected from the pipe. the step can't send any data", step.name()),
-            )),
+    match sender.send(context.clone()).await {
+        Ok(_) => {
+            trace!(
+                step = format!("{:?}", step).as_str(),
+                "Context sended into the channel"
+            )
+        }
+        Err(e) => {
+            info!(
+                step = format!("{:?}", step).as_str(),
+                error = format!("{:?}", e).as_str(),
+                "The channel is disconnected. the step can't send any context.",
+            );
+
+            return Err(io::Error::new(
+            io::ErrorKind::Interrupted,
+            format!("The step has been disconnected from the channel. the step can't send any context."),
+            ));
         }
     }
 
-    trace!("Step context sended into the pipe");
     Ok(())
 }
-// Receive a context through a step and a pipe
+// Receive a context through a step and a channel
 // It return a stream of context
 async fn receive<'step>(
     step: &'step dyn Step,
@@ -135,23 +138,27 @@ async fn receive<'step>(
         Some(receiver) => receiver,
         None => return Ok(Box::pin(stream::empty::<Context>())),
     };
-    let sleep_time = step.sleep();
+
     let stream = Box::pin(stream! {
         loop {
-            match receiver.try_recv() {
+            match receiver.recv().await {
                 Ok(context_received) => {
-                    trace!(step = format!("{:?}", step).as_str(), context = format!("{:?}", context_received).as_str(), "A new step context found in the pipe");
+                    trace!(
+                        step = format!("{:?}", step).as_str(),
+                        context = format!("{:?}", context_received).as_str(),
+                        "A new context received from the channel."
+                    );
+
                     yield context_received.clone();
                 },
-                Err(TryRecvError::Empty) => {
-                    trace!(step = format!("{:?}", step).as_str(), sleep = sleep_time, "The pipe is empty. The step tries later");
-                    task::sleep(Duration::from_millis(sleep_time)).await;
-                    continue;
-                },
-                Err(TryRecvError::Closed) => {
-                    trace!(step = format!("{:?}", step).as_str(), "The pipe is disconnected, no more step context to handle");
+                Err(e) => {
+                    info!(
+                        step = format!("{:?}", step).as_str(),
+                        error = format!("{:?}", e).as_str(),
+                        "The channel is disconnected. the step can't receive any context.",
+                    );
                     break;
-                },
+                }
             };
         }
     });
