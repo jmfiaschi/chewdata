@@ -218,7 +218,7 @@ echo $task_A | VAR_B=$task_B chewdata '[{"type":"r"},{"type":"transformer","acti
 [{"result":200}]
 ```
 
-# How it works ?
+## How it works ?
 
 This program execute `steps` from a configuration file that you need to inject in `Json` or `Yaml` format :
 
@@ -226,10 +226,27 @@ Example:
 
 ```json
 [
- {"type": "erase"},
- {"type": "reader"},
- {"type": "transformer"},
- {"type": "writer"},
+ {
+    "type": "erase",
+    "connector": {
+        "type": "local",
+        "path": "./my_file.out.csv"
+    }
+ },
+ {
+    "type": "reader",
+    "connector": {
+        "type": "local",
+        "path": "./my_file.csv"
+    }
+ },
+ {
+    "type": "writer",
+    "connector": {
+        "type": "local",
+        "path": "./my_file.out.csv"
+    }
+ },
  ...
 ]
 ```
@@ -242,6 +259,15 @@ Step1(Context) -> Q1[Contexts] -> StepN(Context) -> QN[Contexts] ->  StepN+1(Con
 Each step runs asynchronously. Each queue contains a limit that can be customized in the step's configuration.
 
 Check the module [`step`] to see the list of steps you can use and their configuration. Check the folder [/examples](./examples) to have some examples how to use and build a configuration file.  
+
+### List of steps with the configurations
+
+* [reader](https://docs.rs/chewdata/latest/chewdata/step/reader/index.html)
+* [writer](https://docs.rs/chewdata/latest/chewdata/step/writer/index.html)
+* [eraser](https://docs.rs/chewdata/latest/chewdata/step/eraser/index.html)
+* [generator](https://docs.rs/chewdata/latest/chewdata/step/generator/index.html)
+* [transformer](https://docs.rs/chewdata/latest/chewdata/step/transformer/index.html)
+* [validator](https://docs.rs/chewdata/latest/chewdata/step/validator/index.html)
 
 ## How to contribute ?
 
