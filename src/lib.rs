@@ -97,19 +97,19 @@ pub struct Metadata {
 
 #[allow(dead_code)]
 impl Metadata {
-    fn merge(self, metadata: Metadata) -> Metadata {
+    fn merge(self, metadata: &Metadata) -> Metadata {
         Metadata {
-            has_headers: metadata.has_headers.or(self.has_headers),
-            delimiter: metadata.delimiter.or(self.delimiter),
-            quote: metadata.quote.or(self.quote),
-            escape: metadata.escape.or(self.escape),
-            comment: metadata.comment.or(self.comment),
-            terminator: metadata.terminator.or(self.terminator),
-            mime_type: metadata.mime_type.or(self.mime_type),
-            mime_subtype: metadata.mime_subtype.or(self.mime_subtype),
-            charset: metadata.charset.or(self.charset),
-            compression: metadata.compression.or(self.compression),
-            language: metadata.language.or(self.language),
+            has_headers: metadata.has_headers.clone().or(self.has_headers),
+            delimiter: metadata.delimiter.clone().or(self.delimiter),
+            quote: metadata.quote.clone().or(self.quote),
+            escape: metadata.escape.clone().or(self.escape),
+            comment: metadata.comment.clone().or(self.comment),
+            terminator: metadata.terminator.clone().or(self.terminator),
+            mime_type: metadata.mime_type.clone().or(self.mime_type),
+            mime_subtype: metadata.mime_subtype.clone().or(self.mime_subtype),
+            charset: metadata.charset.clone().or(self.charset),
+            compression: metadata.compression.clone().or(self.compression),
+            language: metadata.language.clone().or(self.language),
         }
     }
     fn content_type(&self) -> String {
@@ -240,13 +240,13 @@ impl DataResult {
                     Value::Array(_) => json_value
                         .merge_in(
                             format!("/*/{}", DataResult::FIELD_ERROR).as_ref(),
-                            Value::String(format!("{}", error)),
+                            &Value::String(format!("{}", error)),
                         )
                         .unwrap(),
                     _ => json_value
                         .merge_in(
                             format!("/{}", DataResult::FIELD_ERROR).as_ref(),
-                            Value::String(format!("{}", error)),
+                            &Value::String(format!("{}", error)),
                         )
                         .unwrap(),
                 }
@@ -266,10 +266,10 @@ impl DataResult {
 
         match self {
             DataResult::Ok(value) => {
-                value.merge(new_json_value);
+                value.merge(&new_json_value);
             }
             DataResult::Err((value, _e)) => {
-                value.merge(new_json_value);
+                value.merge(&new_json_value);
             }
         };
     }
@@ -296,7 +296,7 @@ impl Context {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        self.steps.merge(Value::Object(map));
+        self.steps.merge(&Value::Object(map));
         self.input = data_result;
 
         Ok(())
@@ -309,8 +309,8 @@ impl Context {
     }
     pub fn to_value(&self) -> Result<Value> {
         let mut value = Value::default();
-        value.merge_in("/input", self.input.to_value())?;
-        value.merge_in("/steps", self.steps.clone())?;
+        value.merge_in("/input", &self.input.to_value())?;
+        value.merge_in("/steps", &self.steps)?;
         Ok(value)
     }
 }

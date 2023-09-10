@@ -105,11 +105,11 @@ impl Updater for Tera {
 
             match action.action_type {
                 ActionType::Merge => {
-                    json_value.merge_in(&json_pointer, field_new_value)?;
+                    json_value.merge_in(&json_pointer, &field_new_value)?;
                 }
                 ActionType::Replace => {
-                    json_value.merge_in(&json_pointer, Value::Null)?;
-                    json_value.merge_in(&json_pointer, field_new_value)?;
+                    json_value.merge_in(&json_pointer, &Value::Null)?;
+                    json_value.merge_in(&json_pointer, &field_new_value)?;
                 }
                 ActionType::Remove => {
                     json_value.remove(&json_pointer)?;

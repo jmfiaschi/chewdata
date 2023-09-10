@@ -643,7 +643,7 @@ mod tests {
         let data_1_id = data_1.to_value().search("/_id").unwrap().unwrap();
 
         let mut result3: Value = serde_json::from_str(r#"{"column1":"value3"}"#).unwrap();
-        result3.merge_in("/_id", data_1_id).unwrap();
+        result3.merge_in("/_id", &data_1_id).unwrap();
         let expected_result3 = DataResult::Ok(result3);
         let dataset = vec![expected_result3.clone()];
         connector.send(&document, &dataset).await.unwrap();

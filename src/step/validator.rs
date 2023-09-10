@@ -322,8 +322,8 @@ impl Step for Validator {
                         }
 
                         let mut params = Value::default();
-                        params.merge_in(&format!("/{}", self.input_name.clone()), record.clone())?;
-                        params.merge_in("/rule/name", Value::String(rule_name))?;
+                        params.merge_in(&format!("/{}", self.input_name.clone()), &record)?;
+                        params.merge_in("/rule/name", &Value::String(rule_name))?;
 
                         error.replace_mustache(params);
 

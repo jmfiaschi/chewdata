@@ -187,8 +187,8 @@ impl Paginator for Offset {
             while has_next {
                 let mut new_connector = connector.clone();
                 let mut new_parameters = connector.parameters.clone();
-                new_parameters.merge_in("/paginator/limit", Value::String(limit.to_string()))?;
-                new_parameters.merge_in("/paginator/skip", Value::String(skip.to_string()))?;
+                new_parameters.merge_in("/paginator/limit", &Value::String(limit.to_string()))?;
+                new_parameters.merge_in("/paginator/skip", &Value::String(skip.to_string()))?;
 
                 new_connector.set_parameters(new_parameters);
 

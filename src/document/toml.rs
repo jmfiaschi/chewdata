@@ -61,7 +61,7 @@ impl Default for Toml {
 impl Document for Toml {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Toml::default().metadata.merge(self.metadata.clone())
+        Toml::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::read`] for more details.
     ///

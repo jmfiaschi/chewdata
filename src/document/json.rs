@@ -90,7 +90,7 @@ impl Default for Json {
 impl Document for Json {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Json::default().metadata.merge(self.metadata.clone())
+        Json::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::set_entry_path`] for more details.
     fn set_entry_path(&mut self, entry_path: String) {

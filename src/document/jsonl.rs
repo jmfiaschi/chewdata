@@ -88,7 +88,7 @@ impl Default for Jsonl {
 impl Document for Jsonl {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Jsonl::default().metadata.merge(self.metadata.clone())
+        Jsonl::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::set_entry_path`] for more details.
     fn set_entry_path(&mut self, entry_path: String) {

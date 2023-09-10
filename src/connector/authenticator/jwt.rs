@@ -226,7 +226,7 @@ impl Jwt {
         }
 
         let mut connector = connector_type.boxed_inner();
-        connector.set_metadata(connector.metadata().merge(self.document.metadata()));
+        connector.set_metadata(connector.metadata().merge(&self.document.metadata()));
         connector.set_parameters(payload);
 
         let mut datastream = match connector.fetch(&*self.document).await? {

@@ -123,7 +123,7 @@ impl Step for Reader {
     async fn exec(&self) -> io::Result<()> {
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.ref_inner();
-        connector.set_metadata(connector.metadata().merge(document.metadata()));
+        connector.set_metadata(connector.metadata().merge(&document.metadata()));
 
         // Used to check if one data has been received.
         let mut has_data_been_received = false;

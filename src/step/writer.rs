@@ -146,7 +146,7 @@ impl Step for Writer {
         let document = self.document_type.clone().boxed_inner();
         let mut dataset = Vec::default();
 
-        connector.set_metadata(connector.metadata().merge(document.metadata()));
+        connector.set_metadata(connector.metadata().merge(&document.metadata()));
 
         // Use to init the connector during the loop
         let default_connector = connector.clone();

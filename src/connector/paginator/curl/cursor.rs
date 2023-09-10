@@ -155,11 +155,11 @@ impl Paginator for Cursor {
                 let mut new_parameters = connector.parameters.clone();
 
                 if let Some(next_token) = next_token_opt {
-                    new_parameters.merge_in("/paginator/next", Value::String(next_token))?;
+                    new_parameters.merge_in("/paginator/next", &Value::String(next_token))?;
                 }
 
                 new_parameters
-                    .merge_in("/paginator/limit", Value::String(limit.to_string()))?;
+                    .merge_in("/paginator/limit", &Value::String(limit.to_string()))?;
                 new_connector.set_parameters(new_parameters);
 
                 document.set_entry_path(entry_path.clone());

@@ -62,7 +62,7 @@ impl Default for Text {
 impl Document for Text {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Text::default().metadata.merge(self.metadata.clone())
+        Text::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::read`] for more details.
     ///

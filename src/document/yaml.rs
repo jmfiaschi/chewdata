@@ -66,7 +66,7 @@ impl Default for Yaml {
 impl Document for Yaml {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Yaml::default().metadata.merge(self.metadata.clone())
+        Yaml::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::read`] for more details.
     ///

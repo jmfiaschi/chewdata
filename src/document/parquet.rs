@@ -143,7 +143,7 @@ impl Default for ParquetOptions {
 impl Document for Parquet {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Parquet::default().metadata.merge(self.metadata.clone())
+        Parquet::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::set_entry_path`] for more details.
     fn set_entry_path(&mut self, entry_path: String) {
@@ -254,7 +254,7 @@ impl Document for Parquet {
 
                 // Override the guessed schema by the schema in parameter.
                 let mut schema_merged = schema_value_params.clone();
-                schema_merged.merge(schema_value_from_data);
+                schema_merged.merge(&schema_value_from_data);
                 schema_from_json(&schema_merged)
             }
             (Some(schema_value_params), _) => schema_from_json(schema_value_params),

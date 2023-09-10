@@ -42,18 +42,18 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let new_value = match (with, into, value) {
         (None, None, Value::Array(values)) => {
             for value in values {
-                new_value.merge(value.clone());
+                new_value.merge(&value);
             }
             new_value
         }
         (Some(merge_with), None, value) => {
-            new_value.merge(value.clone());
-            new_value.merge(merge_with);
+            new_value.merge(&value);
+            new_value.merge(&merge_with);
             new_value
         }
         (Some(merge_with), Some(path), value) => {
-            new_value.merge(value.clone());
-            new_value.merge_in(path.as_str(), merge_with)?;
+            new_value.merge(&value);
+            new_value.merge_in(path.as_str(), &merge_with)?;
             new_value
         }
         (None, Some(_), _value) => {
@@ -83,7 +83,7 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 /// use chewdata::updater::tera_helpers::filters::object::search;
 ///
 /// let mut obj = Value::default();
-/// obj.merge_in("/field_1/field_2", Value::String("value".to_string()));
+/// obj.merge_in("/field_1/field_2", &Value::String("value".to_string()));
 ///
 /// let mut args = HashMap::new();
 /// args.insert("path".to_string(), Value::String("/field_1".to_string()));
@@ -278,10 +278,10 @@ mod tests {
     #[test]
     fn merge_objects() {
         let mut obj = Value::default();
-        obj.merge_in("/field", Value::String("value".to_string()))
+        obj.merge_in("/field", &Value::String("value".to_string()))
             .unwrap();
         let mut with = Value::default();
-        with.merge_in("/other_field", Value::String("other value".to_string()))
+        with.merge_in("/other_field", &Value::String("other value".to_string()))
             .unwrap();
         let mut args = HashMap::new();
         args.insert("with".to_string(), with.clone());
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn merge_objects_with_path() {
         let mut obj = Value::default();
-        obj.merge_in("/field", Value::String("value".to_string()))
+        obj.merge_in("/field", &Value::String("value".to_string()))
             .unwrap();
         let with = Value::String("other value".to_string());
         let mut args = HashMap::new();
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn search() {
         let mut obj = Value::default();
-        obj.merge_in("/field_1/field_2", Value::String("value".to_string()))
+        obj.merge_in("/field_1/field_2", &Value::String("value".to_string()))
             .unwrap();
         let mut args = HashMap::new();
         args.insert("path".to_string(), Value::String("/field_1".to_string()));

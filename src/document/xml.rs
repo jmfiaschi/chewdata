@@ -161,7 +161,7 @@ impl Document for Xml {
     }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Xml::default().metadata.merge(self.metadata.clone())
+        Xml::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::read`] for more details.
     ///
@@ -271,7 +271,7 @@ impl Document for Xml {
         )
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-        value.merge_in("/", values)?;
+        value.merge_in("/", &values)?;
 
         let mut xml_with_root = self.convert_value_to_xml(&value)?;
         xml_with_root = xml_with_root.replace('\n', "\\n");
@@ -309,7 +309,7 @@ impl Document for Xml {
         let mut value = Value::default();
         value.merge_in(
             &self.entry_path_without_root(),
-            match self.is_pretty {
+            &match self.is_pretty {
                 true => Value::String("\n".to_string()),
                 false => Value::default(),
             },
@@ -345,7 +345,7 @@ impl Document for Xml {
         let mut value = Value::default();
         value.merge_in(
             &self.entry_path_without_root(),
-            match self.is_pretty {
+            &match self.is_pretty {
                 true => Value::String("\n".to_string()),
                 false => Value::default(),
             },

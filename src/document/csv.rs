@@ -182,7 +182,7 @@ impl Csv {
                 *value.as_bytes().to_vec().first().unwrap(),
             )),
         });
-        match self.quote_style.clone().to_uppercase().as_ref() {
+        match self.quote_style.to_uppercase().as_ref() {
             "ALWAYS" => builder.quote_style(csv::QuoteStyle::Always),
             "NEVER" => builder.quote_style(csv::QuoteStyle::Never),
             "NECESSARY" => builder.quote_style(csv::QuoteStyle::Necessary),
@@ -244,7 +244,7 @@ impl Csv {
 impl Document for Csv {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Csv::default().metadata.merge(self.metadata.clone())
+        Csv::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::read`] for more details.
     ///
@@ -336,7 +336,7 @@ impl Document for Csv {
 
         for data in dataset {
             let record = data.to_value();
-            match record.clone() {
+            match &record {
                 Value::Object(object) => {
                     let mut values = Vec::<Value>::new();
 

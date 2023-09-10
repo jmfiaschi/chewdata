@@ -126,7 +126,7 @@ impl Connector for Local {
         match self.is_variable() {
             true => {
                 metadata.insert("metadata".to_string(), self.metadata().into());
-                params.merge(Value::Object(metadata));
+                params.merge(&Value::Object(metadata));
 
                 path.replace_mustache(params.clone());
                 path
@@ -228,9 +228,9 @@ impl Connector for Local {
         let metadata = Value::Object(metadata_kv);
 
         let mut new_parameters = new_parameters;
-        new_parameters.merge(metadata.clone());
+        new_parameters.merge(&metadata);
         let mut old_parameters = self.parameters.clone();
-        old_parameters.merge(metadata);
+        old_parameters.merge(&metadata);
 
         let mut previous_path = self.path.clone();
         previous_path.replace_mustache(old_parameters);
