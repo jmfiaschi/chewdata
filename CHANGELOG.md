@@ -1,3 +1,10 @@
+# [1.18.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.17.1-beta.1...v1.18.0-beta.1) (2023-09-10)
+
+
+### Features
+
+* **perf:** remove useless clone ([c8cdf9c](https://github.com/jmfiaschi/chewdata/commit/c8cdf9ceffa633629c99c4dde1c5a82ffb0fa4b8))
+
 ## [1.17.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.17.0...v1.17.1-beta.1) (2023-09-02)
 
 
