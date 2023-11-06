@@ -523,10 +523,6 @@ impl LocalPaginator {
 
 #[async_trait]
 impl Paginator for LocalPaginator {
-    /// See [`Paginator::count`] for more details.
-    async fn count(&mut self) -> Result<Option<usize>> {
-        Ok(Some(self.paths.clone().count()))
-    }
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples

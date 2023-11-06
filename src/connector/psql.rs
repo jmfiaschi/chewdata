@@ -723,56 +723,6 @@ impl Offset {
 
 #[async_trait]
 impl Paginator for Offset {
-    /// See [`Paginator::count`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{psql::{Psql, PaginatorType, Offset, CounterType, Scan}, Connector};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Psql::default();
-    ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Offset(Offset::default());
-    ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.count().await?.is_some());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn count(&mut self) -> Result<Option<usize>> {
-        let connector = match self.connector {
-            Some(ref mut connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't count the number of element in the collection without a connector",
-            )),
-        }?;
-
-        let mut counter_type = None;
-        if connector.counter_type.is_none() {
-            counter_type = Some(CounterType::Scan(Scan::default()));
-        }
-
-        if let Some(counter_type) = counter_type {
-            self.count = counter_type.count(*connector.clone(), None).await?;
-
-            info!(
-                size = self.count,
-                "The connector's counter count elements in the collection with success"
-            );
-            return Ok(self.count);
-        }
-
-        trace!(size = self.count, "The connector's counter not exist or can't count the number of elements in the collection");
-        Ok(None)
-    }
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples
@@ -804,7 +754,7 @@ impl Paginator for Offset {
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let mut paginator = self.clone();
+        let paginator = self.clone();
         let connector = match paginator.connector.clone() {
             Some(connector) => Ok(connector),
             None => Err(Error::new(
@@ -822,7 +772,10 @@ impl Paginator for Offset {
             .unwrap_or_else(|| "SELECT * FROM {{ collection }}".to_string());
         let count_opt = match paginator.count {
             Some(count) => Some(count),
-            None => paginator.count().await?,
+            None => match connector.counter_type.clone() {
+                Some(counter_type) => counter_type.count(*connector.clone(), None).await?,
+                None => None
+            },
         };
 
         let stream = Box::pin(stream! {
@@ -1126,17 +1079,7 @@ mod tests {
         assert!(counter.count(connector).await.unwrap().is_some());
     }
     #[async_std::test]
-    async fn paginator_offset_count() {
-        let mut connector = Psql::default();
-        connector.endpoint = "postgres://admin:admin@localhost".into();
-        connector.database = "postgres".into();
-        connector.collection = "public.read".into();
-        connector.paginator_type = PaginatorType::Offset(Offset::default());
-        let mut paginator = connector.paginator().await.unwrap();
-        assert!(paginator.count().await.unwrap().is_some());
-    }
-    #[async_std::test]
-    async fn paginator_offset_count_with_skip_and_limit() {
+    async fn paginator_offset_stream_with_skip_and_limit() {
         let document = Json::default();
 
         let mut connector = Psql::default();

@@ -78,30 +78,6 @@ impl Offset {
 
 #[async_trait]
 impl Paginator for Offset {
-    /// See [`Paginator::count`] for more details.
-    #[instrument(name = "offset_paginator::count")]
-    async fn count(&mut self) -> Result<Option<usize>> {
-        let connector = match self.connector {
-            Some(ref mut connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator cannot count the number of elements in the resource without a connector.",
-            )),
-        }?;
-
-        if let Some(counter_type) = connector.counter_type.clone() {
-            self.count = counter_type.count(*connector.clone(), None).await?;
-
-            info!(
-                size = self.count,
-                "The counter of the connector successfully counts the elements in the resource."
-            );
-            return Ok(self.count);
-        }
-
-        trace!(size = self.count, "The counter of the connector does not exist or is unable to count the number of elements in the resource.");
-        Ok(None)
-    }
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples
@@ -141,7 +117,7 @@ impl Paginator for Offset {
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let mut paginator = self.clone();
+        let paginator = self.clone();
         let connector = match self.connector.clone() {
             Some(connector) => Ok(connector),
             None => Err(Error::new(
@@ -156,7 +132,10 @@ impl Paginator for Offset {
 
         let count_opt = match paginator.count {
             Some(count) => Some(count),
-            None => paginator.count().await?,
+            None => match connector.counter_type.clone() {
+                Some(counter_type) => counter_type.count(*connector.clone(), None).await?,
+                None => None
+            },
         };
 
         let stream = Box::pin(stream! {

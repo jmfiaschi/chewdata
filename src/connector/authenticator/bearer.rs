@@ -123,7 +123,7 @@ impl Authenticator for Bearer {
     /// }
     /// ```
     async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)> {
-        if let "" = self.token.as_ref() {
+        if self.token.is_empty() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "Bearer authentification require a token.",

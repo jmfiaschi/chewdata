@@ -19,10 +19,6 @@ impl Once {
 
 #[async_trait]
 impl Paginator for Once {
-    /// See [`Paginator::count`] for more details.
-    async fn count(&mut self) -> Result<Option<usize>> {
-        Ok(None)
-    }
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples

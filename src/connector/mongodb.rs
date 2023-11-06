@@ -529,7 +529,6 @@ impl Metadata {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connector::paginator::mongodb::offset::Offset;
     use crate::document::json::Json;
     use crate::DataResult;
     use async_std::prelude::StreamExt;
@@ -712,15 +711,5 @@ mod tests {
         connector.collection = "startup_log".into();
         let counter = Metadata::default();
         assert_eq!(Some(0), counter.count(connector).await.unwrap());
-    }
-    #[async_std::test]
-    async fn paginator_offset_count() {
-        let mut connector = Mongodb::default();
-        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-        connector.database = "local".into();
-        connector.collection = "startup_log".into();
-        connector.paginator_type = PaginatorType::Offset(Offset::default());
-        let mut paginator = connector.paginator().await.unwrap();
-        assert!(paginator.count().await.unwrap().is_some());
     }
 }

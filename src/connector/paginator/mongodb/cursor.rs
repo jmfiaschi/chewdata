@@ -75,10 +75,6 @@ impl Cursor {
 
 #[async_trait]
 impl Paginator for Cursor {
-    /// See [`Paginator::count`] for more details.
-    async fn count(&mut self) -> Result<Option<usize>> {
-        Ok(None)
-    }
     /// See [`Paginator::stream`] for more details.
     ///
     /// # Examples
