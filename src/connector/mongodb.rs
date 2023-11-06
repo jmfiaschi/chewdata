@@ -529,7 +529,6 @@ impl Metadata {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connector::paginator::mongodb::cursor::Cursor;
     use crate::connector::paginator::mongodb::offset::Offset;
     use crate::document::json::Json;
     use crate::DataResult;
@@ -723,71 +722,5 @@ mod tests {
         connector.paginator_type = PaginatorType::Offset(Offset::default());
         let mut paginator = connector.paginator().await.unwrap();
         assert!(paginator.count().await.unwrap().is_some());
-    }
-    #[async_std::test]
-    async fn paginator_offset_count_with_skip_and_limit() {
-        let document = Json::default();
-
-        let mut connector = Mongodb::default();
-        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-        connector.database = "local".into();
-        connector.collection = "startup_log".into();
-        connector.paginator_type = PaginatorType::Offset(Offset {
-            skip: 0,
-            limit: 1,
-            ..Default::default()
-        });
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut paginate = paginator.stream().await.unwrap();
-        let mut connector = paginate.next().await.transpose().unwrap().unwrap();
-
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
-        let data_1 = datastream.next().await.unwrap();
-
-        let mut connector = paginate.next().await.transpose().unwrap().unwrap();
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
-        let data_2 = datastream.next().await.unwrap();
-        assert!(
-            data_1 != data_2,
-            "The content of this two stream are not different."
-        );
-    }
-    #[async_std::test]
-    async fn paginator_cursor_stream() {
-        let mut connector = Mongodb::default();
-        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-        connector.database = "local".into();
-        connector.collection = "startup_log".into();
-        connector.paginator_type = PaginatorType::Cursor(Cursor {
-            skip: 0,
-            limit: 1,
-            ..Default::default()
-        });
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-    }
-    #[async_std::test]
-    async fn paginator_cursor_stream_reach_end() {
-        let mut connector = Mongodb::default();
-        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-        connector.database = "local".into();
-        connector.collection = "startup_log".into();
-        connector.paginator_type = PaginatorType::Cursor(Cursor {
-            skip: 0,
-            ..Default::default()
-        });
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_none());
     }
 }

@@ -61,6 +61,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io;
+use std::fmt::Write;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -319,8 +320,10 @@ impl Document for Xml {
         let header: String = xml_with_entry_path
             .split('<')
             .filter(|node| !node.contains('/') && !node.is_empty())
-            .map(|node| format!("<{}", node))
-            .collect();
+            .fold(String::new(), |mut output, b| {
+                let _ = write!(output, "<{}", b);
+                output
+            });
 
         Ok(header.as_bytes().to_vec())
     }
@@ -355,8 +358,10 @@ impl Document for Xml {
         let footer: String = xml_with_entry_path
             .split('>')
             .filter(|node| node.contains("</") && !node.is_empty())
-            .map(|node| format!("{}>", node))
-            .collect();
+            .fold(String::new(), |mut output, b| {
+                let _ = write!(output, "{}>", b);
+                output
+            });
 
         Ok(footer.as_bytes().to_vec())
     }

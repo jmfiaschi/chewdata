@@ -80,30 +80,6 @@ impl Offset {
 #[async_trait]
 impl Paginator for Offset {
     /// See [`Paginator::count`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{mongodb::{Mongodb, CounterType, Metadata}, Connector};
-    /// use chewdata::connector::paginator::mongodb::offset::Offset;
-    /// use chewdata::connector::paginator::mongodb::PaginatorType;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Mongodb::default();
-    ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Offset(Offset::default());
-    ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.count().await?.is_some());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
     #[instrument(name = "offset_paginator::count")]
     async fn count(&mut self) -> Result<Option<usize>> {
         let connector = match self.connector {
@@ -136,10 +112,10 @@ impl Paginator for Offset {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use chewdata::connector::{mongodb::Mongodb, Connector};
     /// use chewdata::connector::paginator::mongodb::offset::Offset;
-    /// use chewdata::connector::paginator::mongodb::PaginatorType;
+    /// use crate::chewdata::connector::paginator::Paginator;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
@@ -149,12 +125,13 @@ impl Paginator for Offset {
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Offset(Offset {
+    ///     let paginator = Offset {
     ///         skip: 0,
     ///         limit: 1,
+    ///         connector: Some(Box::new(connector)),
     ///         ..Default::default()
-    ///     });
-    ///     let mut stream = connector.paginator().await?.stream().await?;
+    ///     };
+    ///     let mut stream = paginator.stream().await?;
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
@@ -210,5 +187,46 @@ impl Paginator for Offset {
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&self) -> bool {
         self.count.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{connector::paginator::Paginator, document::json::Json};
+    use futures::StreamExt;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn stream() {
+        let document = Json::default();
+
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+
+        let paginator = Offset {
+            skip: 0,
+            limit: 1,
+            connector: Some(Box::new(connector)),
+            ..Default::default()
+        };
+
+        assert!(!paginator.is_parallelizable());
+
+        let mut stream = paginator.stream().await.unwrap();
+        let mut connector = stream.next().await.transpose().unwrap().unwrap();
+
+        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
+        let data_1 = datastream.next().await.unwrap();
+
+        let mut connector = stream.next().await.transpose().unwrap().unwrap();
+        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
+        let data_2 = datastream.next().await.unwrap();
+        assert!(
+            data_1 != data_2,
+            "The content of this two stream are not different."
+        );
     }
 }

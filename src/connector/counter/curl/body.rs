@@ -91,7 +91,7 @@ impl Body {
     ///     connector.path = "/anything?count=10".to_string();
     ///
     ///     let mut counter = Body::default();
-    ///     counter.entry_path = "/args/count".to_string();
+    ///     counter.entry_path = "/args/not_found".to_string();
     ///     assert_eq!(Some(10), counter.count(connector, Box::new(Json::default())).await?);
     ///
     ///     Ok(())
@@ -144,5 +144,48 @@ impl Body {
             "The counter counts the elements in the resource successfully."
         );
         Ok(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use http_types::Method;
+
+    use crate::document::json::Json;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn count_return_value() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Post;
+        connector.path = "/anything?count=10".to_string();
+        let mut counter = Body::default();
+        counter.entry_path = "/args/count".to_string();
+        assert!(
+            Some(0)
+                < counter
+                    .count(connector, Box::new(Json::default()))
+                    .await
+                    .unwrap(),
+            "Counter count() must return a value upper than 0."
+        );
+    }
+    #[async_std::test]
+    async fn count_not_return_value() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Post;
+        connector.path = "/anything?count=10".to_string();
+        let mut counter = Body::default();
+        counter.entry_path = "/args/not_found".to_string();
+        assert_eq!(
+            None,
+            counter
+                .count(connector, Box::new(Json::default()))
+                .await
+                .unwrap()
+        );
     }
 }

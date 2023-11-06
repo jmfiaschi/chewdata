@@ -276,7 +276,7 @@ impl JsonBuilder {
             stack,
         )?;
 
-        if let Some(mut last_node) = stack.last_mut() {
+        if let Some(last_node) = stack.last_mut() {
             last_node.text.literal = true;
         }
         Ok(())

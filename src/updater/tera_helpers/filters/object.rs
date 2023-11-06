@@ -42,17 +42,17 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let new_value = match (with, into, value) {
         (None, None, Value::Array(values)) => {
             for value in values {
-                new_value.merge(&value);
+                new_value.merge(value);
             }
             new_value
         }
         (Some(merge_with), None, value) => {
-            new_value.merge(&value);
+            new_value.merge(value);
             new_value.merge(&merge_with);
             new_value
         }
         (Some(merge_with), Some(path), value) => {
-            new_value.merge(&value);
+            new_value.merge(value);
             new_value.merge_in(path.as_str(), &merge_with)?;
             new_value
         }

@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        deser_hjson::from_str(&env::Vars::apply(buf).as_str())
+                        deser_hjson::from_str(env::Vars::apply(buf).as_str())
                             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
                     },
                     "yaml"|"yml" => {

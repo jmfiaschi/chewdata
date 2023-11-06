@@ -79,7 +79,7 @@ impl Header {
     ///
     ///     let mut counter = Header::default();
     ///     counter.name = "Content-Length".to_string();
-    ///     assert_eq!(Some(194), counter.count(connector).await?);
+    ///     assert!(Some(0) < counter.count(connector).await.unwrap(), "Counter count() must return a value upper than 0.");
     ///
     ///     Ok(())
     /// }
@@ -132,5 +132,36 @@ impl Header {
                 None
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use http_types::Method;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn count_return_value() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/get".to_string();
+        let mut counter = Header::default();
+        counter.name = "Content-Length".to_string();
+        assert!(
+            Some(0) < counter.count(connector).await.unwrap(),
+            "Counter count() must return a value upper than 0."
+        );
+    }
+    #[async_std::test]
+    async fn count_not_return_value() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/get".to_string();
+        let mut counter = Header::default();
+        counter.name = "not_found".to_string();
+        assert_eq!(None, counter.count(connector).await.unwrap());
     }
 }

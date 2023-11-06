@@ -99,7 +99,7 @@ pub struct Metadata {
 impl Metadata {
     fn merge(self, metadata: &Metadata) -> Metadata {
         Metadata {
-            has_headers: metadata.has_headers.clone().or(self.has_headers),
+            has_headers: metadata.has_headers.or(self.has_headers),
             delimiter: metadata.delimiter.clone().or(self.delimiter),
             quote: metadata.quote.clone().or(self.quote),
             escape: metadata.escape.clone().or(self.escape),

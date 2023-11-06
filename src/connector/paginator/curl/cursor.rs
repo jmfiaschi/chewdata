@@ -109,6 +109,7 @@ impl Paginator for Cursor {
     /// use chewdata::document::{DocumentType, json::Json};
     /// use surf::http::Method;
     /// use async_std::prelude::*;
+    /// use crate::chewdata::connector::paginator::Paginator;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -117,13 +118,13 @@ impl Paginator for Cursor {
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
     ///     connector.path = "/uuid?next={{ paginator.next }}".to_string();
-    ///     connector.paginator_type = PaginatorType::Cursor(Cursor {
+    ///     let paginator = Cursor {
     ///         limit: 1,
     ///         entry_path: "/uuid".to_string(),
     ///         document_type: DocumentType::default(),
+    ///         connector: Some(Box::new(connector)),
     ///         ..Default::default()
-    ///     });
-    ///     let paginator = connector.paginator().await?;
+    ///     };
     ///     let mut stream = paginator.stream().await?;
     ///     assert!(stream.next().await.transpose()?.is_some());
     ///     assert!(stream.next().await.transpose()?.is_some());
@@ -197,5 +198,52 @@ impl Paginator for Cursor {
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::connector::paginator::curl::cursor::Cursor;
+    use crate::document::DocumentType;
+    use crate::document::json::Json;
+    use futures::StreamExt;
+    use http_types::Method;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn stream() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/uuid?next={{ paginator.next }}".to_string();
+
+        let document = Json::default();
+
+        let paginator = Cursor {
+            limit: 1,
+            entry_path: "/uuid".to_string(),
+            document_type: DocumentType::default(),
+            connector: Some(Box::new(connector)),
+            ..Default::default()
+        };
+
+        assert!(!paginator.is_parallelizable());
+
+        let mut stream = paginator.stream().await.unwrap();
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let mut datastream = connector.unwrap().fetch(&document).await.unwrap().unwrap();
+        let data_1 = datastream.next().await.unwrap();
+
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let mut datastream = connector.unwrap().fetch(&document).await.unwrap().unwrap();
+        let data_2 = datastream.next().await.unwrap();
+
+        assert!(
+            data_1 != data_2,
+            "The content of this two stream are not different."
+        );
     }
 }

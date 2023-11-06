@@ -244,14 +244,13 @@ impl Document for Json {
                     array
                         .iter()
                         .enumerate()
-                        .map(|(array_pos, array_value)| {
+                        .try_for_each(|(array_pos, array_value)| {
                             serialize_value_into_buffer(
                                 pos + array_pos != 0,
                                 &mut buf,
-                                &array_value,
+                                array_value,
                             )
-                        })
-                        .collect::<io::Result<()>>()?;
+                        })?;
                 }
                 _ => {
                     serialize_value_into_buffer(pos != 0, &mut buf, &record)?;

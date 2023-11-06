@@ -122,7 +122,7 @@ async fn send<'step>(step: &'step dyn Step, context: &'step Context) -> io::Resu
 
             return Err(io::Error::new(
             io::ErrorKind::Interrupted,
-            format!("The step has been disconnected from the channel. the step can't send any context."),
+            "The step has been disconnected from the channel. the step can't send any context.".to_string(),
             ));
         }
     }

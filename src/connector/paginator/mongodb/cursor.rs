@@ -87,8 +87,8 @@ impl Paginator for Cursor {
     /// use chewdata::connector::{mongodb::Mongodb, Connector};
     /// use async_std::prelude::*;
     /// use chewdata::connector::paginator::mongodb::cursor::Cursor;
-    /// use chewdata::connector::paginator::mongodb::PaginatorType;
     /// use std::io;
+    /// use crate::chewdata::connector::paginator::Paginator;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
@@ -96,12 +96,13 @@ impl Paginator for Cursor {
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Cursor(Cursor {
+    ///     let paginator = Cursor {
     ///         skip: 0,
     ///         limit: 1,
+    ///         connector: Some(Box::new(connector)),
     ///         ..Default::default()
-    ///     });
-    ///     let mut stream = connector.paginator().await?.stream().await?;
+    ///     };
+    ///     let mut stream = paginator.stream().await?;
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
@@ -167,5 +168,56 @@ impl Paginator for Cursor {
     /// See [`Paginator::is_parallelizable`] for more details.
     fn is_parallelizable(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::connector::paginator::Paginator;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn stream() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+
+        let paginator = Cursor {
+            skip: 0,
+            limit: 1,
+            connector: Some(Box::new(connector)),
+            ..Default::default()
+        };
+
+        assert!(!paginator.is_parallelizable());
+
+        let mut stream = paginator.stream().await.unwrap();
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+    }
+    #[async_std::test]
+    async fn stream_reach_end() {
+        let mut connector = Mongodb::default();
+        connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
+        connector.database = "local".into();
+        connector.collection = "startup_log".into();
+
+        let paginator = Cursor {
+            skip: 0,
+            connector: Some(Box::new(connector)),
+            ..Default::default()
+        };
+
+        assert!(!paginator.is_parallelizable());
+
+        let mut stream = paginator.stream().await.unwrap();
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let connector = stream.next().await.transpose().unwrap();
+        assert!(connector.is_none());
     }
 }

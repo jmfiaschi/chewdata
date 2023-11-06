@@ -2,7 +2,7 @@ include .env
 export $(shell sed "s/=.*//" .env)
 
 .SILENT:
-.PHONY: build exec test bench help minio minio-install httpbin clean docs debug keycloak
+.PHONY: setup build exec test bench help minio httpbin clean docs debug keycloak run example release coverage lint
 
 debug:
 	@rustup -V

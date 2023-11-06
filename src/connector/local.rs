@@ -689,7 +689,7 @@ mod tests {
         let document = Json::default();
 
         let mut connector = Local::default();
-        connector.path = "./data/out/test_local_erase".to_string();
+        connector.path = "./data/out/test_local_erase_with_wildcard".to_string();
         let expected_result =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result];

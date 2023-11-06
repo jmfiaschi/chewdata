@@ -340,7 +340,7 @@ impl Document for Csv {
                 Value::Object(object) => {
                     let mut values = Vec::<Value>::new();
 
-                    for (_, value) in flatten(&object) {
+                    for (_, value) in flatten(object) {
                         values.push(value);
                     }
 
