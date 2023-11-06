@@ -85,9 +85,9 @@ impl StepType {
 }
 
 #[async_trait]
-pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
+pub trait Step: Send + Sync + StepClone {
     async fn exec(&self) -> io::Result<()>;
-    fn thread_number(&self) -> usize {
+    fn number(&self) -> usize {
         1
     }
     fn name(&self) -> String {
@@ -97,66 +97,60 @@ pub trait Step: Send + Sync + std::fmt::Debug + std::fmt::Display + StepClone {
     fn receiver(&self) -> Option<&Receiver<Context>>;
     fn set_sender(&mut self, sender: Sender<Context>);
     fn sender(&self) -> Option<&Sender<Context>>;
+    async fn send(&self, context: &Context) -> io::Result<()> {
+        match self.sender() {
+            Some(sender) => send(sender, context).await,
+            None => return Ok(()),
+        }
+    }
+    async fn receive<'step>(
+        &'step self,
+    ) -> io::Result<Pin<Box<dyn Stream<Item = Context> + Send + 'step>>> {
+        match self.receiver() {
+            Some(receiver) => receive(receiver).await,
+            None => Ok(Box::pin(stream::empty::<Context>())),
+        }
+    }
 }
 
-// Send a context through a step and a pipe
-async fn send<'step>(step: &'step dyn Step, context: &'step Context) -> io::Result<()> {
-    let sender = match step.sender() {
-        Some(sender) => sender,
-        None => return Ok(()),
-    };
-
+pub(crate) async fn send(sender: &Sender<Context>, context: &Context) -> io::Result<()> {
     match sender.send(context.clone()).await {
         Ok(_) => {
-            trace!(
-                step = format!("{:?}", step).as_str(),
-                "Context sended into the channel"
-            )
+            trace!("Context sended into the channel")
         }
         Err(e) => {
-            info!(
-                step = format!("{:?}", step).as_str(),
+            trace!(
                 error = format!("{:?}", e).as_str(),
-                "The channel is disconnected. the step can't send any context.",
+                "The channel is disconnected. the step can't send any context",
             );
 
             return Err(io::Error::new(
-            io::ErrorKind::Interrupted,
-            format!("The step has been disconnected from the channel. the step can't send any context."),
+                io::ErrorKind::Interrupted,
+                "The step has been disconnected from the channel. the step can't send any context"
+                    .to_string(),
             ));
         }
     }
 
     Ok(())
 }
-// Receive a context through a step and a channel
-// It return a stream of context
-async fn receive<'step>(
-    step: &'step dyn Step,
-) -> io::Result<Pin<Box<dyn Stream<Item = Context> + Send + 'step>>> {
-    let receiver = match step.receiver() {
-        Some(receiver) => receiver,
-        None => return Ok(Box::pin(stream::empty::<Context>())),
-    };
 
+pub(crate) async fn receive<'step>(
+    receiver: &'step Receiver<Context>,
+) -> io::Result<Pin<Box<dyn Stream<Item = Context> + Send + 'step>>> {
     let stream = Box::pin(stream! {
         loop {
             match receiver.recv().await {
                 Ok(context_received) => {
                     trace!(
-                        step = format!("{:?}", step).as_str(),
                         context = format!("{:?}", context_received).as_str(),
-                        "A new context received from the channel."
+                        "A new context received from the channel"
                     );
 
-                    yield context_received.clone();
+                    yield context_received;
                 },
-                Err(e) => {
-                    info!(
-                        step = format!("{:?}", step).as_str(),
-                        error = format!("{:?}", e).as_str(),
-                        "The channel is disconnected. the step can't receive any context.",
-                    );
+                Err(_) => {
+                    trace!("The channel is disconnected. the step can't receive any context");
                     break;
                 }
             };

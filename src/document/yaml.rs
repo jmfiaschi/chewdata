@@ -1,14 +1,14 @@
-//! Read and Write in Yaml format. 
+//! Read and Write in Yaml format.
 //!
 //! ### Configuration
-//! 
+//!
 //! | key      | alias | Description                             | Default Value | Possible Values       |
 //! | -------- | ----- | --------------------------------------- | ------------- | --------------------- |
 //! | type     | -     | Required in order to use this document. | `yaml`        | `yaml`                |
 //! | metadata | meta  | Metadata describe the resource.         | `null`        | [`crate::Metadata`]   |
-//! 
+//!
 //! examples:
-//! 
+//!
 //! ```json
 //! [
 //!     {
@@ -19,14 +19,14 @@
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! input/output:
-//! 
+//!
 //! ```yaml
 //! ---
 //! field: value
 //! ...
-//! 
+//!
 //! ```
 use crate::document::Document;
 use crate::Metadata;
@@ -157,10 +157,10 @@ impl Document for Yaml {
 
             let record = data.to_value();
             let mut buf = Vec::default();
-            serde_yaml::to_writer(&mut buf, &record.clone()).map_err(|e| {
+            serde_yaml::to_writer(&mut buf, &record).map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("Can't write the data into the connector. {}", e),
+                    format!("Can't write data. {}", e),
                 )
             })?;
 

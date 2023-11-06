@@ -46,13 +46,14 @@
 //!     },
 //! ]
 //! ```
-use super::Paginator;
 use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
-use crate::{DataSet, DataStream, Metadata};
+use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
 use async_std::prelude::*;
+use async_std::sync::Arc;
+use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use aws_config::meta::credentials::CredentialsProviderChain;
@@ -63,18 +64,20 @@ use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::env;
+use std::hash::{Hash, Hasher};
+use std::io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write};
 use std::pin::Pin;
+use std::sync::OnceLock;
 use std::vec::IntoIter;
-use std::{
-    fmt,
-    io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write},
-};
+
+static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
 
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(default, deny_unknown_fields)]
 pub struct Bucket {
     #[serde(rename = "metadata")]
@@ -122,59 +125,37 @@ impl Default for Bucket {
     }
 }
 
-impl fmt::Display for Bucket {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        futures::executor::block_on(async {
-            let get_object = self
-                .client()
-                .compat()
-                .await
-                .unwrap()
-                .get_object()
-                .bucket(self.bucket.clone())
-                .key(self.path())
-                .set_version_id(self.version.clone())
-                .send()
-                .compat()
-                .await
-                .unwrap();
-
-            let buffer = get_object
-                .body
-                .collect()
-                .compat()
-                .await
-                .unwrap()
-                .into_bytes()
-                .to_vec();
-
-            write!(f, "{}", String::from_utf8(buffer).unwrap())
-        })
-    }
-}
-
-impl fmt::Debug for Bucket {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Bucket")
-            .field("metadata", &self.metadata)
-            .field("endpoint", &self.endpoint)
-            .field("region", &self.region)
-            .field("bucket", &self.bucket)
-            .field("profile", &self.profile)
-            .field("path", &self.path)
-            .field("parameters", &self.parameters)
-            .field("limit", &self.limit)
-            .field("skip", &self.skip)
-            .field("version", &self.version)
-            .field("tags", &self.tags)
-            .field("cache_control", &self.cache_control)
-            .field("expires", &self.expires)
-            .finish()
-    }
-}
-
 impl Bucket {
-    async fn client(&self) -> Result<Client> {
+    fn tagging(&self) -> String {
+        let mut tagging = String::default();
+        let mut tags = Bucket::default().tags;
+        tags.extend(self.tags.clone());
+
+        for (k, v) in tags {
+            if !tagging.is_empty() {
+                tagging += "&";
+            }
+            tagging += &format!("{}={}", k, v).to_string();
+        }
+        tagging
+    }
+    fn client_key(&self) -> String {
+        let mut hasher = DefaultHasher::new();
+        let client_key = format!("{}:{}", self.endpoint, self.region);
+        client_key.hash(&mut hasher);
+        hasher.finish().to_string()
+    }
+    /// Get the current client
+    pub async fn client(&self) -> Result<Client> {
+        let clients = CLIENTS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+
+        let client_key = self.client_key();
+        if let Some(client) = clients.lock().await.get(&self.client_key()) {
+            trace!(client_key, "Retrieve the previous client");
+            return Ok(client.clone());
+        }
+
+        trace!(client_key, "Create a new client");
         if let Ok(key) = env::var("BUCKET_ACCESS_KEY_ID") {
             env::set_var("AWS_ACCESS_KEY_ID", key);
         }
@@ -189,20 +170,11 @@ impl Bucket {
             .force_path_style(true)
             .build();
 
-        Ok(Client::from_conf(config))
-    }
-    fn tagging(&self) -> String {
-        let mut tagging = String::default();
-        let mut tags = Bucket::default().tags;
-        tags.extend(self.tags.clone());
+        let mut map = clients.lock_arc().await;
+        let client = Client::from_conf(config);
+        map.insert(client_key, client.clone());
 
-        for (k, v) in tags {
-            if !tagging.is_empty() {
-                tagging += "&";
-            }
-            tagging += &format!("{}={}", k, v).to_string();
-        }
-        tagging
+        Ok(client)
     }
 }
 
@@ -249,7 +221,7 @@ impl Connector for Bucket {
     /// ```
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
-            trace!("The connector stay link to the same resource");
+            trace!("Stay link to the same resource");
             return Ok(false);
         }
 
@@ -269,14 +241,14 @@ impl Connector for Bucket {
         new_path.replace_mustache(new_parameters);
 
         if previous_path == new_path {
-            trace!(path = previous_path, "The connector path didn't change");
+            trace!(path = previous_path, "Path didn't change");
             return Ok(false);
         }
 
         info!(
             previous_path = previous_path,
             new_path = new_path,
-            "The connector will use another resource regarding the new parameters"
+            "Will use another resource regarding the new parameters"
         );
         Ok(true)
     }
@@ -297,11 +269,12 @@ impl Connector for Bucket {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
-        let mut params = *self.parameters.clone();
-        let mut metadata = Map::default();
 
         match self.is_variable() {
             true => {
+                let mut params = *self.parameters.clone();
+                let mut metadata = Map::default();
+
                 metadata.insert("metadata".to_string(), self.metadata().into());
                 params.merge(&Value::Object(metadata));
 
@@ -334,12 +307,12 @@ impl Connector for Bucket {
     /// }
     /// ```
     #[instrument(name = "bucket::len")]
-    async fn len(&mut self) -> Result<usize> {
+    async fn len(&self) -> Result<usize> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
             return Err(Error::new(
                 ErrorKind::NotFound,
-                "len() method not available for wildcard path.",
+                "len() method not available for wildcard path",
             ));
         }
 
@@ -349,23 +322,26 @@ impl Connector for Bucket {
             .await?
             .head_object()
             .key(self.path())
-            .bucket(self.bucket.clone())
+            .bucket(&self.bucket)
             .set_version_id(self.version.clone())
             .send()
             .compat()
             .await
         {
-            Ok(res) => res.content_length() as usize,
+            Ok(res) => match res.content_length() {
+                Some(content_length) => content_length as usize,
+                None => 0_usize,
+            },
             Err(e) => {
                 warn!(
                     error = format!("{:?}", e.to_string()).as_str(),
-                    "The connector can't find the length of the document"
+                    "Can't find the length of the resource"
                 );
                 0_usize
             }
         };
 
-        info!(len, "The connector found data in the resource");
+        info!(len, "Find length of the resource");
 
         Ok(len)
     }
@@ -412,8 +388,8 @@ impl Connector for Bucket {
             .compat()
             .await?
             .get_object()
-            .bucket(self.bucket.clone())
-            .key(path.clone())
+            .bucket(&self.bucket)
+            .key(&path)
             .set_version_id(self.version.clone())
             .send()
             .compat()
@@ -429,10 +405,7 @@ impl Connector for Bucket {
             .into_bytes()
             .to_vec();
 
-        info!(
-            path = path,
-            "The connector fetch data into the resource with success"
-        );
+        info!(path = path, "Fetch data with success");
 
         if !document.has_data(&buffer)? {
             return Ok(None);
@@ -522,7 +495,7 @@ impl Connector for Bucket {
         if !self.is_empty().await? {
             info!(
                 path = path_resolved.to_string().as_str(),
-                "Fetch existing data into S3"
+                "Fetch existing data"
             );
             {
                 let get_object = self
@@ -530,7 +503,7 @@ impl Connector for Bucket {
                     .compat()
                     .await?
                     .get_object()
-                    .bucket(self.bucket.clone())
+                    .bucket(&self.bucket)
                     .key(self.path())
                     .set_version_id(self.version.clone())
                     .send()
@@ -550,7 +523,7 @@ impl Connector for Bucket {
         }
 
         let file_len = content_file.len();
-        let mut cursor = Cursor::new(content_file.clone());
+        let mut cursor = Cursor::new(content_file);
 
         match position {
             Some(pos) => match file_len as isize + pos {
@@ -575,8 +548,8 @@ impl Connector for Bucket {
             .compat()
             .await?
             .put_object()
-            .bucket(self.bucket.clone())
-            .key(path_resolved.clone())
+            .bucket(&self.bucket)
+            .key(&path_resolved)
             .tagging(self.tagging())
             .content_type(self.metadata().content_type())
             .set_metadata(Some(
@@ -599,10 +572,7 @@ impl Connector for Bucket {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        info!(
-            path = path_resolved,
-            "The connector send data into the resource with success"
-        );
+        info!(path = path_resolved, "Send data with success");
         Ok(None)
     }
     fn set_metadata(&mut self, metadata: Metadata) {
@@ -633,24 +603,25 @@ impl Connector for Bucket {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        info!("The connector erase data in the resource with success");
+        info!("Erase data with success");
         Ok(())
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        Ok(Box::pin(BucketPaginator::new(self.clone()).await?))
+    /// See [`Connector::paginate`] for more details.
+    async fn paginate(
+        &self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        BucketPaginator::new(self).await?.paginate(self).await
     }
 }
 
 #[derive(Debug)]
 pub struct BucketPaginator {
-    pub connector: Bucket,
     pub paths: IntoIter<String>,
     pub skip: usize,
 }
 
 impl BucketPaginator {
-    pub async fn new(connector: Bucket) -> Result<Self> {
+    pub async fn new(connector: &Bucket) -> Result<Self> {
         let mut paths = Vec::default();
 
         let reg_path_contain_wildcard =
@@ -688,7 +659,7 @@ impl BucketPaginator {
                         .compat()
                         .await?
                         .list_objects_v2()
-                        .bucket(connector.bucket.clone())
+                        .bucket(&connector.bucket)
                         .delimiter(delimiter.to_string())
                         .prefix(format!("{}/", prefix_keys.join("/")));
 
@@ -701,7 +672,6 @@ impl BucketPaginator {
                             Ok(response) => (
                                 response
                                     .contents()
-                                    .unwrap_or_default()
                                     .iter()
                                     .filter(|object| match object.key {
                                         Some(ref path) => reg_key.is_match(path.as_str()),
@@ -717,11 +687,11 @@ impl BucketPaginator {
                                     error = e.to_string().as_str(),
                                     "Can't fetch the list of keys"
                                 );
-                                (Vec::default(), false, None)
+                                (Vec::default(), Some(false), None)
                             }
                         };
 
-                    is_truncated = is_truncated_tmp;
+                    is_truncated = is_truncated_tmp.unwrap_or(false);
                     next_token = next_token_tmp;
                     paths.append(&mut paths_tmp);
                 }
@@ -745,27 +715,21 @@ impl BucketPaginator {
                 paths.append(&mut vec![path]);
             }
         }
-
         Ok(BucketPaginator {
             skip: connector.skip,
             paths: paths.into_iter(),
-            connector,
         })
     }
 }
 
-#[async_trait]
-impl Paginator for BucketPaginator {
-    /// See [`Paginator::count`] for more details.
-    async fn count(&mut self) -> Result<Option<usize>> {
-        Ok(Some(self.paths.clone().count()))
-    }
-    /// See [`Paginator::stream`] for more details.
+impl BucketPaginator {
+    /// Paginate through the bucket folder.
+    /// Wildcard is allowed.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::bucket::Bucket;
+    /// use chewdata::connector::bucket::{Bucket, BucketPaginator};
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
     /// use std::io;
@@ -777,38 +741,31 @@ impl Paginator for BucketPaginator {
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///
-    ///     let mut stream = connector.paginator().await?.stream().await?;
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     let paginator = BucketPaginator::new(&connector).await?;
+    ///     let mut paging = paginator.paginate(&connector).await?;
+    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "bucket_paginator::stream")]
-    async fn stream(
-        &self,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = self.connector.clone();
+    #[instrument(name = "bucket::paginate")]
+    pub async fn paginate(&self, connector: &Bucket) -> Result<ConnectorStream> {
         let mut paths = self.paths.clone();
+        let connector = connector.clone();
 
-        let stream = Box::pin(stream! {
-            while let Some(path) = paths.next() {
+        Ok(Box::pin(stream! {
+            for path in &mut paths {
                 trace!(next_path = path.as_str(), "Next path");
 
                 let mut new_connector = connector.clone();
                 new_connector.path = path;
 
-                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream yields a new connector");
                 yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
-            trace!("The stream stop to return new connectors");
-        });
-
-        Ok(stream)
-    }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        true
+            trace!("The stream stops yielding new connectors");
+        }))
     }
 }
 
@@ -891,7 +848,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
-            "The inner connector should have a size upper than zero"
+            "The inner connector should have a size upper than zero."
         );
     }
     #[async_std::test]
@@ -923,59 +880,59 @@ mod tests {
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
     #[async_std::test]
-    async fn paginator_stream() {
+    async fn paginator_paginate() {
         let mut connector = Bucket::default();
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
-        let paginator = connector.paginator().await.unwrap();
-        assert!(paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
+
+        let mut paging = connector.paginate().await.unwrap();
+
         assert!(
-            stream.next().await.transpose().unwrap().is_some(),
+            paging.next().await.transpose().unwrap().is_some(),
             "Can't get the first reader."
         );
         assert!(
-            stream.next().await.transpose().unwrap().is_none(),
+            paging.next().await.transpose().unwrap().is_none(),
             "Can't paginate more than one time."
         );
     }
     #[async_std::test]
-    async fn paginator_stream_with_wildcard() {
+    async fn paginator_paginate_with_wildcard() {
         let mut connector = Bucket::default();
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
-        let paginator = connector.paginator().await.unwrap();
-        assert!(paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
+
+        let mut paging = connector.paginate().await.unwrap();
+
         assert!(
-            stream.next().await.transpose().unwrap().is_some(),
+            paging.next().await.transpose().unwrap().is_some(),
             "Can't get the first reader."
         );
         assert!(
-            stream.next().await.transpose().unwrap().is_some(),
+            paging.next().await.transpose().unwrap().is_some(),
             "Can't get the second reader."
         );
     }
     #[async_std::test]
-    async fn paginator_stream_with_wildcard_limit_skip() {
+    async fn paginator_paginate_with_wildcard_limit_skip() {
         let mut connector = Bucket::default();
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
         connector.limit = Some(5);
         connector.skip = 2;
-        let paginator = connector.paginator().await.unwrap();
-        assert!(paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
+
+        let mut paging = connector.paginate().await.unwrap();
+
         assert_eq!(
             "data/multi_lines.jsonl".to_string(),
-            stream.next().await.transpose().unwrap().unwrap().path()
+            paging.next().await.transpose().unwrap().unwrap().path()
         );
         assert_eq!(
             "data/one_line.json".to_string(),
-            stream.next().await.transpose().unwrap().unwrap().path()
+            paging.next().await.transpose().unwrap().unwrap().path()
         );
     }
 }

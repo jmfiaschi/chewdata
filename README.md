@@ -27,7 +27,7 @@ More useful information:
 * No garbage collector
 * Parallel works
 * Cross-platform
-* Use async/await for concurrent threads with zero-cost
+* Use async/await for concurrent execution with zero-cost
 * Read multi files in parallel into the local or in a bucket
 * Search data into multi csv/json/parquet files with S3 select
 * Can be deployed into AWS Lambda

@@ -7,7 +7,6 @@ use basic::Basic;
 use bearer::Bearer;
 use jwt::Jwt;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::io::Result;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -29,16 +28,9 @@ impl AuthenticatorType {
             AuthenticatorType::Jwt(authenticator) => authenticator,
         }
     }
-    pub fn authenticator_mut(&mut self) -> &mut dyn Authenticator {
-        match self {
-            AuthenticatorType::Basic(authenticator) => authenticator,
-            AuthenticatorType::Bearer(authenticator) => authenticator,
-            AuthenticatorType::Jwt(authenticator) => authenticator,
-        }
-    }
 }
 
 #[async_trait]
 pub trait Authenticator: Sync + Send {
-    async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)>;
+    async fn authenticate(&self) -> Result<(Vec<u8>, Vec<u8>)>;
 }

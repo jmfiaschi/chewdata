@@ -27,7 +27,6 @@ use self::io::Io;
 use self::local::Local;
 #[cfg(feature = "mongodb")]
 use self::mongodb::Mongodb;
-use self::paginator::Paginator;
 #[cfg(feature = "psql")]
 use self::psql::Psql;
 use crate::DataSet;
@@ -40,6 +39,7 @@ use serde_json::Value;
 use std::fmt;
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
+use futures::stream::Stream;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
@@ -112,11 +112,11 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     /// Test if the connector is variable and if the context change, the resource will change.
     fn is_variable(&self) -> bool;
     /// Check if the resource is empty.
-    async fn is_empty(&mut self) -> Result<bool> {
+    async fn is_empty(&self) -> Result<bool> {
         Ok(0 == self.len().await?)
     }
     /// Get the resource size of the current path.
-    async fn len(&mut self) -> Result<usize> {
+    async fn len(&self) -> Result<usize> {
         Ok(0)
     }
     /// Path of the document
@@ -129,8 +129,8 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
     }
-    /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>>;
+    /// Paginate through the current connector and return a stream of new connector with new parameters.
+    async fn paginate(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>>;
 }
 
 impl fmt::Display for dyn Connector {

@@ -2,7 +2,7 @@ include .env
 export $(shell sed "s/=.*//" .env)
 
 .SILENT:
-.PHONY: build exec test bench help minio minio-install httpbin clean docs debug keycloak
+.PHONY: setup build exec test bench help minio httpbin clean docs debug keycloak run example release coverage lint
 
 debug:
 	@rustup -V
@@ -44,7 +44,7 @@ example: ##		USAGE: make example name=local-json
 		echo "$(RED)USAGE: example name=[EXAMPLE_NAME]${NC}";\
 		cargo run --example;exit 1;\
 	fi
-	@RUST_LOG=info cargo run --example $(name)  --all-features
+	@cargo run --example $(name)  --all-features
 
 release: ##	Released with minimum features.
 release: ##		USAGE: make release

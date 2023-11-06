@@ -117,9 +117,8 @@ impl Document for Json {
     ///
     /// let document = Json::default();
     /// let json_str = r#"[{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}]"#.as_bytes().to_vec();
-    /// let buffer = json_str.clone();
     ///
-    /// let mut dataset = document.read(&buffer).unwrap().into_iter();
+    /// let mut dataset = document.read(&json_str).unwrap().into_iter();
     /// let data = dataset.next().unwrap().to_value();
     /// let expected_data: Value = serde_json::from_slice(&json_str).unwrap();
     /// assert_eq!(expected_data, data);
@@ -128,52 +127,49 @@ impl Document for Json {
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let deserializer = serde_json::Deserializer::from_reader(io::Cursor::new(buffer));
         let iterator = deserializer.into_iter::<Value>();
-        let entry_path_option = self.entry_path.clone();
         let mut dataset = Vec::default();
 
         for record_result in iterator {
-            match (record_result, entry_path_option.clone()) {
-                (Ok(record), Some(entry_path)) => {
-                    match record.clone().search(entry_path.as_ref())? {
-                        Some(Value::Array(records)) => {
-                            for record in records {
-                                trace!(
-                                    record = format!("{:?}", record).as_str(),
-                                    "Record deserialized"
-                                );
-                                dataset.push(DataResult::Ok(record));
-                            }
-                        }
-                        Some(record) => {
+            match (&record_result, &self.entry_path) {
+                (Ok(record), Some(entry_path)) => match record.clone().search(entry_path)? {
+                    Some(Value::Array(records)) => {
+                        for record in records {
                             trace!(
                                 record = format!("{:?}", record).as_str(),
                                 "Record deserialized"
                             );
                             dataset.push(DataResult::Ok(record));
                         }
-                        None => {
-                            warn!(
-                                entry_path = format!("{:?}", entry_path).as_str(),
-                                record = format!("{:?}", record.clone()).as_str(),
-                                "Entry path not found in the record"
-                            );
-                            dataset.push(DataResult::Err((
-                                record,
-                                io::Error::new(
-                                    io::ErrorKind::InvalidInput,
-                                    format!("Entry path '{}' not found.", entry_path),
-                                ),
-                            )));
-                        }
                     }
-                }
+                    Some(record) => {
+                        trace!(
+                            record = format!("{:?}", record).as_str(),
+                            "Record deserialized"
+                        );
+                        dataset.push(DataResult::Ok(record));
+                    }
+                    None => {
+                        warn!(
+                            entry_path = format!("{:?}", entry_path).as_str(),
+                            record = format!("{:?}", &record).as_str(),
+                            "Entry path not found in the record"
+                        );
+                        dataset.push(DataResult::Err((
+                            record.clone(),
+                            io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                format!("Entry path '{}' not found", entry_path),
+                            ),
+                        )));
+                    }
+                },
                 (Ok(Value::Array(records)), None) => {
                     for record in records {
                         trace!(
                             record = format!("{:?}", record).as_str(),
                             "Record deserialized"
                         );
-                        dataset.push(DataResult::Ok(record));
+                        dataset.push(DataResult::Ok(record.clone()));
                     }
                 }
                 (Ok(record), None) => {
@@ -181,14 +177,17 @@ impl Document for Json {
                         record = format!("{:?}", record).as_str(),
                         "Record deserialized"
                     );
-                    dataset.push(DataResult::Ok(record));
+                    dataset.push(DataResult::Ok(record.clone()));
                 }
                 (Err(e), _) => {
                     warn!(
                         error = format!("{:?}", e).as_str(),
                         "Can't deserialize the record"
                     );
-                    dataset.push(DataResult::Err((Value::Null, e.into())));
+                    dataset.push(DataResult::Err((
+                        Value::Null,
+                        io::Error::new(io::ErrorKind::InvalidInput, e.to_string()),
+                    )));
                 }
             };
         }
@@ -244,14 +243,9 @@ impl Document for Json {
                     array
                         .iter()
                         .enumerate()
-                        .map(|(array_pos, array_value)| {
-                            serialize_value_into_buffer(
-                                pos + array_pos != 0,
-                                &mut buf,
-                                &array_value,
-                            )
-                        })
-                        .collect::<io::Result<()>>()?;
+                        .try_for_each(|(array_pos, array_value)| {
+                            serialize_value_into_buffer(pos + array_pos != 0, &mut buf, array_value)
+                        })?;
                 }
                 _ => {
                     serialize_value_into_buffer(pos != 0, &mut buf, &record)?;
@@ -311,8 +305,7 @@ mod tests {
     fn read_data_array() {
         let document = Json::default();
         let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#.as_bytes().to_vec();
-        let buffer = json_str.clone();
-        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let mut dataset = document.read(&json_str).unwrap().into_iter();
         let data = dataset.next().unwrap().to_value();
         let expected_data: Value = serde_json::from_slice(&json_str).unwrap();
         assert_eq!(expected_data, data);
@@ -321,8 +314,7 @@ mod tests {
     fn read_data_object() {
         let document = Json::default();
         let json_str = r#"{"string":"My text","string_backspace":"My text with \nbackspace","special_char":"€","int":10,"float":9.5,"bool":true}"#.as_bytes().to_vec();
-        let buffer = json_str.clone();
-        let mut dataset = document.read(&buffer).unwrap().into_iter();
+        let mut dataset = document.read(&json_str).unwrap().into_iter();
         let data = dataset.next().unwrap().to_value();
         let expected_data: Value = serde_json::from_slice(&json_str).unwrap();
         assert_eq!(expected_data, data);
@@ -372,7 +364,7 @@ mod tests {
         let buffer = r#"[{"array1":[{"field":"value1"},{"field":"value2"}]}]"#
             .as_bytes()
             .to_vec();
-        let expected_data: Value = serde_json::from_str(r#"[{"array1":[{"field":"value1"},{"field":"value2"}]},{"_error":"Entry path '/*/not_found/*' not found."}]"#).unwrap();
+        let expected_data: Value = serde_json::from_str(r#"[{"array1":[{"field":"value1"},{"field":"value2"}]},{"_error":"Entry path '/*/not_found/*' not found"}]"#).unwrap();
         let mut dataset = document.read(&buffer).unwrap().into_iter();
         let data = dataset.next().unwrap().to_value();
         assert_eq!(expected_data, data);

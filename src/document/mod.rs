@@ -26,7 +26,7 @@ use self::yaml::Yaml;
 use super::Metadata;
 use crate::DataSet;
 use serde::{Deserialize, Serialize};
-use std::io;
+use std::io::{self, Error, ErrorKind, Result};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(tag = "type")]
@@ -109,6 +109,52 @@ impl DocumentType {
             #[cfg(feature = "parquet")]
             DocumentType::Parquet(document) => document,
         }
+    }
+    pub fn guess(metadata: &Metadata) -> Result<Box<dyn Document>> {
+        Ok(match &metadata.mime_subtype {
+            Some(mime_subtype) => match mime_subtype.as_str() {
+                #[cfg(feature = "csv")]
+                "csv" => Box::new(Csv {
+                    metadata: metadata.clone(),
+                    ..Default::default()
+                }),
+                "json" => Box::new(Json {
+                    metadata: metadata.clone(),
+                    ..Default::default()
+                }),
+                "x-ndjson" => Box::new(Jsonl {
+                    metadata: metadata.clone(),
+                    ..Default::default()
+                }),
+                #[cfg(feature = "parquet")]
+                "parquet" => Box::new(Parquet {
+                    metadata: metadata.clone(),
+                    ..Default::default()
+                }),
+                "text" => Box::new(Text {
+                    metadata: metadata.clone(),
+                }),
+                #[cfg(feature = "toml")]
+                "toml" => Box::new(Toml {
+                    metadata: metadata.clone(),
+                }),
+                #[cfg(feature = "xml")]
+                "xml" => Box::new(Xml {
+                    metadata: metadata.clone(),
+                    ..Default::default()
+                }),
+                "x-yaml" => Box::new(Yaml {
+                    metadata: metadata.clone(),
+                }),
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "The document can't be guessed",
+                    ))
+                }
+            },
+            None => DocumentType::default().boxed_inner(),
+        })
     }
 }
 

@@ -1,4 +1,4 @@
-//! Read and Write in CSV format. 
+//! Read and Write in CSV format.
 //!
 //! ### Configuration
 //!
@@ -9,7 +9,7 @@
 //! | is_flexible | -     | If flexible is true, the application try to match the number of header's fields and the number of line's fields. | `true`        | `true` / `false`                                 |
 //! | quote_style | -     | The quoting style to use when writing CSV.                                                                       | `NOT_NUMERIC` | `NOT_NUMERIC` / `ALWAYS` / `NEVER` / `NECESSARY` |
 //! | trim        | -     | Define where you trim the data. The application can trimmed fields, headers or both.                             | `ALL`         | `ALL` / `FIELDS` / `HEADERS`                     |
-//! 
+//!
 //! ### Examples
 //!
 //! ```json
@@ -33,18 +33,18 @@
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! input:
-//! 
+//!
 //! ```json
 //! [
 //!     {"column1 ": "value1 ", " column2": " value2", ...},
 //!     ...
 //! ]
 //! ```
-//! 
+//!
 //! output:
-//! 
+//!
 //! ```csv
 //! "column1","column2",...
 //! "value1","value2",...
@@ -56,6 +56,7 @@ use crate::document::Document;
 use crate::DataResult;
 use crate::{DataSet, Metadata};
 use csv::Trim;
+use json_value_resolve::Resolve;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::io;
@@ -118,29 +119,29 @@ impl Csv {
         });
 
         metadata.has_headers.map(|value| builder.has_headers(value));
-        metadata.clone().quote.map(|value| match value.as_str() {
+        metadata.quote.as_ref().map(|value| match value.as_str() {
             "\"" => builder.double_quote(true),
             _ => builder.double_quote(false),
         });
-        metadata.clone().quote.map(|value| match value.as_str() {
+        metadata.quote.as_ref().map(|value| match value.as_str() {
             "'" | "\"" => builder.quoting(true),
             _ => builder.quoting(false),
         });
         metadata
-            .clone()
             .quote
+            .as_ref()
             .map(|value| builder.quote(*value.as_bytes().to_vec().first().unwrap()));
         metadata
-            .clone()
             .delimiter
+            .as_ref()
             .map(|value| builder.delimiter(*value.as_bytes().to_vec().first().unwrap()));
         metadata
-            .clone()
             .escape
+            .as_ref()
             .map(|value| builder.escape(Some(*value.as_bytes().to_vec().first().unwrap())));
         metadata
-            .clone()
             .comment
+            .as_ref()
             .map(|value| builder.comment(Some(*value.as_bytes().to_vec().first().unwrap())));
         metadata.terminator.map(|value| match value.as_str() {
             "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
@@ -160,21 +161,21 @@ impl Csv {
         metadata
             .has_headers
             .map(|has_headers| builder.has_headers(has_headers));
-        metadata.clone().quote.map(|value| match value.as_str() {
+        metadata.quote.as_ref().map(|value| match value.as_str() {
             "\"" => builder.double_quote(true),
             _ => builder.double_quote(false),
         });
         metadata
-            .clone()
             .quote
+            .as_ref()
             .map(|value| builder.quote(*value.as_bytes().to_vec().first().unwrap()));
         metadata
-            .clone()
             .delimiter
+            .as_ref()
             .map(|value| builder.delimiter(*value.as_bytes().to_vec().first().unwrap()));
         metadata
-            .clone()
             .escape
+            .as_ref()
             .map(|value| builder.escape(*value.as_bytes().to_vec().first().unwrap()));
         metadata.terminator.map(|value| match value.as_str() {
             "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
@@ -225,7 +226,7 @@ impl Csv {
                     );
                     let map = record
                         .iter()
-                        .map(|value| Value::String(value.to_string()))
+                        .map(|value| Value::resolve(value.to_string()))
                         .collect();
                     DataResult::Ok(Value::Array(map))
                 }
@@ -297,9 +298,7 @@ impl Document for Csv {
     /// ```
     #[instrument(skip(buffer), name = "csv::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
-        let builder_reader = self
-            .reader_builder()
-            .from_reader(io::Cursor::new(buffer));
+        let builder_reader = self.reader_builder().from_reader(io::Cursor::new(buffer));
         match self.metadata().has_headers {
             Some(false) => Csv::read_without_header(builder_reader),
             _ => Csv::read_with_header(builder_reader),
@@ -340,7 +339,7 @@ impl Document for Csv {
                 Value::Object(object) => {
                     let mut values = Vec::<Value>::new();
 
-                    for (_, value) in flatten(&object) {
+                    for (_, value) in flatten(object) {
                         values.push(value);
                     }
 

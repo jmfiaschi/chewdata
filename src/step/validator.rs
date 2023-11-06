@@ -1,5 +1,5 @@
 //! Check the consistancy of the data.
-//! 
+//!
 //! If a data is not valid, an error message is stored in the field `_error` before to share the data to another step and the data is tagged with an error.
 //! Use the `data_type` field of a `step` to target which kind of data a step can handle.
 //!
@@ -20,21 +20,18 @@
 //! | updater         | u       | Updater type used as a template engine for transformation                                                         | `tera`        | `tera`                                          |
 //! | referentials    | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the validation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
 //! | name            | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                |
-//! | description     | desc    | Describ your step and give more visibility                                                                        | `null`        | String                                          |
 //! | data_type       | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                    |
-//! | thread_number   | threads | Parallelize the step in multiple threads                                                                          | `1`           | unsigned number                                 |
+//! | concurrency_limit   | - | Limit of steps to run in conccuence.                                                                          | `1`           | unsigned number                                 |
 //! | rules           | -       | List of [`self::Rule`] indexed by their names                                                                     | `null`        | `{"rule_0": Rule,"rule_1": Rule}`               |
-//! | input_name      | input   | Input name variable can be used in the pattern action                                                             | `input`       | String                                          |
-//! | output_name     | output  | Output name variable can be used in the pattern action                                                            | `output`      | String                                          |
 //! | error_separator | -       | Separator use to delimite two errors                                                                              | `\r\n`        | String                                          |
-//! 
+//!
 //! ### Rule
-//! 
+//!
 //! | key     | Description                                                                                                                                                                                     | Default Value | Possible Values                                   |
 //! | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------- |
 //! | pattern | Pattern in [django template language](https://docs.djangoproject.com/en/3.1/topics/templates/) format used to test a field. If the result of the pattern is not a boolean, an error will raised | `null`        | `{% if true %} true {% else %} false {% endif %}` |
 //! | message | Message to display if the render pattern is false. If the message is empty, a default value is rendered                                                                                         | `string`      | `My error message`                                |
-//! 
+//!
 //! ### Examples
 //!
 //! ```json
@@ -53,9 +50,8 @@
 //!             }
 //!         },
 //!         "name": "my_validator",
-//!         "description": "My description of the step",
 //!         "data_type": "ok",
-//!         "thread_number": 1,
+//!         "concurrency_limit": 1,
 //!         "rules": {
 //!             "number_rule": {
 //!                 "pattern": "{% if input.number == 10  %} true {% else %} false {% endif %}",
@@ -70,24 +66,22 @@
 //!                 "message": "The code field value doesn't match with the referential dataset"
 //!             }
 //!         },
-//!         "input_name": "my_input",
-//!         "output_name": "my_output",
 //!         "error_separator": " & "
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! input:
-//! 
+//!
 //! ```json
 //! [
 //!     {"number": 100, "text": "my text", "code": "my_code"},
 //!     ...
 //! ]
 //! ```
-//! 
+//!
 //! output:
-//! 
+//!
 //! ```json
 //! [
 //!     {"number": 100, "text": "my text", "code": "my_code", "_error":"The number field value must be equal to 10 & The text field value doesn't contain 'Hello World' & The code field value doesn't match with the referential dataset"},
@@ -99,7 +93,7 @@ use super::DataResult;
 use crate::helper::json_pointer::JsonPointer;
 use crate::helper::mustache::Mustache;
 use crate::step::Step;
-use crate::updater::{ActionType, UpdaterType};
+use crate::updater::{ActionType, UpdaterType, INPUT_FIELD_KEY};
 use crate::Context;
 use crate::{step::reader::Reader, updater::Action};
 use async_channel::{Receiver, Sender};
@@ -112,7 +106,7 @@ use serde_json::Value;
 use std::io::{Error, ErrorKind};
 use std::{
     collections::{BTreeMap, HashMap},
-    fmt, io,
+    io,
 };
 use uuid::Uuid;
 
@@ -126,15 +120,9 @@ pub struct Validator {
     pub referentials: Option<HashMap<String, Reader>>,
     #[serde(alias = "alias")]
     pub name: String,
-    pub description: Option<String>,
     pub data_type: String,
-    #[serde(alias = "threads")]
-    pub thread_number: usize,
+    pub concurrency_limit: usize,
     pub rules: BTreeMap<String, Rule>,
-    #[serde(alias = "input")]
-    pub input_name: String,
-    #[serde(alias = "output")]
-    pub output_name: String,
     #[serde(alias = "separator")]
     pub error_separator: String,
     #[serde(skip)]
@@ -150,29 +138,13 @@ impl Default for Validator {
             updater_type: UpdaterType::default(),
             referentials: None,
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
-            thread_number: 1,
+            concurrency_limit: 1,
             rules: BTreeMap::default(),
-            input_name: "input".to_string(),
-            output_name: "output".to_string(),
             error_separator: "\r\n".to_string(),
             receiver: None,
             sender: None,
         }
-    }
-}
-
-impl fmt::Display for Validator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Validator {{'{}','{}' }}",
-            self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
-        )
     }
 }
 
@@ -244,31 +216,40 @@ impl Step for Validator {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "validator::exec")]
+    #[instrument(name = "validator::exec",
+        skip(self),
+        fields(name=self.name, 
+        data_type=self.data_type,
+        concurrency_limit=self.concurrency_limit,
+        error_separator=self.error_separator,
+    ))]
     async fn exec(&self) -> io::Result<()> {
-        let referentials = match self.referentials.clone() {
-            Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
-            None => None,
-        };
-
+        info!("Start validating data...");
+        
         let actions: Vec<Action> = self
             .rules
-            .clone()
-            .into_iter()
+            .iter()
             .map(|(rule_name, rule)| Action {
-                field: rule_name,
-                pattern: Some(rule.pattern),
+                field: rule_name.clone(),
+                pattern: Some(rule.pattern.clone()),
                 action_type: ActionType::Replace,
             })
             .collect();
 
-        let mut receiver_stream = super::receive(self as &dyn Step).await?;
+        let mut receiver_stream = self.receive().await?;
+
         while let Some(ref mut context_received) = receiver_stream.next().await {
+            let referentials = match &self.referentials {
+                Some(referentials) => Some(referentials_reader_into_value(referentials, context_received).await?),
+                None => None,
+            };
+
             let data_result = context_received.input();
 
+            
             if !data_result.is_type(self.data_type.as_ref()) {
-                trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+                trace!("Handles only this data type");
+                self.send(context_received).await?;
                 continue;
             }
 
@@ -278,12 +259,10 @@ impl Step for Validator {
                 .updater_type
                 .updater()
                 .update(
-                    record.clone(),
-                    context_received.steps(),
-                    referentials.clone(),
-                    actions.clone(),
-                    self.input_name.clone(),
-                    self.output_name.clone(),
+                    &record,
+                    &context_received.steps(),
+                    &referentials,
+                    &actions,
                 )
                 .and_then(|value| match value {
                     Value::Object(_) => Ok(value),
@@ -295,14 +274,14 @@ impl Step for Validator {
                 .and_then(|value| {
                     let mut errors = String::default();
 
-                    for (rule_name, rule) in self.rules.clone() {
+                    for (rule_name, rule) in &self.rules {
                         let value_result =
                             value.clone().search(rule_name.to_json_pointer().as_str());
 
                         let mut error = match value_result {
                             Ok(Some(Value::Bool(true))) => continue,
                             Ok(Some(Value::Bool(false))) => {
-                                rule.message.unwrap_or(format!("The rule '{}' failed", rule_name))
+                                rule.message.clone().unwrap_or(format!("The rule '{}' failed", rule_name))
                             }
                             Ok(Some(_)) => format!(
                                 "The rule '{}' has invalid result pattern '{:?}', it must be a boolean",
@@ -322,8 +301,8 @@ impl Step for Validator {
                         }
 
                         let mut params = Value::default();
-                        params.merge_in(&format!("/{}", self.input_name.clone()), &record)?;
-                        params.merge_in("/rule/name", &Value::String(rule_name))?;
+                        params.merge_in(&format!("/{}", INPUT_FIELD_KEY), &record)?;
+                        params.merge_in("/rule/name", &Value::String(rule_name.clone()))?;
 
                         error.replace_mustache(params);
 
@@ -343,13 +322,17 @@ impl Step for Validator {
             };
 
             context_received.insert_step_result(self.name(), new_data_result)?;
-            super::send(self as &dyn Step, &context_received.clone()).await?;
+            self.send(context_received).await?;
         }
+
+        trace!(
+            "Terminate with success. It stops sending context and it disconnect the channel"
+        );
 
         Ok(())
     }
-    fn thread_number(&self) -> usize {
-        self.thread_number
+    fn number(&self) -> usize {
+        self.concurrency_limit
     }
     fn name(&self) -> String {
         self.name.clone()
@@ -374,8 +357,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context =
-            Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -394,8 +376,7 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context =
-            Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
 
         let mut expected_context = context.clone();
         expected_context

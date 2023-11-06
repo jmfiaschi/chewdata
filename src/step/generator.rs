@@ -1,5 +1,5 @@
 //! Generate an empty [`crate::DataResult`] that you can enrich with the [`crate::step::Transformer`].
-//! 
+//!
 //! It possible to duplicate input data and enrich them after.
 //!
 //! ### Actions
@@ -17,10 +17,9 @@
 //! | ------------ | ----- | ------------------------------------------------------------------------------- | ------------- | -------------------------------- |
 //! | type         | -     | Required in order to use generator step                                         | `generator`   | `generator` / `g`                |
 //! | name         | alias | Name step                                                                       | `null`        | Auto generate alphanumeric value |
-//! | description  | desc  | Describ your step and give more visibility                                      | `null`        | String                           |
 //! | data_type    | data  | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                     |
 //! | dataset_size | batch | Stack size limit before to push data into the resource though the connector     | `1000`        | unsigned number                  |
-//! 
+//!
 //! ### Examples
 //!
 //! ```json
@@ -28,7 +27,6 @@
 //!     {
 //!         "type": "generator",
 //!         "name": "my_generator",
-//!         "description": "My description of the step",
 //!         "data_type": "ok",
 //!         "dataset_size": 1000,
 //!     },
@@ -62,11 +60,11 @@
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! No input.
-//! 
+//!
 //! output:
-//! 
+//!
 //! ```json
 //! [
 //!     {"firstname": "my firstname", "lastname": "my lastname", "city": "my city", "password": "my password", "color": "my color"},
@@ -74,14 +72,14 @@
 //! ]
 //! ```
 use crate::step::Step;
-use crate::DataResult;
 use crate::Context;
+use crate::DataResult;
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{fmt, io};
+use std::io;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -89,8 +87,6 @@ use uuid::Uuid;
 pub struct Generator {
     #[serde(alias = "alias")]
     pub name: String,
-    #[serde(alias = "desc")]
-    pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
     #[serde(alias = "batch")]
@@ -107,25 +103,11 @@ impl Default for Generator {
         let uuid = Uuid::new_v4();
         Generator {
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1,
             receiver: None,
             sender: None,
         }
-    }
-}
-
-impl fmt::Display for Generator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Generator {{'{}','{}'}}",
-            self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
-        )
     }
 }
 
@@ -147,10 +129,17 @@ impl Step for Generator {
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
     }
-    #[instrument(name = "generator::exec")]
+    #[instrument(name = "generator::exec",
+        skip(self),
+        fields(name=self.name, 
+        data_type=self.data_type,
+        dataset_size=self.dataset_size,
+    ))]
     async fn exec(&self) -> io::Result<()> {
+        info!("Start generating data...");
+        
+        let mut receiver_stream = self.receive().await?;
         let mut has_data_been_received = false;
-        let mut receiver_stream = super::receive(self as &dyn Step).await?;
         let dataset_size = self.dataset_size;
 
         while let Some(context_received) = receiver_stream.next().await {
@@ -158,28 +147,29 @@ impl Step for Generator {
                 has_data_been_received = true;
             }
 
-            if !context_received
-                .input()
-                .is_type(self.data_type.as_ref())
-            {
-                trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+            if !context_received.input().is_type(self.data_type.as_ref()) {
+                trace!("Handles only this data type");
+                self.send(&context_received).await?;
                 continue;
             }
 
             for _ in 0..dataset_size {
                 let mut context = context_received.clone();
                 context.insert_step_result(self.name(), context.input())?;
-                super::send(self as &dyn Step, &context).await?;
+                self.send(&context).await?;
             }
         }
 
         if !has_data_been_received {
             for _ in 0..dataset_size {
                 let context = Context::new(self.name(), DataResult::Ok(Value::Null))?;
-                super::send(self as &dyn Step, &context).await?;
+                self.send(&context).await?;
             }
         }
+
+        trace!(
+            "Terminate with success. It stops sending context and it disconnect the channel"
+        );
 
         Ok(())
     }
@@ -202,8 +192,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context =
-            Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -222,8 +211,7 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context =
-            Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
         let mut expected_context = context.clone();
         expected_context
             .insert_step_result("my_step".to_string(), DataResult::Ok(data))

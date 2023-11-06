@@ -161,10 +161,16 @@ impl JsonBuilder {
 
         // Add any attributes
         for attr in event.attributes().flatten() {
-            let value = attr.decode_and_unescape_value(reader).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            let value = attr
+                .decode_and_unescape_value(reader)
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
             let mut key = self.attrkey.to_string().as_bytes().to_vec();
             key.append(&mut attr.key.as_ref().to_vec());
-            let value_key = reader.decoder().decode(&key).map_err(|e| Error::new(ErrorKind::InvalidData, e))?.to_string();
+            let value_key = reader
+                .decoder()
+                .decode(&key)
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                .to_string();
 
             let value_text = JsonValue::resolve(value.to_string());
             self.assign_or_push(&mut node.value, &value_key, value_text, false);
@@ -176,7 +182,9 @@ impl JsonBuilder {
 
     // Process text
     fn process_text(&self, event: &BytesText, stack: &mut [Node]) -> Result<()> {
-        let cdata = event.unescape().map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let cdata = event
+            .unescape()
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         if let Some(last_node) = stack.last_mut() {
             let text = &mut last_node.text.data;
@@ -213,7 +221,7 @@ impl JsonBuilder {
             None => {
                 return Err(Error::new(
                     ErrorKind::Other,
-                    "Expected stack item at close tag.",
+                    "Expected stack item at close tag",
                 ))
             }
         };
@@ -276,7 +284,7 @@ impl JsonBuilder {
             stack,
         )?;
 
-        if let Some(mut last_node) = stack.last_mut() {
+        if let Some(last_node) = stack.last_mut() {
             last_node.text.literal = true;
         }
         Ok(())

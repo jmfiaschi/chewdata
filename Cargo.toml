@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "1.18.0-beta.1"
+version = "1.18.0-beta.2"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2021"
 description = "Extract Transform and Load data"
@@ -19,15 +19,15 @@ path = "benches/benchmark.rs"
 [dependencies]
 # Logs
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
-tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter","tracing-log"] }
+tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter","tracing-log","json","ansi"] }
 tracing-appender = { version = "0.2", default-features = false }
-tracing-opentelemetry = { version = "0.19", default-features = false, features= ["tracing-log"] }
-opentelemetry = { version = "0.19", default-features = false, features= ["trace","rt-async-std"], optional = true}
-opentelemetry-jaeger = { version = "0.18", default-features = false, features= ["rt-async-std"], optional = true}
+tracing-opentelemetry = { version = "0.22", default-features = false, features= ["tracing-log"] }
+opentelemetry = { version = "0.21", default-features = false, features= ["trace"], optional = true}
+opentelemetry-jaeger = { version = "0.20", default-features = false, features= ["rt-async-std"], optional = true}
 glob = { version = "0.3", default-features = false }
 env_applier = { version = "0.1", default-features = false }
 serde_json = { version = "1.0", default-features = false, features= ["std"] }
-json_value_merge = { version = "1.2", default-features = false }
+json_value_merge = { version = "2.0", default-features = false }
 json_value_remove = { version = "1.0", default-features = false }
 json_value_resolve =  { version = "1.0", default-features = false }
 json_value_search =  { version = "1.0", default-features = false }
@@ -37,7 +37,7 @@ futures = { version = "0.3", default-features = false, features = ["std", "async
 async-std = { version = "1.12", default-features = true, features = ["attributes"] } # default option required or async_std::io::{stdin, stdout} not found.
 async-trait = { version = "0.1", default-features = false }
 async-stream = { version = "0.3", default-features = false }
-async-channel = { version = "1.9", default-features = false }
+async-channel = { version = "2.1", default-features = false }
 mime = { version = "0.3", default-features = false }
 base64 = { version = "0.21", default-features = false, features = ["std"] }
 regex = { version = "1.9" }
@@ -53,20 +53,21 @@ fs2 = { version = "0.4", default-features = false }
 tera = { version = "1.19", default-features = false, features = ["builtins"] }
 uuid = { version = "1.4", features = ["std", "v4"] }
 # For readers
-quick-xml = { version = "0.30", default-features = false, optional = true, features = ["serialize"] }
+quick-xml = { version = "0.31", default-features = false, optional = true, features = ["serialize"] }
 csv = { version = "1.1", default-features = false, optional = true }
-toml = { version = "0.7", default-features = false, optional = true, features = ["parse", "display"] }
-parquet = { version = "46.0", default-features = false, optional = true, features = ["cli","arrow","flate2","brotli","lz4","zstd","snap"] }
-arrow-json = { version = "46.0", default-features = false, optional = true } # used to create the batch with json_value
-arrow-integration-test = { version = "46.0", default-features = false, optional = true } # used to transform json_value to schema
+toml = { version = "0.8", default-features = false, optional = true, features = ["parse", "display"] }
+parquet = { version = "49.0", default-features = false, optional = true, features = ["cli","arrow","flate2","brotli","lz4","zstd","snap"] }
+arrow-json = { version = "49.0", default-features = false, optional = true } # used to create the batch with json_value
+arrow-integration-test = { version = "49.0", default-features = false, optional = true } # used to transform json_value to schema
 bytes = { version = "1.4", default-features = false, optional = true, features = ["std"] }
 # For Connectors
 ## bucket
-aws-config = { version = "0.55", optional = true }
-aws-sdk-s3 = { version = "0.28", default-features = false, optional = true, features = ["rustls","rt-tokio"] }
+aws-config = { version = "1.0", optional = true }
+aws-sdk-s3 = { version = "0.39", default-features = false, optional = true, features = ["sigv4a","rustls","rt-tokio","behavior-version-latest"] }
 byteorder = { version = "1.4", default-features = false, optional = true, features = ["std"] }
-jsonwebtoken = { version = "8.3", default-features = false, features = ["use_pem"], optional = true }
-surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding","middleware-logger"], optional = true }
+jsonwebtoken = { version = "9.1", default-features = false, features = ["use_pem"], optional = true }
+surf = { version = "2.3", default-features = false, features = ["h1-client-rustls", "encoding"], optional = true }
+http-cache-surf = { version = "0.12", optional = true}
 http-types = { version = "2.12", default-features = false, optional = true }
 mongodb = { version = "2.6", default-features = false, features = ["async-std-runtime"], optional = true }
 async-compat = { version = "0.2", default-features = false, optional = true }
@@ -82,7 +83,7 @@ csv = ["dep:csv"]
 toml = ["dep:toml"]
 parquet = ["dep:parquet","dep:byteorder","dep:arrow-json","dep:bytes","dep:arrow-integration-test"]
 bucket = ["dep:aws-sdk-s3","dep:aws-config","dep:async-compat"]
-curl = ["dep:surf","dep:jsonwebtoken","dep:http-types"]
+curl = ["dep:surf","dep:jsonwebtoken","dep:http-types","dep:http-cache-surf"]
 mongodb = ["dep:mongodb"]
 psql = ["sqlx","sqlx/postgres"]
 apm = ["dep:opentelemetry","dep:opentelemetry-jaeger"]

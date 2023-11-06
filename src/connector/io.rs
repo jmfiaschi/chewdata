@@ -24,7 +24,7 @@
 //!     }
 //! ]
 //! ```
-use super::{Connector, Paginator};
+use super::Connector;
 use crate::connector::paginator::once::Once;
 use crate::document::Document;
 use crate::{DataSet, DataStream, Metadata};
@@ -35,10 +35,10 @@ use async_stream::stream;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io::Result;
 use std::pin::Pin;
-use std::{fmt, io::Result};
 
-#[derive(Deserialize, Serialize, Clone, Default)]
+#[derive(Deserialize, Serialize, Clone, Default, Debug)]
 #[serde(default, deny_unknown_fields)]
 pub struct Io {
     #[serde(rename = "metadata")]
@@ -51,15 +51,6 @@ pub struct Io {
 
 fn default_eof() -> String {
     "".to_string()
-}
-
-impl fmt::Debug for Io {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Io")
-            .field("metadata", &self.metadata)
-            .field("eoi", &self.eoi)
-            .finish()
-    }
 }
 
 #[async_trait]
@@ -91,11 +82,11 @@ impl Connector for Io {
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let stdin = BufReader::new(stdin());
 
-        trace!("Retreive lines.");
+        trace!("Retreive lines");
         let mut lines = stdin.lines();
         let mut buf = String::default();
 
-        trace!("Read lines.");
+        trace!("Read lines");
         while let Some(line) = lines.next().await {
             let current_line: String = line?;
             if current_line.eq(self.eoi.as_str()) {
@@ -103,14 +94,15 @@ impl Connector for Io {
             };
             buf = format!("{}{}\n", buf, current_line);
         }
-        trace!("Save lines into the buffer.");
+        trace!("Save lines into the buffer");
         if !document.has_data(buf.as_bytes())? {
             return Ok(None);
         }
 
         let dataset = document.read(&buf.into_bytes())?;
 
-        info!("The connector fetch data successfully.");
+        info!("Fetch data with success");
+
         Ok(Some(Box::pin(stream! {
             for data in dataset {
                 yield data;
@@ -118,7 +110,7 @@ impl Connector for Io {
         })))
     }
     /// See [`Connector::send`] for more details.
-    #[instrument(skip(dataset), name = "io::send")]
+    #[instrument(name = "io::send", skip(dataset))]
     async fn send(
         &mut self,
         document: &dyn Document,
@@ -136,7 +128,7 @@ impl Connector for Io {
         trace!("Flush data into stdout");
         stdout().flush().await?;
 
-        info!("The connector send data into the resource successfully.");
+        info!("Send data with success");
         Ok(None)
     }
     /// See [`Connector::erase`] for more details.
@@ -145,9 +137,12 @@ impl Connector for Io {
             "IO connector can't erase data to the remote document. Use other connector type"
         )
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        Ok(Box::pin(Once::new(Box::new(self.clone()))?))
+    /// See [`Connector::paginate`] for more details.
+    async fn paginate(
+        &self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let paginator = Once {};
+        paginator.paginate(self).await
     }
 }
 
@@ -157,17 +152,16 @@ mod tests {
     use async_std::prelude::StreamExt;
 
     #[async_std::test]
-    async fn paginator_stream() {
+    async fn paginate() {
         let connector = Io::default();
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
+
+        let mut paging = connector.paginate().await.unwrap();
         assert!(
-            stream.next().await.transpose().unwrap().is_some(),
+            paging.next().await.transpose().unwrap().is_some(),
             "Can't get the first reader."
         );
         assert!(
-            stream.next().await.transpose().unwrap().is_none(),
+            paging.next().await.transpose().unwrap().is_none(),
             "Must return only on connector for IO."
         );
     }

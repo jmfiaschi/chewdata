@@ -41,6 +41,7 @@ async fn main() -> Result<()> {
     // Create new layer for stdout logs
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let layer = tracing_subscriber::fmt::layer()
+        .pretty()
         .with_line_number(true)
         .with_writer(non_blocking)
         .with_filter(EnvFilter::from_default_env())
@@ -56,7 +57,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    trace!("Transform the config in input into steps.");
+    trace!("Transform the config in input into steps");
     let steps: Vec<StepType> = match (args.get_one::<String>(ARG_JSON), args.get_one::<String>(ARG_FILE)) {
         (None, Some(file_path)) => match file_path.split('.').collect::<Vec<&str>>().last() {
             Some(v) => match *v {
@@ -64,7 +65,7 @@ async fn main() -> Result<()> {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        deser_hjson::from_str(&env::Vars::apply(buf).as_str())
+                        deser_hjson::from_str(env::Vars::apply(buf).as_str())
                             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
                     },
                     "yaml"|"yml" => {
@@ -84,12 +85,12 @@ async fn main() -> Result<()> {
                     },
                     format => Err(Error::new(
                         ErrorKind::NotFound,
-                        format!("The format of the config file '{}' is not handle. Valid config file formats are [json, hjson, yaml].", format),
+                        format!("The format of the config file '{}' is not handle. Valid config file formats are [json, hjson, yaml]", format),
                     )),
             }
             None => Err(Error::new(
                 ErrorKind::NotFound,
-                "The format of the config file is not found. Valid config file formats are [json, hjson, yaml].",
+                "The format of the config file is not found. Valid config file formats are [json, hjson, yaml]",
             ))
         }
         (Some(json), _) => {

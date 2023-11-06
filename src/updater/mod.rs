@@ -5,7 +5,11 @@ use self::tera::Tera;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::{fmt, io};
+use std::io;
+
+pub const INPUT_FIELD_KEY: &str = "input";
+pub const OUPUT_FIELD_KEY: &str = "output";
+pub const CONTEXT_FIELD_KEY: &str = "context";
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
@@ -44,27 +48,29 @@ pub trait Updater: Send + Sync {
     /// Update the object with some mapping
     fn update(
         &self,
-        object: Value,
-        context: Value,
-        mapping: Option<HashMap<String, Vec<Value>>>,
-        actions: Vec<Action>,
-        input_name: String,
-        output_name: String,
+        object: &Value,
+        context: &Value,
+        mapping: &Option<HashMap<String, Vec<Value>>>,
+        actions: &[Action],
     ) -> io::Result<Value>;
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Action {
     #[serde(default = "default_field_value")]
     pub field: String,
+    #[serde(default = "default_pattern_value")]
     pub pattern: Option<String>,
     #[serde(rename = "type")]
     #[serde(default = "ActionType::merge")]
     pub action_type: ActionType,
 }
 
-/// Default field value link to the root object
 fn default_field_value() -> String {
     "/".to_string()
+}
+
+fn default_pattern_value() -> Option<String> {
+    Some("{{ input | json_encode() }}".to_string())
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -75,12 +81,6 @@ pub enum ActionType {
     Replace,
     #[serde(alias = "remove")]
     Remove,
-}
-
-impl fmt::Display for ActionType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
 }
 
 impl ActionType {

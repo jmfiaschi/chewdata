@@ -3,7 +3,7 @@ extern crate tera;
 use super::Updater;
 use super::{Action, ActionType};
 use crate::helper::json_pointer::JsonPointer;
-use crate::updater::tera_helpers::{filters, function, faker};
+use crate::updater::tera_helpers::{faker, filters, function};
 use json_value_merge::Merge;
 use json_value_remove::Remove;
 use json_value_resolve::Resolve;
@@ -27,17 +27,16 @@ impl Updater for Tera {
     #[instrument(name = "tera::update")]
     fn update(
         &self,
-        object: Value,
-        context: Value,
-        mapping: Option<HashMap<String, Vec<Value>>>,
-        actions: Vec<Action>,
-        input_name: String,
-        output_name: String,
+        object: &Value,
+        context: &Value,
+        mapping: &Option<HashMap<String, Vec<Value>>>,
+        actions: &[Action],
     ) -> io::Result<Value> {
         let mut engine = Tera::engine();
         let mut tera_context = tera::Context::new();
-        tera_context.insert(input_name, &object);
-        tera_context.insert("context", &context);
+
+        tera_context.insert(super::INPUT_FIELD_KEY, &object);
+        tera_context.insert(super::CONTEXT_FIELD_KEY, &context);
 
         if let Some(mapping) = mapping {
             for (field_path, object) in mapping {
@@ -51,35 +50,33 @@ impl Updater for Tera {
                 field = action.field.as_str(),
                 "Field fetch into the pattern collection"
             );
-            tera_context.insert(output_name.clone(), &json_value.clone());
+            tera_context.insert(super::OUPUT_FIELD_KEY, &json_value.clone());
 
             let mut field_new_value = Value::default();
 
             match &action.pattern {
                 Some(pattern) => {
-                    let render_result: String = match engine
-                        .render_str(pattern.as_str(), &tera_context)
-                    {
-                        Ok(render_result) => Ok(render_result),
-                        Err(e) => Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            format!(
-                                "Failed to render the field '{}'. {}.",
-                                action.field,
-                                match e.source() {
-                                    Some(e) => {
-                                        match e.source() {
-                                            Some(e) => e.to_string(),
-                                            None => e.to_string(),
+                    let render_result: String =
+                        match engine.render_str(pattern.as_str(), &tera_context) {
+                            Ok(render_result) => Ok(render_result),
+                            Err(e) => Err(io::Error::new(
+                                io::ErrorKind::InvalidInput,
+                                format!(
+                                    "Failed to render the field '{}'. {}.",
+                                    action.field,
+                                    match e.source() {
+                                        Some(e) => {
+                                            match e.source() {
+                                                Some(e) => e.to_string(),
+                                                None => e.to_string(),
+                                            }
                                         }
+                                        None => format!("Please fix the pattern `{}`", pattern),
                                     }
-                                    None =>
-                                        format!("Please fix the pattern `{}`", pattern),
-                                }
-                                .replace(" '__tera_one_off'", "")
-                            ),
-                        )),
-                    }?;
+                                    .replace(" '__tera_one_off'", "")
+                                ),
+                            )),
+                        }?;
                     trace!(
                         value = render_result.as_str(),
                         "Field value before resolved it"
@@ -93,13 +90,13 @@ impl Updater for Tera {
                 None => (),
             };
 
-            let json_pointer = action.field.clone().to_json_pointer();
+            let json_pointer = action.field.to_json_pointer();
 
             trace!(
                 output = format!("{}", json_value).as_str(),
                 jpointer = json_pointer.to_string().as_str(),
                 data = format!("{}", field_new_value).as_str(),
-                "{} the new field",
+                "{:?} the new field",
                 action.action_type
             );
 

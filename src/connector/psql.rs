@@ -28,14 +28,19 @@
 //!                 "upsert": true
 //!             }
 //!         },
-//!         "thread_number":3
+//!         "concurrency_limit":3
 //!     }
 //! ]
 //! ```
-use super::{Connector, Paginator};
+use super::counter::psql::CounterType;
+use super::paginator::psql::PaginatorType;
+use super::Connector;
 use crate::helper::json_pointer::JsonPointer;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{document::Document, helper::mustache::Mustache, DataResult};
 use crate::{DataSet, DataStream};
+use async_std::sync::Arc;
+use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
@@ -44,8 +49,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::postgres::{PgArguments, PgPoolOptions, PgRow};
 use sqlx::{Arguments, Column, Pool, Postgres, Row, TypeInfo};
-use std::io::{Error, ErrorKind, Result};
-use std::{fmt, pin::Pin};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::pin::Pin;
+use std::sync::OnceLock;
+use std::{
+    fmt,
+    io::{Error, ErrorKind, Result},
+};
+
+static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Pool<Postgres>>>>> = OnceLock::new();
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -64,13 +78,9 @@ pub struct Psql {
     pub paginator_type: PaginatorType,
     #[serde(alias = "counter")]
     #[serde(alias = "count")]
-    pub counter_type: Option<CounterType>,
+    pub counter_type: CounterType,
     #[serde(alias = "conn")]
     pub max_connections: u32,
-    #[serde(skip)]
-    pub inner: Box<Vec<Value>>,
-    #[serde(skip)]
-    client: Option<Pool<Postgres>>,
 }
 
 impl Default for Psql {
@@ -82,35 +92,19 @@ impl Default for Psql {
             parameters: Default::default(),
             query: Default::default(),
             paginator_type: PaginatorType::default(),
-            counter_type: None,
+            counter_type: CounterType::default(),
             max_connections: 5,
-            inner: Default::default(),
-            client: None,
         }
     }
 }
 
-impl fmt::Display for Psql {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.inner
-                .iter()
-                .map(|value| value.to_string())
-                .collect::<Vec<String>>()
-                .join(",")
-        )
-    }
-}
-
-// Not display the inner for better performance with big data
 impl fmt::Debug for Psql {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Psql")
-            .field("endpoint", &self.endpoint)
-            .field("collection", &self.collection)
+            // Can contain sensitive data
+            .field("endpoint", &self.endpoint.display_only_for_debugging())
             .field("database", &self.database)
+            .field("collection", &self.collection)
             .field("parameters", &self.parameters)
             .field("query", &self.query)
             .field("paginator_type", &self.paginator_type)
@@ -124,11 +118,15 @@ impl Psql {
     /// Transform mustache query into sanitized psql query with his arguments
     /// Query: SELECT * FROM {{ collection }} WHERE "a"={{ a }};
     /// Return: (SELECT * FROM collection WHERE "a" = $1, "a")
-    fn query_sanitized(&self, query: String, parameters: Value) -> Result<(String, PgArguments)> {
+    pub fn query_sanitized(
+        &self,
+        query: &str,
+        parameters: &Value,
+    ) -> Result<(String, PgArguments)> {
         let mut map = Map::default();
         let regex = regex::Regex::new("\\{{2}([^}]*)\\}{2}")
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-        let mut query_sanitized = query;
+        let mut query_sanitized = query.to_owned();
         let mut query_binding: PgArguments = Default::default();
         let mut count = 1;
 
@@ -227,28 +225,31 @@ impl Psql {
         Ok((query_sanitized, query_binding))
     }
     /// Get the current client
-    async fn client(&mut self) -> Result<&Pool<Postgres>> {
-        match self.client {
-            Some(_) => (),
-            None => {
-                trace!("Create a new DB client");
-                self.client = Some(
-                    PgPoolOptions::new()
-                        .max_connections(self.max_connections)
-                        .connect(self.path().as_str())
-                        .await
-                        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?,
-                );
-            }
+    pub async fn client(&self) -> Result<Pool<Postgres>> {
+        let clients = CLIENTS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+
+        let client_key = self.client_key();
+        if let Some(client) = clients.lock().await.get(&self.client_key()) {
+            trace!(client_key, "Retrieve the previous client");
+            return Ok(client.clone());
         }
 
-        match &self.client {
-            Some(client) => {
-                trace!("Reuse the DB client");
-                Ok(client)
-            }
-            None => Err(Error::new(ErrorKind::Interrupted, "Client is empty")),
-        }
+        trace!(client_key, "Create a new client");
+        let mut map = clients.lock_arc().await;
+        let client = PgPoolOptions::new()
+            .max_connections(self.max_connections)
+            .connect(self.path().as_str())
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        map.insert(client_key, client.clone());
+
+        Ok(client)
+    }
+    fn client_key(&self) -> String {
+        let mut hasher = DefaultHasher::new();
+        let client_key = self.path().to_string();
+        client_key.hash(&mut hasher);
+        hasher.finish().to_string()
     }
 }
 
@@ -264,7 +265,7 @@ impl Connector for Psql {
     }
     /// See [`Connector::is_variable`] for more details.
     fn is_variable(&self) -> bool {
-        match self.query.clone() {
+        match &self.query {
             Some(query) => query.has_mustache(),
             None => false,
         }
@@ -297,20 +298,18 @@ impl Connector for Psql {
     /// }
     /// ```
     #[instrument(name = "psql::len")]
-    async fn len(&mut self) -> Result<usize> {
-        let (query_sanitized, _) = self.query_sanitized(
-            "SELECT COUNT(1) FROM {{ collection }}".to_string(),
-            Value::Null,
-        )?;
+    async fn len(&self) -> Result<usize> {
+        match self.counter_type.count(self).await {
+            Ok(count) => Ok(count),
+            Err(e) => {
+                warn!(
+                    error = e.to_string(),
+                    "Can't count the number of element, return 0"
+                );
 
-        let len: i64 = sqlx::query_scalar(query_sanitized.as_str())
-            .fetch_one(self.client().await?)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-
-        info!(len, "Number of records found in the resource");
-
-        Ok(len as usize)
+                Ok(0)
+            }
+        }
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -351,13 +350,9 @@ impl Connector for Psql {
     /// ```
     #[instrument(name = "psql::fetch")]
     async fn fetch(&mut self, _document: &dyn Document) -> std::io::Result<Option<DataStream>> {
-        let parameters = self.parameters.clone();
-        let (query_sanitized, binding) = match self.query.clone() {
-            Some(query) => self.query_sanitized(query, parameters.clone()),
-            None => self.query_sanitized(
-                "SELECT * FROM {{ collection }}".to_string(),
-                parameters.clone(),
-            ),
+        let (query_sanitized, binding) = match &self.query {
+            Some(query) => self.query_sanitized(query, &self.parameters),
+            None => self.query_sanitized("SELECT * FROM {{ collection }}", &self.parameters),
         }?;
 
         let data = sqlx::query_with(query_sanitized.as_str(), binding)
@@ -443,11 +438,11 @@ impl Connector for Psql {
                 }
                 Value::Object(map)
             })
-            .fetch_all(self.client().await?)
+            .fetch_all(&self.client().await?)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        info!("The connector fetch data with success");
+        info!("Fetch data with success");
 
         if data.is_empty() {
             return Ok(None);
@@ -501,8 +496,8 @@ impl Connector for Psql {
         _document: &dyn Document,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
-        let query = match self.query.clone() {
-            Some(query) => query,
+        let query = match &self.query {
+            Some(query) => query.clone(),
             None => {
                 let query_start = "INSERT INTO {{ collection }}".to_string();
                 let mut query_fields = "".to_string();
@@ -528,11 +523,10 @@ impl Connector for Psql {
         };
 
         for data in dataset {
-            let (query_sanitized, binding) =
-                self.query_sanitized(query.clone(), data.to_value())?;
+            let (query_sanitized, binding) = self.query_sanitized(&query, &data.to_value())?;
 
             match sqlx::query_with(query_sanitized.as_str(), binding)
-                .execute(self.client().await?)
+                .execute(&self.client().await?)
                 .await
             {
                 Ok(_) => Ok(()),
@@ -540,14 +534,14 @@ impl Connector for Psql {
                     warn!(
                         error = format!("{}", e).as_str(),
                         query = query.as_str(),
-                        "Can't send the data through the connector"
+                        "Can't send data"
                     );
                     Err(Error::new(ErrorKind::Interrupted, e))
                 }
             }?;
         }
 
-        info!("The connector send data into the collection with success");
+        info!("Send data with success");
 
         Ok(None)
     }
@@ -588,268 +582,21 @@ impl Connector for Psql {
     #[instrument(name = "psql::erase")]
     async fn erase(&mut self) -> Result<()> {
         let (query_sanitized, _) =
-            self.query_sanitized("DELETE FROM {{ collection }}".to_string(), Value::Null)?;
+            self.query_sanitized("DELETE FROM {{ collection }}", &Value::Null)?;
 
         sqlx::query(query_sanitized.as_str())
-            .execute(self.client().await?)
+            .execute(&self.client().await?)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        info!("The connector erase data with success");
+        info!("Erase data with success");
         Ok(())
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        let paginator = match self.paginator_type {
-            PaginatorType::Offset(ref offset_paginator) => {
-                let mut offset_paginator = offset_paginator.clone();
-                offset_paginator.set_connector(self.clone());
-
-                Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
-            }
-        };
-
-        Ok(Pin::new(paginator))
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(tag = "type")]
-pub enum CounterType {
-    #[serde(alias = "scan")]
-    #[serde(skip_serializing)]
-    Scan(Scan),
-}
-
-impl Default for CounterType {
-    fn default() -> Self {
-        CounterType::Scan(Scan::default())
-    }
-}
-
-impl CounterType {
-    pub async fn count(
-        &self,
-        connector: Psql,
-        _document: Option<Box<dyn Document>>,
-    ) -> Result<Option<usize>> {
-        match self {
-            CounterType::Scan(scan) => scan.count(connector).await,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
-pub struct Scan {}
-
-impl Scan {
-    /// Get the number of items from the scan
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::psql::{Psql, Scan};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Psql::default();
-    ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
-    ///
-    ///     let counter = Scan::default();
-    ///     assert!(counter.count(connector).await?.is_some());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument(name = "scan_counter::count")]
-    pub async fn count(&self, connector: Psql) -> Result<Option<usize>> {
-        let count = connector.clone().len().await?;
-
-        info!(count = count, "The counter count with success");
-        Ok(Some(count))
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(tag = "type")]
-pub enum PaginatorType {
-    #[serde(alias = "offset")]
-    Offset(Offset),
-}
-
-impl Default for PaginatorType {
-    fn default() -> Self {
-        PaginatorType::Offset(Offset::default())
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(default, deny_unknown_fields)]
-pub struct Offset {
-    pub limit: usize,
-    pub skip: usize,
-    pub count: Option<usize>,
-    #[serde(skip)]
-    pub connector: Option<Box<Psql>>,
-    #[serde(skip)]
-    pub has_next: bool,
-}
-
-impl Default for Offset {
-    fn default() -> Self {
-        Offset {
-            limit: 100,
-            skip: 0,
-            count: None,
-            connector: None,
-            has_next: true,
-        }
-    }
-}
-
-impl Offset {
-    fn set_connector(&mut self, connector: Psql) -> &mut Self
-    where
-        Self: Paginator + Sized,
-    {
-        self.connector = Some(Box::new(connector));
-        self
-    }
-}
-
-#[async_trait]
-impl Paginator for Offset {
-    /// See [`Paginator::count`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{psql::{Psql, PaginatorType, Offset, CounterType, Scan}, Connector};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Psql::default();
-    ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Offset(Offset::default());
-    ///
-    ///     let mut paginator = connector.paginator().await?;
-    ///     assert!(paginator.count().await?.is_some());
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    async fn count(&mut self) -> Result<Option<usize>> {
-        let connector = match self.connector {
-            Some(ref mut connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't count the number of element in the collection without a connector",
-            )),
-        }?;
-
-        let mut counter_type = None;
-        if connector.counter_type.is_none() {
-            counter_type = Some(CounterType::Scan(Scan::default()));
-        }
-
-        if let Some(counter_type) = counter_type {
-            self.count = counter_type.count(*connector.clone(), None).await?;
-
-            info!(
-                size = self.count,
-                "The connector's counter count elements in the collection with success"
-            );
-            return Ok(self.count);
-        }
-
-        trace!(size = self.count, "The connector's counter not exist or can't count the number of elements in the collection");
-        Ok(None)
-    }
-    /// See [`Paginator::stream`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{psql::{Psql, PaginatorType, Offset}, Connector};
-    /// use async_std::prelude::*;
-    /// use std::io;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let mut connector = Psql::default();
-    ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
-    ///     connector.paginator_type = PaginatorType::Offset(Offset {
-    ///         skip: 0,
-    ///         limit: 1,
-    ///         ..Default::default()
-    ///     });
-    ///     let mut stream = connector.paginator().await?.stream().await?;
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument(name = "offset_paginator::stream")]
-    async fn stream(
+    /// See [`Connector::paginate`] for more details.
+    async fn paginate(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let mut paginator = self.clone();
-        let connector = match paginator.connector.clone() {
-            Some(connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't paginate without a connector",
-            )),
-        }?;
-
-        let mut has_next = true;
-        let limit = paginator.limit;
-        let mut skip = paginator.skip;
-        let query = connector
-            .query
-            .clone()
-            .unwrap_or_else(|| "SELECT * FROM {{ collection }}".to_string());
-        let count_opt = match paginator.count {
-            Some(count) => Some(count),
-            None => paginator.count().await?,
-        };
-
-        let stream = Box::pin(stream! {
-            while has_next {
-                let mut new_connector = connector.clone();
-
-                new_connector.query = Some(format!("SELECT * from ({}) as paginator LIMIT {} OFFSET {};", query.clone(), limit, skip));
-
-                if let Some(count) = count_opt {
-                    if count <= limit + skip {
-                        has_next = false;
-                    }
-                }
-
-                skip += limit;
-
-                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
-                yield Ok(new_connector as Box<dyn Connector>);
-            }
-            trace!("The stream stop to return new connectors");
-        });
-
-        Ok(stream)
-    }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        self.count.is_some()
+        self.paginator_type.paginate(self).await
     }
 }
 
@@ -867,7 +614,7 @@ mod tests {
         connector.database = "postgres".into();
         connector.collection = "public.read".into();
         let len = connector.len().await.unwrap();
-        assert!(0 < len, "The connector should have a size upper than zero");
+        assert!(0 < len, "The connector should have a size upper than zero.");
     }
     #[async_std::test]
     async fn fetch() {
@@ -880,7 +627,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
-            "The inner connector should have a size upper than zero"
+            "The inner connector should have a size upper than zero."
         );
     }
     #[async_std::test]
@@ -901,7 +648,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             1 == datastream.count().await,
-            "The datastream must contain one record"
+            "The datastream must contain one record."
         );
     }
     #[async_std::test]
@@ -921,7 +668,7 @@ mod tests {
 
         let mut connector_read = connector.clone();
         let datastream = connector_read.fetch(&document).await.unwrap();
-        assert!(datastream.is_none(), "The datastream should be empty");
+        assert!(datastream.is_none(), "The datastream should be empty.");
     }
     #[async_std::test]
     async fn send_new_data() {
@@ -1114,54 +861,6 @@ mod tests {
             serde_json::from_str(r#"{"number":1,"string":"value' OR 1=1;--"}"#).unwrap();
         connector.set_parameters(data);
         let datastream = connector.fetch(&document).await.unwrap();
-        assert!(datastream.is_none(), "The sql injection return no data");
-    }
-    #[async_std::test]
-    async fn paginator_scan_counter_count() {
-        let mut connector = Psql::default();
-        connector.endpoint = "postgres://admin:admin@localhost".into();
-        connector.database = "postgres".into();
-        connector.collection = "public.read".into();
-        let counter = Scan::default();
-        assert!(counter.count(connector).await.unwrap().is_some());
-    }
-    #[async_std::test]
-    async fn paginator_offset_count() {
-        let mut connector = Psql::default();
-        connector.endpoint = "postgres://admin:admin@localhost".into();
-        connector.database = "postgres".into();
-        connector.collection = "public.read".into();
-        connector.paginator_type = PaginatorType::Offset(Offset::default());
-        let mut paginator = connector.paginator().await.unwrap();
-        assert!(paginator.count().await.unwrap().is_some());
-    }
-    #[async_std::test]
-    async fn paginator_offset_count_with_skip_and_limit() {
-        let document = Json::default();
-
-        let mut connector = Psql::default();
-        connector.endpoint = "postgres://admin:admin@localhost".into();
-        connector.database = "postgres".into();
-        connector.collection = "public.read".into();
-        connector.paginator_type = PaginatorType::Offset(Offset {
-            skip: 0,
-            limit: 1,
-            ..Default::default()
-        });
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut paginate = paginator.stream().await.unwrap();
-        let mut connector = paginate.next().await.transpose().unwrap().unwrap();
-
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
-        let data_1 = datastream.next().await.unwrap();
-
-        let mut connector = paginate.next().await.transpose().unwrap().unwrap();
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
-        let data_2 = datastream.next().await.unwrap();
-        assert!(
-            data_1 != data_2,
-            "The content of this two stream is not different."
-        );
+        assert!(datastream.is_none(), "The sql injection return no data.");
     }
 }

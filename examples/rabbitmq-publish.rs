@@ -11,6 +11,7 @@ async fn main() -> io::Result<()> {
     let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let layer = tracing_subscriber::fmt::layer()
+        .pretty()
         .with_line_number(true)
         .with_writer(non_blocking)
         .with_filter(EnvFilter::from_default_env())
@@ -77,7 +78,7 @@ async fn main() -> io::Result<()> {
         "document": {
             "type": "jsonl"
         },
-        "threads": 3,
+        "concurrency_limit": 3,
         "batch": 1
     }]
     "#;

@@ -1,6 +1,6 @@
-use std::io;
-use std::env;
 use env_applier::EnvApply;
+use std::env;
+use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -11,6 +11,7 @@ async fn main() -> io::Result<()> {
     let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let layer = tracing_subscriber::fmt::layer()
+        .pretty()
         .with_line_number(true)
         .with_writer(non_blocking)
         .with_filter(EnvFilter::from_default_env())
@@ -18,7 +19,7 @@ async fn main() -> io::Result<()> {
     layers.push(layer);
 
     tracing_subscriber::registry().with(layers).init();
-    
+
     {
         let config = r#"
         [
@@ -56,7 +57,7 @@ async fn main() -> io::Result<()> {
                         "pattern": "{\"object_field\":\"object_value\"}"
                     }
                 ],
-                "thread_number": 1
+                "concurrency_limit": 1
             },{
                 "type": "w",
                 "connector":{
@@ -65,17 +66,23 @@ async fn main() -> io::Result<()> {
                     "db": "{{ PSQL_DB }}",
                     "collection": "examples.simple_insert"
                 },
-                "thread_number": 1
+                "concurrency_limit": 1
             },{
+                # Write data in error in the stdout with the error message
                 "type": "w",
-                "desc": "Write data in error in the stdout with the error message",
                 "data": "err"
             }
         ]
         "#;
 
         let config_resolved = env::Vars::apply(config.to_string());
-        chewdata::exec(serde_json::from_str(config_resolved.as_str())?, None, None).await?;
+        chewdata::exec(
+            deser_hjson::from_str(config_resolved.as_str())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            None,
+            None,
+        )
+        .await?;
 
         tracing::info!("Check the collection: http://localhost:8082/?pgsql=psql&username=admin&db=postgres&ns=examples");
     }
