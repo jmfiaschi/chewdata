@@ -445,17 +445,25 @@ impl Connector for Mongodb {
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+    async fn paginator(&self, _document: &dyn ChewdataDocument) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+        let connector = self.clone();
+
         let paginator = match self.paginator_type {
             PaginatorType::Offset(ref offset_paginator) => {
                 let mut offset_paginator = offset_paginator.clone();
-                offset_paginator.set_connector(self.clone());
+                if offset_paginator.count.is_none() {
+                    offset_paginator.count = match connector.counter_type.clone() {
+                        Some(counter_type) => counter_type.count(&self).await?,
+                        None => None,
+                    };
+                }
+                offset_paginator.connector = Some(Box::new(connector));
 
                 Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
             }
             PaginatorType::Cursor(ref cursor_paginator) => {
                 let mut cursor_paginator = cursor_paginator.clone();
-                cursor_paginator.set_connector(self.clone());
+                cursor_paginator.connector = Some(Box::new(connector));
 
                 Box::new(cursor_paginator) as Box<dyn Paginator + Send + Sync>
             }
@@ -480,11 +488,7 @@ impl Default for CounterType {
 }
 
 impl CounterType {
-    pub async fn count(
-        &self,
-        connector: Mongodb,
-        _document: Option<Box<dyn ChewdataDocument>>,
-    ) -> Result<Option<usize>> {
+    pub async fn count(&self, connector: &Mongodb) -> Result<Option<usize>> {
         match self {
             CounterType::Metadata(counter) => counter.count(connector).await,
         }
@@ -512,13 +516,13 @@ impl Metadata {
     ///     connector.collection = "startup_log".into();
     ///
     ///     let counter = Metadata::default();
-    ///     assert!(counter.count(connector).await?.is_some());
+    ///     assert!(counter.count(&connector).await?.is_some());
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument(name = "metadata_counter::count")]
-    pub async fn count(&self, connector: Mongodb) -> Result<Option<usize>> {
+    pub async fn count(&self, connector: &Mongodb) -> Result<Option<usize>> {
         let count = connector.clone().len().await?;
 
         info!(count = count, "The counter count with success");
@@ -701,7 +705,7 @@ mod tests {
         connector.database = "local".into();
         connector.collection = "startup_log".into();
         let counter = Metadata::default();
-        assert!(counter.count(connector).await.unwrap().is_some());
+        assert!(counter.count(&connector).await.unwrap().is_some());
     }
     #[async_std::test]
     async fn paginator_scan_counter_count_none() {
@@ -710,6 +714,6 @@ mod tests {
         connector.database = "not_found".into();
         connector.collection = "startup_log".into();
         let counter = Metadata::default();
-        assert_eq!(Some(0), counter.count(connector).await.unwrap());
+        assert_eq!(Some(0), counter.count(&connector).await.unwrap());
     }
 }

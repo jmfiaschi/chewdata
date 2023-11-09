@@ -60,19 +60,9 @@ impl Default for Offset {
             limit: 100,
             skip: 0,
             count: None,
-            connector: None,
             has_next: true,
+            connector: None,
         }
-    }
-}
-
-impl Offset {
-    pub fn set_connector(&mut self, connector: Mongodb) -> &mut Self
-    where
-        Self: Paginator + Sized,
-    {
-        self.connector = Some(Box::new(connector));
-        self
     }
 }
 
@@ -113,7 +103,7 @@ impl Paginator for Offset {
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let paginator = self.clone();
-        let connector = match paginator.connector.clone() {
+        let connector = match self.connector.clone() {
             Some(connector) => Ok(connector),
             None => Err(Error::new(
                 ErrorKind::Interrupted,
@@ -124,14 +114,7 @@ impl Paginator for Offset {
         let mut has_next = true;
         let limit = self.limit;
         let mut skip = self.skip;
-
-        let count_opt = match paginator.count {
-            Some(count) => Some(count),
-            None => match connector.counter_type.clone() {
-                Some(counter_type) => counter_type.count(*connector.clone(), None).await?,
-                None => None
-            },
-        };
+        let count_opt = paginator.count;
 
         let stream = Box::pin(stream! {
             while has_next {

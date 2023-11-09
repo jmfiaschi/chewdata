@@ -32,18 +32,16 @@
 //!     }
 //! ]
 //! ```
+use crate::connector::curl::Curl;
+use crate::connector::Connector;
 use crate::connector::Paginator;
-use crate::connector::{curl::Curl, Connector};
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    io::{Error, ErrorKind, Result},
-    pin::Pin,
-};
+use std::{io::Error, io::ErrorKind, io::Result, pin::Pin};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -63,16 +61,6 @@ impl Default for Offset {
             count: None,
             connector: None,
         }
-    }
-}
-
-impl Offset {
-    pub fn set_connector(&mut self, connector: Curl) -> &mut Self
-    where
-        Self: Paginator + Sized,
-    {
-        self.connector = Some(Box::new(connector));
-        self
     }
 }
 
@@ -114,29 +102,20 @@ impl Paginator for Offset {
     /// }
     /// ```
     #[instrument(name = "offset_paginator::stream")]
-    async fn stream(
-        &self,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+    async fn stream(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
         let paginator = self.clone();
         let connector = match self.connector.clone() {
             Some(connector) => Ok(connector),
             None => Err(Error::new(
                 ErrorKind::Interrupted,
-                "The paginator cannot paginate without a connector.",
+                "The paginator can't paginate without a connector",
             )),
         }?;
 
         let mut has_next = true;
         let limit = paginator.limit;
         let mut skip = paginator.skip;
-
-        let count_opt = match paginator.count {
-            Some(count) => Some(count),
-            None => match connector.counter_type.clone() {
-                Some(counter_type) => counter_type.count(*connector.clone(), None).await?,
-                None => None
-            },
-        };
+        let count_opt = paginator.count;
 
         let stream = Box::pin(stream! {
             while has_next {
@@ -159,10 +138,10 @@ impl Paginator for Offset {
 
                 skip += limit;
 
-                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream returns the latest new connector.");
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream yields a new connector.");
                 yield Ok(new_connector as Box<dyn Connector>);
             }
-            trace!("The stream stops returning new connectors.");
+            trace!("The stream stops yielding new connectors.");
         });
 
         Ok(stream)
@@ -175,6 +154,7 @@ impl Paginator for Offset {
 
 #[cfg(test)]
 mod tests {
+    use crate::connector::curl::Curl;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
     use futures::StreamExt;
@@ -185,6 +165,8 @@ mod tests {
     #[cfg(feature = "xml")]
     #[async_std::test]
     async fn stream() {
+        use crate::connector::curl::Curl;
+
         let mut document = Xml::default();
         document.entry_path = "/html/body/*/a".to_string();
 

@@ -475,15 +475,18 @@ impl Connector for Local {
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+    async fn paginator(
+        &self,
+        _document: &dyn Document,
+    ) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         Ok(Box::pin(LocalPaginator::new(self.clone())?))
     }
 }
 
 #[derive(Debug)]
 pub struct LocalPaginator {
-    pub connector: Local,
     pub paths: IntoIter<String>,
+    pub connector: Option<Local>,
 }
 
 impl LocalPaginator {
@@ -515,8 +518,8 @@ impl LocalPaginator {
         }
 
         Ok(LocalPaginator {
-            connector,
             paths: paths.into_iter(),
+            connector: Some(connector),
         })
     }
 }
@@ -532,13 +535,15 @@ impl Paginator for LocalPaginator {
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
     /// use std::io;
+    /// use chewdata::document::json::Json;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/one_line.*".to_string();
     ///
-    ///     let mut stream = connector.paginator().await?.stream().await?;
+    ///     let mut stream = connector.paginator(&document).await?.stream().await?;
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
@@ -549,7 +554,13 @@ impl Paginator for LocalPaginator {
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = self.connector.clone();
+        let connector = match self.connector.clone() {
+            Some(connector) => Ok(connector),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't paginate without a connector",
+            )),
+        }?;
         let mut paths = self.paths.clone();
 
         let stream = Box::pin(stream! {
@@ -696,9 +707,11 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_header_counter_count() {
+        let document = Json::default();
+
         let mut connector = Local::default();
         connector.path = "./data/one_line.*".to_string();
-        let paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator(&document).await.unwrap();
         assert!(paginator.is_parallelizable());
 
         let mut stream = paginator.stream().await.unwrap();

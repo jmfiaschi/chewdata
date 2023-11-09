@@ -130,7 +130,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
         Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
     }
     /// Intitialize the paginator and return it. The paginator loop on a list of Reader.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>>;
+    async fn paginator(&self, document: &dyn Document) -> Result<Pin<Box<dyn Paginator + Send + Sync>>>;
 }
 
 impl fmt::Display for dyn Connector {

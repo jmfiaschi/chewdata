@@ -79,13 +79,13 @@ impl Header {
     ///
     ///     let mut counter = Header::default();
     ///     counter.name = "Content-Length".to_string();
-    ///     assert!(Some(0) < counter.count(connector).await.unwrap(), "Counter count() must return a value upper than 0.");
+    ///     assert!(Some(0) < counter.count(&connector).await.unwrap(), "Counter count() must return a value upper than 0.");
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument(name = "header_counter::count")]
-    pub async fn count(&self, connector: Curl) -> Result<Option<usize>> {
+    pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
         let mut connector = connector.clone();
         let client = connector.client().await?;
 
@@ -150,7 +150,7 @@ mod tests {
         let mut counter = Header::default();
         counter.name = "Content-Length".to_string();
         assert!(
-            Some(0) < counter.count(connector).await.unwrap(),
+            Some(0) < counter.count(&connector).await.unwrap(),
             "Counter count() must return a value upper than 0."
         );
     }
@@ -162,6 +162,6 @@ mod tests {
         connector.path = "/get".to_string();
         let mut counter = Header::default();
         counter.name = "not_found".to_string();
-        assert_eq!(None, counter.count(connector).await.unwrap());
+        assert_eq!(None, counter.count(&connector).await.unwrap());
     }
 }

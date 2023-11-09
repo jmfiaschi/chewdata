@@ -42,8 +42,9 @@
 //!     "next": "274b5dac-5ed6-11ed-9b6a-0242ac120002"
 //! }
 //! ```
+use crate::connector::curl::Curl;
+use crate::connector::Connector;
 use crate::connector::Paginator;
-use crate::connector::{curl::Curl, Connector};
 use crate::document::DocumentType;
 use async_std::stream::StreamExt;
 use async_stream::stream;
@@ -52,10 +53,7 @@ use futures::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    io::{Error, ErrorKind, Result},
-    pin::Pin,
-};
+use std::{io::Error, io::ErrorKind, io::Result, pin::Pin};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -80,16 +78,6 @@ impl Default for Cursor {
             next_token: None,
             entry_path: "/next".to_string(),
         }
-    }
-}
-
-impl Cursor {
-    pub fn set_connector(&mut self, connector: Curl) -> &mut Self
-    where
-        Self: Paginator + Sized,
-    {
-        self.connector = Some(Box::new(connector));
-        self
     }
 }
 
@@ -199,9 +187,10 @@ impl Paginator for Cursor {
 
 #[cfg(test)]
 mod tests {
+    use crate::connector::curl::Curl;
     use crate::connector::paginator::curl::cursor::Cursor;
-    use crate::document::DocumentType;
     use crate::document::json::Json;
+    use crate::document::DocumentType;
     use futures::StreamExt;
     use http_types::Method;
 

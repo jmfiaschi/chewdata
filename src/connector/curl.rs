@@ -691,17 +691,25 @@ impl Connector for Curl {
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+    async fn paginator(&self, document: &dyn Document) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+        let connector = self.clone();
+
         let paginator = match self.paginator_type {
             PaginatorType::Offset(ref offset_paginator) => {
                 let mut offset_paginator = offset_paginator.clone();
-                offset_paginator.set_connector(self.clone());
+                if offset_paginator.count.is_none() {
+                    offset_paginator.count = match connector.counter_type.clone() {
+                        Some(counter_type) => counter_type.count(&self, document.clone_box()).await?,
+                        None => None,
+                    };
+                }
+                offset_paginator.connector = Some(Box::new(connector));
 
                 Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
             }
             PaginatorType::Cursor(ref cursor_paginator) => {
                 let mut cursor_paginator = cursor_paginator.clone();
-                cursor_paginator.set_connector(self.clone());
+                cursor_paginator.connector = Some(Box::new(connector));
 
                 Box::new(cursor_paginator) as Box<dyn Paginator + Send + Sync>
             }

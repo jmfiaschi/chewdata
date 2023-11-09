@@ -63,16 +63,6 @@ impl Default for Cursor {
     }
 }
 
-impl Cursor {
-    pub fn set_connector(&mut self, connector: Mongodb) -> &mut Self
-    where
-        Self: Paginator + Sized,
-    {
-        self.connector = Some(Box::new(connector));
-        self
-    }
-}
-
 #[async_trait]
 impl Paginator for Cursor {
     /// See [`Paginator::stream`] for more details.

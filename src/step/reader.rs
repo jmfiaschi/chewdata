@@ -71,6 +71,7 @@ pub struct Reader {
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
     pub sender: Option<Sender<Context>>,
+    pub concurrency_limit: usize,
 }
 
 impl Default for Reader {
@@ -84,6 +85,7 @@ impl Default for Reader {
             data_type: DataResult::OK.to_string(),
             receiver: None,
             sender: None,
+            concurrency_limit: 10,
         }
     }
 }
@@ -134,10 +136,7 @@ impl Step for Reader {
                 has_data_been_received = true;
             }
 
-            if !context_received
-                .input()
-                .is_type(self.data_type.as_ref())
-            {
+            if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
                 super::send(self as &dyn Step, &context_received.clone()).await?;
                 continue;
@@ -168,14 +167,13 @@ async fn exec_connector<'step>(
     context: &'step Option<Context>,
 ) -> io::Result<()> {
     // todo: remove paginator mutability
-    let paginator = connector.paginator().await?;
+    let paginator = connector.paginator(document).await?;
     let mut stream = paginator.stream().await?;
-
     match paginator.is_parallelizable() {
         true => {
             // Concurrency stream
             // The loop cross the paginator never stop. The paginator mustn't return indefinitely a connector.
-            stream.for_each_concurrent(None, |connector_result| async move {
+            stream.for_each_concurrent(Some(step.concurrency_limit), |connector_result| async move {
                     let mut connector = match connector_result {
                         Ok(connector) => connector,
                         Err(e) => {

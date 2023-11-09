@@ -92,7 +92,7 @@ impl Body {
     ///
     ///     let mut counter = Body::default();
     ///     counter.entry_path = "/args/not_found".to_string();
-    ///     assert_eq!(Some(10), counter.count(connector, Box::new(Json::default())).await?);
+    ///     assert_eq!(Some(10), counter.count(&connector, Box::new(Json::default())).await?);
     ///
     ///     Ok(())
     /// }
@@ -100,17 +100,16 @@ impl Body {
     #[instrument(name = "body_counter::count")]
     pub async fn count(
         &self,
-        connector: Curl,
+        connector: &Curl,
         document: Box<dyn Document>,
     ) -> Result<Option<usize>> {
         let mut connector = connector.clone();
         let mut document = document.clone();
+        document.set_entry_path(self.entry_path.clone());
 
         if let Some(path) = self.path.clone() {
             connector.path = path;
         }
-
-        document.set_entry_path(self.entry_path.clone());
 
         let mut dataset = match connector.fetch(&*document).await? {
             Some(dataset) => dataset,
@@ -166,7 +165,7 @@ mod tests {
         assert!(
             Some(0)
                 < counter
-                    .count(connector, Box::new(Json::default()))
+                    .count(&connector, Box::new(Json::default()))
                     .await
                     .unwrap(),
             "Counter count() must return a value upper than 0."
@@ -183,7 +182,7 @@ mod tests {
         assert_eq!(
             None,
             counter
-                .count(connector, Box::new(Json::default()))
+                .count(&connector, Box::new(Json::default()))
                 .await
                 .unwrap()
         );

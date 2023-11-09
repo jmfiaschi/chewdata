@@ -1,8 +1,8 @@
 #[cfg(feature = "curl")]
 pub mod curl;
-pub mod once;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
+pub mod once;
 
 use std::pin::Pin;
 

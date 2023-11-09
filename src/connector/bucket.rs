@@ -637,20 +637,21 @@ impl Connector for Bucket {
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+    async fn paginator(&self, _document: &dyn Document) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
         Ok(Box::pin(BucketPaginator::new(self.clone()).await?))
     }
 }
 
 #[derive(Debug)]
 pub struct BucketPaginator {
-    pub connector: Bucket,
+    pub connector: Option<Bucket>,
     pub paths: IntoIter<String>,
     pub skip: usize,
 }
 
 impl BucketPaginator {
     pub async fn new(connector: Bucket) -> Result<Self> {
+        let connector = connector.clone();
         let mut paths = Vec::default();
 
         let reg_path_contain_wildcard =
@@ -745,11 +746,10 @@ impl BucketPaginator {
                 paths.append(&mut vec![path]);
             }
         }
-
         Ok(BucketPaginator {
             skip: connector.skip,
             paths: paths.into_iter(),
-            connector,
+            connector: Some(connector),
         })
     }
 }
@@ -765,15 +765,17 @@ impl Paginator for BucketPaginator {
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
     /// use std::io;
+    /// use chewdata::document::json::Json;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///
-    ///     let mut stream = connector.paginator().await?.stream().await?;
+    ///     let mut stream = connector.paginator(&document).await?.stream().await?;
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///
@@ -784,7 +786,13 @@ impl Paginator for BucketPaginator {
     async fn stream(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = self.connector.clone();
+        let connector = match self.connector.clone() {
+            Some(connector) => Ok(connector),
+            None => Err(Error::new(
+                ErrorKind::Interrupted,
+                "The paginator can't paginate without a connector",
+            )),
+        }?;
         let mut paths = self.paths.clone();
 
         let stream = Box::pin(stream! {
@@ -920,11 +928,13 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_stream() {
+        let document = Json::default();
+
         let mut connector = Bucket::default();
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
-        let paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator(&document).await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert!(
@@ -938,11 +948,13 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_stream_with_wildcard() {
+        let document = Json::default();
+
         let mut connector = Bucket::default();
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
-        let paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator(&document).await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert!(
@@ -956,13 +968,15 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_stream_with_wildcard_limit_skip() {
+        let document = Json::default();
+
         let mut connector = Bucket::default();
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
         connector.limit = Some(5);
         connector.skip = 2;
-        let paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator(&document).await.unwrap();
         assert!(paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert_eq!(

@@ -306,8 +306,13 @@ impl Connector for InMemory {
         Ok(())
     }
     /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        Ok(Box::pin(Once::new(Box::new(self.clone()))?))
+    async fn paginator(
+        &self,
+        _document: &dyn Document,
+    ) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
+        Ok(Box::pin(Once {
+            connector: Some(Box::new(self.clone())),
+        }))
     }
 }
 
@@ -377,8 +382,9 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_stream() {
+        let document = Jsonl::default();
         let connector = InMemory::default();
-        let paginator = connector.paginator().await.unwrap();
+        let paginator = connector.paginator(&document).await.unwrap();
         assert!(!paginator.is_parallelizable());
         let mut stream = paginator.stream().await.unwrap();
         assert!(
