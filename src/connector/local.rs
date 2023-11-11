@@ -119,12 +119,13 @@ impl Connector for Local {
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
-        let mut path = self.path.clone();
-        let mut params = self.parameters.clone();
-        let mut metadata = Map::default();
-
+        let mut path: String = self.path.clone();
+        
         match self.is_variable() {
             true => {
+                let mut params = self.parameters.clone();
+                let mut metadata = Map::default();
+
                 metadata.insert("metadata".to_string(), self.metadata().into());
                 params.merge(&Value::Object(metadata));
 
@@ -303,7 +304,7 @@ impl Connector for Local {
             .create(false)
             .append(false)
             .truncate(false)
-            .open(path.clone())?
+            .open(&path)?
             .read_to_end(&mut buff)?;
 
         info!(path = path, "The connector fetch data with success.");

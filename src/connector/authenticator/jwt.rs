@@ -20,32 +20,36 @@
 //! ```json
 //! [
 //!     {
-//!         "type": "write",
+//!         "type": "read",
+//!         "connector":{
+//!             "type": "mem",
+//!             "data": "{\"username\":\"my_username\",\"password\":\"my_password\"}"
+//!         }
+//!     },
+//!     {
+//!         "type": "read",
 //!         "connector":{
 //!             "type": "curl",
 //!             "endpoint": "{{ CURL_ENDPOINT }}",
-//!             "path": "/post",
-//!             "method": "post",
+//!             "path": "/my_api",
+//!             "method": "get",
 //!             "authenticator": {
 //!                 "type": "jwt",
-//!                 "refresh_connector": {
+//!                 "connector": {
 //!                     "type": "curl",
 //!                     "endpoint": "http://my_api.com",
 //!                     "path": "/tokens",
 //!                     "method": "post"
 //!                 },
-//!                 "refresh_token":"token",
+//!                 "token_name":"token",
 //!                 "key": "my_key",
 //!                 "payload": {
 //!                     "alg":"HS256",
-//!                     "claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077}
-//!                 },
-//!                 "parameters": {
-//!                     "username": "my_username",
-//!                     "password": "my_username"
+//!                     "claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},
+//!                     "key":"my_key"
 //!                 }
 //!             }
-//!         },
+//!         }
 //!     }
 //! ]
 //! ```
@@ -68,7 +72,7 @@ use surf::http::headers;
 pub struct Jwt {
     #[serde(alias = "algo")]
     pub algorithm: Algorithm,
-    pub connector: Option<Box<ConnectorType>>,
+    pub connector_type: Option<Box<ConnectorType>>,
     pub document: Box<Jsonl>,
     pub jwk: Option<Value>,
     pub format: Format,
@@ -103,7 +107,7 @@ impl fmt::Debug for Jwt {
 
         f.debug_struct("Jwt")
             .field("algorithm", &self.algorithm)
-            .field("connector", &self.connector)
+            .field("connector_type", &self.connector_type)
             .field("document", &self.document)
             .field("token_name", &self.token_name)
             .field("jwk", &self.jwk)
@@ -138,7 +142,7 @@ impl Default for Jwt {
     fn default() -> Self {
         Jwt {
             algorithm: Algorithm::HS256,
-            connector: None,
+            connector_type: None,
             document: Box::<Jsonl>::default(),
             jwk: None,
             format: Format::Secret,
@@ -195,14 +199,14 @@ impl Jwt {
     ///    auth.payload = serde_json::from_str(
     ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///    ).unwrap();
-    ///    auth.connector = Some(Box::new(ConnectorType::Curl(connector)));
+    ///    auth.connector_type = Some(Box::new(ConnectorType::Curl(connector)));
     ///    auth.token_name = "token".to_string();
     ///    auth.document.metadata = Metadata {
     ///        mime_type: Some("application".to_string()),
     ///        mime_subtype: Some("json".to_string()),
     ///        ..Default::default()
     ///    };
-    ///    auth.refresh(Value::Null).await.unwrap();
+    ///    auth.refresh(&Value::Null).await.unwrap();
     ///
     ///    assert!(
     ///        10 < auth.token_value.unwrap().len(),
@@ -213,19 +217,18 @@ impl Jwt {
     /// }
     /// ```
     #[instrument]
-    pub async fn refresh(&mut self, parameters: Value) -> Result<()> {
-        let connector_type = match self.connector.clone() {
-            Some(connector_type) => connector_type,
+    pub async fn refresh(&mut self, parameters: &Value) -> Result<()> {
+        let mut connector = match &self.connector_type {
+            Some(connector_type) => connector_type.clone().boxed_inner(),
             None => return Ok(()),
         };
 
         let mut payload = *self.payload.clone();
 
         if payload.has_mustache() {
-            payload.replace_mustache(parameters);
+            payload.replace_mustache(parameters.clone());
         }
 
-        let mut connector = connector_type.boxed_inner();
         connector.set_metadata(connector.metadata().merge(&self.document.metadata()));
         connector.set_parameters(payload);
 
@@ -247,7 +250,7 @@ impl Jwt {
             }
         };
 
-        match payload.get(self.token_name.clone()) {
+        match payload.get(&self.token_name) {
             Some(Value::String(token_value)) => {
                 info!(
                     token_value = token_value.as_str(),
@@ -268,7 +271,7 @@ impl Jwt {
         &self,
         token_value: &str,
     ) -> jsonwebtoken::errors::Result<jsonwebtoken::TokenData<Value>> {
-        match self.format.clone() {
+        match self.format {
             Format::Secret => decode::<Value>(
                 token_value,
                 &DecodingKey::from_secret(self.key.as_ref()),
@@ -350,7 +353,7 @@ impl Authenticator for Jwt {
     ///     auth.payload = serde_json::from_str(
     ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///     ).unwrap();
-    ///     auth.connector = Some(Box::new(ConnectorType::Curl(connector)));
+    ///     auth.connector_type = Some(Box::new(ConnectorType::Curl(connector)));
     ///     auth.token_name = "token".to_string();
     ///     auth.document.metadata = Metadata {
     ///         mime_type: Some("application".to_string()),
@@ -371,24 +374,24 @@ impl Authenticator for Jwt {
     /// }
     /// ```
     #[instrument]
-    async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)> {
+    async fn authenticate(&mut self, parameters: &Value) -> Result<(Vec<u8>, Vec<u8>)> {
         let mut token_option = self.token_value.clone();
 
-        if let (None, Some(_)) = (token_option.clone(), self.connector.clone()) {
-            self.refresh(parameters.clone()).await?;
+        if let (None, Some(_)) = (&token_option, &self.connector_type) {
+            self.refresh(&parameters).await?;
             token_option = self.token_value.clone();
         }
 
-        if let Some(token_value) = token_option.clone() {
+        if let Some(token_value) = &token_option {
             if token_value.has_mustache() {
-                let mut token_value = token_value;
+                let mut token_value = token_value.clone();
                 token_value.replace_mustache(parameters.clone());
                 token_option = Some(token_value);
             }
         }
 
-        if let (Some(token_value), Some(_)) = (token_option.clone(), self.connector.clone()) {
-            match self.decode(token_value.as_ref()) {
+        if let (Some(token_value), Some(_)) = (&token_option, &self.connector_type) {
+            match self.decode(token_value) {
                 Ok(jwt_payload) => {
                     let mut claim_payload =
                         self.payload.get("claims").unwrap_or(&Value::Null).clone();
@@ -463,14 +466,14 @@ mod tests {
         auth.payload = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
-        auth.connector = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.connector_type = Some(Box::new(ConnectorType::Curl(connector)));
         auth.token_name = "token".to_string();
         auth.document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),
             ..Default::default()
         };
-        auth.refresh(Value::Null).await.unwrap();
+        auth.refresh(&Value::Null).await.unwrap();
 
         assert!(
             10 < auth.token_value.unwrap().len(),
@@ -487,14 +490,14 @@ mod tests {
 
         let mut auth = Jwt::default();
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
-        auth.connector = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.connector_type = Some(Box::new(ConnectorType::Curl(connector)));
         auth.token_name = "access_token".to_string();
         auth.document.metadata = Metadata {
             mime_type: Some("application".to_string()),
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
             ..Default::default()
         };
-        auth.refresh(Value::Null).await.unwrap();
+        auth.refresh(&Value::Null).await.unwrap();
 
         assert!(
             10 < auth.token_value.unwrap().len(),
@@ -513,7 +516,7 @@ mod tests {
         auth.payload = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
-        auth.connector = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.connector_type = Some(Box::new(ConnectorType::Curl(connector)));
         auth.token_name = "token".to_string();
         auth.document.metadata = Metadata {
             mime_type: Some("application".to_string()),
@@ -521,7 +524,7 @@ mod tests {
             ..Default::default()
         };
 
-        let (auth_name, auth_value) = auth.authenticate(Value::Null).await.unwrap();
+        let (auth_name, auth_value) = auth.authenticate(&Value::Null).await.unwrap();
         assert_eq!(auth_name, "authorization".to_string().into_bytes());
         assert_eq!(auth_value, "Bearer ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SkhhWFpsYms1aGJXVWlPaUpLYjJodWJua2lMQ0pwWVhRaU9qRTFPVGswTmpJM05UVXNJbVY0Y0NJNk16TXhOVFkwTVRZd056ZDkuQXFsUk4yeDZUMGJFMXBKSlowV1BRcm1MaUszN2lUODl6bExCaVJHNVp1MA==".as_bytes().to_vec());
     }
@@ -550,7 +553,7 @@ mod tests {
         auth.format = Format::RsaComponents;
         auth.jwk = Some(jwk);
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
-        auth.connector = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.connector_type = Some(Box::new(ConnectorType::Curl(connector)));
         auth.token_name = "access_token".to_string();
         auth.document.metadata = Metadata {
             mime_type: Some("application".to_string()),
@@ -558,7 +561,7 @@ mod tests {
             ..Default::default()
         };
 
-        let (auth_name, auth_value) = auth.authenticate(Value::Null).await.unwrap();
+        let (auth_name, auth_value) = auth.authenticate(&Value::Null).await.unwrap();
         assert_eq!(auth_name, "authorization".to_string().into_bytes());
         assert!(100 < auth_value.len(), "The token is not in a good format");
     }
@@ -576,7 +579,7 @@ mod tests {
         auth.payload = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
-        auth.connector = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.connector_type = Some(Box::new(ConnectorType::Curl(connector)));
         auth.token_name = "token".to_string();
         auth.document.metadata = Metadata {
             mime_type: Some("application".to_string()),
@@ -584,7 +587,7 @@ mod tests {
             ..Default::default()
         };
 
-        let (auth_name, auth_value) = auth.authenticate(parameters).await.unwrap();
+        let (auth_name, auth_value) = auth.authenticate(&parameters).await.unwrap();
         assert_eq!(auth_name, "authorization".to_string().into_bytes());
         assert_eq!(auth_value, "Bearer ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SkhhWFpsYms1aGJXVWlPaUpLYjJodWJua2lMQ0oxYzJWeWJtRnRaU0k2SW0xNVgzVnpaWEp1WVcxbElpd2ljR0Z6YzNkdmNtUWlPaUp0ZVY5d1lYTnpkMjl5WkNJc0ltbGhkQ0k2TVRVNU9UUTJNamMxTlN3aVpYaHdJam96TXpFMU5qUXhOakEzTjMwLmc4bUdyZk5LLThudVQ3dENOSERxbHJVa3c3V3l3Z1ZUQy04V3VIUHBaNmc=".as_bytes().to_vec());
     }

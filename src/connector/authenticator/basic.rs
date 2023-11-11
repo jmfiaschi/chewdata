@@ -127,7 +127,7 @@ impl Authenticator for Basic {
     ///     let parameters = serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
     ///
     ///     let (auth_name, auth_value) = Basic::new(username, password)
-    ///         .authenticate(parameters)
+    ///         .authenticate(&parameters)
     ///         .await
     ///         .unwrap();
     ///
@@ -145,7 +145,7 @@ impl Authenticator for Basic {
     ///     Ok(())
     /// }
     /// ```
-    async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)> {
+    async fn authenticate(&mut self, parameters: &Value) -> Result<(Vec<u8>, Vec<u8>)> {
         if let ("", "") = (self.username.as_ref(), self.password.as_ref()) {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -160,7 +160,7 @@ impl Authenticator for Basic {
             username.replace_mustache(parameters.clone());
         }
         if password.has_mustache() {
-            password.replace_mustache(parameters);
+            password.replace_mustache(parameters.clone());
         }
 
         let basic =
@@ -183,7 +183,7 @@ mod tests {
         let password = "my_password";
 
         let (auth_name, auth_value) = Basic::new(username, password)
-            .authenticate(Value::Null)
+            .authenticate(&Value::Null)
             .await
             .unwrap();
 
@@ -207,7 +207,7 @@ mod tests {
             serde_json::from_str(r#"{"username":"my_username","password":"my_password"}"#).unwrap();
 
         let (auth_name, auth_value) = Basic::new(username, password)
-            .authenticate(parameters)
+            .authenticate(&parameters)
             .await
             .unwrap();
 

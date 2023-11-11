@@ -152,7 +152,7 @@ impl Curl {
         if let Some(ref mut authenticator_type) = self.authenticator_type {
             let authenticator = authenticator_type.authenticator_mut();
             let (auth_name, auth_value) =
-                authenticator.authenticate(self.parameters.clone()).await?;
+                authenticator.authenticate(&self.parameters).await?;
             config = config
                 .add_header(
                     HeaderName::from_bytes(auth_name)
@@ -220,11 +220,12 @@ impl Connector for Curl {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
-        let mut params = self.parameters.clone();
-        let mut metadata = Map::default();
 
         match self.is_variable() {
             true => {
+                let mut params = self.parameters.clone();
+                let mut metadata = Map::default();
+
                 metadata.insert("metadata".to_string(), self.metadata().into());
                 params.merge(&Value::Object(metadata));
 
@@ -388,7 +389,7 @@ impl Connector for Curl {
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url.clone());
+        let mut req = client.request(self.method, &url);
 
         match self.method {
             Method::Post | Method::Put | Method::Patch => {
@@ -513,7 +514,7 @@ impl Connector for Curl {
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url.clone());
+        let mut req = client.request(self.method, &url);
 
         match self.method {
             Method::Post | Method::Put | Method::Patch => {
@@ -617,7 +618,7 @@ impl Connector for Curl {
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url.clone());
+        let mut req = client.request(self.method, &url);
 
         // Force the headers
         for (key, value) in self.headers.iter() {

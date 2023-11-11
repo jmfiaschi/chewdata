@@ -40,5 +40,5 @@ impl AuthenticatorType {
 
 #[async_trait]
 pub trait Authenticator: Sync + Send {
-    async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)>;
+    async fn authenticate(&mut self, parameters: &Value) -> Result<(Vec<u8>, Vec<u8>)>;
 }

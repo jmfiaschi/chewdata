@@ -114,7 +114,7 @@ impl Authenticator for Bearer {
     /// async fn main() -> io::Result<()> {
     ///     let token = "my_token";
     ///
-    ///     let (auth_name, auth_value) = Bearer::new(token).authenticate(Value::Null).await.unwrap();
+    ///     let (auth_name, auth_value) = Bearer::new(token).authenticate(&Value::Null).await.unwrap();
     ///
     ///     assert_eq!(auth_name, "authorization".to_string().into_bytes());
     ///     assert_eq!(auth_value, format!("Bearer {}", token).as_bytes().to_vec());
@@ -122,7 +122,7 @@ impl Authenticator for Bearer {
     ///     Ok(())
     /// }
     /// ```
-    async fn authenticate(&mut self, parameters: Value) -> Result<(Vec<u8>, Vec<u8>)> {
+    async fn authenticate(&mut self, parameters: &Value) -> Result<(Vec<u8>, Vec<u8>)> {
         if self.token.is_empty() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -133,7 +133,7 @@ impl Authenticator for Bearer {
         let mut token = self.token.clone();
 
         if token.has_mustache() {
-            token.replace_mustache(parameters);
+            token.replace_mustache(parameters.clone());
         }
 
         if self.is_base64 {
@@ -157,7 +157,7 @@ mod tests {
     async fn authenticate() {
         let token = "my_token";
 
-        let (auth_name, auth_value) = Bearer::new(token).authenticate(Value::Null).await.unwrap();
+        let (auth_name, auth_value) = Bearer::new(token).authenticate(&Value::Null).await.unwrap();
 
         assert_eq!(auth_name, "authorization".to_string().into_bytes());
         assert_eq!(
