@@ -20,7 +20,6 @@
 //! | updater         | u       | Updater type used as a template engine for transformation                                                         | `tera`        | `tera`                                          |
 //! | referentials    | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the validation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
 //! | name            | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                |
-//! | description     | desc    | Describ your step and give more visibility                                                                        | `null`        | String                                          |
 //! | data_type       | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                    |
 //! | thread_number   | threads | Parallelize the step in multiple threads                                                                          | `1`           | unsigned number                                 |
 //! | rules           | -       | List of [`self::Rule`] indexed by their names                                                                     | `null`        | `{"rule_0": Rule,"rule_1": Rule}`               |
@@ -53,7 +52,6 @@
 //!             }
 //!         },
 //!         "name": "my_validator",
-//!         "description": "My description of the step",
 //!         "data_type": "ok",
 //!         "thread_number": 1,
 //!         "rules": {
@@ -126,7 +124,6 @@ pub struct Validator {
     pub referentials: Option<HashMap<String, Reader>>,
     #[serde(alias = "alias")]
     pub name: String,
-    pub description: Option<String>,
     pub data_type: String,
     #[serde(alias = "threads")]
     pub thread_number: usize,
@@ -150,7 +147,6 @@ impl Default for Validator {
             updater_type: UpdaterType::default(),
             referentials: None,
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
             thread_number: 1,
             rules: BTreeMap::default(),
@@ -167,11 +163,8 @@ impl fmt::Display for Validator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Validator {{'{}','{}' }}",
+            "Validator {{'{}'}}",
             self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
         )
     }
 }

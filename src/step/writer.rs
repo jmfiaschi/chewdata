@@ -17,7 +17,6 @@
 //! | connector     | conn    | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
 //! | document      | doc     | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]   |
 //! | name          | alias   | Name step                                                                       | `null`        | Auto generate alphanumeric value             |
-//! | description   | desc    | Describ your step and give more visibility                                      | `null`        | String                                       |
 //! | data_type     | data    | Data type read for writing. skip other data type                             | `ok`          | `ok` / `err`                                 |
 //! | thread_number | threads | Parallelize the step in multiple threads                                        | `1`           | unsigned number                              |
 //! | dataset_size  | batch   | Stack size limit before to push data into the resource though the connector     | `1000`        | unsigned number                              |
@@ -30,7 +29,6 @@
 //!     {
 //!         "type": "writer",
 //!         "name": "write_a",
-//!         "description": "My description of the step",
 //!         "connector": {
 //!             "type": "io"
 //!         },
@@ -77,8 +75,6 @@ pub struct Writer {
     document_type: DocumentType,
     #[serde(alias = "alias")]
     pub name: String,
-    #[serde(alias = "desc")]
-    pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
     #[serde(alias = "batch")]
@@ -98,7 +94,6 @@ impl Default for Writer {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1000,
             thread_number: 1,
@@ -112,11 +107,8 @@ impl fmt::Display for Writer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Writer {{'{}','{}'}}",
+            "Writer {{'{}'}}",
             self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
         )
     }
 }

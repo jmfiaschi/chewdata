@@ -16,7 +16,6 @@
 //! | type          | -       | Required in order to use eraser step                                            | `eraser`      | `eraser` / `eraser` / `truncate` / `e`       |
 //! | connector     | conn    | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
 //! | name          | alias   | Name step                                                                       | `null`        | Auto generate alphanumeric value             |
-//! | description   | desc    | Describe your step and give more visibility                                     | `null`        | String                                       |
 //! | exclude_paths | exclude | resource to exclude for the erase step                                          | `null`        | List of string                               |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                                 |
 //! 
@@ -27,7 +26,6 @@
 //!     {
 //!         "type": "erase",
 //!         "name": "erase_a",
-//!         "description": "My description of the step",
 //!         "data_type": "ok",
 //!         "connector": {
 //!             "type": "local",
@@ -57,7 +55,6 @@ pub struct Eraser {
     connector_type: ConnectorType,
     #[serde(alias = "alias")]
     pub name: String,
-    pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
     #[serde(alias = "exclude")]
@@ -74,7 +71,6 @@ impl Default for Eraser {
         Eraser {
             connector_type: ConnectorType::default(),
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
             exclude_paths: Vec::default(),
             receiver: None,
@@ -87,11 +83,8 @@ impl fmt::Display for Eraser {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Eraser {{'{}','{}'}}",
-            self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
+            "Eraser {{'{}'}}",
+            self.name
         )
     }
 }

@@ -17,7 +17,6 @@
 //! | ------------ | ----- | ------------------------------------------------------------------------------- | ------------- | -------------------------------- |
 //! | type         | -     | Required in order to use generator step                                         | `generator`   | `generator` / `g`                |
 //! | name         | alias | Name step                                                                       | `null`        | Auto generate alphanumeric value |
-//! | description  | desc  | Describ your step and give more visibility                                      | `null`        | String                           |
 //! | data_type    | data  | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                     |
 //! | dataset_size | batch | Stack size limit before to push data into the resource though the connector     | `1000`        | unsigned number                  |
 //! 
@@ -28,7 +27,6 @@
 //!     {
 //!         "type": "generator",
 //!         "name": "my_generator",
-//!         "description": "My description of the step",
 //!         "data_type": "ok",
 //!         "dataset_size": 1000,
 //!     },
@@ -89,8 +87,6 @@ use uuid::Uuid;
 pub struct Generator {
     #[serde(alias = "alias")]
     pub name: String,
-    #[serde(alias = "desc")]
-    pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
     #[serde(alias = "batch")]
@@ -107,7 +103,6 @@ impl Default for Generator {
         let uuid = Uuid::new_v4();
         Generator {
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
             dataset_size: 1,
             receiver: None,
@@ -120,11 +115,8 @@ impl fmt::Display for Generator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Generator {{'{}','{}'}}",
+            "Generator {{'{}'}}",
             self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
         )
     }
 }

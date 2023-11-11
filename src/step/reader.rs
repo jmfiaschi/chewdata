@@ -18,7 +18,6 @@
 //! | connector   | conn  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
 //! | document    | doc   | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]   |
 //! | name        | alias | Step name                                                                        | `null`        | Auto generate alphanumeric value             |
-//! | description | desc  | Describ your step and give more visibility                                      | `null`        | String                                       |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
 //!
 //! ### Examples
@@ -28,7 +27,6 @@
 //!     {
 //!         "type": "reader",
 //!         "name": "read_a",
-//!         "description": "My description of the step",
 //!         "connector": {
 //!             "type": "io"
 //!         },
@@ -63,8 +61,6 @@ pub struct Reader {
     pub document_type: DocumentType,
     #[serde(alias = "alias")]
     pub name: String,
-    #[serde(alias = "desc")]
-    pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
     #[serde(skip)]
@@ -81,7 +77,6 @@ impl Default for Reader {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
             receiver: None,
             sender: None,
@@ -94,11 +89,8 @@ impl fmt::Display for Reader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Reader {{'{}','{}'}}",
+            "Reader {{'{}'}}",
             self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
         )
     }
 }
