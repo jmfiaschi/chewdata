@@ -116,7 +116,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
         Ok(0 == self.len().await?)
     }
     /// Get the resource size of the current path.
-    async fn len(&mut self) -> Result<usize> {
+    async fn len(&self) -> Result<usize> {
         Ok(0)
     }
     /// Path of the document

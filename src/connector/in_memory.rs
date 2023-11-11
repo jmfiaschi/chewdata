@@ -135,7 +135,7 @@ impl Connector for InMemory {
     /// }
     /// ```
     #[instrument(name = "in_memory::len")]
-    async fn len(&mut self) -> io::Result<usize> {
+    async fn len(&self) -> io::Result<usize> {
         let len = self.memory.lock().await.get_ref().len();
 
         info!(len = len, "Size of data found in the resource.");
@@ -324,7 +324,7 @@ mod tests {
 
     #[async_std::test]
     async fn len() {
-        let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
+        let connector = InMemory::new(r#"[{"column1":"value1"}]"#);
         assert!(
             0 < connector.len().await.unwrap(),
             "The length of the document is not greather than 0."

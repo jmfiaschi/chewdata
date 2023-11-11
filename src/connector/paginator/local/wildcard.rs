@@ -104,14 +104,14 @@ mod tests {
 
         let mut paging = paginator.paginate(&connector).await.unwrap();
 
-        let mut connector = paging.next().await.transpose().unwrap().unwrap();
+        let connector = paging.next().await.transpose().unwrap().unwrap();
         let file_len1 = connector.len().await.unwrap();
         assert!(
             0 < file_len1,
             "The size of the file must be upper than zero."
         );
 
-        let mut connector = paging.next().await.transpose().unwrap().unwrap();
+        let connector = paging.next().await.transpose().unwrap().unwrap();
         let file_len2 = connector.len().await.unwrap();
         assert!(
             0 < file_len2,

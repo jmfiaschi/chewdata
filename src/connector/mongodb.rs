@@ -194,7 +194,7 @@ impl Connector for Mongodb {
     /// }
     /// ```
     #[instrument(name = "mongodb::len")]
-    async fn len(&mut self) -> Result<usize> {
+    async fn len(&self) -> Result<usize> {
         match self.counter_type.count(self).await {
             Ok(count) => Ok(count),
             Err(e) => {

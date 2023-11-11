@@ -507,7 +507,7 @@ impl Connector for BucketSelect {
     /// }
     /// ```
     #[instrument(name = "bucket_select::len")]
-    async fn len(&mut self) -> Result<usize> {
+    async fn len(&self) -> Result<usize> {
         let mut connector = self.clone();
         connector.query = format!(
             "{} {}",

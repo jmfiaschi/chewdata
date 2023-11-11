@@ -154,7 +154,7 @@ impl Connector for Local {
     /// }
     /// ```
     #[instrument(name = "local::len")]
-    async fn len(&mut self) -> Result<usize> {
+    async fn len(&self) -> Result<usize> {
         let reg = Regex::new("[*]").unwrap();
         if reg.is_match(self.path.as_ref()) {
             return Err(Error::new(

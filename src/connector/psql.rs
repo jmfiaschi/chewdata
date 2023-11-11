@@ -219,7 +219,7 @@ impl Psql {
                         value = value_captured.as_str(),
                         path = json_pointer.as_str(),
                         parameters = format!("{:?}", parameters).as_str(),
-                        "The value can't be resolved",
+                        "The value can't be resolved.",
                     );
                     continue;
                 }
@@ -303,7 +303,7 @@ impl Connector for Psql {
     /// }
     /// ```
     #[instrument(name = "psql::len")]
-    async fn len(&mut self) -> Result<usize> {
+    async fn len(&self) -> Result<usize> {
         match self.counter_type.count(self).await {
             Ok(count) => Ok(count),
             Err(e) => {
@@ -544,7 +544,7 @@ impl Connector for Psql {
                     warn!(
                         error = format!("{}", e).as_str(),
                         query = query.as_str(),
-                        "Can't send the data through the connector"
+                        "Can't send the data through the connector."
                     );
                     Err(Error::new(ErrorKind::Interrupted, e))
                 }

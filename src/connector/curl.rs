@@ -338,7 +338,7 @@ impl Connector for Curl {
     /// }
     /// ```
     #[instrument(name = "curl::len")]
-    async fn len(&mut self) -> Result<usize> {
+    async fn len(&self) -> Result<usize> {
         match self.counter_type.count(self).await {
             Ok(Some(count)) => Ok(count),
             Ok(None) => Ok(0),
