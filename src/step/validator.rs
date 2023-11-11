@@ -1,5 +1,5 @@
 //! Check the consistancy of the data.
-//! 
+//!
 //! If a data is not valid, an error message is stored in the field `_error` before to share the data to another step and the data is tagged with an error.
 //! Use the `data_type` field of a `step` to target which kind of data a step can handle.
 //!
@@ -26,14 +26,14 @@
 //! | input_name      | input   | Input name variable can be used in the pattern action                                                             | `input`       | String                                          |
 //! | output_name     | output  | Output name variable can be used in the pattern action                                                            | `output`      | String                                          |
 //! | error_separator | -       | Separator use to delimite two errors                                                                              | `\r\n`        | String                                          |
-//! 
+//!
 //! ### Rule
-//! 
+//!
 //! | key     | Description                                                                                                                                                                                     | Default Value | Possible Values                                   |
 //! | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------- |
 //! | pattern | Pattern in [django template language](https://docs.djangoproject.com/en/3.1/topics/templates/) format used to test a field. If the result of the pattern is not a boolean, an error will raised | `null`        | `{% if true %} true {% else %} false {% endif %}` |
 //! | message | Message to display if the render pattern is false. If the message is empty, a default value is rendered                                                                                         | `string`      | `My error message`                                |
-//! 
+//!
 //! ### Examples
 //!
 //! ```json
@@ -74,18 +74,18 @@
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! input:
-//! 
+//!
 //! ```json
 //! [
 //!     {"number": 100, "text": "my text", "code": "my_code"},
 //!     ...
 //! ]
 //! ```
-//! 
+//!
 //! output:
-//! 
+//!
 //! ```json
 //! [
 //!     {"number": 100, "text": "my text", "code": "my_code", "_error":"The number field value must be equal to 10 & The text field value doesn't contain 'Hello World' & The code field value doesn't match with the referential dataset"},
@@ -161,11 +161,7 @@ impl Default for Validator {
 
 impl fmt::Display for Validator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Validator {{'{}'}}",
-            self.name,
-        )
+        write!(f, "Validator {{'{}'}}", self.name,)
     }
 }
 
@@ -239,18 +235,17 @@ impl Step for Validator {
     /// ```
     #[instrument(name = "validator::exec")]
     async fn exec(&self) -> io::Result<()> {
-        let referentials = match self.referentials.clone() {
+        let referentials = match &self.referentials {
             Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
             None => None,
         };
 
         let actions: Vec<Action> = self
             .rules
-            .clone()
-            .into_iter()
+            .iter()
             .map(|(rule_name, rule)| Action {
-                field: rule_name,
-                pattern: Some(rule.pattern),
+                field: rule_name.clone(),
+                pattern: Some(rule.pattern.clone()),
                 action_type: ActionType::Replace,
             })
             .collect();
@@ -261,7 +256,7 @@ impl Step for Validator {
 
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+                super::send(self as &dyn Step, &context_received).await?;
                 continue;
             }
 
@@ -271,12 +266,12 @@ impl Step for Validator {
                 .updater_type
                 .updater()
                 .update(
-                    record.clone(),
-                    context_received.steps(),
-                    referentials.clone(),
-                    actions.clone(),
-                    self.input_name.clone(),
-                    self.output_name.clone(),
+                    &record,
+                    &context_received.steps(),
+                    &referentials,
+                    &actions,
+                    &self.input_name,
+                    &self.output_name,
                 )
                 .and_then(|value| match value {
                     Value::Object(_) => Ok(value),
@@ -288,14 +283,14 @@ impl Step for Validator {
                 .and_then(|value| {
                     let mut errors = String::default();
 
-                    for (rule_name, rule) in self.rules.clone() {
+                    for (rule_name, rule) in &self.rules {
                         let value_result =
                             value.clone().search(rule_name.to_json_pointer().as_str());
 
                         let mut error = match value_result {
                             Ok(Some(Value::Bool(true))) => continue,
                             Ok(Some(Value::Bool(false))) => {
-                                rule.message.unwrap_or(format!("The rule '{}' failed", rule_name))
+                                rule.message.clone().unwrap_or(format!("The rule '{}' failed", rule_name))
                             }
                             Ok(Some(_)) => format!(
                                 "The rule '{}' has invalid result pattern '{:?}', it must be a boolean",
@@ -316,7 +311,7 @@ impl Step for Validator {
 
                         let mut params = Value::default();
                         params.merge_in(&format!("/{}", self.input_name.clone()), &record)?;
-                        params.merge_in("/rule/name", &Value::String(rule_name))?;
+                        params.merge_in("/rule/name", &Value::String(rule_name.clone()))?;
 
                         error.replace_mustache(params);
 
@@ -336,7 +331,7 @@ impl Step for Validator {
             };
 
             context_received.insert_step_result(self.name(), new_data_result)?;
-            super::send(self as &dyn Step, &context_received.clone()).await?;
+            super::send(self as &dyn Step, &context_received).await?;
         }
 
         Ok(())
@@ -367,8 +362,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context =
-            Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -387,8 +381,7 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context =
-            Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
 
         let mut expected_context = context.clone();
         expected_context

@@ -1,5 +1,5 @@
 //! Generate an empty [`crate::DataResult`] that you can enrich with the [`crate::step::Transformer`].
-//! 
+//!
 //! It possible to duplicate input data and enrich them after.
 //!
 //! ### Actions
@@ -19,7 +19,7 @@
 //! | name         | alias | Name step                                                                       | `null`        | Auto generate alphanumeric value |
 //! | data_type    | data  | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                     |
 //! | dataset_size | batch | Stack size limit before to push data into the resource though the connector     | `1000`        | unsigned number                  |
-//! 
+//!
 //! ### Examples
 //!
 //! ```json
@@ -60,11 +60,11 @@
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! No input.
-//! 
+//!
 //! output:
-//! 
+//!
 //! ```json
 //! [
 //!     {"firstname": "my firstname", "lastname": "my lastname", "city": "my city", "password": "my password", "color": "my color"},
@@ -72,8 +72,8 @@
 //! ]
 //! ```
 use crate::step::Step;
-use crate::DataResult;
 use crate::Context;
+use crate::DataResult;
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -113,11 +113,7 @@ impl Default for Generator {
 
 impl fmt::Display for Generator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Generator {{'{}'}}",
-            self.name,
-        )
+        write!(f, "Generator {{'{}'}}", self.name,)
     }
 }
 
@@ -150,12 +146,9 @@ impl Step for Generator {
                 has_data_been_received = true;
             }
 
-            if !context_received
-                .input()
-                .is_type(self.data_type.as_ref())
-            {
+            if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+                super::send(self as &dyn Step, &context_received).await?;
                 continue;
             }
 
@@ -194,8 +187,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context =
-            Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -214,8 +206,7 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context =
-            Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
         let mut expected_context = context.clone();
         expected_context
             .insert_step_result("my_step".to_string(), DataResult::Ok(data))

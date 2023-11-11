@@ -1,3 +1,4 @@
+use chewdata::connector::in_memory::InMemory;
 use chewdata::connector::Connector;
 #[cfg(feature = "csv")]
 use chewdata::document::csv::Csv;
@@ -7,12 +8,11 @@ use chewdata::document::jsonl::Jsonl;
 use chewdata::document::parquet::Parquet;
 #[cfg(feature = "toml")]
 use chewdata::document::toml::Toml;
-use chewdata::document::yaml::Yaml;
 #[cfg(feature = "xml")]
 use chewdata::document::xml::Xml;
+use chewdata::document::yaml::Yaml;
 use chewdata::document::Document;
 use chewdata::updater::{Action, ActionType, UpdaterType};
-use chewdata::connector::in_memory::InMemory;
 use criterion::async_executor::FuturesExecutor;
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures::stream::StreamExt;
@@ -74,16 +74,16 @@ fn faker_benchmark(c: &mut Criterion) {
         c.bench_function(format!("{}/", action_name).as_str(), move |b| {
             b.to_async(FuturesExecutor).iter(|| async {
                 updater.update(
-                    Value::Null,
-                    Value::Null,
-                    None,
-                    vec![Action {
+                    &Value::Null,
+                    &Value::Null,
+                    &None,
+                    &vec![Action {
                         field: action_name.to_string(),
                         pattern: Some(action_pattern.to_string()),
                         action_type: ActionType::Merge,
                     }],
-                    String::default(),
-                    String::default(),
+                    &String::default(),
+                    &String::default(),
                 )
             });
         });

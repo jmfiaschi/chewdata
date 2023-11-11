@@ -60,8 +60,8 @@ use quick_xml::se::Serializer;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io;
 use std::fmt::Write;
+use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -192,7 +192,7 @@ impl Document for Xml {
     #[instrument(skip(buffer), name = "xml::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
-        let entry_path = self.entry_path.clone();
+        let entry_path = &self.entry_path;
         let root_element = self.convert_xml_to_value(buffer)?;
 
         match root_element.clone().search(&entry_path)? {
@@ -473,7 +473,7 @@ mod tests {
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];
         let buffer = document.write(&dataset).unwrap();
-        
+
         assert_eq!(r#"<column_1>line_1</column_1>"#.as_bytes().to_vec(), buffer);
     }
     #[test]

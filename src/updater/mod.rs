@@ -44,12 +44,12 @@ pub trait Updater: Send + Sync {
     /// Update the object with some mapping
     fn update(
         &self,
-        object: Value,
-        context: Value,
-        mapping: Option<HashMap<String, Vec<Value>>>,
-        actions: Vec<Action>,
-        input_name: String,
-        output_name: String,
+        object: &Value,
+        context: &Value,
+        mapping: &Option<HashMap<String, Vec<Value>>>,
+        actions: &Vec<Action>,
+        input_name: &String,
+        output_name: &String,
     ) -> io::Result<Value>;
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]

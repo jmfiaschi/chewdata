@@ -35,7 +35,7 @@ pub mod xml2json;
 ///     referentials.insert("ref_1".to_string(), referential_1);
 ///     referentials.insert("ref_2".to_string(), referential_2);
 ///
-///     let values = referentials_reader_into_value(referentials).await?;
+///     let values = referentials_reader_into_value(&referentials).await?;
 ///     let values_expected:HashMap<String, Vec<Value>> = serde_json::from_str(r#"{"ref_1":[{"column1":"value1"}],"ref_2":[{"column1":"value2"}]}"#).unwrap();
 ///
 ///     assert_eq!(values_expected, values);
@@ -44,16 +44,16 @@ pub mod xml2json;
 /// }
 /// ```
 pub async fn referentials_reader_into_value(
-    referentials: HashMap<String, Reader>,
+    referentials: &HashMap<String, Reader>,
 ) -> io::Result<HashMap<String, Vec<Value>>> {
     let mut referentials_vec = HashMap::new();
 
-    for (name, referential) in referentials {
+    for (name, referential) in referentials.clone() {
         let (sender, receiver) = async_channel::unbounded();
         let mut values: Vec<Value> = Vec::new();
 
         task::spawn(async move {
-            let mut task_referential = referential.clone();
+            let mut task_referential = referential;
             task_referential.set_sender(sender.clone());
             task_referential.exec().await
         })
@@ -108,7 +108,7 @@ mod tests {
         let mut referentials = HashMap::default();
         referentials.insert("ref_1".to_string(), referential_1);
         referentials.insert("ref_2".to_string(), referential_2);
-        let values = super::referentials_reader_into_value(referentials)
+        let values = super::referentials_reader_into_value(&referentials)
             .await
             .unwrap();
         let values_expected: HashMap<String, Vec<Value>> = serde_json::from_str(

@@ -1,16 +1,16 @@
 //! Write data into the [`crate::document`] through the [`crate::connector`].
-//! 
+//!
 //! ### Actions
-//! 
+//!
 //! 1 - Get a [`crate::Context`] from the input queue.  
 //! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].  
 //! 2 - Write data in the [`crate::document`] though the [`crate::connector`].  
 //! 5 - Clone the current [`crate::Context`].  
 //! 6 - Push the [`crate::Context`] into the output queue.  
 //! 7 - Go to step 1 until the input queue is not empty.  
-//! 
+//!
 //! ### Configuration
-//! 
+//!
 //! | key           | alias   | Description                                                                     | Default Value | Possible Values                              |
 //! | ------------- | ------- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |
 //! | type          | -       | Required in order to use writer step                                            | `writer`      | `writer` / `write` / `w`                     |
@@ -22,7 +22,7 @@
 //! | dataset_size  | batch   | Stack size limit before to push data into the resource though the connector     | `1000`        | unsigned number                              |
 //!
 //! ### Examples
-//! 
+//!
 //! ```json
 //! [
 //!     ...
@@ -105,11 +105,7 @@ impl Default for Writer {
 
 impl fmt::Display for Writer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Writer {{'{}'}}",
-            self.name,
-        )
+        write!(f, "Writer {{'{}'}}", self.name,)
     }
 }
 
@@ -146,12 +142,9 @@ impl Step for Writer {
 
         let mut receiver_stream = super::receive(self as &dyn Step).await?;
         while let Some(context_received) = receiver_stream.next().await {
-            if !context_received
-                .input()
-                .is_type(self.data_type.as_ref())
-            {
+            if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+                super::send(self as &dyn Step, &context_received).await?;
                 continue;
             }
             last_context_received = Some(context_received.clone());
@@ -332,8 +325,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context =
-            Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -352,8 +344,7 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context =
-            Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
 
         let mut expected_context = context.clone();
         expected_context

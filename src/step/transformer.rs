@@ -141,11 +141,7 @@ impl Default for Transformer {
 
 impl fmt::Display for Transformer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Transformer {{'{}'}}",
-            self.name,
-        )
+        write!(f, "Transformer {{'{}'}}", self.name,)
     }
 }
 
@@ -170,8 +166,8 @@ impl Step for Transformer {
     }
     #[instrument(name = "transformer::exec")]
     async fn exec(&self) -> io::Result<()> {
-        let referentials = match self.referentials.clone() {
-            Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
+        let referentials = match &self.referentials {
+            Some(referentials) => Some(referentials_reader_into_value(&referentials).await?),
             None => None,
         };
 
@@ -180,41 +176,39 @@ impl Step for Transformer {
             let data_result = context_received.input();
             if !data_result.is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+                super::send(self as &dyn Step, &context_received).await?;
                 continue;
             }
 
             let record = data_result.to_value();
 
             match self.updater_type.updater().update(
-                record.clone(),
-                context_received.steps(),
-                referentials.clone(),
-                self.actions.clone(),
-                self.input_name.clone(),
-                self.output_name.clone(),
+                &record,
+                &context_received.steps(),
+                &referentials,
+                &self.actions,
+                &self.input_name,
+                &self.output_name,
             ) {
-                Ok(new_record) => {
-                    match new_record {
-                        Value::Array(array) => {
-                            for array_value in array {
-                                context_received
-                                    .insert_step_result(self.name(), DataResult::Ok(array_value))?;
-                                super::send(self as &dyn Step, &context_received.clone()).await?;
-                            }
-                        }
-                        Value::Null => {
-                            trace!(
-                                record = format!("{}", new_record).as_str(),
-                                "Record skip because the value is null."
-                            );
-                            continue;
-                        }
-                        _ => {
+                Ok(new_record) => match new_record {
+                    Value::Array(array) => {
+                        for array_value in array {
                             context_received
-                                .insert_step_result(self.name(), DataResult::Ok(new_record))?;
-                            super::send(self as &dyn Step, &context_received.clone()).await?;
+                                .insert_step_result(self.name(), DataResult::Ok(array_value))?;
+                            super::send(self as &dyn Step, &context_received).await?;
                         }
+                    }
+                    Value::Null => {
+                        trace!(
+                            record = format!("{}", new_record).as_str(),
+                            "Record skip because the value is null."
+                        );
+                        continue;
+                    }
+                    _ => {
+                        context_received
+                            .insert_step_result(self.name(), DataResult::Ok(new_record))?;
+                        super::send(self as &dyn Step, &context_received).await?;
                     }
                 },
                 Err(e) => {
@@ -225,7 +219,7 @@ impl Step for Transformer {
                     );
                     context_received
                         .insert_step_result(self.name(), DataResult::Err((record, e)))?;
-                    super::send(self as &dyn Step, &context_received.clone()).await?;
+                    super::send(self as &dyn Step, &context_received).await?;
                 }
             };
         }

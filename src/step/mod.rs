@@ -145,7 +145,7 @@ async fn receive<'step>(
                         "A new context received from the channel."
                     );
 
-                    yield context_received.clone();
+                    yield context_received;
                 },
                 Err(_) => {
                     info!("The channel is disconnected. the step can't receive any context.");

@@ -87,11 +87,7 @@ impl Default for Reader {
 
 impl fmt::Display for Reader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Reader {{'{}'}}",
-            self.name,
-        )
+        write!(f, "Reader {{'{}'}}", self.name,)
     }
 }
 
@@ -130,7 +126,7 @@ impl Step for Reader {
 
             if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+                super::send(self as &dyn Step, &context_received).await?;
                 continue;
             }
 
@@ -159,23 +155,32 @@ async fn exec_connector<'step>(
     context: &'step Option<Context>,
 ) -> io::Result<()> {
     let paging = connector.paginate().await?;
-    
-    paging.for_each_concurrent(Some(step.concurrency_limit), |connector_result| async move {
-        let mut connector = match connector_result {
-            Ok(connector) => connector,
-            Err(e) => {
-                warn!(error = e.to_string().as_str(), "Pagination through the paginator failed.");
-                return;
-            }
-        };
-        match send_data_into_pipe(step, &mut connector, document, context).await
-        {
-            Ok(Some(_)) => trace!("All data has been pushed into the pipe."),
-            Ok(None) => trace!("Connector doesn't have any data to pushed into the pipe."),
-            Err(e) => warn!(error = e.to_string().as_str(), "Impossible to push data into the pipe.")
-        };
-    })
-    .await;
+
+    paging
+        .for_each_concurrent(
+            Some(step.concurrency_limit),
+            |connector_result| async move {
+                let mut connector = match connector_result {
+                    Ok(connector) => connector,
+                    Err(e) => {
+                        warn!(
+                            error = e.to_string().as_str(),
+                            "Pagination through the paginator failed."
+                        );
+                        return;
+                    }
+                };
+                match send_data_into_pipe(step, &mut connector, document, context).await {
+                    Ok(Some(_)) => trace!("All data has been pushed into the pipe."),
+                    Ok(None) => trace!("Connector doesn't have any data to pushed into the pipe."),
+                    Err(e) => warn!(
+                        error = e.to_string().as_str(),
+                        "Impossible to push data into the pipe."
+                    ),
+                };
+            },
+        )
+        .await;
 
     Ok(())
 }

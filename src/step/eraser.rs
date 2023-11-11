@@ -1,16 +1,16 @@
 //! Erase the content of the [`crate::connector`].
-//! 
+//!
 //! ### Actions
-//! 
+//!
 //! 1 - Get a [`crate::Context`] from the input queue.  
 //! 2 - Extract the [`crate::DataResult`] from the [`crate::Context`].  
 //! 3 - Erase the content of the resource.  
 //! 4 - Reuse the current [`crate::Context`] and attach the [`crate::DataResult`] to it.  
 //! 5 - Push the new [`crate::Context`] into the output queue.  
 //! 6 - Go to step 1 until the input queue is not empty.  
-//! 
+//!
 //! ### Configuration
-//! 
+//!
 //! | key           | alias   | Description                                                                     | Default Value | Possible Values                              |
 //! | ------------- | ------- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |
 //! | type          | -       | Required in order to use eraser step                                            | `eraser`      | `eraser` / `eraser` / `truncate` / `e`       |
@@ -18,9 +18,9 @@
 //! | name          | alias   | Name step                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | exclude_paths | exclude | resource to exclude for the erase step                                          | `null`        | List of string                               |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                                 |
-//! 
+//!
 //! ### Examples
-//! 
+//!
 //! ```json
 //! [
 //!     {
@@ -81,11 +81,7 @@ impl Default for Eraser {
 
 impl fmt::Display for Eraser {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Eraser {{'{}'}}",
-            self.name
-        )
+        write!(f, "Eraser {{'{}'}}", self.name)
     }
 }
 
@@ -109,8 +105,7 @@ impl Step for Eraser {
     }
     #[instrument(name = "ereaser::exec")]
     async fn exec(&self) -> io::Result<()> {
-        let connector_type = self.connector_type.clone();
-        let mut connector = connector_type.boxed_inner();
+        let mut connector = self.connector_type.clone().boxed_inner();
         let mut exclude_paths = self.exclude_paths.clone();
 
         // Used to check if one data has been received.
@@ -122,12 +117,9 @@ impl Step for Eraser {
                 has_data_been_received = true;
             }
 
-            if !context_received
-                .input()
-                .is_type(self.data_type.as_ref())
-            {
+            if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+                super::send(self as &dyn Step, &context_received).await?;
                 continue;
             }
 
@@ -140,9 +132,8 @@ impl Step for Eraser {
                 exclude_paths.push(path);
             }
 
-            context_received
-                .insert_step_result(self.name(), context_received.input())?;
-            super::send(self as &dyn Step, &context_received.clone()).await?;
+            context_received.insert_step_result(self.name(), context_received.input())?;
+            super::send(self as &dyn Step, &context_received).await?;
         }
 
         // No data has been received, clean the connector.
@@ -172,8 +163,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context =
-            Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -192,8 +182,7 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context =
-            Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
         let mut expected_context = context.clone();
         expected_context
             .insert_step_result("my_step".to_string(), DataResult::Ok(data))
