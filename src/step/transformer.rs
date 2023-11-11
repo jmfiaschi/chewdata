@@ -201,32 +201,34 @@ impl Step for Transformer {
                 self.input_name.clone(),
                 self.output_name.clone(),
             ) {
-                Ok(new_record) => match new_record {
-                    Value::Array(array) => {
-                        for array_value in array {
+                Ok(new_record) => {
+                    match new_record {
+                        Value::Array(array) => {
+                            for array_value in array {
+                                context_received
+                                    .insert_step_result(self.name(), DataResult::Ok(array_value))?;
+                                super::send(self as &dyn Step, &context_received.clone()).await?;
+                            }
+                        }
+                        Value::Null => {
+                            trace!(
+                                record = format!("{}", new_record).as_str(),
+                                "Record skip because the value is null."
+                            );
+                            continue;
+                        }
+                        _ => {
                             context_received
-                                .insert_step_result(self.name(), DataResult::Ok(array_value))?;
+                                .insert_step_result(self.name(), DataResult::Ok(new_record))?;
                             super::send(self as &dyn Step, &context_received.clone()).await?;
                         }
-                    }
-                    Value::Null => {
-                        trace!(
-                            record = format!("{}", new_record).as_str(),
-                            "Record skip because the value si null"
-                        );
-                        continue;
-                    }
-                    _ => {
-                        context_received
-                            .insert_step_result(self.name(), DataResult::Ok(new_record))?;
-                        super::send(self as &dyn Step, &context_received.clone()).await?;
                     }
                 },
                 Err(e) => {
                     warn!(
                         record = format!("{}", record).as_str(),
                         error = format!("{}", e).as_str(),
-                        "The transformer's updater raise an error"
+                        "The transformer's updater raise an error."
                     );
                     context_received
                         .insert_step_result(self.name(), DataResult::Err((record, e)))?;
@@ -258,7 +260,7 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let error = Error::new(ErrorKind::InvalidData, "My error");
+        let error = Error::new(ErrorKind::InvalidData, "My error.");
         let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
         let expected_context = context.clone();
 

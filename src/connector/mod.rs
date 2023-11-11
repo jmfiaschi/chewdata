@@ -112,7 +112,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     /// Test if the connector is variable and if the context change, the resource will change.
     fn is_variable(&self) -> bool;
     /// Check if the resource is empty.
-    async fn is_empty(&mut self) -> Result<bool> {
+    async fn is_empty(&self) -> Result<bool> {
         Ok(0 == self.len().await?)
     }
     /// Get the resource size of the current path.

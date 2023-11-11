@@ -108,7 +108,7 @@ async fn send<'step>(step: &'step dyn Step, context: &'step Context) -> io::Resu
 
     match sender.send(context.clone()).await {
         Ok(_) => {
-            trace!("Context sended into the channel")
+            trace!("Context sended into the channel.")
         }
         Err(e) => {
             info!(

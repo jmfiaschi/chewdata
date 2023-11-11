@@ -332,9 +332,9 @@ mod tests {
     }
     #[async_std::test]
     async fn is_empty() {
-        let mut connector = InMemory::new("");
+        let connector = InMemory::new("");
         assert_eq!(true, connector.is_empty().await.unwrap());
-        let mut connector = InMemory::new("My text");
+        let connector = InMemory::new("My text");
         assert_eq!(false, connector.is_empty().await.unwrap());
     }
     #[async_std::test]

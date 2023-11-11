@@ -128,13 +128,13 @@ impl Psql {
     /// Return: (SELECT * FROM collection WHERE "a" = $1, "a")
     pub fn query_sanitized(
         &self,
-        query: String,
-        parameters: Value,
+        query: &String,
+        parameters: &Value,
     ) -> Result<(String, PgArguments)> {
         let mut map = Map::default();
         let regex = regex::Regex::new("\\{{2}([^}]*)\\}{2}")
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
-        let mut query_sanitized = query;
+        let mut query_sanitized = query.clone();
         let mut query_binding: PgArguments = Default::default();
         let mut count = 1;
 
@@ -270,7 +270,7 @@ impl Connector for Psql {
     }
     /// See [`Connector::is_variable`] for more details.
     fn is_variable(&self) -> bool {
-        match self.query.clone() {
+        match &self.query {
             Some(query) => query.has_mustache(),
             None => false,
         }
@@ -355,12 +355,11 @@ impl Connector for Psql {
     /// ```
     #[instrument(name = "psql::fetch")]
     async fn fetch(&mut self, _document: &dyn Document) -> std::io::Result<Option<DataStream>> {
-        let parameters = self.parameters.clone();
-        let (query_sanitized, binding) = match self.query.clone() {
-            Some(query) => self.query_sanitized(query, parameters.clone()),
+        let (query_sanitized, binding) = match &self.query {
+            Some(query) => self.query_sanitized(&query, &self.parameters),
             None => self.query_sanitized(
-                "SELECT * FROM {{ collection }}".to_string(),
-                parameters.clone(),
+                &"SELECT * FROM {{ collection }}".to_string(),
+                &self.parameters,
             ),
         }?;
 
@@ -505,8 +504,8 @@ impl Connector for Psql {
         _document: &dyn Document,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
-        let query = match self.query.clone() {
-            Some(query) => query,
+        let query = match &self.query {
+            Some(query) => query.clone(),
             None => {
                 let query_start = "INSERT INTO {{ collection }}".to_string();
                 let mut query_fields = "".to_string();
@@ -533,7 +532,7 @@ impl Connector for Psql {
 
         for data in dataset {
             let (query_sanitized, binding) =
-                self.query_sanitized(query.clone(), data.to_value())?;
+                self.query_sanitized(&query, &data.to_value())?;
 
             match sqlx::query_with(query_sanitized.as_str(), binding)
                 .execute(self.client().await?)
@@ -592,7 +591,7 @@ impl Connector for Psql {
     #[instrument(name = "psql::erase")]
     async fn erase(&mut self) -> Result<()> {
         let (query_sanitized, _) =
-            self.query_sanitized("DELETE FROM {{ collection }}".to_string(), Value::Null)?;
+            self.query_sanitized(&"DELETE FROM {{ collection }}".to_string(), &Value::Null)?;
 
         sqlx::query(query_sanitized.as_str())
             .execute(self.client().await?)

@@ -68,8 +68,8 @@ impl Scan {
         let mut connector = connector.clone();
 
         let (query_sanitized, _) = connector.query_sanitized(
-            "SELECT COUNT(1) FROM {{ collection }}".to_string(),
-            Value::Null,
+            &"SELECT COUNT(1) FROM {{ collection }}".to_string(),
+            &Value::Null,
         )?;
 
         let count: i64 = sqlx::query_scalar(query_sanitized.as_str())
