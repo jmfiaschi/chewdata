@@ -166,53 +166,25 @@ async fn exec_connector<'step>(
     document: &'step dyn Document,
     context: &'step Option<Context>,
 ) -> io::Result<()> {
-    // todo: remove paginator mutability
-    let paginator = connector.paginator(document).await?;
-    let mut stream = paginator.stream().await?;
-    match paginator.is_parallelizable() {
-        true => {
-            // Concurrency stream
-            // The loop cross the paginator never stop. The paginator mustn't return indefinitely a connector.
-            stream.for_each_concurrent(Some(step.concurrency_limit), |connector_result| async move {
-                    let mut connector = match connector_result {
-                        Ok(connector) => connector,
-                        Err(e) => {
-                            warn!(error = e.to_string().as_str(), "Pagination through the paginator failed. The concurrency loop in the paginator continue");
-                            return;
-                        }
-                    };
-                    match send_data_into_pipe(step, &mut connector, document, context).await
-                    {
-                        Ok(Some(_)) => trace!("All data has been pushed into the pipe. The concurrency loop in the paginator continue"),
-                        Ok(None) => trace!("Connector doesn't have any data to pushed into the pipe. The concurrency loop in the paginator continue"),
-                        Err(e) => warn!(error = e.to_string().as_str(), "Impossible to push data into the pipe. The concurrency loop in the paginator continue")
-                    };
-                })
-                .await;
-        }
-        false => {
-            // Iterative stream
-            // The loop cross the paginator stop if
-            //  * An error raised
-            //  * The current connector is empty: [], {}, "", etc...
-            while let Some(ref mut connector_result) = stream.next().await {
-                let connector = match connector_result {
-                    Ok(connector) => connector,
-                    Err(e) => {
-                        warn!(error = e.to_string().as_str(), "Pagination through the paginator failed. The iterative loop in the paginator is stoped");
-                        break;
-                    }
-                };
-                match send_data_into_pipe(step, connector, document, context).await? {
-                    Some(_) => trace!("All data has been pushed into the pipe. The iterative loop in the paginator continue"),
-                    None => {
-                        trace!("Connector doesn't have any data to pushed into the pipe. The iterative loop in the paginator is stoped");
-                        break;
-                    }
-                };
+    let paging = connector.paginate().await?;
+    
+    paging.for_each_concurrent(Some(step.concurrency_limit), |connector_result| async move {
+        let mut connector = match connector_result {
+            Ok(connector) => connector,
+            Err(e) => {
+                warn!(error = e.to_string().as_str(), "Pagination through the paginator failed.");
+                return;
             }
-        }
-    };
+        };
+        match send_data_into_pipe(step, &mut connector, document, context).await
+        {
+            Ok(Some(_)) => trace!("All data has been pushed into the pipe."),
+            Ok(None) => trace!("Connector doesn't have any data to pushed into the pipe."),
+            Err(e) => warn!(error = e.to_string().as_str(), "Impossible to push data into the pipe.")
+        };
+    })
+    .await;
+
     Ok(())
 }
 

@@ -30,7 +30,6 @@
 //! ]
 //! ```
 use async_stream::stream;
-use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use mongodb::{
     bson::{doc, Document},
@@ -42,15 +41,13 @@ use std::{
     pin::Pin,
 };
 
-use crate::connector::{mongodb::Mongodb, paginator::Paginator, Connector};
+use crate::connector::{mongodb::Mongodb, Connector};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cursor {
     pub limit: usize,
     pub skip: usize,
-    #[serde(skip)]
-    pub connector: Option<Box<Mongodb>>,
 }
 
 impl Default for Cursor {
@@ -58,14 +55,12 @@ impl Default for Cursor {
         Cursor {
             limit: 100,
             skip: 0,
-            connector: None,
         }
     }
 }
 
-#[async_trait]
-impl Paginator for Cursor {
-    /// See [`Paginator::stream`] for more details.
+impl Cursor {
+    /// Cursor paginator.
     ///
     /// # Examples
     ///
@@ -74,7 +69,6 @@ impl Paginator for Cursor {
     /// use async_std::prelude::*;
     /// use chewdata::connector::paginator::mongodb::cursor::Cursor;
     /// use std::io;
-    /// use crate::chewdata::connector::paginator::Paginator;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
@@ -82,31 +76,25 @@ impl Paginator for Cursor {
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
+    /// 
     ///     let paginator = Cursor {
     ///         skip: 0,
     ///         limit: 1,
-    ///         connector: Some(Box::new(connector)),
     ///         ..Default::default()
     ///     };
-    ///     let mut stream = paginator.stream().await?;
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
+    ///     let mut paging = paginator.paginate(&connector).await?;
+    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the second reader.");
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "cursor_paginator::stream")]
-    async fn stream(
+    #[instrument(name = "cursor::paginate")]
+    pub async fn paginate(
         &self,
+        connector: &Mongodb,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = match self.connector.clone() {
-            Some(connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't paginate without a connector",
-            )),
-        }?;
-
+        let connector = connector.clone();
         let hostname = connector.endpoint.clone();
         let database = connector.database.clone();
         let collection = connector.collection.clone();
@@ -133,7 +121,7 @@ impl Paginator for Cursor {
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
         let cursor_size = cursor.count().await;
 
-        let stream = Box::pin(stream! {
+        Ok(Box::pin(stream! {
             for i in 0..cursor_size {
                 if 0 == i%batch_size || i == cursor_size {
                     let mut new_connector = connector.clone();
@@ -144,27 +132,21 @@ impl Paginator for Cursor {
 
                     new_connector.find_options = Box::new(Some(options.clone()));
 
-                    trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
-                    yield Ok(new_connector as Box<dyn Connector>);
+                    trace!(connector = format!("{:?}", new_connector).as_str(), "The stream yields a new connector.");
+                    yield Ok(Box::new(new_connector) as Box<dyn Connector>);
                 }
             }
-        });
-        Ok(stream)
-    }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        false
+            trace!("The stream stops yielding new connectors.");
+        }))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::connector::paginator::Paginator;
-
     use super::*;
 
     #[async_std::test]
-    async fn stream() {
+    async fn paginate() {
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
@@ -173,20 +155,18 @@ mod tests {
         let paginator = Cursor {
             skip: 0,
             limit: 1,
-            connector: Some(Box::new(connector)),
             ..Default::default()
         };
 
-        assert!(!paginator.is_parallelizable());
+        let mut paging = paginator.paginate(&connector).await.unwrap();
 
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_some());
     }
     #[async_std::test]
-    async fn stream_reach_end() {
+    async fn paginate_to_end() {
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
@@ -194,16 +174,13 @@ mod tests {
 
         let paginator = Cursor {
             skip: 0,
-            connector: Some(Box::new(connector)),
             ..Default::default()
         };
 
-        assert!(!paginator.is_parallelizable());
-
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
+        let mut paging = paginator.paginate(&connector).await.unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_none());
     }
 }

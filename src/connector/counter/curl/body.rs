@@ -42,15 +42,14 @@
 //!     "count": 1200
 //! }
 //! ```
+use crate::{
+    connector::{curl::Curl, Connector},
+    document::DocumentType,
+};
 use async_std::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Result;
-
-use crate::{
-    connector::{curl::Curl, Connector},
-    document::Document,
-};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Body {
@@ -82,6 +81,7 @@ impl Body {
     /// use surf::http::Method;
     /// use async_std::prelude::*;
     /// use std::io;
+    /// use crate::chewdata::document::Document;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
@@ -89,29 +89,28 @@ impl Body {
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Post;
     ///     connector.path = "/anything?count=10".to_string();
+    ///     connector.metadata = Json::default().metadata();
     ///
     ///     let mut counter = Body::default();
     ///     counter.entry_path = "/args/not_found".to_string();
-    ///     assert_eq!(Some(10), counter.count(&connector, Box::new(Json::default())).await?);
+    ///     assert_eq!(Some(10), counter.count(&connector).await?);
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "body_counter::count")]
-    pub async fn count(
-        &self,
-        connector: &Curl,
-        document: Box<dyn Document>,
-    ) -> Result<Option<usize>> {
-        let mut connector = connector.clone();
-        let mut document = document.clone();
+    #[instrument(name = "body::count")]
+    pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
+        let metadata = connector.metadata();
+        let mut document = DocumentType::guess(&metadata)?.clone();
         document.set_entry_path(self.entry_path.clone());
+
+        let mut connector = connector.clone();
 
         if let Some(path) = self.path.clone() {
             connector.path = path;
         }
 
-        let mut dataset = match connector.fetch(&*document).await? {
+        let mut dataset = match connector.fetch(&*document.clone()).await? {
             Some(dataset) => dataset,
             None => {
                 trace!("No data was found.");
@@ -126,7 +125,7 @@ impl Body {
             None => Value::Null,
         };
 
-        let count = match value {
+        let count_opt = match value {
             Value::Number(_) => value.as_u64().map(|number| number as usize),
             Value::String(_) => match value.as_str() {
                 Some(value) => match value.parse::<usize>() {
@@ -139,10 +138,10 @@ impl Body {
         };
 
         trace!(
-            size = count,
+            size = count_opt,
             "The counter counts the elements in the resource successfully."
         );
-        Ok(count)
+        Ok(count_opt)
     }
 }
 
@@ -150,7 +149,7 @@ impl Body {
 mod tests {
     use http_types::Method;
 
-    use crate::document::json::Json;
+    use crate::document::{json::Json, Document};
 
     use super::*;
 
@@ -160,14 +159,12 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Post;
         connector.path = "/anything?count=10".to_string();
+        connector.metadata = Json::default().metadata();
+
         let mut counter = Body::default();
         counter.entry_path = "/args/count".to_string();
         assert!(
-            Some(0)
-                < counter
-                    .count(&connector, Box::new(Json::default()))
-                    .await
-                    .unwrap(),
+            Some(0) < counter.count(&connector).await.unwrap(),
             "Counter count() must return a value upper than 0."
         );
     }
@@ -177,14 +174,10 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Post;
         connector.path = "/anything?count=10".to_string();
+        connector.metadata = Json::default().metadata();
+
         let mut counter = Body::default();
         counter.entry_path = "/args/not_found".to_string();
-        assert_eq!(
-            None,
-            counter
-                .count(&connector, Box::new(Json::default()))
-                .await
-                .unwrap()
-        );
+        assert_eq!(None, counter.count(&connector).await.unwrap());
     }
 }

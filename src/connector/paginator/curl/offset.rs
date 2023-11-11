@@ -34,14 +34,12 @@
 //! ```
 use crate::connector::curl::Curl;
 use crate::connector::Connector;
-use crate::connector::Paginator;
 use async_stream::stream;
-use async_trait::async_trait;
 use futures::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{io::Error, io::ErrorKind, io::Result, pin::Pin};
+use std::{io::Result, pin::Pin};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -49,8 +47,6 @@ pub struct Offset {
     pub limit: usize,
     pub skip: usize,
     pub count: Option<usize>,
-    #[serde(skip)]
-    pub connector: Option<Box<Curl>>,
 }
 
 impl Default for Offset {
@@ -59,14 +55,12 @@ impl Default for Offset {
             limit: 100,
             skip: 0,
             count: None,
-            connector: None,
         }
     }
 }
 
-#[async_trait]
-impl Paginator for Offset {
-    /// See [`Paginator::stream`] for more details.
+impl Offset {
+    /// Offset paginator.
     ///
     /// # Examples
     ///
@@ -75,7 +69,6 @@ impl Paginator for Offset {
     /// use chewdata::connector::paginator::curl::offset::Offset;
     /// use surf::http::Method;
     /// use async_std::prelude::*;
-    /// use crate::chewdata::connector::paginator::Paginator;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -86,36 +79,28 @@ impl Paginator for Offset {
     ///     connector.path = "/get".to_string();
     ///    
     ///     let paginator = Offset {
-    ///         connector: Some(Box::new(connector)),
     ///         ..Default::default()
     ///     };
     ///
-    ///     assert!(!paginator.is_parallelizable());
-    ///
-    ///     let mut stream = paginator.stream().await.unwrap();
-    ///     let connector = stream.next().await.transpose().unwrap();
+    ///     let mut paging = paginator.paginate(&connector).await.unwrap();
+    ///     let connector = paging.next().await.transpose().unwrap();
     ///     assert!(connector.is_some());
-    ///     let connector = stream.next().await.transpose().unwrap();
+    ///     let connector = paging.next().await.transpose().unwrap();
     ///     assert!(connector.is_none());
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "offset_paginator::stream")]
-    async fn stream(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let paginator = self.clone();
-        let connector = match self.connector.clone() {
-            Some(connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't paginate without a connector",
-            )),
-        }?;
-
+    #[instrument(name = "offset::paginate")]
+    pub async fn paginate(
+        &self,
+        connector: &Curl,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let connector = connector.clone();
         let mut has_next = true;
-        let limit = paginator.limit;
-        let mut skip = paginator.skip;
-        let count_opt = paginator.count;
+        let limit = self.limit;
+        let mut skip = self.skip;
+        let count_opt = self.count;
 
         let stream = Box::pin(stream! {
             while has_next {
@@ -139,16 +124,12 @@ impl Paginator for Offset {
                 skip += limit;
 
                 trace!(connector = format!("{:?}", new_connector).as_str(), "The stream yields a new connector.");
-                yield Ok(new_connector as Box<dyn Connector>);
+                yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
             trace!("The stream stops yielding new connectors.");
         });
 
         Ok(stream)
-    }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        self.count.is_some()
     }
 }
 
@@ -178,14 +159,12 @@ mod tests {
         let paginator = Offset {
             skip: 1,
             limit: 1,
-            connector: Some(Box::new(connector)),
             ..Default::default()
         };
 
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
+        let mut paging = paginator.paginate(&connector).await.unwrap();
 
-        let mut connector = stream.next().await.transpose().unwrap().unwrap();
+        let mut connector = paging.next().await.transpose().unwrap().unwrap();
         assert_eq!("/links/1/10", connector.path().as_str());
         let len1 = connector
             .fetch(&document)
@@ -196,7 +175,7 @@ mod tests {
             .await;
         assert!(0 < len1, "Can't read the content of the file.");
 
-        let mut connector = stream.next().await.transpose().unwrap().unwrap();
+        let mut connector = paging.next().await.transpose().unwrap().unwrap();
         assert_eq!("/links/2/10", connector.path().as_str());
         let len2 = connector
             .fetch(&document)
@@ -220,16 +199,13 @@ mod tests {
         connector.path = "/get".to_string();
 
         let paginator = Offset {
-            connector: Some(Box::new(connector)),
             ..Default::default()
         };
 
-        assert!(!paginator.is_parallelizable());
-
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
+        let mut paging = paginator.paginate(&connector).await.unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_none());
     }
     #[async_std::test]
@@ -243,20 +219,17 @@ mod tests {
             skip: 0,
             limit: 1,
             count: Some(3),
-            connector: Some(Box::new(connector)),
             ..Default::default()
         };
 
-        assert!(paginator.is_parallelizable());
-
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
+        let mut paging = paginator.paginate(&connector).await.unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
+        let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_none());
     }
 }

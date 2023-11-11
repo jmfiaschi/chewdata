@@ -49,7 +49,7 @@ pub struct Header {
 impl Default for Header {
     fn default() -> Self {
         Header {
-            name: "X-Total-Count".to_string(),
+            name: "Content-Length".to_string(),
             path: None,
         }
     }
@@ -84,7 +84,7 @@ impl Header {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "header_counter::count")]
+    #[instrument(name = "header::count")]
     pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
         let mut connector = connector.clone();
         let client = connector.client().await?;

@@ -108,21 +108,18 @@ async fn send<'step>(step: &'step dyn Step, context: &'step Context) -> io::Resu
 
     match sender.send(context.clone()).await {
         Ok(_) => {
-            trace!(
-                step = format!("{:?}", step).as_str(),
-                "Context sended into the channel"
-            )
+            trace!("Context sended into the channel")
         }
         Err(e) => {
             info!(
-                step = format!("{:?}", step).as_str(),
                 error = format!("{:?}", e).as_str(),
                 "The channel is disconnected. the step can't send any context.",
             );
 
             return Err(io::Error::new(
-            io::ErrorKind::Interrupted,
-            "The step has been disconnected from the channel. the step can't send any context.".to_string(),
+                io::ErrorKind::Interrupted,
+                "The step has been disconnected from the channel. the step can't send any context."
+                    .to_string(),
             ));
         }
     }
@@ -144,19 +141,14 @@ async fn receive<'step>(
             match receiver.recv().await {
                 Ok(context_received) => {
                     trace!(
-                        step = format!("{:?}", step).as_str(),
                         context = format!("{:?}", context_received).as_str(),
                         "A new context received from the channel."
                     );
 
                     yield context_received.clone();
                 },
-                Err(e) => {
-                    info!(
-                        step = format!("{:?}", step).as_str(),
-                        error = format!("{:?}", e).as_str(),
-                        "The channel is disconnected. the step can't receive any context.",
-                    );
+                Err(_) => {
+                    info!("The channel is disconnected. the step can't receive any context.");
                     break;
                 }
             };

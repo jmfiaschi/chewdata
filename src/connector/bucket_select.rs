@@ -41,7 +41,6 @@
 //! ]
 //! ```
 use super::bucket::{Bucket, BucketPaginator};
-use super::Paginator;
 use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
@@ -180,7 +179,7 @@ impl BucketSelect {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            warn!(path = path, "This path is not fully resolved.");
         }
 
         let input_serialization = match metadata.mime_subtype.as_deref() {
@@ -273,7 +272,7 @@ impl BucketSelect {
         {
             match event {
                 SelectObjectContentEventStream::Records(records) => {
-                    trace!("records Event");
+                    trace!("records Event.");
                     if let Some(bytes) = records.payload() {
                         buffer.append(&mut bytes.clone().into_inner());
                     };
@@ -281,21 +280,21 @@ impl BucketSelect {
                 SelectObjectContentEventStream::Stats(stats) => {
                     trace!(
                         stats = format!("{:?}", stats.details()).as_str(),
-                        "Stats Event"
+                        "Stats Event."
                     );
                 }
                 SelectObjectContentEventStream::End(_) => {
-                    trace!("End Event");
+                    trace!("End Event.");
                     break;
                 }
                 SelectObjectContentEventStream::Progress(progress) => {
                     trace!(
                         details = format!("{:?}", progress.details()).as_str(),
-                        "Progress Event"
+                        "Progress Event."
                     );
                 }
                 SelectObjectContentEventStream::Cont(_) => {
-                    trace!("Continuation Event");
+                    trace!("Continuation Event.");
                 }
                 otherwise => {
                     return Err(Error::new(
@@ -329,29 +328,29 @@ impl BucketSelect {
         {
             match event {
                 SelectObjectContentEventStream::Records(_) => {
-                    trace!("records Event");
+                    trace!("records Event.");
                 }
                 SelectObjectContentEventStream::Stats(stats) => {
                     trace!(
                         stats = format!("{:?}", stats.details()).as_str(),
-                        "Stats Event"
+                        "Stats Event."
                     );
                     if let Some(stats) = stats.details {
                         buffer += stats.bytes_scanned() as usize;
                     };
                 }
                 SelectObjectContentEventStream::End(_) => {
-                    trace!("End Event");
+                    trace!("End Event.");
                     break;
                 }
                 SelectObjectContentEventStream::Progress(progress) => {
                     trace!(
                         details = format!("{:?}", progress.details()).as_str(),
-                        "Progress Event"
+                        "Progress Event."
                     );
                 }
                 SelectObjectContentEventStream::Cont(_) => {
-                    trace!("Continuation Event");
+                    trace!("Continuation Event.");
                 }
                 otherwise => {
                     return Err(Error::new(
@@ -417,7 +416,7 @@ impl Connector for BucketSelect {
     /// ```
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
-            trace!("The connector stay link to the same resource");
+            trace!("The connector stay link to the same resource.");
             return Ok(false);
         }
 
@@ -437,14 +436,14 @@ impl Connector for BucketSelect {
         new_path.replace_mustache(new_parameters);
 
         if previous_path == new_path {
-            trace!(path = previous_path, "The connector path didn't change");
+            trace!(path = previous_path, "The connector path didn't change.");
             return Ok(false);
         }
 
         info!(
             previous_path = previous_path,
             new_path = new_path,
-            "The connector will use another resource regarding the new parameters"
+            "The connector will use another resource regarding the new parameters."
         );
         Ok(true)
     }
@@ -591,7 +590,7 @@ impl Connector for BucketSelect {
         buffer.append(&mut self.fetch_data().await?);
         info!(
             path = path,
-            "The connector fetch data into the resource with success"
+            "The connector fetch data into the resource with success."
         );
 
         if !document.has_data(&buffer)? {
@@ -613,20 +612,30 @@ impl Connector for BucketSelect {
         _document: &dyn Document,
         _dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
-        unimplemented!("Can't send data to the remote document. Use the bucket connector instead of this connector")
+        unimplemented!("Can't send data to the remote document. Use the bucket connector instead of this connector.")
     }
     /// See [`Connector::erase`] for more details.
     async fn erase(&mut self) -> Result<()> {
         unimplemented!(
-            "Can't erase the document. Use the bucket connector instead of this connector"
+            "Can't erase the document. Use the bucket connector instead of this connector."
         )
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(
+    /// See [`Connector::paginate`] for more details.
+    async fn paginate(
         &self,
-        _document: &dyn Document,
-    ) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        let connector = self.clone();
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        BucketSelectPaginator::new(self).await?.paginate(self).await
+    }
+}
+
+#[derive(Debug)]
+pub struct BucketSelectPaginator {
+    pub paths: IntoIter<String>,
+    pub skip: usize,
+}
+
+impl BucketSelectPaginator {
+    pub async fn new(connector: &BucketSelect) -> Result<Self> {
         let mut bucket = Bucket::default();
         bucket.endpoint = connector.endpoint.clone();
         bucket.region = connector.region.clone();
@@ -636,85 +645,62 @@ impl Connector for BucketSelect {
         bucket.limit = connector.limit;
         bucket.skip = connector.skip;
 
-        let bucket_paginator = BucketPaginator::new(bucket).await?;
+        let bucket_paginator = BucketPaginator::new(&bucket).await?;
 
-        Ok(Box::pin(BucketSelectPaginator {
+        Ok(BucketSelectPaginator {
             paths: bucket_paginator.paths,
-            connector: Some(connector),
-        }))
+            skip: bucket_paginator.skip,
+        })
     }
-}
-
-#[derive(Debug)]
-pub struct BucketSelectPaginator {
-    paths: IntoIter<String>,
-    connector: Option<BucketSelect>,
-}
-
-#[async_trait]
-impl Paginator for BucketSelectPaginator {
-    /// See [`Paginator::stream`] for more details.
+    /// Paginate through the bucket folder.
+    /// Wildcard is allowed.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use chewdata::connector::bucket_select::BucketSelect;
+    /// use chewdata::connector::bucket_select::{BucketSelect, BucketSelectPaginator};
     /// use chewdata::connector::Connector;
-    /// use chewdata::document::json::Json;
-    /// use chewdata::Metadata;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
     ///     let mut connector = BucketSelect::default();
-    ///     connector.path = "data/multi_lines.json".to_string();
     ///     connector.endpoint = "http://localhost:9000".to_string();
     ///     connector.bucket = "my-bucket".to_string();
-    ///     connector.query = "select * from s3object".to_string();
-    ///     connector.metadata = Metadata {
-    ///         ..Json::default().metadata
-    ///     };
+    ///     connector.path = "data/one_line.json".to_string();
     ///
-    ///     let mut stream = connector.paginator(&document).await?.stream().await?;
-    ///     assert!(stream.next().await.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.is_some(), "Can't get the first reader.");
+    ///     let paginator = BucketSelectPaginator::new(&connector).await?;
+    ///
+    ///     let mut paging = paginator.paginate(&connector).await?;
+    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "bucket_select_paginator::stream")]
-    async fn stream(
+    #[instrument(name = "bucket_select::paginate")]
+    pub async fn paginate(
         &self,
+        connector: &BucketSelect,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = match self.connector.clone() {
-            Some(connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't paginate without a connector",
-            )),
-        }?;
+        let connector = connector.clone();
         let mut paths = self.paths.clone();
 
         let stream = Box::pin(stream! {
-            while let Some(path) = paths.next() {
-                trace!(next_path = path.as_str(), "Next path");
+            for path in &mut paths {
+                trace!(next_path = path.as_str(), "Next path.");
 
                 let mut new_connector = connector.clone();
                 new_connector.path = path;
 
-                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return the last new connector");
+                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream yields a new connector.");
                 yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
-            trace!("The stream stop to return new connectors");
+            trace!("The stream stops yielding new connectors.");
         });
 
         Ok(stream)
-    }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        true
     }
 }
 
@@ -805,7 +791,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
-            "The inner connector should have a size upper than zero"
+            "The inner connector should have a size upper than zero."
         );
     }
     #[async_std::test]
@@ -1000,9 +986,7 @@ mod tests {
         );
     }
     #[async_std::test]
-    async fn paginator_stream() {
-        let document = Json::default();
-
+    async fn paginate() {
         let mut connector = BucketSelect::default();
         connector.path = "data/multi_lines.json".to_string();
         connector.endpoint = "http://localhost:9000".to_string();
@@ -1012,23 +996,21 @@ mod tests {
             ..Json::default().metadata
         };
 
-        let paginator = connector.paginator(&document).await.unwrap();
-        assert!(paginator.is_parallelizable());
+        let paginator = BucketSelectPaginator::new(&connector).await.unwrap();
 
-        let mut stream = paginator.stream().await.unwrap();
+        let mut paging = paginator.paginate(&connector).await.unwrap();
+
         assert!(
-            stream.next().await.transpose().unwrap().is_some(),
+            paging.next().await.transpose().unwrap().is_some(),
             "Can't get the first reader."
         );
         assert!(
-            stream.next().await.transpose().unwrap().is_none(),
+            paging.next().await.transpose().unwrap().is_none(),
             "Can't paginate more than one time."
         );
     }
     #[async_std::test]
-    async fn paginator_stream_with_wildcard() {
-        let document = Json::default();
-
+    async fn paginate_with_wildcard() {
         let mut connector = BucketSelect::default();
         connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
@@ -1040,17 +1022,17 @@ mod tests {
             ..Json::default().metadata
         };
 
-        let paginator = connector.paginator(&document).await.unwrap();
-        assert!(paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
+        let paginator = BucketSelectPaginator::new(&connector).await.unwrap();
+
+        let mut paging = paginator.paginate(&connector).await.unwrap();
 
         assert_eq!(
             "data/multi_lines.json".to_string(),
-            stream.next().await.transpose().unwrap().unwrap().path()
+            paging.next().await.transpose().unwrap().unwrap().path()
         );
         assert_eq!(
             "data/one_line.json".to_string(),
-            stream.next().await.transpose().unwrap().unwrap().path()
+            paging.next().await.transpose().unwrap().unwrap().path()
         );
     }
 }

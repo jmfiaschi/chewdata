@@ -24,7 +24,7 @@
 //!     }
 //! ]
 //! ```
-use super::{Connector, Paginator};
+use super::Connector;
 use crate::connector::paginator::once::Once;
 use crate::document::Document;
 use crate::{DataSet, DataStream, Metadata};
@@ -145,37 +145,31 @@ impl Connector for Io {
             "IO connector can't erase data to the remote document. Use other connector type"
         )
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(
+    /// See [`Connector::paginate`] for more details.
+    async fn paginate(
         &self,
-        _document: &dyn Document,
-    ) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        Ok(Box::pin(Once {
-            connector: Some(Box::new(self.clone())),
-        }))
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let paginator = Once {};
+        paginator.paginate(self).await
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::document::jsonl::Jsonl;
-
     use super::*;
     use async_std::prelude::StreamExt;
 
     #[async_std::test]
-    async fn paginator_stream() {
-        let document = Jsonl::default();
+    async fn paginate() {
         let connector = Io::default();
-        let paginator = connector.paginator(&document).await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
+
+        let mut paging = connector.paginate().await.unwrap();
         assert!(
-            stream.next().await.transpose().unwrap().is_some(),
+            paging.next().await.transpose().unwrap().is_some(),
             "Can't get the first reader."
         );
         assert!(
-            stream.next().await.transpose().unwrap().is_none(),
+            paging.next().await.transpose().unwrap().is_none(),
             "Must return only on connector for IO."
         );
     }

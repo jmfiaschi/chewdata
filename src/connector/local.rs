@@ -31,7 +31,8 @@
 //!     }
 //! ]
 //! ```
-use super::{Connector, Paginator};
+use super::paginator::local::wildcard::Wildcard;
+use super::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::{DataSet, DataStream, Metadata};
@@ -45,7 +46,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::pin::Pin;
-use std::vec::IntoIter;
 use std::{
     fmt,
     io::{Error, ErrorKind, Read, Result, Seek, SeekFrom, Write},
@@ -166,12 +166,12 @@ impl Connector for Local {
         let len = match fs::metadata(self.path()) {
             Ok(metadata) => {
                 let len = metadata.len() as usize;
-                info!(len = len, "Size of data found in the resource");
+                info!(len = len, "Size of data found in the resource.");
                 len
             }
             Err(_) => {
                 let len = 0;
-                info!(len = len, "The connector not found data in the resource");
+                info!(len = len, "The connector not found data in the resource.");
                 len
             }
         };
@@ -219,7 +219,7 @@ impl Connector for Local {
     #[instrument(name = "local::is_resource_will_change")]
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
-            trace!("The connector stay link to the same file");
+            trace!("The connector stay link to the same file.");
             return Ok(false);
         }
 
@@ -241,7 +241,7 @@ impl Connector for Local {
         if previous_path == new_path {
             trace!(
                 path = previous_path,
-                "The connector stay link to the same file"
+                "The connector stay link to the same file."
             );
             return Ok(false);
         }
@@ -249,7 +249,7 @@ impl Connector for Local {
         info!(
             previous_path = previous_path,
             new_path = new_path,
-            "The connector will use another file, regarding the new parameters"
+            "The connector will use another file, regarding the new parameters."
         );
         Ok(true)
     }
@@ -294,7 +294,7 @@ impl Connector for Local {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            warn!(path = path, "This path is not fully resolved.");
         }
 
         OpenOptions::new()
@@ -306,7 +306,7 @@ impl Connector for Local {
             .open(path.clone())?
             .read_to_end(&mut buff)?;
 
-        info!(path = path, "The connector fetch data with success");
+        info!(path = path, "The connector fetch data with success.");
 
         if !document.has_data(&buff)? {
             return Ok(None);
@@ -374,7 +374,7 @@ impl Connector for Local {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            warn!(path = path, "This path is not fully resolved.");
         }
 
         let position = match document.can_append() {
@@ -390,7 +390,7 @@ impl Connector for Local {
             .open(path.as_str())?;
 
         file.lock_exclusive()?;
-        trace!(path = path, "The connector lock the file");
+        trace!(path = path, "The connector lock the file.");
 
         let file_len = file.metadata()?.len();
 
@@ -410,14 +410,14 @@ impl Connector for Local {
         }
         file.write_all(&body)?;
         file.write_all(&footer)?;
-        trace!(path = path, "The connector write data into the file");
+        trace!(path = path, "The connector write data into the file.");
 
         file.unlock()?;
-        trace!(path = path, "The connector unlock the file");
+        trace!(path = path, "The connector unlock the file.");
 
         info!(
             path = path,
-            "The connector send data into the file with success"
+            "The connector send data into the file with success."
         );
         Ok(None)
     }
@@ -454,7 +454,7 @@ impl Connector for Local {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            warn!(path = path, "This path is not fully resolved.");
         }
 
         let paths = glob(path.as_str()).map_err(|e| Error::new(ErrorKind::NotFound, e))?;
@@ -471,114 +471,14 @@ impl Connector for Local {
             };
         }
 
-        info!(path = path, "The connector erase the file with success");
+        info!(path = path, "The connector erase the file with success.");
         Ok(())
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(
-        &self,
-        _document: &dyn Document,
-    ) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        Ok(Box::pin(LocalPaginator::new(self.clone())?))
-    }
-}
-
-#[derive(Debug)]
-pub struct LocalPaginator {
-    pub paths: IntoIter<String>,
-    pub connector: Option<Local>,
-}
-
-impl LocalPaginator {
-    /// Create a new LocalPaginator and load in memory all file paths in the connector's path
-    pub fn new(connector: Local) -> Result<Self> {
-        if connector.path().is_empty() {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "The field 'path' for a local connector can't be an empty string".to_string(),
-            ));
-        }
-
-        let paths: Vec<String> = match glob(connector.path().as_str()) {
-            Ok(paths) => Ok(paths
-                .filter(|p| p.is_ok())
-                .map(|p| p.unwrap().display().to_string())
-                .collect()),
-            Err(e) => Err(Error::new(ErrorKind::InvalidInput, e)),
-        }?;
-
-        if paths.is_empty() {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                format!(
-                    "No files found with this path pattern '{}'.",
-                    connector.path()
-                ),
-            ));
-        }
-
-        Ok(LocalPaginator {
-            paths: paths.into_iter(),
-            connector: Some(connector),
-        })
-    }
-}
-
-#[async_trait]
-impl Paginator for LocalPaginator {
-    /// See [`Paginator::stream`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::local::Local;
-    /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
-    /// use std::io;
-    /// use chewdata::document::json::Json;
-    ///
-    /// #[async_std::main]
-    /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
-    ///     let mut connector = Local::default();
-    ///     connector.path = "./data/one_line.*".to_string();
-    ///
-    ///     let mut stream = connector.paginator(&document).await?.stream().await?;
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(stream.next().await.transpose()?.is_some(), "Can't get the second reader.");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument(name = "local_paginator::stream")]
-    async fn stream(
+    /// See [`Connector::paginate`] for more details.
+    async fn paginate(
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = match self.connector.clone() {
-            Some(connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't paginate without a connector",
-            )),
-        }?;
-        let mut paths = self.paths.clone();
-
-        let stream = Box::pin(stream! {
-            while let Some(path) = paths.next() {
-                let mut new_connector = connector.clone();
-                new_connector.path = path.clone();
-
-                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream return a new connector");
-                yield Ok(Box::new(new_connector) as Box<dyn Connector>);
-            }
-            trace!("The stream stop to return new connectors");
-        });
-
-        Ok(stream)
-    }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        true
+        Wildcard::new(self)?.paginate(self).await
     }
 }
 
@@ -627,7 +527,7 @@ mod tests {
         connector.path = "./data/one_line.json".to_string();
         assert!(
             0 < connector.len().await.unwrap(),
-            "The length of the document is not greather than 0"
+            "The length of the document is not greather than 0."
         );
         connector.path = "./not_found_file".to_string();
         assert_eq!(0, connector.len().await.unwrap());
@@ -648,7 +548,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
-            "The inner connector should have a size upper than zero"
+            "The inner connector should have a size upper than zero."
         );
     }
     #[async_std::test]
@@ -689,7 +589,7 @@ mod tests {
         connector.send(&document, &dataset).await.unwrap();
         connector.erase().await.unwrap();
         let datastream = connector.fetch(&document).await.unwrap();
-        assert!(datastream.is_none(), "No datastream with empty body");
+        assert!(datastream.is_none(), "No datastream with empty body.");
     }
     #[async_std::test]
     async fn erase_with_wildcard() {
@@ -703,34 +603,6 @@ mod tests {
         connector.send(&document, &dataset).await.unwrap();
         connector.erase().await.unwrap();
         let datastream = connector.fetch(&document).await.unwrap();
-        assert!(datastream.is_none(), "No datastream with empty body");
-    }
-    #[async_std::test]
-    async fn paginator_header_counter_count() {
-        let document = Json::default();
-
-        let mut connector = Local::default();
-        connector.path = "./data/one_line.*".to_string();
-        let paginator = connector.paginator(&document).await.unwrap();
-        assert!(paginator.is_parallelizable());
-
-        let mut stream = paginator.stream().await.unwrap();
-        let mut connector = stream.next().await.transpose().unwrap().unwrap();
-        let file_len1 = connector.len().await.unwrap();
-        assert!(
-            0 < file_len1,
-            "The size of the file must be upper than zero"
-        );
-
-        let mut connector = stream.next().await.transpose().unwrap().unwrap();
-        let file_len2 = connector.len().await.unwrap();
-        assert!(
-            0 < file_len2,
-            "The size of the file must be upper than zero"
-        );
-        assert!(
-            file_len1 != file_len2,
-            "The file size of this two files are not different."
-        );
+        assert!(datastream.is_none(), "No datastream with empty body.");
     }
 }
