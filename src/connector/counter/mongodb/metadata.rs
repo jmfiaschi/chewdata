@@ -65,16 +65,12 @@ impl Metadata {
     /// ```
     #[instrument(name = "metadata::count")]
     pub async fn count(&self, connector: &Mongodb) -> Result<usize> {
-        let hostname = connector.endpoint.clone();
-        let database = connector.database.clone();
-        let collection_name = connector.collection.clone();
-
-        let client = match Client::with_uri_str(&hostname).await {
+        let client = match Client::with_uri_str(&connector.endpoint).await {
             Ok(client) => client,
             Err(e) => return Err(Error::new(ErrorKind::Interrupted, e)),
         };
-        let db = client.database(&database);
-        let collection = db.collection::<Document>(&collection_name);
+        let db = client.database(&connector.database);
+        let collection = db.collection::<Document>(&connector.collection);
         let count = collection
             .estimated_document_count(None)
             .await

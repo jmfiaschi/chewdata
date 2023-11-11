@@ -105,7 +105,7 @@ impl Cursor {
         let mut options = (*connector.find_options.clone()).unwrap_or_default();
         options.skip = Some(skip as u64);
 
-        let filter: Option<Document> = match connector.filter(parameters) {
+        let filter: Option<Document> = match connector.filter(&parameters) {
             Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
             None => None,
         };

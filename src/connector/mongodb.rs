@@ -96,18 +96,15 @@ impl Default for Mongodb {
 impl fmt::Display for Mongodb {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         futures::executor::block_on(async {
-            let hostname = self.endpoint.clone();
-            let database = self.database.clone();
-            let collection = self.collection.clone();
             let options = *self.find_options.clone();
-            let filter: Option<Document> = match self.filter(self.parameters.clone()) {
+            let filter: Option<Document> = match self.filter(&self.parameters) {
                 Some(filter) => serde_json::from_str(filter.to_string().as_str()).unwrap(),
                 None => None,
             };
 
-            let client = Client::with_uri_str(&hostname).await.unwrap();
-            let db = client.database(&database);
-            let collection = db.collection::<Document>(&collection);
+            let client = Client::with_uri_str(&self.endpoint).await.unwrap();
+            let db = client.database(&self.database);
+            let collection = db.collection::<Document>(&self.collection);
             let cursor = collection.find(filter, options).await.unwrap();
             let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect().await;
             let data = serde_json::to_string(&docs).unwrap();
@@ -134,13 +131,13 @@ impl fmt::Debug for Mongodb {
 
 impl Mongodb {
     /// Get new filter value link to the parameters in input
-    pub fn filter(&self, parameters: Value) -> Option<Value> {
-        let mut filter = match *self.filter.clone() {
-            Some(filter) => filter,
+    pub fn filter(&self, parameters: &Value) -> Option<Value> {
+        let mut filter = match *self.filter {
+            Some(ref filter) => filter.clone(),
             None => return None,
         };
 
-        filter.replace_mustache(parameters);
+        filter.replace_mustache(parameters.clone());
 
         Some(filter)
     }
@@ -158,8 +155,8 @@ impl Connector for Mongodb {
     }
     /// See [`Connector::is_variable`] for more details.
     fn is_variable(&self) -> bool {
-        match *self.filter.clone() {
-            Some(filter) => filter.has_mustache(),
+        match *self.filter {
+            Some(ref filter) => filter.has_mustache(),
             None => false,
         }
     }
@@ -240,20 +237,17 @@ impl Connector for Mongodb {
         &mut self,
         document: &dyn ChewdataDocument,
     ) -> std::io::Result<Option<DataStream>> {
-        let hostname = self.endpoint.clone();
-        let database = self.database.clone();
-        let collection = self.collection.clone();
         let options = *self.find_options.clone();
-        let filter: Option<Document> = match self.filter(self.parameters.clone()) {
+        let filter: Option<Document> = match self.filter(&self.parameters) {
             Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
             None => None,
         };
 
-        let client = Client::with_uri_str(&hostname)
+        let client = Client::with_uri_str(&self.endpoint)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-        let db = client.database(&database);
-        let collection = db.collection::<Document>(&collection);
+        let db = client.database(&self.database);
+        let collection = db.collection::<Document>(&self.collection);
         let cursor = collection
             .find(filter, options)
             .await
@@ -312,10 +306,6 @@ impl Connector for Mongodb {
         _document: &dyn ChewdataDocument,
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
-        let hostname = self.endpoint.clone();
-        let database = self.database.clone();
-        let collection = self.collection.clone();
-
         let mut docs: Vec<Document> = Vec::default();
         for data in dataset {
             docs.push(
@@ -326,13 +316,12 @@ impl Connector for Mongodb {
 
         let update_options = self.update_options.clone();
 
-        let client = Client::with_uri_str(&hostname)
+        let client = Client::with_uri_str(&self.endpoint)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        let db = client.database(&database);
-        let collection = db.collection::<Document>(&collection);
-        let parameters = self.parameters.clone();
+        let db = client.database(&self.database);
+        let collection = db.collection::<Document>(&self.collection);
 
         for doc in docs {
             let mut doc_without_id = doc.clone();
@@ -340,10 +329,10 @@ impl Connector for Mongodb {
                 doc_without_id.remove("_id");
             }
 
-            let filter_update = match self.filter(parameters.clone()) {
+            let filter_update = match self.filter(&self.parameters) {
                 Some(mut filter) => {
-                    let json_doc: Value = serde_json::to_value(doc.clone())?;
-                    filter.replace_mustache(json_doc.clone());
+                    let json_doc: Value = serde_json::to_value(&doc)?;
+                    filter.replace_mustache(json_doc);
                     serde_json::from_str(filter.to_string().as_str())?
                 }
                 None => match doc.get("_id") {
@@ -421,16 +410,12 @@ impl Connector for Mongodb {
     /// ```
     #[instrument(name = "mongodb::erase")]
     async fn erase(&mut self) -> Result<()> {
-        let hostname = self.endpoint.clone();
-        let database = self.database.clone();
-        let collection = self.collection.clone();
-
-        let client = Client::with_uri_str(&hostname)
+        let client = Client::with_uri_str(&self.endpoint)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        let db = client.database(&database);
-        let collection = db.collection::<Document>(&collection);
+        let db = client.database(&self.database);
+        let collection = db.collection::<Document>(&self.collection);
         collection
             .delete_many(doc! {}, None)
             .await
