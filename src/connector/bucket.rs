@@ -130,7 +130,7 @@ impl fmt::Display for Bucket {
                 .await
                 .unwrap()
                 .get_object()
-                .bucket(self.bucket.clone())
+                .bucket(&self.bucket)
                 .key(self.path())
                 .set_version_id(self.version.clone())
                 .send()
@@ -296,11 +296,12 @@ impl Connector for Bucket {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
-        let mut params = *self.parameters.clone();
-        let mut metadata = Map::default();
 
         match self.is_variable() {
             true => {
+                let mut params = *self.parameters.clone();
+                let mut metadata = Map::default();
+
                 metadata.insert("metadata".to_string(), self.metadata().into());
                 params.merge(&Value::Object(metadata));
 
@@ -348,7 +349,7 @@ impl Connector for Bucket {
             .await?
             .head_object()
             .key(self.path())
-            .bucket(self.bucket.clone())
+            .bucket(&self.bucket)
             .set_version_id(self.version.clone())
             .send()
             .compat()
@@ -411,8 +412,8 @@ impl Connector for Bucket {
             .compat()
             .await?
             .get_object()
-            .bucket(self.bucket.clone())
-            .key(path.clone())
+            .bucket(&self.bucket)
+            .key(&path)
             .set_version_id(self.version.clone())
             .send()
             .compat()
@@ -529,7 +530,7 @@ impl Connector for Bucket {
                     .compat()
                     .await?
                     .get_object()
-                    .bucket(self.bucket.clone())
+                    .bucket(&self.bucket)
                     .key(self.path())
                     .set_version_id(self.version.clone())
                     .send()
@@ -549,7 +550,7 @@ impl Connector for Bucket {
         }
 
         let file_len = content_file.len();
-        let mut cursor = Cursor::new(content_file.clone());
+        let mut cursor = Cursor::new(content_file);
 
         match position {
             Some(pos) => match file_len as isize + pos {
@@ -574,8 +575,8 @@ impl Connector for Bucket {
             .compat()
             .await?
             .put_object()
-            .bucket(self.bucket.clone())
-            .key(path_resolved.clone())
+            .bucket(&self.bucket)
+            .key(&path_resolved)
             .tagging(self.tagging())
             .content_type(self.metadata().content_type())
             .set_metadata(Some(
@@ -651,7 +652,6 @@ pub struct BucketPaginator {
 
 impl BucketPaginator {
     pub async fn new(connector: &Bucket) -> Result<Self> {
-        let connector = connector.clone();
         let mut paths = Vec::default();
 
         let reg_path_contain_wildcard =
@@ -689,7 +689,7 @@ impl BucketPaginator {
                         .compat()
                         .await?
                         .list_objects_v2()
-                        .bucket(connector.bucket.clone())
+                        .bucket(&connector.bucket)
                         .delimiter(delimiter.to_string())
                         .prefix(format!("{}/", prefix_keys.join("/")));
 

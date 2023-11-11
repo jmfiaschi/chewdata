@@ -117,7 +117,7 @@ impl fmt::Display for BucketSelect {
                 .await
                 .unwrap()
                 .get_object()
-                .bucket(self.bucket.clone())
+                .bucket(&self.bucket)
                 .key(self.path())
                 .send()
                 .compat()
@@ -244,9 +244,9 @@ impl BucketSelect {
             .client()
             .await?
             .select_object_content()
-            .bucket(self.bucket.clone())
+            .bucket(&self.bucket)
             .key(path)
-            .expression(self.query.clone())
+            .expression(&self.query)
             .expression_type(ExpressionType::Sql)
             .input_serialization(input_serialization)
             .output_serialization(output_serialization))
@@ -464,11 +464,11 @@ impl Connector for BucketSelect {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
-        let mut params = *self.parameters.clone();
-        let mut metadata = Map::default();
 
         match self.is_variable() {
             true => {
+                let mut params = *self.parameters.clone();
+                let mut metadata = Map::default();
                 metadata.insert("metadata".to_string(), self.metadata().into());
                 params.merge(&Value::Object(metadata));
 
@@ -810,9 +810,9 @@ mod tests {
             .await
             .unwrap()
             .select_object_content()
-            .bucket(connector.bucket.clone())
+            .bucket(&connector.bucket)
             .key(connector.path())
-            .expression(connector.query.clone())
+            .expression(&connector.query)
             .expression_type(ExpressionType::Sql)
             .input_serialization(
                 InputSerialization::builder()
@@ -850,9 +850,9 @@ mod tests {
             .await
             .unwrap()
             .select_object_content()
-            .bucket(connector.bucket.clone())
+            .bucket(&connector.bucket)
             .key(connector.path())
-            .expression(connector.query.clone())
+            .expression(&connector.query)
             .expression_type(ExpressionType::Sql)
             .input_serialization(
                 InputSerialization::builder()
@@ -891,9 +891,9 @@ mod tests {
             .await
             .unwrap()
             .select_object_content()
-            .bucket(connector.bucket.clone())
+            .bucket(&connector.bucket)
             .key(connector.path())
-            .expression(connector.query.clone())
+            .expression(&connector.query)
             .expression_type(ExpressionType::Sql)
             .input_serialization(
                 InputSerialization::builder()
@@ -947,9 +947,9 @@ mod tests {
             .await
             .unwrap()
             .select_object_content()
-            .bucket(connector.bucket.clone())
+            .bucket(&connector.bucket)
             .key(connector.path())
-            .expression(connector.query.clone())
+            .expression(&connector.query)
             .expression_type(ExpressionType::Sql)
             .input_serialization(
                 InputSerialization::builder()
