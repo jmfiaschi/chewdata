@@ -1,3 +1,10 @@
+# [1.18.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.18.0-beta.1...v1.18.0-beta.2) (2023-11-12)
+
+
+### Features
+
+* **steps:** remove description attribute. Use hjson / Yaml format for your config file in order to add description ([29d3d5b](https://github.com/jmfiaschi/chewdata/commit/29d3d5b1595368e549d172c41745b5a27d95436e))
+
 # [1.18.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.17.1-beta.1...v1.18.0-beta.1) (2023-09-10)
 
 
