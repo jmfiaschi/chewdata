@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1700679519881,
+  "lastUpdate": 1700680200378,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -12009,6 +12009,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 19027,
             "range": "± 126",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jmfiaschi@veepee.com",
+            "name": "Jean-Marc Fiaschi",
+            "username": "jmfiaschi-veepee"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc Fiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "29357302b3185be02c6ae2929768d199a8481712",
+          "message": "feat: upgrade version\n* reuse clients\n* simplify logs\n* enable cacke backend\n* Remove useless clone and improve performance\n* refacto paginator, add paginate method and improve the reading in concurrency\nBREAKING CHANGE: for transformer step, remove step's input/output paramaters and use by default 'input'/'output' variable in the pattern action\nBREAKING CHANGE: rename curl fields\nBREAKING CHANGE: simplify autheticator and use it as a middleware\nBREAKING CHANGE: remove description attributes and use hjson/yaml configuration formats",
+          "timestamp": "2023-11-22T19:57:20+01:00",
+          "tree_id": "81d5685e0a7f4169cabc80b4dae6cfea5e1fa481",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/29357302b3185be02c6ae2929768d199a8481712"
+        },
+        "date": 1700680199010,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5393,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5279,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 294538,
+            "range": "± 5360",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 20537,
+            "range": "± 114",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10867,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13389,
+            "range": "± 741",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 125068,
+            "range": "± 1089",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 19232,
+            "range": "± 691",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 19227,
+            "range": "± 1684",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 19402,
+            "range": "± 397",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 19106,
+            "range": "± 192",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 19381,
+            "range": "± 125",
             "unit": "ns/iter"
           }
         ]
