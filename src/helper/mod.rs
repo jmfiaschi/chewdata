@@ -2,9 +2,10 @@ use crate::{
     step::{reader::Reader, receive, Step},
     Context,
 };
-use async_std::{stream::StreamExt, task};
+use async_std::task;
 use serde_json::Value;
 use std::{collections::HashMap, io};
+use futures::StreamExt;
 
 pub mod json_pointer;
 pub mod mustache;
