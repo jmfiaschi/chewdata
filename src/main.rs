@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
 }
 
 fn application() -> Command {
-    Command::new("chewdata")
+    Command::new(chewdata::PROJECT_NAME)
         .version(version!())
         .author("Jean-Marc Fiaschi <jm.fiaschi@gmail.com>")
         .about("Light and chainable ETL")

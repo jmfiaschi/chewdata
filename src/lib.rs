@@ -31,6 +31,8 @@ use std::io::Result;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
 
+pub const PROJECT_NAME: &str = "chewdata";
+
 pub async fn exec(
     step_types: Vec<StepType>,
     input_receiver: Option<Receiver<Context>>,

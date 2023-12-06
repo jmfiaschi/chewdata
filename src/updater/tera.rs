@@ -134,6 +134,9 @@ impl Tera {
         engine.register_function("base64_decode", function::base64_decode);
         engine.register_filter("base64_decode", filters::string::base64_decode);
         engine.register_filter("search", filters::object::search);
+        engine.register_filter("env", filters::string::set_env);
+        engine.register_function("env", function::get_env);
+        engine.register_function("get_env", function::get_env);
         // faker
         engine.register_function("fake_words", faker::words);
         engine.register_function("fake_sentences", faker::sentences);
