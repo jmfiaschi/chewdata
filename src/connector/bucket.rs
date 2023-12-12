@@ -76,6 +76,8 @@ use std::vec::IntoIter;
 static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
 
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
+const DEFAULT_REGION: &str = "us-west-2";
+const DEFAULT_ENDPOINT: &str = "http://localhost:9000";
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(default, deny_unknown_fields)]
@@ -83,9 +85,9 @@ pub struct Bucket {
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
-    pub endpoint: String,
+    pub endpoint: Option<String>,
     pub profile: String,
-    pub region: String,
+    pub region: Option<String>,
     pub bucket: String,
     #[serde(alias = "key")]
     pub path: String,
@@ -109,9 +111,9 @@ impl Default for Bucket {
 
         Bucket {
             metadata: Metadata::default(),
-            endpoint: "http://localhost:9000".to_string(),
+            endpoint: None,
             profile: "default".to_string(),
-            region: "us-west-2".to_string(),
+            region: None,
             bucket: String::default(),
             path: String::default(),
             parameters: Box::<Value>::default(),
@@ -126,6 +128,30 @@ impl Default for Bucket {
 }
 
 impl Bucket {
+    fn region(&self) -> String {
+        match (
+            self.region.clone(),
+            env::var("BUCKET_ACCESS_KEY_ID"),
+            env::var("AWS_DEFAULT_REGION"),
+        ) {
+            (Some(region), _, _) => region,
+            (None, Ok(region), _) => region,
+            (None, Err(_), Ok(region)) => region,
+            (None, Err(_), Err(_)) => DEFAULT_REGION.to_string(),
+        }
+    }
+    fn endpoint(&self) -> String {
+        match (
+            self.endpoint.clone(),
+            env::var("BUCKET_ENDPOINT"),
+            env::var("AWS_ENDPOINT_URL_S3"),
+        ) {
+            (Some(endpoint), _, _) => endpoint,
+            (None, Ok(endpoint), _) => endpoint,
+            (None, Err(_), Ok(endpoint)) => endpoint,
+            (None, Err(_), Err(_)) => DEFAULT_ENDPOINT.to_string(),
+        }
+    }
     fn tagging(&self) -> String {
         let mut tagging = String::default();
         let mut tags = Bucket::default().tags;
@@ -141,7 +167,7 @@ impl Bucket {
     }
     fn client_key(&self) -> String {
         let mut hasher = DefaultHasher::new();
-        let client_key = format!("{}:{}", self.endpoint, self.region);
+        let client_key = format!("{}:{}", self.endpoint(), self.region());
         client_key.hash(&mut hasher);
         hasher.finish().to_string()
     }
@@ -163,23 +189,16 @@ impl Bucket {
         if let Ok(secret) = env::var("BUCKET_SECRET_ACCESS_KEY") {
             env::set_var("AWS_SECRET_ACCESS_KEY", secret);
         }
-        if let Ok(region) = env::var("BUCKET_REGION") {
-            env::set_var("AWS_DEFAULT_REGION", region);
-        }
-        if let Ok(endpoint) = env::var("BUCKET_ENDPOINT") {
-            env::set_var("AWS_ENDPOINT_URL_S3", endpoint);
-        }
 
         let provider = CredentialsProviderChain::default_provider().await;
         let config = aws_sdk_s3::Config::builder()
-            .endpoint_url(&self.endpoint)
-            .region(Region::new(self.region.clone()))
+            .endpoint_url(self.endpoint())
+            .region(Region::new(self.region()))
             .credentials_provider(provider)
-            .force_path_style(true)
-            .build();
+            .force_path_style(true);
 
         let mut map = clients.lock_arc().await;
-        let client = Client::from_conf(config);
+        let client = Client::from_conf(config.build());
         map.insert(client_key, client.clone());
 
         Ok(client)
@@ -304,7 +323,7 @@ impl Connector for Bucket {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = "http://localhost:9000".to_string();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0");
@@ -372,7 +391,7 @@ impl Connector for Bucket {
     ///         ..Json::default().metadata
     ///     };
     ///     connector.path = "data/one_line.json".to_string();
-    ///     connector.endpoint = "http://localhost:9000".to_string();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
     ///     assert!(
@@ -445,7 +464,7 @@ impl Connector for Bucket {
     ///     let document = Json::default();
     ///
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = "http://localhost:9000".to_string();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/out/test_bucket_send".to_string();
     ///     connector.erase().await.unwrap();
@@ -745,7 +764,7 @@ impl BucketPaginator {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = "http://localhost:9000".to_string();
+    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///
@@ -820,7 +839,6 @@ mod tests {
     #[async_std::test]
     async fn len() {
         let mut connector = Bucket::default();
-        connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
         connector.metadata = Metadata {
@@ -836,7 +854,6 @@ mod tests {
     #[async_std::test]
     async fn is_empty() {
         let mut connector = Bucket::default();
-        connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
         assert_eq!(false, connector.is_empty().await.unwrap());
@@ -851,7 +868,6 @@ mod tests {
             ..Json::default().metadata
         };
         connector.path = "data/one_line.json".to_string();
-        connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
@@ -864,7 +880,6 @@ mod tests {
         let document = Json::default();
 
         let mut connector = Bucket::default();
-        connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/out/test_bucket_send".to_string();
         connector.erase().await.unwrap();
@@ -890,7 +905,6 @@ mod tests {
     #[async_std::test]
     async fn paginator_paginate() {
         let mut connector = Bucket::default();
-        connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
 
@@ -908,7 +922,6 @@ mod tests {
     #[async_std::test]
     async fn paginator_paginate_with_wildcard() {
         let mut connector = Bucket::default();
-        connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
 
@@ -926,7 +939,6 @@ mod tests {
     #[async_std::test]
     async fn paginator_paginate_with_wildcard_limit_skip() {
         let mut connector = Bucket::default();
-        connector.endpoint = "http://localhost:9000".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
         connector.limit = Some(5);

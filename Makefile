@@ -117,7 +117,7 @@ minio: ##			USAGE: make minio
 minio:
 	echo "${BLUE}Run Minio server.${NC}"
 	echo "${YELLOW}Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY} ${NC}"
-	@docker-compose up -d minio1 minio2 minio3 minio4 nginx
+	@docker-compose up -d minio nginx
 
 minio\:install:
 	echo "${BLUE}Configure Minio server.${NC}"

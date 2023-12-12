@@ -400,7 +400,7 @@ mod tests {
         args.insert("to".to_string(), Value::String("@$1".to_string()));
 
         let result = super::replace_value(&obj, &args);
-        println!("{:?}", result);
+
         assert!(result.is_ok());
         assert_eq!(
             serde_json::from_str::<Value>(r#"[{"field_1":"@value_1","field_2":"@value_1"}]"#)
