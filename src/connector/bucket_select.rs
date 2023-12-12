@@ -131,12 +131,20 @@ impl BucketSelect {
         }
 
         trace!(client_key, "Create a new client");
+
         if let Ok(key) = env::var("BUCKET_ACCESS_KEY_ID") {
             env::set_var("AWS_ACCESS_KEY_ID", key);
         }
         if let Ok(secret) = env::var("BUCKET_SECRET_ACCESS_KEY") {
             env::set_var("AWS_SECRET_ACCESS_KEY", secret);
         }
+        if let Ok(region) = env::var("BUCKET_REGION") {
+            env::set_var("AWS_DEFAULT_REGION", region);
+        }
+        if let Ok(endpoint) = env::var("BUCKET_ENDPOINT") {
+            env::set_var("AWS_ENDPOINT_URL_S3", endpoint);
+        }
+
         let provider = CredentialsProviderChain::default_provider().await;
         let config = aws_sdk_s3::Config::builder()
             .endpoint_url(&self.endpoint)
