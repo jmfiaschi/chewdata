@@ -1,3 +1,28 @@
+# [2.0.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.18.0-beta.1...v2.0.0-beta.1) (2023-12-13)
+
+
+### Bug Fixes
+
+* **release:** add missing dependency ([773f5d0](https://github.com/jmfiaschi/chewdata/commit/773f5d06ce3a4bcd8d2fdb6b8765d365c68f2a61))
+
+
+### Features
+
+* **bucket:** align bucket variables ([2ed08b8](https://github.com/jmfiaschi/chewdata/commit/2ed08b8745fd2de197981509e2a1d4993f96d412))
+* **bucket:** Apply region and endpoint in this priority : ([7f00f15](https://github.com/jmfiaschi/chewdata/commit/7f00f1504c5c63d75843b7d31a83ae44fa218d2d))
+* **minio:** upgrade configuration ([01060e1](https://github.com/jmfiaschi/chewdata/commit/01060e131fdadc37aae70e703ef7c05c8314bdbb))
+* **s3:** upgrade version ([814e583](https://github.com/jmfiaschi/chewdata/commit/814e5837e8db072c3b91ca806e239a7872b9484f))
+* **updater:** add function & filter env(name=key) or val ¦ env(name=key) ¦ .... ([2ca673b](https://github.com/jmfiaschi/chewdata/commit/2ca673b32e49a937af30a527fce59f5015077797))
+* upgrade version ([fccbbab](https://github.com/jmfiaschi/chewdata/commit/fccbbab912444d1d9a78c74296c90a8adcadadb5))
+
+
+### BREAKING CHANGES
+
+* for transformer step, remove step's input/output paramaters and use by default 'input'/'output' variable in the pattern action
+* rename curl fields
+* simplify autheticator and use it as a middleware
+* remove description attributes and use hjson/yaml configuration formats
+
 # [1.18.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v1.18.0-beta.1...v1.18.0-beta.2) (2023-11-12)
 
 
