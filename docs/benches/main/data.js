@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1693296541787,
+  "lastUpdate": 1702585004651,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1871,6 +1871,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 29387,
             "range": "± 52",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1cc3e56006129da90de17dabe39bb4076399a5d0",
+          "message": "feat(connectors): use OnceLock for lazy load client (#45)\n\n* fix(main): accept hjson file extension\r\n* docs(how_it_works): add list of steps pointing to the documentation\r\n* refactor(sleep): remove the property and use the native code\r\n* feat: upgrade version\r\n* reuse clients\r\n* simplify logs\r\n* enable cache backend\r\n* Remove useless clone and improve performance\r\n* refacto paginator, add paginate method and improve the reading in concurrency\r\nBREAKING CHANGE: for transformer step, remove step's input/output paramaters and use by default 'input'/'output' variable in the pattern action\r\nBREAKING CHANGE: rename curl fields\r\nBREAKING CHANGE: simplify autheticator and use it as a middleware\r\nBREAKING CHANGE: remove description attributes and use hjson/yaml configuration formats\r\n* fix(release): add missing dependency\r\n* feat(updater): add function & filter env(name=key) or val ¦ env(name=key) ¦ ....\r\n* feat(s3): upgrade version\r\n* feat(minio): upgrade configuration\r\n* feat(bucket): align bucket variables\r\n* feat(bucket): Apply region and endpoint in this priority :\r\n1 - from the config file\r\n2 - from bucket env\r\n3 - from aws env",
+          "timestamp": "2023-12-14T20:57:49+01:00",
+          "tree_id": "fdd5e4d1f7c4ef8e8a788cb38f8baf3254937b92",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/1cc3e56006129da90de17dabe39bb4076399a5d0"
+        },
+        "date": 1702585003777,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 4713,
+            "range": "± 77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 4625,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 296400,
+            "range": "± 6163",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 20042,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10775,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13564,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 122241,
+            "range": "± 1310",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 19162,
+            "range": "± 113",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 19474,
+            "range": "± 115",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 19306,
+            "range": "± 108",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 19463,
+            "range": "± 193",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 19317,
+            "range": "± 334",
             "unit": "ns/iter"
           }
         ]
