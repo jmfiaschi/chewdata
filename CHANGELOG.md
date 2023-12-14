@@ -1,3 +1,27 @@
+# [2.0.0](https://github.com/jmfiaschi/chewdata/compare/v1.17.0...v2.0.0) (2023-12-14)
+
+
+### Features
+
+* **connectors:** use OnceLock for lazy load client ([#45](https://github.com/jmfiaschi/chewdata/issues/45)) ([1cc3e56](https://github.com/jmfiaschi/chewdata/commit/1cc3e56006129da90de17dabe39bb4076399a5d0))
+
+
+### BREAKING CHANGES
+
+* **connectors:** for transformer step, remove step's input/output paramaters and use by default 'input'/'output' variable in the pattern action
+* **connectors:** rename curl fields
+* **connectors:** simplify autheticator and use it as a middleware
+* **connectors:** remove description attributes and use hjson/yaml configuration formats
+* fix(release): add missing dependency
+* feat(updater): add function & filter env(name=key) or val ¦ env(name=key) ¦ ....
+* feat(s3): upgrade version
+* feat(minio): upgrade configuration
+* feat(bucket): align bucket variables
+* feat(bucket): Apply region and endpoint in this priority :
+1 - from the config file
+2 - from bucket env
+3 - from aws env
+
 # [2.0.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v1.18.0-beta.1...v2.0.0-beta.1) (2023-12-13)
 
 
