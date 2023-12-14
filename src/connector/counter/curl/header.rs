@@ -49,7 +49,7 @@ pub struct Header {
 impl Default for Header {
     fn default() -> Self {
         Header {
-            name: "X-Total-Count".to_string(),
+            name: "Content-Length".to_string(),
             path: None,
         }
     }
@@ -79,13 +79,13 @@ impl Header {
     ///
     ///     let mut counter = Header::default();
     ///     counter.name = "Content-Length".to_string();
-    ///     assert_eq!(Some(194), counter.count(connector).await?);
+    ///     assert!(Some(0) < counter.count(&connector).await.unwrap(), "Counter count() must return a value upper than 0.");
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "header_counter::count")]
-    pub async fn count(&self, connector: Curl) -> Result<Option<usize>> {
+    #[instrument(name = "header::count")]
+    pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
         let mut connector = connector.clone();
         let client = connector.client().await?;
 
@@ -121,16 +121,44 @@ impl Header {
 
         Ok(match header_value.to_string().parse::<usize>() {
             Ok(count) => {
-                trace!(
-                    size = count,
-                    "The counter counts the elements in the resource successfully."
-                );
+                trace!(size = count, "Count with success");
                 Some(count)
             }
             Err(_) => {
-                trace!("The counter is unable to count elements in the resource.");
+                trace!("Can't count");
                 None
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use http_types::Method;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn count_return_value() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/get".to_string();
+        let mut counter = Header::default();
+        counter.name = "Content-Length".to_string();
+        assert!(
+            Some(0) < counter.count(&connector).await.unwrap(),
+            "Counter count() must return a value upper than 0."
+        );
+    }
+    #[async_std::test]
+    async fn count_not_return_value() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/get".to_string();
+        let mut counter = Header::default();
+        counter.name = "not_found".to_string();
+        assert_eq!(None, counter.count(&connector).await.unwrap());
     }
 }

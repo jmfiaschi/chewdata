@@ -1,7 +1,7 @@
 //! This crate is a Rust ETL to Manipulate data everywhere. You can use the program or use the library in your code.
-//! 
+//!
 //! # How/Why to use this ETL ?
-//! 
+//!
 //! You can find the detail of this project in the [repository](https://github.com/jmfiaschi/chewdata).
 #![forbid(unsafe_code)]
 
@@ -20,8 +20,9 @@ pub mod step;
 pub mod updater;
 
 use self::step::StepType;
-use async_std::task;
 use async_channel::{Receiver, Sender};
+use async_std::task;
+use connector::Connector;
 use futures::stream::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,8 @@ use serde_json::{Map, Value};
 use std::io::Result;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
+
+pub const PROJECT_NAME: &str = "chewdata";
 
 pub async fn exec(
     step_types: Vec<StepType>,
@@ -42,8 +45,8 @@ pub async fn exec(
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
         let (sender, receiver) = async_channel::unbounded();
-        let mut step = step_type.step_inner().clone();
-        let thread_number = step.thread_number();
+        let mut step = step_type.step_inner();
+        let step_number = step.number();
 
         let mut sender_option = None;
         if pos != step_types_len - 1 {
@@ -60,16 +63,14 @@ pub async fn exec(
             step.set_sender(sender.clone());
         }
 
-        for _pos in 0..thread_number {
+        for _pos in 0..step_number {
             steps.push(step.clone());
         }
         previous_step_receiver = Some(receiver);
     }
 
     for step in steps {
-        handles.push(task::spawn(
-            async move { step.exec().await },
-        ));
+        handles.push(task::spawn(async move { step.exec().await }));
     }
 
     for result in futures::future::join_all(handles).await {
@@ -97,19 +98,19 @@ pub struct Metadata {
 
 #[allow(dead_code)]
 impl Metadata {
-    fn merge(self, metadata: Metadata) -> Metadata {
+    fn merge(self, metadata: &Metadata) -> Metadata {
         Metadata {
             has_headers: metadata.has_headers.or(self.has_headers),
-            delimiter: metadata.delimiter.or(self.delimiter),
-            quote: metadata.quote.or(self.quote),
-            escape: metadata.escape.or(self.escape),
-            comment: metadata.comment.or(self.comment),
-            terminator: metadata.terminator.or(self.terminator),
-            mime_type: metadata.mime_type.or(self.mime_type),
-            mime_subtype: metadata.mime_subtype.or(self.mime_subtype),
-            charset: metadata.charset.or(self.charset),
-            compression: metadata.compression.or(self.compression),
-            language: metadata.language.or(self.language),
+            delimiter: metadata.delimiter.clone().or(self.delimiter),
+            quote: metadata.quote.clone().or(self.quote),
+            escape: metadata.escape.clone().or(self.escape),
+            comment: metadata.comment.clone().or(self.comment),
+            terminator: metadata.terminator.clone().or(self.terminator),
+            mime_type: metadata.mime_type.clone().or(self.mime_type),
+            mime_subtype: metadata.mime_subtype.clone().or(self.mime_subtype),
+            charset: metadata.charset.clone().or(self.charset),
+            compression: metadata.compression.clone().or(self.compression),
+            language: metadata.language.clone().or(self.language),
         }
     }
     fn content_type(&self) -> String {
@@ -133,29 +134,29 @@ impl Metadata {
         if let Some(has_headers) = self.has_headers {
             hashmap.insert("has_headers".to_string(), has_headers.to_string());
         }
-        if let Some(delimiter) = self.delimiter.clone() {
-            hashmap.insert("delimiter".to_string(), delimiter);
+        if let Some(delimiter) = &self.delimiter {
+            hashmap.insert("delimiter".to_string(), delimiter.clone());
         }
-        if let Some(quote) = self.quote.clone() {
-            hashmap.insert("quote".to_string(), quote);
+        if let Some(quote) = &self.quote {
+            hashmap.insert("quote".to_string(), quote.clone());
         }
-        if let Some(escape) = self.escape.clone() {
-            hashmap.insert("escape".to_string(), escape);
+        if let Some(escape) = &self.escape {
+            hashmap.insert("escape".to_string(), escape.clone());
         }
-        if let Some(comment) = self.comment.clone() {
-            hashmap.insert("comment".to_string(), comment);
+        if let Some(comment) = &self.comment {
+            hashmap.insert("comment".to_string(), comment.clone());
         }
-        if let Some(terminator) = self.terminator.clone() {
-            hashmap.insert("terminator".to_string(), terminator);
+        if let Some(terminator) = &self.terminator {
+            hashmap.insert("terminator".to_string(), terminator.clone());
         }
-        if let (Some(_), Some(_)) = (self.mime_type.clone(), self.mime_subtype.clone()) {
+        if let (Some(_), Some(_)) = (&self.mime_type, &self.mime_subtype) {
             hashmap.insert("content_type".to_string(), self.content_type());
         }
-        if let Some(compression) = self.compression.clone() {
-            hashmap.insert("compression".to_string(), compression);
+        if let Some(compression) = &self.compression {
+            hashmap.insert("compression".to_string(), compression.clone());
         }
-        if let Some(language) = self.language.clone() {
-            hashmap.insert("Content-Language".to_string(), language);
+        if let Some(language) = &self.language {
+            hashmap.insert("Content-Language".to_string(), language.clone());
         }
         hashmap
     }
@@ -167,29 +168,35 @@ impl From<Metadata> for Value {
         if let Some(has_headers) = metadata.has_headers {
             options.insert("has_headers".to_string(), Value::Bool(has_headers));
         }
-        if let Some(delimiter) = metadata.delimiter.clone() {
-            options.insert("delimiter".to_string(), Value::String(delimiter));
+        if let Some(delimiter) = &metadata.delimiter {
+            options.insert("delimiter".to_string(), Value::String(delimiter.clone()));
         }
-        if let Some(quote) = metadata.quote.clone() {
-            options.insert("quote".to_string(), Value::String(quote));
+        if let Some(quote) = &metadata.quote {
+            options.insert("quote".to_string(), Value::String(quote.clone()));
         }
-        if let Some(escape) = metadata.escape.clone() {
-            options.insert("escape".to_string(), Value::String(escape));
+        if let Some(escape) = &metadata.escape {
+            options.insert("escape".to_string(), Value::String(escape.clone()));
         }
-        if let Some(comment) = metadata.comment.clone() {
-            options.insert("comment".to_string(), Value::String(comment));
+        if let Some(comment) = &metadata.comment {
+            options.insert("comment".to_string(), Value::String(comment.clone()));
         }
-        if let Some(compression) = metadata.compression.clone() {
-            options.insert("compression".to_string(), Value::String(compression));
+        if let Some(compression) = &metadata.compression {
+            options.insert(
+                "compression".to_string(),
+                Value::String(compression.clone()),
+            );
         }
-        if let Some(mime_type) = metadata.mime_type.clone() {
-            options.insert("mime_type".to_string(), Value::String(mime_type));
+        if let Some(mime_type) = &metadata.mime_type {
+            options.insert("mime_type".to_string(), Value::String(mime_type.clone()));
         }
-        if let Some(mime_subtype) = metadata.mime_subtype.clone() {
-            options.insert("mime_subtype".to_string(), Value::String(mime_subtype));
+        if let Some(mime_subtype) = &metadata.mime_subtype {
+            options.insert(
+                "mime_subtype".to_string(),
+                Value::String(mime_subtype.clone()),
+            );
         }
-        if let Some(charset) = metadata.charset.clone() {
-            options.insert("charset".to_string(), Value::String(charset));
+        if let Some(charset) = &metadata.charset {
+            options.insert("charset".to_string(), Value::String(charset.clone()));
         }
         if let Some(language) = metadata.language {
             options.insert("language".to_string(), Value::String(language));
@@ -220,7 +227,9 @@ impl PartialEq for DataResult {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (DataResult::Ok(value1), DataResult::Ok(value2)) => value1 == value2,
-            (DataResult::Err((value1, e1)),DataResult::Err((value2, e2))) => value1 == value2 && e1.to_string() == e2.to_string(),
+            (DataResult::Err((value1, e1)), DataResult::Err((value2, e2))) => {
+                value1 == value2 && e1.to_string() == e2.to_string()
+            }
             (_, _) => false,
         }
     }
@@ -240,13 +249,13 @@ impl DataResult {
                     Value::Array(_) => json_value
                         .merge_in(
                             format!("/*/{}", DataResult::FIELD_ERROR).as_ref(),
-                            Value::String(format!("{}", error)),
+                            &Value::String(format!("{}", error)),
                         )
                         .unwrap(),
                     _ => json_value
                         .merge_in(
                             format!("/{}", DataResult::FIELD_ERROR).as_ref(),
-                            Value::String(format!("{}", error)),
+                            &Value::String(format!("{}", error)),
                         )
                         .unwrap(),
                 }
@@ -266,10 +275,10 @@ impl DataResult {
 
         match self {
             DataResult::Ok(value) => {
-                value.merge(new_json_value);
+                value.merge(&new_json_value);
             }
             DataResult::Err((value, _e)) => {
-                value.merge(new_json_value);
+                value.merge(&new_json_value);
             }
         };
     }
@@ -296,7 +305,7 @@ impl Context {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        self.steps.merge(Value::Object(map));
+        self.steps.merge(&Value::Object(map));
         self.input = data_result;
 
         Ok(())
@@ -309,11 +318,12 @@ impl Context {
     }
     pub fn to_value(&self) -> Result<Value> {
         let mut value = Value::default();
-        value.merge_in("/input", self.input.to_value())?;
-        value.merge_in("/steps", self.steps.clone())?;
+        value.merge_in("/input", &self.input.to_value())?;
+        value.merge_in("/steps", &self.steps)?;
         Ok(value)
     }
 }
 
 pub type DataStream = Pin<Box<dyn Stream<Item = DataResult> + Send>>;
+pub type ConnectorStream = Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>;
 pub type DataSet = Vec<DataResult>;

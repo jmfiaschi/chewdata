@@ -1,6 +1,6 @@
-use std::io;
-use std::env;
 use env_applier::EnvApply;
+use std::env;
+use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -11,6 +11,7 @@ async fn main() -> io::Result<()> {
     let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let layer = tracing_subscriber::fmt::layer()
+        .pretty()
         .with_line_number(true)
         .with_writer(non_blocking)
         .with_filter(EnvFilter::from_default_env())

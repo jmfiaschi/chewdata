@@ -18,9 +18,7 @@
 //! | connector   | conn  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
 //! | document    | doc   | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]   |
 //! | name        | alias | Step name                                                                        | `null`        | Auto generate alphanumeric value             |
-//! | description | desc  | Describ your step and give more visibility                                      | `null`        | String                                       |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
-//! | wait        | sleep | Time in millisecond to wait before to fetch data result from the previous queue | `10`          | unsigned number                              |
 //!
 //! ### Examples
 //!
@@ -29,7 +27,6 @@
 //!     {
 //!         "type": "reader",
 //!         "name": "read_a",
-//!         "description": "My description of the step",
 //!         "connector": {
 //!             "type": "io"
 //!         },
@@ -37,7 +34,7 @@
 //!             "type": "json"
 //!         },
 //!         "data_type": "ok",
-//!         "wait: 10
+//!         "concurrency_limit": 1
 //!     }
 //!     ...
 //! ]
@@ -51,7 +48,7 @@ use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use futures::StreamExt;
 use serde::Deserialize;
-use std::{fmt, io};
+use std::io;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -65,17 +62,13 @@ pub struct Reader {
     pub document_type: DocumentType,
     #[serde(alias = "alias")]
     pub name: String,
-    #[serde(alias = "desc")]
-    pub description: Option<String>,
     #[serde(alias = "data")]
     pub data_type: String,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
-    #[serde(alias = "sleep")]
-    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
     pub sender: Option<Sender<Context>>,
+    pub concurrency_limit: usize,
 }
 
 impl Default for Reader {
@@ -85,25 +78,11 @@ impl Default for Reader {
             connector_type: ConnectorType::default(),
             document_type: DocumentType::default(),
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
             receiver: None,
             sender: None,
-            wait: 10,
+            concurrency_limit: 10,
         }
-    }
-}
-
-impl fmt::Display for Reader {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Reader {{'{}','{}'}}",
-            self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
-        )
     }
 }
 
@@ -125,31 +104,29 @@ impl Step for Reader {
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
     }
-    /// See [`Step::sleep`] for more details.
-    fn sleep(&self) -> u64 {
-        self.wait
-    }
-    #[instrument(name = "reader::exec")]
+    #[instrument(name = "reader::exec",
+        skip(self),
+        fields(name=self.name, 
+        data_type=self.data_type,
+        concurrency_limit=self.concurrency_limit))]
     async fn exec(&self) -> io::Result<()> {
+        info!("Start reading data...");
+        
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.ref_inner();
-        connector.set_metadata(connector.metadata().merge(document.metadata()));
-
+        connector.set_metadata(connector.metadata().merge(&document.metadata()));
+        let mut receiver_stream = self.receive().await?;
         // Used to check if one data has been received.
         let mut has_data_been_received = false;
-
-        let mut receiver_stream = super::receive(self as &dyn Step).await?;
+        
         while let Some(context_received) = receiver_stream.next().await {
             if !has_data_been_received {
                 has_data_been_received = true;
             }
 
-            if !context_received
-                .input()
-                .is_type(self.data_type.as_ref())
-            {
-                trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+            if !context_received.input().is_type(self.data_type.as_ref()) {
+                trace!("Handles only this data type");
+                self.send(&context_received).await?;
                 continue;
             }
 
@@ -164,6 +141,10 @@ impl Step for Reader {
             exec_connector(self, &mut connector, document, &None).await?
         }
 
+        trace!(
+            "Terminate with success. It stops sending context and it disconnect the channel"
+        );
+
         Ok(())
     }
     fn name(&self) -> String {
@@ -177,58 +158,42 @@ async fn exec_connector<'step>(
     document: &'step dyn Document,
     context: &'step Option<Context>,
 ) -> io::Result<()> {
-    // todo: remove paginator mutability
-    let paginator = connector.paginator().await?;
-    let mut stream = paginator.stream().await?;
+    let paging = connector.paginate().await?;
 
-    match paginator.is_parallelizable() {
-        true => {
-            // Concurrency stream
-            // The loop cross the paginator never stop. The paginator mustn't return indefinitely a connector.
-            stream.for_each_concurrent(None, |connector_result| async move {
-                    let mut connector = match connector_result {
-                        Ok(connector) => connector,
-                        Err(e) => {
-                            warn!(error = e.to_string().as_str(), "Pagination through the paginator failed. The concurrency loop in the paginator continue");
-                            return;
-                        }
-                    };
-                    match send_data_into_pipe(step, &mut connector, document, context).await
-                    {
-                        Ok(Some(_)) => trace!("All data has been pushed into the pipe. The concurrency loop in the paginator continue"),
-                        Ok(None) => trace!("Connector doesn't have any data to pushed into the pipe. The concurrency loop in the paginator continue"),
-                        Err(e) => warn!(error = e.to_string().as_str(), "Impossible to push data into the pipe. The concurrency loop in the paginator continue")
-                    };
-                })
-                .await;
-        }
-        false => {
-            // Iterative stream
-            // The loop cross the paginator stop if
-            //  * An error raised
-            //  * The current connector is empty: [], {}, "", etc...
-            while let Some(ref mut connector_result) = stream.next().await {
-                let connector = match connector_result {
-                    Ok(connector) => connector,
+    paging
+        .for_each_concurrent(
+            Some(step.concurrency_limit),
+            |connector_result| async move {
+                let mut connector = match connector_result {
+                    Ok(connector) => {
+                        info!("Retrieve a new connector through the paginator");
+                        
+                        connector
+                    },
                     Err(e) => {
-                        warn!(error = e.to_string().as_str(), "Pagination through the paginator failed. The iterative loop in the paginator is stoped");
-                        break;
+                        warn!(
+                            error = e.to_string().as_str(),
+                            "Pagination through the paginator failed"
+                        );
+                        return;
                     }
                 };
-                match send_data_into_pipe(step, connector, document, context).await? {
-                    Some(_) => trace!("All data has been pushed into the pipe. The iterative loop in the paginator continue"),
-                    None => {
-                        trace!("Connector doesn't have any data to pushed into the pipe. The iterative loop in the paginator is stoped");
-                        break;
-                    }
+                match send_data_into_channel(step, &mut connector, document, context).await {
+                    Ok(Some(_)) => trace!("All data has been pushed into the channel"),
+                    Ok(None) => trace!("No data to push into the channel"),
+                    Err(e) => warn!(
+                        error = e.to_string().as_str(),
+                        "Can't push data into the channel"
+                    ),
                 };
-            }
-        }
-    };
+            },
+        )
+        .await;
+
     Ok(())
 }
 
-async fn send_data_into_pipe<'step>(
+async fn send_data_into_channel<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
     document: &'step dyn Document,
@@ -248,7 +213,7 @@ async fn send_data_into_pipe<'step>(
             None => Context::new(step.name(), data_result)?,
         };
 
-        super::send(step as &dyn Step, &context).await?;
+        step.send(&context).await?;
     }
 
     Ok(Some(()))

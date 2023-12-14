@@ -151,6 +151,56 @@ pub fn base64_decode(args: &HashMap<String, Value>) -> Result<Value> {
     Ok(Value::String(decode_string))
 }
 
+/// Decode base64 string.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use chewdata::updater::tera_helpers::function::get_env;
+///
+/// let mut args = HashMap::new();
+/// args.insert("name".to_string(), Value::String("my_key".to_string()));
+///
+/// std::env::set_var("chewdata:my_key", "my_var");
+///
+/// let value = get_env(&args).unwrap();
+/// assert_eq!("my_var", value.as_str().unwrap());
+/// ```
+pub fn get_env(args: &HashMap<String, Value>) -> Result<Value> {
+    let name: String = match args.get("name") {
+        Some(val) => match from_value::<String>(val.clone()) {
+            Ok(v) => v,
+            Err(_) => {
+                return Err(Error::msg(format!(
+                    "Function `env` received name={} but `name` can only be a string",
+                    val
+                )));
+            }
+        },
+        None => {
+            return Err(Error::msg(
+                "Function `env` didn't receive a `name` argument",
+            ))
+        }
+    };
+
+    // Avoid to override the system var env
+    let var_env_key = format!("{}:{}", crate::PROJECT_NAME, name);
+
+    match std::env::var(var_env_key).ok() {
+        Some(res) => Ok(Value::String(res)),
+        None => match args.get("default") {
+            Some(default) => Ok(default.clone()),
+            None => Err(Error::msg(format!(
+                "Environment variable `{}` not found",
+                &name
+            ))),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,5 +283,15 @@ mod tests {
         );
         let value = super::base64_decode(&args).unwrap();
         assert_eq!("my_test", value.as_str().unwrap());
+    }
+    #[test]
+    fn get_env() {
+        let mut args = HashMap::new();
+        args.insert("name".to_string(), Value::String("my_key".to_string()));
+
+        std::env::set_var("chewdata:my_key", "my_var");
+
+        let value = super::get_env(&args).unwrap();
+        assert_eq!("my_var", value.as_str().unwrap());
     }
 }

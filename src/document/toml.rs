@@ -61,7 +61,7 @@ impl Default for Toml {
 impl Document for Toml {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Toml::default().metadata.merge(self.metadata.clone())
+        Toml::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::read`] for more details.
     ///
@@ -142,7 +142,7 @@ impl Document for Toml {
         for data in dataset {
             let record = data.to_value();
 
-            let toml = toml::to_string(&record.clone())
+            let toml = toml::to_string(&record)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
             trace!(

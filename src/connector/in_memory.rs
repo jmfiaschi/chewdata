@@ -21,13 +21,14 @@
 //!     }
 //! ]
 //! ```
-use super::{Connector, Paginator};
+use super::Connector;
 use crate::connector::paginator::once::Once;
 use crate::document::Document;
 use crate::{DataSet, DataStream, Metadata};
 use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
+use futures::Stream;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{Cursor, Result, Seek, SeekFrom, Write};
@@ -134,10 +135,10 @@ impl Connector for InMemory {
     /// }
     /// ```
     #[instrument(name = "in_memory::len")]
-    async fn len(&mut self) -> io::Result<usize> {
+    async fn len(&self) -> io::Result<usize> {
         let len = self.memory.lock().await.get_ref().len();
 
-        info!(len = len, "Size of data found in the resource.");
+        info!(len = len, "Size of data found in the resource");
 
         Ok(len)
     }
@@ -184,7 +185,9 @@ impl Connector for InMemory {
     #[instrument(name = "in_memory::fetch")]
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let resource = self.memory.lock().await;
-        info!("The connector fetch data successfully.");
+
+        info!("Fetch data with success");
+
         if !document.has_data(resource.get_ref())? {
             return Ok(None);
         }
@@ -272,7 +275,7 @@ impl Connector for InMemory {
         memory.write_all(&footer)?;
         memory.set_position(0);
 
-        info!("The connector send data into the memory successfully.");
+        info!("Send data with success");
         Ok(None)
     }
     /// See [`Connector::erase`] for more details.
@@ -302,12 +305,15 @@ impl Connector for InMemory {
         let mut memory = self.memory.lock().await;
         *memory = Cursor::default();
 
-        info!("The connector erase data into the memory successfully.");
+        info!("Erase data with success");
         Ok(())
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        Ok(Box::pin(Once::new(Box::new(self.clone()))?))
+    /// See [`Connector::paginate`] for more details.
+    async fn paginate(
+        &self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        let paginator = Once {};
+        paginator.paginate(self).await
     }
 }
 
@@ -320,7 +326,7 @@ mod tests {
 
     #[async_std::test]
     async fn len() {
-        let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
+        let connector = InMemory::new(r#"[{"column1":"value1"}]"#);
         assert!(
             0 < connector.len().await.unwrap(),
             "The length of the document is not greather than 0."
@@ -328,9 +334,9 @@ mod tests {
     }
     #[async_std::test]
     async fn is_empty() {
-        let mut connector = InMemory::new("");
+        let connector = InMemory::new("");
         assert_eq!(true, connector.is_empty().await.unwrap());
-        let mut connector = InMemory::new("My text");
+        let connector = InMemory::new("My text");
         assert_eq!(false, connector.is_empty().await.unwrap());
     }
     #[async_std::test]
@@ -376,17 +382,15 @@ mod tests {
         assert!(datastream.is_none(), "The datastream must be empty");
     }
     #[async_std::test]
-    async fn paginator_stream() {
+    async fn paginate() {
         let connector = InMemory::default();
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
+        let mut paging = connector.paginate().await.unwrap();
         assert!(
-            stream.next().await.transpose().unwrap().is_some(),
+            paging.next().await.transpose().unwrap().is_some(),
             "Can't get the first reader."
         );
         assert!(
-            stream.next().await.transpose().unwrap().is_none(),
+            paging.next().await.transpose().unwrap().is_none(),
             "Can't paginate more than one time."
         );
     }

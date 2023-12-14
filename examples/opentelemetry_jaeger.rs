@@ -41,13 +41,6 @@ async fn main() -> io::Result<()> {
     let config = r#"
     [{
         "type": "r",
-        "connector":{
-            "type": "mem",
-            "data": "{\"username\":\"my_username\",\"password\":\"my_password\"}"
-        }
-    },
-    {
-        "type": "r",
         "connector": {
             "type": "curl",
             "endpoint": "{{ CURL_ENDPOINT }}",
@@ -55,7 +48,7 @@ async fn main() -> io::Result<()> {
             "method": "get",
             "auth": {
                 "type": "jwt",
-                "connector": {
+                "refresh": {
                     "type": "curl",
                     "endpoint": "http://jwtbuilder.jamiekurtz.com",
                     "path": "/tokens",
@@ -65,7 +58,7 @@ async fn main() -> io::Result<()> {
                 "key": "my_key",
                 "payload": {
                     "alg":"HS256",
-                    "claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},
+                    "claims":{"GivenName":"Johnny","username":"{{ CURL_BASIC_AUTH_USERNAME }}","password":"{{ CURL_BASIC_AUTH_PASSWORD }}","iat":1599462755,"exp":33156416077},
                     "key":"my_key"
                 },
                 "document": {

@@ -1,49 +1,23 @@
 version: "3.6"
 
-x-minio-common: &minio-common
-    image: minio/minio:latest
-    command: server --console-address ":9001" http://minio{1...4}/data{1...2}
-    expose:
-        - "9000"
-        - "9001"
-    environment:
-        MINIO_ROOT_USER: ${BUCKET_ACCESS_KEY_ID}
-        MINIO_ROOT_PASSWORD: ${BUCKET_SECRET_ACCESS_KEY}
-        MINIO_API_SELECT_PARQUET: "on"
-    healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-        interval: 30s
-        timeout: 20s
-        retries: 3
-
 services:
-    minio1:
-        <<: *minio-common
-        hostname: minio1
+    minio:
+        image: minio/minio:latest
         volumes:
-            - ./.cache/minio/data1-1:/data1
-            - ./.cache/minio/data1-2:/data2
-
-    minio2:
-        <<: *minio-common
-        hostname: minio2
-        volumes:
-            - ./.cache/minio/data2-1:/data1
-            - ./.cache/minio/data2-2:/data2
-
-    minio3:
-        <<: *minio-common
-        hostname: minio3
-        volumes:
-            - ./.cache/minio/data3-1:/data1
-            - ./.cache/minio/data3-2:/data2
-
-    minio4:
-        <<: *minio-common
-        hostname: minio4
-        volumes:
-            - ./.cache/minio/data4-1:/data1
-            - ./.cache/minio/data4-2:/data2
+            - ./.cache/minio/data:/data
+        command: server /data --console-address ":9001"
+        expose:
+            - "9000"
+            - "9001"
+        environment:
+            MINIO_ROOT_USER: ${BUCKET_ACCESS_KEY_ID}
+            MINIO_ROOT_PASSWORD: ${BUCKET_SECRET_ACCESS_KEY}
+            MINIO_API_SELECT_PARQUET: "on"
+        healthcheck:
+            test: ["CMD", "mc", "ready", "local"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
 
     nginx:
         image: nginx:latest
@@ -54,10 +28,7 @@ services:
             - "9000:9000"
             - "9001:9001"
         depends_on:
-            - minio1
-            - minio2
-            - minio3
-            - minio4
+            - minio
 
     mc:
         image: minio/mc:latest
@@ -146,15 +117,3 @@ services:
             - 6831:6831/udp
             - 6832:6832/udp
             - 16686:16686
-
-## By default this config uses default local driver,
-## For custom volumes replace with volume driver configuration.
-volumes:
-    data1-1:
-    data1-2:
-    data2-1:
-    data2-2:
-    data3-1:
-    data3-2:
-    data4-1:
-    data4-2:

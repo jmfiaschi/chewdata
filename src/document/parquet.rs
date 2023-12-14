@@ -143,7 +143,7 @@ impl Default for ParquetOptions {
 impl Document for Parquet {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Parquet::default().metadata.merge(self.metadata.clone())
+        Parquet::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::set_entry_path`] for more details.
     fn set_entry_path(&mut self, entry_path: String) {
@@ -183,7 +183,6 @@ impl Document for Parquet {
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
         let bytes = Bytes::copy_from_slice(buffer);
-        let entry_path_option = self.entry_path.clone();
         let read_from_cursor = SerializedFileReader::new(bytes)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
@@ -195,8 +194,8 @@ impl Document for Parquet {
             let record = row
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
                 .to_json_value();
-            match entry_path_option.clone() {
-                Some(entry_path) => match record.clone().search(entry_path.as_ref())? {
+            match &self.entry_path {
+                Some(entry_path) => match record.clone().search(entry_path)? {
                     Some(Value::Array(records)) => {
                         for record in records {
                             trace!(
@@ -216,14 +215,14 @@ impl Document for Parquet {
                     None => {
                         warn!(
                             entry_path = format!("{:?}", entry_path).as_str(),
-                            record = format!("{:?}", record.clone()).as_str(),
+                            record = format!("{:?}", record).as_str(),
                             "Entry path not found"
                         );
                         dataset.push(DataResult::Err((
                             record,
                             io::Error::new(
                                 io::ErrorKind::InvalidInput,
-                                format!("Entry path '{}' not found.", entry_path),
+                                format!("Entry path '{}' not found", entry_path),
                             ),
                         )));
                     }
@@ -245,24 +244,21 @@ impl Document for Parquet {
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let schema = match (&self.schema, dataset.first()) {
             (Some(schema_value_params), Some(data_result)) => {
-                let schema_from_data = infer_json_schema_from_iterator(
-                    vec![Ok(data_result.to_value())].into_iter(),
-                )
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                let schema_from_data =
+                    infer_json_schema_from_iterator(vec![Ok(data_result.to_value())].into_iter())
+                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
                 let schema_value_from_data = schema_to_json(&schema_from_data);
 
                 // Override the guessed schema by the schema in parameter.
                 let mut schema_merged = schema_value_params.clone();
-                schema_merged.merge(schema_value_from_data);
+                schema_merged.merge(&schema_value_from_data);
                 schema_from_json(&schema_merged)
             }
             (Some(schema_value_params), _) => schema_from_json(schema_value_params),
             (None, Some(data_result)) => {
                 // Fetch the first data in order to guess the schema.
-                infer_json_schema_from_iterator(
-                    vec![Ok(data_result.to_value())].into_iter(),
-                )
+                infer_json_schema_from_iterator(vec![Ok(data_result.to_value())].into_iter())
             }
             (_, None) => return Ok(vec![]),
         }
@@ -445,7 +441,7 @@ mod tests {
             .unwrap();
         let mut dataset = document.read(&buffer).unwrap().into_iter();
         let data = dataset.next().unwrap().to_value();
-        let expected_data: Value = serde_json::from_str(r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Entry path '/not_found' not found."}"#).unwrap();
+        let expected_data: Value = serde_json::from_str(r#"{"number":10,"group":1456,"string":"value to test","long-string":"Long val\nto test","boolean":true,"special_char":"é","rename_this":"field must be renamed","date":"2019-12-31","filesize":1000000,"round":10.156,"url":"?search=test me","list_to_sort":"A,B,C","code":"value_to_map","remove_field":"field to remove","_error":"Entry path '/not_found' not found"}"#).unwrap();
         assert_eq!(expected_data, data);
     }
     #[test]

@@ -11,19 +11,14 @@
 //!
 //! ### Configuration
 //!
-//! | key           | alias   | Description                                                                                                       | Default Value | Possible Values                                 |
-//! | ------------- | ------- | ----------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------- |
-//! | type          | -       | Required in order to use transformer step                                                                         | `transformer` | `transformer` / `transform` / `t`               |
-//! | updater       | u       | Updater type used as a template engine for transformation                                                         | `tera`        | `tera`                                          |
+//! | key           | alias   | Description                                                                                                       | Default Value | Possible Values                                       |
+//! | ------------- | ------- | ----------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------- |
+//! | type          | -       | Required in order to use transformer step                                                                         | `transformer` | `transformer` / `transform` / `t`                     |
+//! | updater       | u       | Updater type used as a template engine for transformation                                                         | `tera`        | `tera`                                                |
 //! | referentials  | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the transformation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
-//! | name          | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                |
-//! | description   | desc    | Describ your step and give more visibility                                                                        | `null`        | String                                          |
-//! | data_type     | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                    |
-//! | thread_number | threads | Parallelize the step in multiple threads                                                                          | `1`           | unsigned number                                 |
-//! | actions       | -       | List of [`crate::updater::Action`]                                                                                | `null`        | See [`crate::updater::Action`]                           |
-//! | input_name    | input   | Input name variable can be used in the pattern action                                                             | `input`       | String                                          |
-//! | output_name   | output  | Output name variable can be used in the pattern action                                                            | `output`      | String                                          |
-//! | wait          | sleep   | Time in millisecond to wait before to fetch data result from the previous queue                                   | `10`          | unsigned number                                 |
+//! | name          | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                      |
+//! | data_type     | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                          |
+//! | concurrency_limit | -       | Limit of steps to run in conccuence.                                                                          | `1`           | unsigned number                                       |                                                           | `output`      | String                                                |
 //!
 //! #### Action
 //!
@@ -51,7 +46,6 @@
 //!             }
 //!         },
 //!         "name": "transform_a",
-//!         "description": "My description of the step",
 //!         "connector": {
 //!             "type": "io"
 //!         },
@@ -59,29 +53,27 @@
 //!             "type": "json"
 //!         },
 //!         "data_type": "ok",
-//!         "thread_number": 1,
+//!         "concurrency_limit": 1,
 //!         "actions": [
-//!             {
-//!                 "pattern": "{{ my_input | json_encode() }}"
+//!             { # Force to set 'output' with the data in 'input'.
+//!                 "pattern": "{{ input | json_encode() }}"
 //!             },
-//!             {
+//!             {}, # Do the same as before.
+//!             { # Create a new field 'my_new_field' in the output and set the value with the 'pattern' expression.
 //!                 "field": "my_new_field",
-//!                 "pattern": "{{ my_input.number * my_output.number * ref_a.number * steps.my_previous_step.number }}",
+//!                 "pattern": "{{ input.number * output.number * ref_a.number * steps.my_previous_step.number }}",
 //!                 "type": "merge"
 //!             },
-//!             {
+//!             { # Remove the field 'text'.
 //!                 "field": "text",
 //!                 "type": "remove"
 //!             },
-//!             {
+//!             { # Replace the 'array' field value.
 //!                 "field": "array",
 //!                 "pattern": "[\"a\",\"b\"]",
 //!                 "type": "replace"
 //!             }
-//!         ],
-//!         "input_name": "my_input",
-//!         "output_name": "my_output",
-//!         "wait: 10
+//!         ]
 //!     }
 //!     ...
 //! ]
@@ -97,7 +89,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, fmt, io};
+use std::{collections::HashMap, io};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -110,19 +102,10 @@ pub struct Transformer {
     pub referentials: Option<HashMap<String, Reader>>,
     #[serde(alias = "alias")]
     pub name: String,
-    pub description: Option<String>,
     pub data_type: String,
-    #[serde(alias = "threads")]
-    pub thread_number: usize,
+    pub concurrency_limit: usize,
     // Use Vec in order to keep the FIFO order.
     pub actions: Vec<Action>,
-    #[serde(alias = "input")]
-    pub input_name: String,
-    #[serde(alias = "output")]
-    pub output_name: String,
-    // Time in millisecond to wait before to fetch/send new data from/in the pipe.
-    #[serde(alias = "sleep")]
-    pub wait: u64,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
@@ -136,29 +119,12 @@ impl Default for Transformer {
             updater_type: UpdaterType::default(),
             referentials: None,
             name: uuid.simple().to_string(),
-            description: None,
             data_type: DataResult::OK.to_string(),
-            thread_number: 1,
+            concurrency_limit: 1,
             actions: Vec::default(),
-            input_name: "input".to_string(),
-            output_name: "output".to_string(),
             receiver: None,
             sender: None,
-            wait: 10,
         }
-    }
-}
-
-impl fmt::Display for Transformer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Transformer {{'{}','{}' }}",
-            self.name,
-            self.description
-                .to_owned()
-                .unwrap_or_else(|| "No description".to_string())
-        )
     }
 }
 
@@ -181,74 +147,82 @@ impl Step for Transformer {
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
     }
-    /// See [`Step::sleep`] for more details.
-    fn sleep(&self) -> u64 {
-        self.wait
-    }
-    #[instrument(name = "transformer::exec")]
+    #[instrument(name = "transformer::exec",
+        skip(self),
+        fields(name=self.name, 
+        data_type=self.data_type,
+        concurrency_limit=self.concurrency_limit,
+    ))]
     async fn exec(&self) -> io::Result<()> {
-        let referentials = match self.referentials.clone() {
-            Some(referentials) => Some(referentials_reader_into_value(referentials).await?),
-            None => None,
-        };
+        info!("Start transforming data...");
 
-        let mut receiver_stream = super::receive(self as &dyn Step).await?;
+        let mut receiver_stream = self.receive().await?;
+
         while let Some(ref mut context_received) = receiver_stream.next().await {
             let data_result = context_received.input();
             if !data_result.is_type(self.data_type.as_ref()) {
-                trace!("This step handle only this data type");
-                super::send(self as &dyn Step, &context_received.clone()).await?;
+                trace!("Handles only this data type");
+                self.send(context_received).await?;
                 continue;
             }
 
             let record = data_result.to_value();
 
+            let referentials = match &self.referentials {
+                Some(referentials) => Some(referentials_reader_into_value(referentials, context_received).await?),
+                None => None,
+            };
+
             match self.updater_type.updater().update(
-                record.clone(),
-                context_received.steps(),
-                referentials.clone(),
-                self.actions.clone(),
-                self.input_name.clone(),
-                self.output_name.clone(),
+                &record,
+                &context_received.to_value()?,
+                &referentials,
+                &self.actions,
             ) {
                 Ok(new_record) => match new_record {
                     Value::Array(array) => {
                         for array_value in array {
                             context_received
                                 .insert_step_result(self.name(), DataResult::Ok(array_value))?;
-                            super::send(self as &dyn Step, &context_received.clone()).await?;
+                            self.send(context_received).await?;
                         }
                     }
                     Value::Null => {
                         trace!(
                             record = format!("{}", new_record).as_str(),
-                            "Record skip because the value si null"
+                            "Record skip because the value is null"
                         );
                         continue;
                     }
                     _ => {
                         context_received
                             .insert_step_result(self.name(), DataResult::Ok(new_record))?;
-                        super::send(self as &dyn Step, &context_received.clone()).await?;
+                        self.send(context_received).await?;
                     }
                 },
                 Err(e) => {
                     warn!(
                         record = format!("{}", record).as_str(),
                         error = format!("{}", e).as_str(),
+                        context = format!("{:?}", context_received).as_str(),
                         "The transformer's updater raise an error"
                     );
+
                     context_received
                         .insert_step_result(self.name(), DataResult::Err((record, e)))?;
-                    super::send(self as &dyn Step, &context_received.clone()).await?;
+                    self.send(context_received).await?;
                 }
             };
         }
 
+        trace!(
+            "Terminate with success. It stops sending context and it disconnect the channel"
+        );
+
         Ok(())
     }
-    fn thread_number(&self) -> usize {
-        self.thread_number
+    fn number(&self) -> usize {
+        self.concurrency_limit
     }
     fn name(&self) -> String {
         self.name.clone()

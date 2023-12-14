@@ -43,8 +43,8 @@ impl Mustache for String {
     /// let mut path = "my_path/{{ field_1 }}/{{ field_2 }}".to_string();
     ///
     /// let mut parameters = Value::default();
-    /// parameters.merge_in("/field_1", Value::String("var_1".to_string())).unwrap();
-    /// parameters.merge_in("/field_2", Value::String("var_2".to_string())).unwrap();
+    /// parameters.merge_in("/field_1", &Value::String("var_1".to_string())).unwrap();
+    /// parameters.merge_in("/field_2", &Value::String("var_2".to_string())).unwrap();
     ///
     /// path.replace_mustache(parameters);
     ///
@@ -118,8 +118,8 @@ impl Mustache for Value {
     /// let mut value: Value = serde_json::from_str(r#"{"field":"{{ field_1 }}"}"#).unwrap();
     ///
     /// let mut parameters = Value::default();
-    /// parameters.merge_in("/field_1", Value::String("var_1".to_string())).unwrap();
-    /// parameters.merge_in("/field_2", Value::String("var_2".to_string())).unwrap();
+    /// parameters.merge_in("/field_1", &Value::String("var_1".to_string())).unwrap();
+    /// parameters.merge_in("/field_2", &Value::String("var_2".to_string())).unwrap();
     ///
     /// value.replace_mustache(parameters);
     ///
@@ -200,7 +200,7 @@ mod tests {
         let mut path = "my_path/{{ field_1 }}".to_string();
         let mut parameters = Value::default();
         parameters
-            .merge_in("/field_2", Value::String("var_2".to_string()))
+            .merge_in("/field_2", &Value::String("var_2".to_string()))
             .unwrap();
         path.replace_mustache(parameters);
         assert_eq!("my_path/{{ field_1 }}", path.as_str());
@@ -217,10 +217,10 @@ mod tests {
         let mut value: Value = serde_json::from_str(r#"{"field":"{{ field_1 }}"}"#).unwrap();
         let mut parameters = Value::default();
         parameters
-            .merge_in("/field_1", Value::String("var_1".to_string()))
+            .merge_in("/field_1", &Value::String("var_1".to_string()))
             .unwrap();
         parameters
-            .merge_in("/field_2", Value::String("var_2".to_string()))
+            .merge_in("/field_2", &Value::String("var_2".to_string()))
             .unwrap();
         value.replace_mustache(parameters);
         assert_eq!(r#"{"field":"var_1"}"#, value.to_string().as_str());
@@ -229,10 +229,10 @@ mod tests {
             serde_json::from_str(r#"{"number":"{{ number }}","bool":"{{ bool }}"}"#).unwrap();
         let mut parameters = Value::default();
         parameters
-            .merge_in("/number", serde_json::from_str("10").unwrap())
+            .merge_in("/number", &serde_json::from_str("10").unwrap())
             .unwrap();
         parameters
-            .merge_in("/bool", serde_json::from_str("true").unwrap())
+            .merge_in("/bool", &serde_json::from_str("true").unwrap())
             .unwrap();
         value.replace_mustache(parameters);
         assert_eq!(r#"{"number":10,"bool":true}"#, value.to_string().as_str());

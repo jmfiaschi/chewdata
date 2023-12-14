@@ -16,7 +16,8 @@
 //! | tcp_nodelay   | -     | Enable the TCP nodelay.                                   | `false`       | `true` / `false`                                                       |
 //! | parameters    | -     | Parameters used in the `path` that can be override.       | `null`        | Object or Array of objects                                             |
 //! | paginator     | -     | Paginator parameters.                                     | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
-//! | counter       | count | Use to find the total of elements in the resource. used for the paginator        | `null`        | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
+//! | counter       | count | Use to find the total of elements in the resource. used for the paginator        | [`crate::connector::counter::curl::header::Header`]        | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
+//! | cache_mode    | cache | Enable the backend cache management and define the cache strategy. See the details here <https://github.com/06chaynes/http-cache/blob/main/http-cache/src/lib.rs#L265-L295> |    `null`    | `default` / `no_store` / `reload` / `no_cache` / `force_cache` / `if_cached` / `ignore_rules` |
 //!
 //! ### Examples
 //!
@@ -43,7 +44,8 @@
 //!             "paginator": {
 //!                 "limit": 100,
 //!                 "skip": 0
-//!             }
+//!             },
+//!             "cache_mode": "default"
 //!         }
 //!     }
 //! ]
@@ -51,29 +53,46 @@
 //!
 use super::authenticator::AuthenticatorType;
 use super::counter::curl::CounterType;
-use super::paginator::curl::offset::Offset;
 use super::paginator::curl::PaginatorType;
-use super::{Connector, Paginator};
+use super::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataResult, DataSet, DataStream, Metadata};
+use async_std::sync::Arc;
+use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
+use futures::Stream;
+use http_cache_surf::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
 use http_types::headers::HeaderName;
 use http_types::headers::HeaderValue;
 use json_value_merge::Merge;
 use json_value_remove::Remove;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::convert::TryInto;
-use std::io::{Error, ErrorKind, Result};
+use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
+use std::time;
 use std::time::Duration;
-use std::{collections::HashMap, fmt};
+use std::{
+    fmt,
+    io::{Error, ErrorKind, Result},
+};
+use surf::middleware::{Middleware, Next};
 use surf::{
     http::{headers, Method, Url},
     Client,
 };
+use surf::{Request, Response};
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
+static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -97,7 +116,31 @@ pub struct Curl {
     pub paginator_type: PaginatorType,
     #[serde(alias = "counter")]
     #[serde(alias = "count")]
-    pub counter_type: Option<CounterType>,
+    pub counter_type: CounterType,
+    #[serde(alias = "cache")]
+    pub cache_mode: Option<String>,
+}
+
+impl fmt::Debug for Curl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Curl")
+            .field("metadata", &self.metadata)
+            .field("authenticator_type", &self.authenticator_type)
+            .field("endpoint", &self.endpoint)
+            .field("path", &self.path)
+            .field("method", &self.method)
+            // Can contain sensitive data
+            .field("headers", &self.headers.display_only_for_debugging())
+            .field("timeout", &self.timeout)
+            .field("keepalive", &self.keepalive)
+            .field("tcp_nodelay", &self.tcp_nodelay)
+            // Can contain sensitive data
+            .field("parameters", &self.parameters.display_only_for_debugging())
+            .field("paginator_type", &self.paginator_type)
+            .field("counter_type", &self.counter_type)
+            .field("cache_mode", &self.cache_mode)
+            .finish()
+    }
 }
 
 impl Default for Curl {
@@ -113,33 +156,23 @@ impl Default for Curl {
             keepalive: true,
             tcp_nodelay: false,
             parameters: Value::Null,
-            paginator_type: PaginatorType::Offset(Offset::default()),
-            counter_type: None,
+            paginator_type: PaginatorType::default(),
+            counter_type: CounterType::default(),
+            cache_mode: None,
         }
     }
 }
 
-impl fmt::Debug for Curl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Curl")
-            .field("metadata", &self.metadata)
-            .field("authenticator_type", &self.authenticator_type)
-            .field("endpoint", &self.endpoint)
-            .field("path", &self.path)
-            .field("method", &self.method)
-            .field("headers", &self.headers)
-            .field("timeout", &self.timeout)
-            .field("keepalive", &self.keepalive)
-            .field("tcp_nodelay", &self.tcp_nodelay)
-            .field("parameters", &self.parameters)
-            .field("paginator_type", &self.paginator_type)
-            .field("counter_type", &self.counter_type)
-            .finish()
-    }
-}
-
 impl Curl {
-    pub async fn client(&mut self) -> std::io::Result<Client> {
+    /// Generate a key used to store and retreive the connector's client.
+    fn client_key(&self) -> String {
+        let mut hasher = DefaultHasher::new();
+        let client_key = format!("{}:{}", self.endpoint, self.path);
+        client_key.hash(&mut hasher);
+        hasher.finish().to_string()
+    }
+    /// Create a new client for the connector.
+    async fn create_client(&mut self) -> std::io::Result<Client> {
         let mut config = surf::Config::new()
             .set_base_url(
                 Url::parse(self.endpoint.as_str())
@@ -148,20 +181,6 @@ impl Curl {
             .set_timeout(self.timeout.map(Duration::from_secs))
             .set_http_keep_alive(self.keepalive)
             .set_tcp_no_delay(self.tcp_nodelay);
-
-        if let Some(ref mut authenticator_type) = self.authenticator_type {
-            let authenticator = authenticator_type.authenticator_mut();
-            let (auth_name, auth_value) =
-                authenticator.authenticate(self.parameters.clone()).await?;
-            config = config
-                .add_header(
-                    HeaderName::from_bytes(auth_name)
-                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-                    HeaderValue::from_bytes(auth_value)
-                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-                )
-                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        }
 
         if !self.metadata().content_type().is_empty() {
             config = config
@@ -187,9 +206,50 @@ impl Curl {
             }
         }
 
-        let client: Client = config
+        let mut client: Client = config
             .try_into()
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+        client = client.with(Logger::new());
+        if let Some(authenticator_type) = self.authenticator_type.clone() {
+            client = client.with(Authenticator::new(authenticator_type));
+        }
+        if let Some(cache_mode) = &self.cache_mode {
+            let cache_path = std::env::temp_dir().join("http-cacache");
+            trace!(
+                cache_dir = format!("{:?}", cache_path).as_str(),
+                "Enabling the cache..."
+            );
+
+            client = client.with(Cache(HttpCache {
+                mode: match cache_mode.to_lowercase().as_str() {
+                    "no_store" | "nostore" => CacheMode::NoStore,
+                    "force_cache" | "forcecache" => CacheMode::ForceCache,
+                    "ignore_rules" | "ignorerules" => CacheMode::IgnoreRules,
+                    "no_cache" | "nocache" => CacheMode::NoCache,
+                    "only_if_cached" | "onlyifcached" | "if_cached" => CacheMode::OnlyIfCached,
+                    "reload" => CacheMode::Reload,
+                    _ => CacheMode::Default,
+                },
+                manager: CACacheManager { path: cache_path },
+                options: HttpCacheOptions::default(),
+            }));
+        }
+        Ok(client)
+    }
+    pub async fn client(&mut self) -> std::io::Result<Client> {
+        let clients = CLIENTS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+
+        let client_key = self.client_key();
+        if let Some(client) = clients.lock().await.get(&self.client_key()) {
+            trace!(client_key, "Retrieve the previous client");
+            return Ok(client.clone());
+        }
+
+        trace!(client_key, "Create a new client");
+        let mut map = clients.lock_arc().await;
+        let client = self.create_client().await?;
+        map.insert(client_key, client.clone());
 
         Ok(client)
     }
@@ -220,13 +280,14 @@ impl Connector for Curl {
     /// ```
     fn path(&self) -> String {
         let mut path = self.path.clone();
-        let mut params = self.parameters.clone();
-        let mut metadata = Map::default();
 
         match self.is_variable() {
             true => {
+                let mut params = self.parameters.clone();
+                let mut metadata = Map::default();
+
                 metadata.insert("metadata".to_string(), self.metadata().into());
-                params.merge(Value::Object(metadata));
+                params.merge(&Value::Object(metadata));
 
                 path.replace_mustache(params.clone());
                 path
@@ -252,7 +313,7 @@ impl Connector for Curl {
     /// ```
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
-            trace!("The connector stay link to the same resource");
+            trace!("Stay link to the same resource");
             return Ok(false);
         }
 
@@ -261,9 +322,9 @@ impl Connector for Curl {
         let metadata = Value::Object(metadata_kv);
 
         let mut new_parameters = new_parameters;
-        new_parameters.merge(metadata.clone());
+        new_parameters.merge(&metadata);
         let mut old_parameters = self.parameters.clone();
-        old_parameters.merge(metadata);
+        old_parameters.merge(&metadata);
 
         let mut previous_path = self.path.clone();
         previous_path.replace_mustache(old_parameters);
@@ -272,14 +333,14 @@ impl Connector for Curl {
         new_path.replace_mustache(new_parameters);
 
         if previous_path == new_path {
-            trace!(path = previous_path, "The path of the connector has not changed.");
+            trace!(path = previous_path, "The path has not changed");
             return Ok(false);
         }
 
         info!(
             previous_path = previous_path,
             new_path = new_path,
-            "The connector will use another resource based the new parameters."
+            "Will use another resource based the new parameters"
         );
         Ok(true)
     }
@@ -335,60 +396,19 @@ impl Connector for Curl {
     /// }
     /// ```
     #[instrument(name = "curl::len")]
-    async fn len(&mut self) -> Result<usize> {
-        let client = self.client().await?;
-        let path = self.path();
+    async fn len(&self) -> Result<usize> {
+        match self.counter_type.count(self).await {
+            Ok(Some(count)) => Ok(count),
+            Ok(None) => Ok(0),
+            Err(e) => {
+                warn!(
+                    error = e.to_string(),
+                    "Can't count the number of element, return 0"
+                );
 
-        if path.has_mustache() {
-            warn!(path, "This path is not fully resolved.");
+                Ok(0)
+            }
         }
-
-        let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let mut req = client.request(Method::Head, url.clone());
-
-        // Force the headers
-        for (key, value) in self.headers.iter() {
-            req = req.header(
-                HeaderName::from_bytes(key.clone().into_bytes())
-                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-                HeaderValue::from_bytes(value.clone().into_bytes())
-                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-            );
-        }
-
-        info!(url = url.as_str(), "Ready to retrieve the length of the resource.");
-
-        let res = client
-            .send(req.build())
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-
-        if !res.status().is_success() {
-            trace!(
-                url = url.as_str(),
-                status = res.status().to_string().as_str(),
-                "Unable to obtain the length of the remote document using the HEAD method."
-            );
-
-            return Ok(0);
-        }
-
-        let header_value = res
-            .header(headers::CONTENT_LENGTH)
-            .map(|ct_len| ct_len.as_str())
-            .unwrap_or("0");
-
-        let len = header_value
-            .parse::<usize>()
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        info!(
-            url = url.as_str(),
-            len, "Size of data found in the resource."
-        );
-        Ok(len)
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -423,13 +443,13 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved.");
+            warn!(path, "This path is not fully resolved");
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url.clone());
+        let mut req = client.request(self.method, &url);
 
         match self.method {
             Method::Post | Method::Put | Method::Patch => {
@@ -461,7 +481,10 @@ impl Connector for Curl {
             );
         }
 
-        info!(url = url.as_str(), "Ready to retrieve data from the resource.");
+        info!(
+            url = url.as_str(),
+            "Ready to retrieve data from the resource"
+        );
 
         let mut res = client
             .send(req.build())
@@ -484,10 +507,7 @@ impl Connector for Curl {
             ));
         }
 
-        info!(
-            url = url.as_str(),
-            "The connector successfully fetches data from the resource."
-        );
+        info!(url = url.as_str(), "Fetch data with success");
 
         if !document.has_data(&data)? {
             return Ok(None);
@@ -545,13 +565,13 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved.");
+            warn!(path, "This path is not fully resolved");
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url.clone());
+        let mut req = client.request(self.method, &url);
 
         match self.method {
             Method::Post | Method::Put | Method::Patch => {
@@ -582,7 +602,10 @@ impl Connector for Curl {
             );
         }
 
-        info!(url = url.as_str(), "Ready to retrieve data into the resource.");
+        info!(
+            url = url.as_str(),
+            "Ready to retrieve data into the resource"
+        );
 
         let mut res = client
             .send(req.build())
@@ -615,10 +638,7 @@ impl Connector for Curl {
             })));
         }
 
-        info!(
-            url = url.as_str(),
-            "The connector send data into the resource with success"
-        );
+        info!(url = url.as_str(), "Send data with success");
         Ok(None)
     }
     /// See [`Connector::erase`] for more details.
@@ -646,13 +666,13 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved.");
+            warn!(path, "This path is not fully resolved");
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, url.clone());
+        let mut req = client.request(self.method, &url);
 
         // Force the headers
         for (key, value) in self.headers.iter() {
@@ -664,7 +684,7 @@ impl Connector for Curl {
             );
         }
 
-        info!(url = url.as_str(), "Ready to erase data in the resource.");
+        info!(url = url.as_str(), "Ready to erase data in the resource");
 
         let mut res = client
             .send(req.build())
@@ -684,30 +704,92 @@ impl Connector for Curl {
             ));
         }
 
-        info!(
-            url = url.as_str(),
-            "The connector erase data in the resource with successfully."
-        );
+        info!(url = url.as_str(), "Erase data with success");
         Ok(())
     }
-    /// See [`Connector::paginator`] for more details.
-    async fn paginator(&self) -> Result<Pin<Box<dyn Paginator + Send + Sync>>> {
-        let paginator = match self.paginator_type {
-            PaginatorType::Offset(ref offset_paginator) => {
-                let mut offset_paginator = offset_paginator.clone();
-                offset_paginator.set_connector(self.clone());
+    /// See [`Connector::paginate`] for more details.
+    async fn paginate(
+        &self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
+        self.paginator_type.paginate(self).await
+    }
+}
 
-                Box::new(offset_paginator) as Box<dyn Paginator + Send + Sync>
-            }
-            PaginatorType::Cursor(ref cursor_paginator) => {
-                let mut cursor_paginator = cursor_paginator.clone();
-                cursor_paginator.set_connector(self.clone());
+#[derive(Debug, Default)]
+pub struct Logger {
+    _priv: (),
+}
 
-                Box::new(cursor_paginator) as Box<dyn Paginator + Send + Sync>
-            }
-        };
+impl Logger {
+    pub fn new() -> Self {
+        Logger { _priv: () }
+    }
+}
 
-        Ok(Pin::new(paginator))
+#[async_trait::async_trait]
+impl Middleware for Logger {
+    async fn handle(
+        &self,
+        req: Request,
+        client: Client,
+        next: Next<'_>,
+    ) -> std::result::Result<Response, http_types::Error> {
+        let start_time = time::Instant::now();
+        let uri = format!("{}", req.url());
+        let method = format!("{}", req.method());
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+
+        trace!(id, uri, method, "sending request");
+
+        let res = next.run(req, client).await?;
+        let status = res.status();
+        let elapsed = start_time.elapsed();
+
+        trace!(
+            id,
+            uri,
+            method,
+            elapsed = &format!("{:?}", elapsed),
+            status = status.to_string().as_str(),
+            "request completed"
+        );
+
+        Ok(res)
+    }
+}
+
+#[derive(Debug)]
+pub struct Authenticator {
+    authenticator_type: Box<AuthenticatorType>,
+}
+
+impl Authenticator {
+    pub fn new(authenticator_type: Box<AuthenticatorType>) -> Self {
+        Authenticator { authenticator_type }
+    }
+}
+
+#[async_trait::async_trait]
+impl Middleware for Authenticator {
+    async fn handle(
+        &self,
+        req: Request,
+        client: Client,
+        next: Next<'_>,
+    ) -> std::result::Result<Response, http_types::Error> {
+        let authenticator = self.authenticator_type.authenticator();
+
+        let (auth_name, auth_value) = authenticator.authenticate().await?;
+        let mut req = req.clone();
+        req.set_header(
+            HeaderName::from_bytes(auth_name).map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            HeaderValue::from_bytes(auth_value)
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+        );
+
+        let res = next.run(req, client).await?;
+
+        Ok(res)
     }
 }
 
@@ -717,14 +799,7 @@ mod tests {
 
     use super::*;
     use crate::connector::authenticator::{basic::Basic, bearer::Bearer, AuthenticatorType};
-    use crate::connector::counter::curl::body::Body;
-    use crate::connector::counter::curl::header::Header;
-    use crate::connector::paginator::curl::cursor::Cursor;
     use crate::document::json::Json;
-    #[cfg(feature = "xml")]
-    use crate::document::xml::Xml;
-    use crate::document::DocumentType;
-    use crate::DataResult;
     use futures::StreamExt;
 
     #[test]
@@ -767,12 +842,12 @@ mod tests {
         connector.path = "/status/200".to_string();
         assert!(
             0 == connector.len().await.unwrap(),
-            "The remote document should have a length equal to zero"
+            "The remote document should have a length equal to zero."
         );
         connector.path = "/get".to_string();
         assert!(
             0 != connector.len().await.unwrap(),
-            "The remote document should have a length different than zero"
+            "The remote document should have a length different than zero."
         );
     }
     #[async_std::test]
@@ -794,7 +869,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
-            "The inner connector should have a size upper than zero"
+            "The inner connector should have a size upper than zero."
         );
     }
     #[async_std::test]
@@ -811,7 +886,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
-            "The inner connector should have a size upper than zero"
+            "The inner connector should have a size upper than zero."
         );
     }
     #[async_std::test]
@@ -826,7 +901,7 @@ mod tests {
         let datastream = connector.fetch(&document).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
-            "The inner connector should have a size upper than zero"
+            "The inner connector should have a size upper than zero."
         );
     }
     #[async_std::test]
@@ -853,172 +928,5 @@ mod tests {
         connector.path = "/status/200".to_string();
         connector.erase().await.unwrap();
         assert_eq!(true, connector.is_empty().await.unwrap());
-    }
-    #[async_std::test]
-    async fn paginator_header_counter_count() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
-        connector.path = "/get".to_string();
-        let mut counter = Header::default();
-        counter.name = "Content-Length".to_string();
-        assert_eq!(Some(194), counter.count(connector).await.unwrap());
-    }
-    #[async_std::test]
-    async fn paginator_header_counter_count_none() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
-        connector.path = "/get".to_string();
-        let mut counter = Header::default();
-        counter.name = "not_found".to_string();
-        assert_eq!(None, counter.count(connector).await.unwrap());
-    }
-    #[async_std::test]
-    async fn paginator_body_counter_count() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Post;
-        connector.path = "/anything?count=10".to_string();
-        let mut counter = Body::default();
-        counter.entry_path = "/args/test".to_string();
-        assert_eq!(
-            None,
-            counter
-                .count(connector, Box::new(Json::default()))
-                .await
-                .unwrap()
-        );
-    }
-    #[async_std::test]
-    async fn paginator_offset_count() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
-        connector.path = "/get".to_string();
-        connector.paginator_type = PaginatorType::Offset(Offset::default());
-        connector.counter_type = Some(CounterType::Header(Header::new(
-            "Content-Length".to_string(),
-            None,
-        )));
-        let mut paginator = connector.paginator().await.unwrap();
-        assert_eq!(Some(194), paginator.count().await.unwrap());
-    }
-    #[cfg(feature = "xml")]
-    #[async_std::test]
-    async fn paginator_offset_stream() {
-        let mut document = Xml::default();
-        document.entry_path = "/html/body/*/a".to_string();
-
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
-        connector.path = "/links/{{ paginator.skip }}/10".to_string();
-        connector.paginator_type = PaginatorType::Offset(Offset {
-            skip: 1,
-            limit: 1,
-            ..Default::default()
-        });
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
-
-        let mut connector = stream.next().await.transpose().unwrap().unwrap();
-        assert_eq!("/links/1/10", connector.path().as_str());
-        let len1 = connector
-            .fetch(&document)
-            .await
-            .unwrap()
-            .unwrap()
-            .count()
-            .await;
-        assert!(0 < len1, "Can't read the content of the file.");
-
-        let mut connector = stream.next().await.transpose().unwrap().unwrap();
-        assert_eq!("/links/2/10", connector.path().as_str());
-        let len2 = connector
-            .fetch(&document)
-            .await
-            .unwrap()
-            .unwrap()
-            .count()
-            .await;
-        assert!(0 < len2, "Can't read the content of the file.");
-
-        assert!(
-            len1 != len2,
-            "The content of this two files is not different."
-        );
-    }
-    #[async_std::test]
-    async fn paginator_offset_stream_one_time() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
-        connector.path = "/get".to_string();
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_none());
-    }
-    #[async_std::test]
-    async fn paginator_offset_stream_tree_times_and_parallize() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
-        connector.path = "/links/{{ paginator.skip }}/10".to_string();
-        connector.paginator_type = PaginatorType::Offset(Offset {
-            skip: 0,
-            limit: 1,
-            count: Some(3),
-            ..Default::default()
-        });
-        let paginator = connector.paginator().await.unwrap();
-        assert!(paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_none());
-    }
-    #[async_std::test]
-    async fn paginator_cursor_stream() {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
-        connector.path = "/uuid?next={{ paginator.next }}".to_string();
-        connector.paginator_type = PaginatorType::Cursor(Cursor {
-            limit: 1,
-            entry_path: "/uuid".to_string(),
-            document_type: DocumentType::default(),
-            ..Default::default()
-        });
-
-        let document = Json::default();
-
-        let paginator = connector.paginator().await.unwrap();
-        assert!(!paginator.is_parallelizable());
-        let mut stream = paginator.stream().await.unwrap();
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-        let mut datastream = connector.unwrap().fetch(&document).await.unwrap().unwrap();
-        let data_1 = datastream.next().await.unwrap();
-
-        let connector = stream.next().await.transpose().unwrap();
-        assert!(connector.is_some());
-        let mut datastream = connector.unwrap().fetch(&document).await.unwrap().unwrap();
-        let data_2 = datastream.next().await.unwrap();
-
-        assert!(
-            data_1 != data_2,
-            "The content of this two stream are not different."
-        );
     }
 }

@@ -1,11 +1,15 @@
-use crate::step::{reader::Reader, Step};
-use async_channel::TryRecvError;
+use crate::{
+    step::{reader::Reader, receive, Step},
+    Context,
+};
 use async_std::task;
 use serde_json::Value;
-use std::{collections::HashMap, io, time::Duration};
+use std::{collections::HashMap, io};
+use futures::StreamExt;
 
 pub mod json_pointer;
 pub mod mustache;
+pub mod string;
 
 #[cfg(feature = "xml")]
 pub mod xml2json;
@@ -21,6 +25,8 @@ pub mod xml2json;
 /// use std::{io, collections::HashMap};
 /// use chewdata::helper::referentials_reader_into_value;
 /// use serde_json::Value;
+/// use chewdata::DataResult;
+/// use chewdata::Context;
 ///
 /// #[async_std::main]
 /// async fn main() -> io::Result<()> {
@@ -36,7 +42,9 @@ pub mod xml2json;
 ///     referentials.insert("ref_1".to_string(), referential_1);
 ///     referentials.insert("ref_2".to_string(), referential_2);
 ///
-///     let values = referentials_reader_into_value(referentials).await?;
+///     let context = Context::new("step_main".to_string(), DataResult::Ok(Value::Null)).unwrap();
+///
+///     let values = referentials_reader_into_value(&referentials, &context).await?;
 ///     let values_expected:HashMap<String, Vec<Value>> = serde_json::from_str(r#"{"ref_1":[{"column1":"value1"}],"ref_2":[{"column1":"value2"}]}"#).unwrap();
 ///
 ///     assert_eq!(values_expected, values);
@@ -45,47 +53,35 @@ pub mod xml2json;
 /// }
 /// ```
 pub async fn referentials_reader_into_value(
-    referentials: HashMap<String, Reader>,
+    referentials: &HashMap<String, Reader>,
+    context: &Context,
 ) -> io::Result<HashMap<String, Vec<Value>>> {
     let mut referentials_vec = HashMap::new();
 
     for (name, referential) in referentials {
-        let (sender, receiver) = async_channel::unbounded();
-        let mut values: Vec<Value> = Vec::new();
-        let sleep_time = referential.sleep();
+        let (sender_input, receiver_input) = async_channel::unbounded();
+        let (sender_output, receiver_output) = async_channel::unbounded();
 
-        task::spawn(async move {
-            let mut task_referential = referential.clone();
-            task_referential.set_sender(sender.clone());
-            task_referential.exec().await
-        })
-        .await?;
+        sender_input
+            .send(context.clone())
+            .await
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+        sender_input.close();
 
-        loop {
-            match receiver.try_recv() {
-                Ok(context_received) => {
-                    let value = context_received.input().to_value();
-                    trace!(
-                        value = format!("{:?}", value).as_str(),
-                        "A new referential value found in the pipe"
-                    );
-                    values.push(context_received.input().to_value());
-                    continue;
-                }
-                Err(TryRecvError::Empty) => {
-                    trace!(
-                        sleep = sleep_time,
-                        "The pipe is empty. Tries to fetch referential data later"
-                    );
-                    task::sleep(Duration::from_millis(sleep_time)).await;
-                    continue;
-                }
-                Err(TryRecvError::Closed) => {
-                    trace!("The pipe is disconnected, no more referential value to handle");
-                    break;
-                }
-            };
-        }
+        let mut task_referential = referential.clone();
+        task_referential.name = name.clone();
+        task_referential.set_receiver(receiver_input.clone());
+        task_referential.set_sender(sender_output.clone());
+
+        task::spawn(async move { task_referential.exec().await }).await?;
+        sender_output.close();
+
+        let values = receive(&receiver_output)
+            .await?
+            .map(|context| context.input().to_value())
+            .collect()
+            .await;
+
         referentials_vec.insert(name.clone(), values);
     }
 
@@ -94,7 +90,10 @@ pub async fn referentials_reader_into_value(
 
 #[cfg(test)]
 mod tests {
-    use crate::connector::{in_memory::InMemory, ConnectorType};
+    use crate::{
+        connector::{in_memory::InMemory, ConnectorType},
+        DataResult,
+    };
 
     use super::*;
 
@@ -115,9 +114,13 @@ mod tests {
         let mut referentials = HashMap::default();
         referentials.insert("ref_1".to_string(), referential_1);
         referentials.insert("ref_2".to_string(), referential_2);
-        let values = super::referentials_reader_into_value(referentials)
+
+        let context = Context::new("step_main".to_string(), DataResult::Ok(Value::Null)).unwrap();
+
+        let values = super::referentials_reader_into_value(&referentials, &context)
             .await
             .unwrap();
+
         let values_expected: HashMap<String, Vec<Value>> = serde_json::from_str(
             r#"{"ref_1":[{"column1":"value1"},{"column1":"value2"}],"ref_2":[{"column1":"value3"},{"column1":"value4"}]}"#,
         )

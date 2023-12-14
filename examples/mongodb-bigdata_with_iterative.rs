@@ -12,6 +12,7 @@ async fn main() -> io::Result<()> {
     let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let layer = tracing_subscriber::fmt::layer()
+        .pretty()
         .with_line_number(true)
         .with_writer(non_blocking)
         .with_filter(EnvFilter::from_default_env())
@@ -41,7 +42,7 @@ async fn main() -> io::Result<()> {
             }
         },{
             "type": "w",
-            "thread_number":10,
+            "concurrency_limit":10,
             "connector":{
                 "type": "local",
                 "path": "./data/out/test_write_iterative.jsonl"

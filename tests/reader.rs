@@ -72,6 +72,8 @@ fn it_should_read_file_in_local_with_one_line() {
         );
         assert!(!json_result.is_empty(), "stdout should not be empty.");
 
+        println!("Test result: {:?}", json_result);
+
         let object_result: Value =
             serde_json::from_str(&json_result).expect("Parse json result failed.");
 
@@ -106,7 +108,11 @@ fn it_should_read_file_in_bucket_with_one_line() {
         "stderr is not empty with this value {}.",
         error_result
     );
+
     assert!(!json_result.is_empty(), "stdout should not be empty.");
+
+    println!("Test result: {:?}", json_result);
+
     let object_result: Value =
         serde_json::from_str(&json_result).expect("Parse json result failed.");
 
@@ -133,6 +139,9 @@ fn it_should_read_data_get_api() {
         error_result
     );
     assert!(!json_result.is_empty(), "stdout should not be empty.");
+
+    println!("Test result: {:?}", json_result);
+
     let object_result: Value =
         serde_json::from_str(&json_result).expect("Parse json result failed.");
 
@@ -162,6 +171,9 @@ fn it_should_read_data_get_api_with_basic() {
         error_result
     );
     assert!(!json_result.is_empty(), "stdout should not be empty.");
+
+    println!("Test result: {:?}", json_result);
+
     let object_result: Value =
         serde_json::from_str(&json_result).expect("Parse json result failed.");
 
@@ -191,6 +203,9 @@ fn it_should_read_data_get_api_with_bearer() {
         error_result
     );
     assert!(!json_result.is_empty(), "stdout should not be empty.");
+
+    println!("Test result: {:?}", json_result);
+
     let object_result: Value =
         serde_json::from_str(&json_result).expect("Parse json result failed.");
 

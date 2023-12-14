@@ -60,6 +60,7 @@ use quick_xml::se::Serializer;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt::Write;
 use std::io;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
@@ -161,7 +162,7 @@ impl Document for Xml {
     }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Xml::default().metadata.merge(self.metadata.clone())
+        Xml::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::read`] for more details.
     ///
@@ -191,10 +192,10 @@ impl Document for Xml {
     #[instrument(skip(buffer), name = "xml::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
         let mut dataset = Vec::default();
-        let entry_path = self.entry_path.clone();
+        let entry_path = &self.entry_path;
         let root_element = self.convert_xml_to_value(buffer)?;
 
-        match root_element.clone().search(&entry_path)? {
+        match root_element.clone().search(entry_path)? {
             Some(record) => match record {
                 Value::Array(vec) => vec.into_iter().for_each(|record| {
                     trace!(
@@ -221,7 +222,7 @@ impl Document for Xml {
                     root_element,
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        format!("Entry path '{}' not found.", entry_path),
+                        format!("Entry path '{}' not found", entry_path),
                     ),
                 )));
             }
@@ -271,7 +272,7 @@ impl Document for Xml {
         )
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-        value.merge_in("/", values)?;
+        value.merge_in("/", &values)?;
 
         let mut xml_with_root = self.convert_value_to_xml(&value)?;
         xml_with_root = xml_with_root.replace('\n', "\\n");
@@ -309,7 +310,7 @@ impl Document for Xml {
         let mut value = Value::default();
         value.merge_in(
             &self.entry_path_without_root(),
-            match self.is_pretty {
+            &match self.is_pretty {
                 true => Value::String("\n".to_string()),
                 false => Value::default(),
             },
@@ -319,8 +320,10 @@ impl Document for Xml {
         let header: String = xml_with_entry_path
             .split('<')
             .filter(|node| !node.contains('/') && !node.is_empty())
-            .map(|node| format!("<{}", node))
-            .collect();
+            .fold(String::new(), |mut output, b| {
+                let _ = write!(output, "<{}", b);
+                output
+            });
 
         Ok(header.as_bytes().to_vec())
     }
@@ -345,7 +348,7 @@ impl Document for Xml {
         let mut value = Value::default();
         value.merge_in(
             &self.entry_path_without_root(),
-            match self.is_pretty {
+            &match self.is_pretty {
                 true => Value::String("\n".to_string()),
                 false => Value::default(),
             },
@@ -355,8 +358,10 @@ impl Document for Xml {
         let footer: String = xml_with_entry_path
             .split('>')
             .filter(|node| node.contains("</") && !node.is_empty())
-            .map(|node| format!("{}>", node))
-            .collect();
+            .fold(String::new(), |mut output, b| {
+                let _ = write!(output, "{}>", b);
+                output
+            });
 
         Ok(footer.as_bytes().to_vec())
     }
@@ -468,7 +473,7 @@ mod tests {
             serde_json::from_str(r#"{"column_1":"line_1"}"#).unwrap(),
         )];
         let buffer = document.write(&dataset).unwrap();
-        
+
         assert_eq!(r#"<column_1>line_1</column_1>"#.as_bytes().to_vec(), buffer);
     }
     #[test]

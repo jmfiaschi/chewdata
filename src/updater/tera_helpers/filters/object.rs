@@ -42,28 +42,28 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let new_value = match (with, into, value) {
         (None, None, Value::Array(values)) => {
             for value in values {
-                new_value.merge(value.clone());
+                new_value.merge(value);
             }
             new_value
         }
         (Some(merge_with), None, value) => {
-            new_value.merge(value.clone());
-            new_value.merge(merge_with);
+            new_value.merge(value);
+            new_value.merge(&merge_with);
             new_value
         }
         (Some(merge_with), Some(path), value) => {
-            new_value.merge(value.clone());
-            new_value.merge_in(path.as_str(), merge_with)?;
+            new_value.merge(value);
+            new_value.merge_in(path.as_str(), &merge_with)?;
             new_value
         }
         (None, Some(_), _value) => {
             return Err(Error::msg(
-                "Function `merge` was called without the 'with' argument.",
+                "Function `merge` was called without the 'with' argument",
             ))
         }
         (None, None, _) => {
             return Err(Error::msg(
-                "Function `merge` was called without the 'with' argument. Only an array can be merged without argument.",
+                "Function `merge` was called without the 'with' argument. Only an array can be merged without argument",
             ))
         }
     };
@@ -83,7 +83,7 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 /// use chewdata::updater::tera_helpers::filters::object::search;
 ///
 /// let mut obj = Value::default();
-/// obj.merge_in("/field_1/field_2", Value::String("value".to_string()));
+/// obj.merge_in("/field_1/field_2", &Value::String("value".to_string()));
 ///
 /// let mut args = HashMap::new();
 /// args.insert("path".to_string(), Value::String("/field_1".to_string()));
@@ -160,14 +160,14 @@ pub fn replace_key(value: &Value, args: &HashMap<String, Value>) -> Result<Value
                 ),
                 _ => {
                     return Err(Error::msg(
-                        "Function `replace_key` works only on `object` and `array`. Number, Null, Bool, String are not handled by this method.",
+                        "Function `replace_key` works only on `object` and `array`. Number, Null, Bool, String are not handled by this method",
                     ))
                 }
             }
         }
         (None, _) | (_, None) => {
             return Err(Error::msg(
-                "Function `replace_key` was called without the 'from' or 'to' arguments.",
+                "Function `replace_key` was called without the 'from' or 'to' arguments",
             ))
         }
     };
@@ -227,18 +227,18 @@ pub fn replace_value(value: &Value, args: &HashMap<String, Value>) -> Result<Val
                     array
                         .iter()
                         .map(|array_value| self::replace_value(array_value, args))
-                        .collect::<Result<Vec<Value>>>()?
+                        .collect::<Result<Vec<Value>>>()?,
                 ),
                 _ => {
                     return Err(Error::msg(
-                        "Function `replace_value` worked only on `object` and `array`.",
+                        "Function `replace_value` worked only on `object` and `array`",
                     ))
                 }
             }
         }
         (None, _) | (_, None) => {
             return Err(Error::msg(
-                "Function `replace_value` was called without the `from` or `to` arguments.",
+                "Function `replace_value` was called without the `from` or `to` arguments",
             ))
         }
     };
@@ -278,10 +278,10 @@ mod tests {
     #[test]
     fn merge_objects() {
         let mut obj = Value::default();
-        obj.merge_in("/field", Value::String("value".to_string()))
+        obj.merge_in("/field", &Value::String("value".to_string()))
             .unwrap();
         let mut with = Value::default();
-        with.merge_in("/other_field", Value::String("other value".to_string()))
+        with.merge_in("/other_field", &Value::String("other value".to_string()))
             .unwrap();
         let mut args = HashMap::new();
         args.insert("with".to_string(), with.clone());
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn merge_objects_with_path() {
         let mut obj = Value::default();
-        obj.merge_in("/field", Value::String("value".to_string()))
+        obj.merge_in("/field", &Value::String("value".to_string()))
             .unwrap();
         let with = Value::String("other value".to_string());
         let mut args = HashMap::new();
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn search() {
         let mut obj = Value::default();
-        obj.merge_in("/field_1/field_2", Value::String("value".to_string()))
+        obj.merge_in("/field_1/field_2", &Value::String("value".to_string()))
             .unwrap();
         let mut args = HashMap::new();
         args.insert("path".to_string(), Value::String("/field_1".to_string()));
@@ -400,7 +400,7 @@ mod tests {
         args.insert("to".to_string(), Value::String("@$1".to_string()));
 
         let result = super::replace_value(&obj, &args);
-        println!("{:?}", result);
+
         assert!(result.is_ok());
         assert_eq!(
             serde_json::from_str::<Value>(r#"[{"field_1":"@value_1","field_2":"@value_1"}]"#)

@@ -1,14 +1,14 @@
-//! Read and Write in Text format. 
+//! Read and Write in Text format.
 //!
 //! ### Configuration
-//! 
+//!
 //! | key      | alias | Description                             | Default Value | Possible Values       |
 //! | -------- | ----- | --------------------------------------- | ------------- | --------------------- |
 //! | type     | -     | Required in order to use this document. | `text`        | `text`                |
 //! | metadata | meta  | Metadata describe the resource.         | `null`        | [`crate::Metadata`]   |
-//! 
+//!
 //! Examples:
-//! 
+//!
 //! ```json
 //! [
 //!     {
@@ -23,9 +23,9 @@
 //!     }
 //! ]
 //! ```
-//! 
+//!
 //! output:
-//! 
+//!
 //! ```text
 //! Hello world !!!
 //! ```
@@ -62,7 +62,7 @@ impl Default for Text {
 impl Document for Text {
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        Text::default().metadata.merge(self.metadata.clone())
+        Text::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::read`] for more details.
     ///
@@ -110,8 +110,8 @@ impl Document for Text {
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
         let mut buffer = Vec::default();
         for data in dataset {
-            let record = data.to_value();
-            buffer.append(&mut record.clone().as_str().unwrap_or("").as_bytes().to_vec());
+            let record = &data.to_value();
+            buffer.append(&mut record.as_str().unwrap_or("").as_bytes().to_vec());
             trace!(
                 record = format!("{:?}", record).as_str(),
                 "Record serialized"

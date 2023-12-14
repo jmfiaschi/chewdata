@@ -42,20 +42,15 @@
 //!     "next": "274b5dac-5ed6-11ed-9b6a-0242ac120002"
 //! }
 //! ```
-use crate::connector::Paginator;
-use crate::connector::{curl::Curl, Connector};
+use crate::connector::Connector;
 use crate::document::DocumentType;
+use crate::{connector::curl::Curl, ConnectorStream};
 use async_std::stream::StreamExt;
 use async_stream::stream;
-use async_trait::async_trait;
-use futures::Stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    io::{Error, ErrorKind, Result},
-    pin::Pin,
-};
+use std::io::Result;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -65,8 +60,6 @@ pub struct Cursor {
     #[serde(rename = "document")]
     #[serde(alias = "doc")]
     pub document_type: DocumentType,
-    #[serde(skip)]
-    pub connector: Option<Box<Curl>>,
     #[serde(rename = "next")]
     pub next_token: Option<String>,
 }
@@ -75,7 +68,6 @@ impl Default for Cursor {
     fn default() -> Self {
         Cursor {
             limit: 100,
-            connector: None,
             document_type: DocumentType::default(),
             next_token: None,
             entry_path: "/next".to_string(),
@@ -84,29 +76,14 @@ impl Default for Cursor {
 }
 
 impl Cursor {
-    pub fn set_connector(&mut self, connector: Curl) -> &mut Self
-    where
-        Self: Paginator + Sized,
-    {
-        self.connector = Some(Box::new(connector));
-        self
-    }
-}
-
-#[async_trait]
-impl Paginator for Cursor {
-    /// See [`Paginator::count`] for more details.
-    async fn count(&mut self) -> Result<Option<usize>> {
-        Ok(None)
-    }
-    /// See [`Paginator::stream`] for more details.
+    /// Cursor paginate.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::{PaginatorType, cursor::Cursor};
-    /// use chewdata::document::{DocumentType, json::Json};
+    /// use chewdata::document::DocumentType;
     /// use surf::http::Method;
     /// use async_std::prelude::*;
     /// use std::io;
@@ -117,32 +94,25 @@ impl Paginator for Cursor {
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
     ///     connector.path = "/uuid?next={{ paginator.next }}".to_string();
-    ///     connector.paginator_type = PaginatorType::Cursor(Cursor {
+    ///
+    ///     let paginator = Cursor {
     ///         limit: 1,
     ///         entry_path: "/uuid".to_string(),
     ///         document_type: DocumentType::default(),
     ///         ..Default::default()
-    ///     });
-    ///     let paginator = connector.paginator().await?;
-    ///     let mut stream = paginator.stream().await?;
-    ///     assert!(stream.next().await.transpose()?.is_some());
-    ///     assert!(stream.next().await.transpose()?.is_some());
+    ///     };
+    ///
+    ///     let mut paging = paginator.paginate(&connector).await?;
+    ///
+    ///     assert!(paging.next().await.transpose()?.is_some());
+    ///     assert!(paging.next().await.transpose()?.is_some());
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "cursor_paginator::stream")]
-    async fn stream(
-        &self,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>> {
-        let connector = match self.connector.clone() {
-            Some(connector) => Ok(connector),
-            None => Err(Error::new(
-                ErrorKind::Interrupted,
-                "The paginator can't paginate without a connector",
-            )),
-        }?;
-
+    #[instrument(name = "cursor::paginate")]
+    pub async fn paginate(&self, connector: &Curl) -> Result<ConnectorStream> {
+        let connector = connector.clone();
         let mut document = self.document_type.clone().boxed_inner();
         let mut has_next = true;
         let limit = self.limit;
@@ -155,11 +125,11 @@ impl Paginator for Cursor {
                 let mut new_parameters = connector.parameters.clone();
 
                 if let Some(next_token) = next_token_opt {
-                    new_parameters.merge_in("/paginator/next", Value::String(next_token))?;
+                    new_parameters.merge_in("/paginator/next", &Value::String(next_token))?;
                 }
 
                 new_parameters
-                    .merge_in("/paginator/limit", Value::String(limit.to_string()))?;
+                    .merge_in("/paginator/limit", &Value::String(limit.to_string()))?;
                 new_connector.set_parameters(new_parameters);
 
                 document.set_entry_path(entry_path.clone());
@@ -186,16 +156,56 @@ impl Paginator for Cursor {
                     has_next = false;
                 }
 
-                trace!(connector = format!("{:?}", new_connector).as_str(), "The stream returns a new connector.");
-                yield Ok(new_connector.clone() as Box<dyn Connector>);
+                trace!(connector = format!("{:?}", new_connector).as_str(), "Yield a new connector");
+                yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
-            trace!("The stream stops returning new connectors.");
+            trace!("Stop yielding new connector");
         });
 
         Ok(stream)
     }
-    /// See [`Paginator::is_parallelizable`] for more details.
-    fn is_parallelizable(&self) -> bool {
-        false
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::connector::curl::Curl;
+    use crate::connector::paginator::curl::cursor::Cursor;
+    use crate::document::json::Json;
+    use crate::document::DocumentType;
+    use futures::StreamExt;
+    use http_types::Method;
+
+    #[async_std::test]
+    async fn paginate() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/uuid?next={{ paginator.next }}".to_string();
+
+        let document = Json::default();
+
+        let paginator = Cursor {
+            limit: 1,
+            entry_path: "/uuid".to_string(),
+            document_type: DocumentType::default(),
+            ..Default::default()
+        };
+
+        let mut paging = paginator.paginate(&connector).await.unwrap();
+
+        let connector = paging.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let mut datastream = connector.unwrap().fetch(&document).await.unwrap().unwrap();
+        let data_1 = datastream.next().await.unwrap();
+
+        let connector = paging.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let mut datastream = connector.unwrap().fetch(&document).await.unwrap().unwrap();
+        let data_2 = datastream.next().await.unwrap();
+
+        assert!(
+            data_1 != data_2,
+            "The content of this two stream are not different."
+        );
     }
 }
