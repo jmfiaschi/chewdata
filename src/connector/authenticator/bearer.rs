@@ -96,7 +96,7 @@ impl Bearer {
     pub fn new(token: &str) -> Self {
         Bearer {
             token: token.to_string(),
-            is_base64: false,
+            is_base64: true,
         }
     }
 }
@@ -135,15 +135,13 @@ impl Authenticator for Bearer {
 
         let mut token = self.token.clone();
 
-        if self.is_base64 {
+        if !self.is_base64 {
             token = base64::engine::general_purpose::STANDARD.encode(token);
         }
 
-        let bearer = base64::engine::general_purpose::STANDARD.encode(token);
-
         Ok((
             headers::AUTHORIZATION.to_string().into_bytes(),
-            format!("Bearer {}", bearer).into_bytes(),
+            format!("Bearer {}", token).into_bytes(),
         ))
     }
 }
@@ -153,10 +151,13 @@ mod tests {
     use super::*;
 
     #[async_std::test]
-    async fn authenticate() {
-        let token = "my_token";
+    async fn authenticate_without_base64() {
+        let token = "my_token_not_in_base64";
 
-        let (auth_name, auth_value) = Bearer::new(token).authenticate().await.unwrap();
+        let mut bearer = Bearer::new(token);
+        bearer.is_base64 = false;
+
+        let (auth_name, auth_value) = bearer.authenticate().await.unwrap();
 
         assert_eq!(auth_name, "authorization".to_string().into_bytes());
         assert_eq!(
@@ -168,5 +169,17 @@ mod tests {
             .as_bytes()
             .to_vec()
         );
+    }
+    #[async_std::test]
+    async fn authenticate_with_base64() {
+        let token = "my_token_in_base64";
+
+        let mut bearer = Bearer::new(token);
+        bearer.is_base64 = true;
+
+        let (auth_name, auth_value) = bearer.authenticate().await.unwrap();
+
+        assert_eq!(auth_name, "authorization".to_string().into_bytes());
+        assert_eq!(auth_value, format!("Bearer {}", token).as_bytes().to_vec());
     }
 }
