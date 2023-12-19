@@ -105,7 +105,7 @@ impl fmt::Debug for Psql {
             .field("endpoint", &self.endpoint.display_only_for_debugging())
             .field("database", &self.database)
             .field("collection", &self.collection)
-            .field("parameters", &self.parameters)
+            .field("parameters", &self.parameters.display_only_for_debugging())
             .field("query", &self.query)
             .field("paginator_type", &self.paginator_type)
             .field("counter_type", &self.counter_type)

@@ -112,7 +112,7 @@ impl fmt::Debug for Mongodb {
             .field("endpoint", &self.endpoint.display_only_for_debugging())
             .field("database", &self.database)
             .field("collection", &self.collection)
-            .field("parameters", &self.parameters)
+            .field("parameters", &self.parameters.display_only_for_debugging())
             .field("filter", &self.filter)
             .field("paginator_type", &self.paginator_type)
             .field("find_options", &self.find_options)
