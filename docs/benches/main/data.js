@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702585004651,
+  "lastUpdate": 1703019582546,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -1967,6 +1967,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 19317,
             "range": "± 334",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc Fiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "5f81b7ef5cd11eada53e5e6e394d740d6b929bce",
+          "message": "feat(document): add byte format (#46)\n\n* fix(bearer): is_base64 specify if the token is already encoded or not. If not, it will be encoded.\n\n* fix(log): log details not visible even with RUST_LOG=trace\n\n* feat(document): add byte format\n\n* chore(connector): hide sensible data",
+          "timestamp": "2023-12-19T21:44:23+01:00",
+          "tree_id": "03e35dda5d05877b28fceb718951a4020d27dc9a",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/5f81b7ef5cd11eada53e5e6e394d740d6b929bce"
+        },
+        "date": 1703019581191,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5258,
+            "range": "± 200",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5120,
+            "range": "± 109",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 296001,
+            "range": "± 2839",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 19722,
+            "range": "± 963",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10831,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13747,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 121609,
+            "range": "± 1002",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 19259,
+            "range": "± 330",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 19344,
+            "range": "± 209",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 19300,
+            "range": "± 78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 19497,
+            "range": "± 98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 19362,
+            "range": "± 243",
             "unit": "ns/iter"
           }
         ]
