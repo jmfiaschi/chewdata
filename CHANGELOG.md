@@ -1,3 +1,16 @@
+# [2.1.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.0.0...v2.1.0-beta.1) (2023-12-19)
+
+
+### Bug Fixes
+
+* **bearer:** is_base64 specify if the token is already encoded or not. If not, it will be encoded. ([5a03e5a](https://github.com/jmfiaschi/chewdata/commit/5a03e5af6809d1633afb4b4e878e312bfbf598ad))
+* **log:** log details not visible even with RUST_LOG=trace ([ae2fdf4](https://github.com/jmfiaschi/chewdata/commit/ae2fdf4b6bb6bdf2d5d7c4c697dc00668bfa1cf3))
+
+
+### Features
+
+* **document:** add byte format ([8a44cd7](https://github.com/jmfiaschi/chewdata/commit/8a44cd70bf724c8090b91c9f3e673c2119d5a1eb))
+
 # [2.0.0](https://github.com/jmfiaschi/chewdata/compare/v1.17.0...v2.0.0) (2023-12-14)
 
 
