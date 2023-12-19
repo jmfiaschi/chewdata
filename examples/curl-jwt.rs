@@ -36,18 +36,18 @@ async fn main() -> io::Result<()> {
                     "path": "/tokens",
                     "method": "post"
                 },
-                "token_name":"token",
                 "key": "my_key",
                 "payload": {
                     "alg":"HS256",
                     "claims":{"GivenName":"Johnny","username":"{{ CURL_BASIC_AUTH_USERNAME }}","password":"{{ CURL_BASIC_AUTH_PASSWORD }}","iat":1599462755,"exp":33156416077},
                     "key":"my_key"
                 },
+                "signing": "secret",
                 "document": {
                     "metadata": {
-                        "mime_type": "application",
                         "mime_subtype": "json"
-                    }
+                    },
+                    "entry_path": "/token"
                 }
             }
         }
