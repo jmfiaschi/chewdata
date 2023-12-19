@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/jmfiaschi/chewdata/compare/v2.0.0...v2.1.0) (2023-12-19)
+
+
+### Features
+
+* **document:** add byte format ([#46](https://github.com/jmfiaschi/chewdata/issues/46)) ([5f81b7e](https://github.com/jmfiaschi/chewdata/commit/5f81b7ef5cd11eada53e5e6e394d740d6b929bce))
+
 # [2.1.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.0.0...v2.1.0-beta.1) (2023-12-19)
 
 
