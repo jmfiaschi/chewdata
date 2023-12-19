@@ -49,6 +49,7 @@
 use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
 use async_std::prelude::*;
@@ -68,10 +69,13 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::env;
 use std::hash::{Hash, Hasher};
-use std::io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write};
 use std::pin::Pin;
 use std::sync::OnceLock;
 use std::vec::IntoIter;
+use std::{
+    fmt,
+    io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write},
+};
 
 static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
 
@@ -79,7 +83,7 @@ const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "c
 const DEFAULT_REGION: &str = "us-west-2";
 const DEFAULT_ENDPOINT: &str = "http://localhost:9000";
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Bucket {
     #[serde(rename = "metadata")]
@@ -99,6 +103,26 @@ pub struct Bucket {
     pub tags: HashMap<String, String>,
     pub cache_control: Option<String>,
     pub expires: Option<i64>,
+}
+
+impl fmt::Debug for Bucket {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Bucket")
+            .field("metadata", &self.metadata)
+            .field("endpoint", &self.endpoint)
+            .field("profile", &self.profile)
+            .field("region", &self.region)
+            .field("bucket", &self.bucket)
+            .field("path", &self.path)
+            .field("parameters", &self.parameters.display_only_for_debugging())
+            .field("limit", &self.limit)
+            .field("skip", &self.skip)
+            .field("version", &self.version)
+            .field("tags", &self.tags)
+            .field("cache_control", &self.cache_control)
+            .field("expires", &self.expires)
+            .finish()
+    }
 }
 
 impl Default for Bucket {

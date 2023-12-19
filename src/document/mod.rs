@@ -1,3 +1,4 @@
+pub mod byte;
 #[cfg(feature = "csv")]
 pub mod csv;
 pub mod json;
@@ -13,7 +14,6 @@ pub mod yaml;
 
 #[cfg(feature = "csv")]
 use self::csv::Csv;
-use self::json::Json;
 use self::jsonl::Jsonl;
 #[cfg(feature = "parquet")]
 use self::parquet::Parquet;
@@ -23,6 +23,7 @@ use self::toml::Toml;
 #[cfg(feature = "xml")]
 use self::xml::Xml;
 use self::yaml::Yaml;
+use self::{byte::Byte, json::Json};
 use super::Metadata;
 use crate::DataSet;
 use serde::{Deserialize, Serialize};
@@ -50,6 +51,8 @@ pub enum DocumentType {
     #[serde(rename = "text")]
     #[serde(alias = "txt")]
     Text(Text),
+    #[serde(rename = "byte")]
+    Byte(Byte),
     #[cfg(feature = "parquet")]
     #[serde(rename = "parquet")]
     Parquet(Parquet),
@@ -74,6 +77,7 @@ impl DocumentType {
             #[cfg(feature = "toml")]
             DocumentType::Toml(document) => Box::new(document),
             DocumentType::Text(document) => Box::new(document),
+            DocumentType::Byte(document) => Box::new(document),
             #[cfg(feature = "parquet")]
             DocumentType::Parquet(document) => Box::new(document),
         }
@@ -90,6 +94,7 @@ impl DocumentType {
             #[cfg(feature = "toml")]
             DocumentType::Toml(document) => document,
             DocumentType::Text(document) => document,
+            DocumentType::Byte(document) => document,
             #[cfg(feature = "parquet")]
             DocumentType::Parquet(document) => document,
         }
@@ -106,6 +111,7 @@ impl DocumentType {
             #[cfg(feature = "toml")]
             DocumentType::Toml(document) => document,
             DocumentType::Text(document) => document,
+            DocumentType::Byte(document) => document,
             #[cfg(feature = "parquet")]
             DocumentType::Parquet(document) => document,
         }
@@ -132,6 +138,9 @@ impl DocumentType {
                     ..Default::default()
                 }),
                 "text" => Box::new(Text {
+                    metadata: metadata.clone(),
+                }),
+                "application/octet-stream" => Box::new(Byte {
                     metadata: metadata.clone(),
                 }),
                 #[cfg(feature = "toml")]

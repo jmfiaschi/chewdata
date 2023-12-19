@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use tracing::{enabled, Level};
 
 pub trait Obfuscate {
     /// Obfusctate a part of the object.
@@ -32,7 +33,7 @@ where
     T: Debug,
 {
     fn display_only_for_debugging(&self) -> String {
-        match enabled!(tracing::Level::DEBUG) {
+        match enabled!(Level::DEBUG) {
             true => format!("{:?}", self),
             false => MESSAGE_SEE_VALUE_IN_DEBUG_MODE.to_string(),
         }

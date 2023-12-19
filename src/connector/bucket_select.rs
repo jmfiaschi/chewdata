@@ -44,6 +44,7 @@ use super::bucket::{Bucket, BucketPaginator};
 use crate::connector::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
 use async_std::prelude::*;
@@ -67,18 +68,21 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::env;
 use std::hash::{Hash, Hasher};
-use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
 use std::sync::OnceLock;
 use std::time::Duration;
 use std::vec::IntoIter;
+use std::{
+    fmt,
+    io::{Error, ErrorKind, Result},
+};
 
 static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
 
 const DEFAULT_REGION: &str = "us-west-2";
 const DEFAULT_ENDPOINT: &str = "http://localhost:9000";
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct BucketSelect {
     #[serde(rename = "metadata")]
@@ -96,6 +100,24 @@ pub struct BucketSelect {
     pub limit: Option<usize>,
     pub skip: usize,
     pub timeout: Option<Duration>,
+}
+
+impl fmt::Debug for BucketSelect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BucketSelect")
+            .field("metadata", &self.metadata)
+            .field("endpoint", &self.endpoint)
+            .field("profile", &self.profile)
+            .field("region", &self.region)
+            .field("bucket", &self.bucket)
+            .field("path", &self.path)
+            .field("query", &self.query)
+            .field("parameters", &self.parameters.display_only_for_debugging())
+            .field("limit", &self.limit)
+            .field("skip", &self.skip)
+            .field("timeout", &self.timeout)
+            .finish()
+    }
 }
 
 impl Default for BucketSelect {

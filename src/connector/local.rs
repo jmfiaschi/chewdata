@@ -35,6 +35,7 @@ use super::paginator::local::wildcard::Wildcard;
 use super::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataSet, DataStream, Metadata};
 use async_stream::stream;
 use async_trait::async_trait;
@@ -52,7 +53,7 @@ use std::{
 };
 use std::{fs, fs::OpenOptions};
 
-#[derive(Deserialize, Serialize, Clone, Default, Debug)]
+#[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 pub struct Local {
     #[serde(rename = "metadata")]
@@ -78,6 +79,16 @@ impl fmt::Display for Local {
             .unwrap();
 
         write!(f, "{}", buffer)
+    }
+}
+
+impl fmt::Debug for Local {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Local")
+            .field("metadata", &self.metadata)
+            .field("path", &self.path)
+            .field("parameters", &self.parameters.display_only_for_debugging())
+            .finish()
     }
 }
 
@@ -206,7 +217,6 @@ impl Connector for Local {
     /// connector.path = "/dir/dynamic_{{ field }}.ext".to_string();
     /// assert_eq!(true, connector.is_resource_will_change(params).unwrap());
     /// ```
-    #[instrument(name = "local::is_resource_will_change")]
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool> {
         if !self.is_variable() {
             trace!("Stay link to the same resource");
