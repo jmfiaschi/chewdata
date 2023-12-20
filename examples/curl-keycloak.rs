@@ -43,7 +43,6 @@ async fn main() -> io::Result<()> {
                     "path": "/token",
                     "method": "post"
                 },
-                "token_name":"access_token",
                 "algorithm":"RS256",
                 "jwk": {
                     "kid": "jPc8FWeTOrgybc2_xBrShjNYUE5kiKTvpwSlNrNGUFA",
@@ -58,13 +57,13 @@ async fn main() -> io::Result<()> {
                     "x5t": "jM3m3RKAFgRaa0iyqkxv4K5xhqE",
                     "x5t#S256": "-WBOVu1q7fKqKz5j7JNaoYCZUal2AlZRqC49GS4lyXQ"
                 },
-                "format": "rsa_components",
+                "signing": "rsa_components",
                 "payload": "client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password",
                 "document": {
                     "metadata": {
-                        "mime_type": "application",
                         "mime_subtype": "x-www-form-urlencoded"
-                    }
+                    },
+                    "entry_path": "/access_token"
                 }
             }
         }

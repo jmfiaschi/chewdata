@@ -108,7 +108,7 @@ impl Document for Byte {
             let mut bytes = record
                 .as_array()
                 .unwrap_or(&Vec::default())
-                .into_iter()
+                .iter()
                 .map(|value| value.as_u64().unwrap_or_default() as u8)
                 .collect();
 

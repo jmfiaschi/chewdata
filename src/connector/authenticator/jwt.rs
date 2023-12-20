@@ -5,12 +5,11 @@
 //! | key               | alias | Description                                                          | Default Value | Possible Values                                                                            |
 //! | ----------------- | ----- | -------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
 //! | type              | -     | Required in order to use this authentication                         | `jwt`         | `jwt`                                                                                      |
-//! | algorithm         | algo  | The algorithm used to build the signing                              | `HS256`       | String                                                                                     |
-//! | refresh_connector | refresh | The connector used to refresh the token                              | `null`        | See [Connectors](#connectors)                                                              |
-//! | token_name        | -     | The token name used to identify the token into the refresh connector | `token`       | String                                                                                     |
+//! | algorithm         | algo  | The algorithm used to build the signing_type                         | `HS256`       | String                                                                                     |
+//! | refresh_connector | refresh | The connector used to refresh the token                            | `null`        | See [Connectors](#connectors)                                                              |
 //! | jwk               | -     | The Json web key used to sign                                        | `null`        | [Object](https://datatracker.ietf.org/doc/html/rfc7517#page-5)                             |
-//! | format            | -     | Define the type of the key used for the signing                      | `secret`      | `secret` / `base64secret` / `rsa_pem` / `rsa_components` / `ec_pem` / `rsa_der` / `ec_der` |
-//! | key               | -     | Key used for the signing                                             | `null`        | String                                                                                     |
+//! | signing_type      | signing | Define the signing to used for the token validation                | `secret`      | `secret` / `base64secret` / `rsa_pem` / `rsa_components` / `ec_pem` / `rsa_der` / `ec_der` |
+//! | key               | -     | Key used for the signing_type                                        | `null`        | String                                                                                     |
 //! | payload           | -     | The jwt payload                                                      | `null`        | Object or Array of objects                                                                 |
 //! | parameters        | -     | The parameters used to remplace variables in the payload             | `null`        | Object or Array of objects                                                                 |
 //! | token             | -     | The token that can be override if necessary                          | `null`        | String                                                                                     |
@@ -41,7 +40,9 @@
 //!                     "path": "/tokens",
 //!                     "method": "post"
 //!                 },
-//!                 "token_name":"token",
+//!                 "document": {
+//!                     "entry_path": "/my_token_field"
+//!                 }
 //!                 "key": "my_key",
 //!                 "payload": {
 //!                     "alg":"HS256",
@@ -61,7 +62,6 @@ use async_std::prelude::StreamExt;
 use async_std::sync::Arc;
 use async_std::sync::Mutex;
 use async_trait::async_trait;
-use base64::Engine;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -87,11 +87,10 @@ pub struct Jwt {
     pub refresh_connector_type: Option<Box<ConnectorType>>,
     pub document: Box<Jsonl>,
     pub jwk: Option<Value>,
-    pub format: Format,
+    #[serde(alias = "signing")]
+    pub signing_type: Option<SigningType>,
     pub key: String,
     pub payload: Box<Value>,
-    #[serde(alias = "tn")]
-    pub token_name: String,
 }
 
 impl fmt::Debug for Jwt {
@@ -100,9 +99,8 @@ impl fmt::Debug for Jwt {
             .field("algorithm", &self.algorithm)
             .field("refresh_connector_type", &self.refresh_connector_type)
             .field("document", &self.document)
-            .field("token_name", &self.token_name)
             .field("jwk", &self.jwk.display_only_for_debugging())
-            .field("format", &self.format)
+            .field("signing_type", &self.signing_type)
             .field(
                 "key",
                 &self
@@ -117,7 +115,7 @@ impl fmt::Debug for Jwt {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum Format {
+pub enum SigningType {
     #[serde(rename = "secret")]
     Secret,
     #[serde(rename = "base64secret")]
@@ -142,10 +140,9 @@ impl Default for Jwt {
             refresh_connector_type: None,
             document: Box::<Jsonl>::default(),
             jwk: None,
-            format: Format::Secret,
+            signing_type: None,
             key: "".to_string(),
             payload: Box::new(Value::Null),
-            token_name: "token".to_string(),
         }
     }
 }
@@ -177,7 +174,7 @@ impl Jwt {
     ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///    )?;
     ///    auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-    ///    auth.token_name = "token".to_string();
+    ///    auth.document.entry_path = Some("/token".to_string());
     ///    auth.document.metadata = Metadata {
     ///        mime_type: Some("application".to_string()),
     ///        mime_subtype: Some("json".to_string()),
@@ -211,7 +208,7 @@ impl Jwt {
             }
         };
 
-        let payload = match datastream.next().await {
+        let token_value = match datastream.next().await {
             Some(data_result) => data_result.to_value(),
             None => {
                 return Err(Error::new(
@@ -221,8 +218,8 @@ impl Jwt {
             }
         };
 
-        match payload.get(&self.token_name) {
-            Some(Value::String(token_value)) => {
+        match token_value {
+            Value::String(token_value) => {
                 let token_key = self.token_key();
                 let tokens = TOKENS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
 
@@ -244,59 +241,61 @@ impl Jwt {
 
         Ok(())
     }
-    pub fn decode(
-        &self,
-        token_value: &str,
-    ) -> jsonwebtoken::errors::Result<jsonwebtoken::TokenData<Value>> {
-        match self.format {
-            Format::Secret => decode::<Value>(
-                token_value,
-                &DecodingKey::from_secret(self.key.as_ref()),
-                &Validation::new(self.algorithm),
-            ),
-            Format::Base64Secret => decode::<Value>(
-                token_value,
-                &DecodingKey::from_base64_secret(self.key.as_ref())?,
-                &Validation::new(self.algorithm),
-            ),
-            Format::RsaPem => decode::<Value>(
-                token_value,
-                &DecodingKey::from_rsa_pem(self.key.as_ref())?,
-                &Validation::new(self.algorithm),
-            ),
-            Format::RsaDer => decode::<Value>(
-                token_value,
-                &DecodingKey::from_rsa_der(self.key.as_ref()),
-                &Validation::new(self.algorithm),
-            ),
-            Format::RsaComponents => {
-                let modulus: String = self.jwk.clone().map_or(String::default(), |v| {
-                    v.get("n").map_or(String::default(), |a| {
-                        a.as_str().map_or(String::default(), |s| s.to_string())
-                    })
-                });
-                let exponent: String = self.jwk.clone().map_or(String::default(), |v| {
-                    v.get("e").map_or(String::default(), |v| {
-                        v.as_str().map_or(String::default(), |s| s.to_string())
-                    })
-                });
-                decode::<Value>(
+    // Used to verify the signature from the JWT.
+    pub fn decode(&self, token_value: &str) -> jsonwebtoken::errors::Result<()> {
+        if let Some(signing_type) = &self.signing_type {
+            match signing_type {
+                SigningType::Secret => decode::<Value>(
                     token_value,
-                    &DecodingKey::from_rsa_components(modulus.as_str(), exponent.as_str())?,
+                    &DecodingKey::from_secret(self.key.as_ref()),
                     &Validation::new(self.algorithm),
-                )
-            }
-            Format::EcDer => decode::<Value>(
-                token_value,
-                &DecodingKey::from_ec_der(self.key.as_ref()),
-                &Validation::new(self.algorithm),
-            ),
-            Format::EcPem => decode::<Value>(
-                token_value,
-                &DecodingKey::from_ec_pem(self.key.as_ref())?,
-                &Validation::new(self.algorithm),
-            ),
+                ),
+                SigningType::Base64Secret => decode::<Value>(
+                    token_value,
+                    &DecodingKey::from_base64_secret(self.key.as_ref())?,
+                    &Validation::new(self.algorithm),
+                ),
+                SigningType::RsaPem => decode::<Value>(
+                    token_value,
+                    &DecodingKey::from_rsa_pem(self.key.as_ref())?,
+                    &Validation::new(self.algorithm),
+                ),
+                SigningType::RsaDer => decode::<Value>(
+                    token_value,
+                    &DecodingKey::from_rsa_der(self.key.as_ref()),
+                    &Validation::new(self.algorithm),
+                ),
+                SigningType::RsaComponents => {
+                    let modulus: String = self.jwk.clone().map_or(String::default(), |v| {
+                        v.get("n").map_or(String::default(), |a| {
+                            a.as_str().map_or(String::default(), |s| s.to_string())
+                        })
+                    });
+                    let exponent: String = self.jwk.clone().map_or(String::default(), |v| {
+                        v.get("e").map_or(String::default(), |v| {
+                            v.as_str().map_or(String::default(), |s| s.to_string())
+                        })
+                    });
+                    decode::<Value>(
+                        token_value,
+                        &DecodingKey::from_rsa_components(modulus.as_str(), exponent.as_str())?,
+                        &Validation::new(self.algorithm),
+                    )
+                }
+                SigningType::EcDer => decode::<Value>(
+                    token_value,
+                    &DecodingKey::from_ec_der(self.key.as_ref()),
+                    &Validation::new(self.algorithm),
+                ),
+                SigningType::EcPem => decode::<Value>(
+                    token_value,
+                    &DecodingKey::from_ec_pem(self.key.as_ref())?,
+                    &Validation::new(self.algorithm),
+                ),
+            }?;
         }
+
+        Ok(())
     }
 }
 
@@ -306,8 +305,8 @@ impl Jwt {
         let key = format!(
             "{:?}:{:?}:{:?}:{:?}",
             self.algorithm,
-            self.format,
-            self.token_name,
+            self.signing_type,
+            self.document.entry_path,
             self.payload.to_string()
         );
         key.hash(&mut hasher);
@@ -351,7 +350,7 @@ impl Authenticator for Jwt {
     ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///     ).unwrap();
     ///     auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-    ///     auth.token_name = "token".to_string();
+    ///     auth.document.entry_path = Some("/token".to_string());
     ///     auth.document.metadata = Metadata {
     ///         mime_type: Some("application".to_string()),
     ///         mime_subtype: Some("json".to_string()),
@@ -382,16 +381,9 @@ impl Authenticator for Jwt {
         }
 
         {
-            if let (Some(token_value), Some(_)) = (&token_option, &self.refresh_connector_type) {
-                match self.decode(token_value) {
-                    Ok(jwt_payload) => {
-                        let claim_payload =
-                            self.payload.get("claims").unwrap_or(&Value::Null).clone();
-
-                        if !claim_payload.eq(&jwt_payload.claims) {
-                            token_option = Some(token_value.clone());
-                        }
-                    }
+            if let (Some(token), Some(_)) = (&token_option, &self.refresh_connector_type) {
+                match self.decode(token) {
+                    Ok(_) => (),
                     Err(e) => {
                         match e.kind() {
                             jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
@@ -410,7 +402,7 @@ impl Authenticator for Jwt {
 
         Ok(match token_option {
             Some(token_value) => {
-                let bearer = base64::engine::general_purpose::STANDARD.encode(token_value);
+                let bearer = token_value;
                 (
                     headers::AUTHORIZATION.to_string().into_bytes(),
                     format!("Bearer {}", bearer).into_bytes(),
@@ -444,14 +436,12 @@ mod tests {
         connector.method = Method::Post;
 
         let mut auth = Jwt::default();
-        auth.key = "my_key".to_string();
         auth.payload = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.token_name = "token".to_string();
+        auth.document.entry_path = Some("/token".to_string());
         auth.document.metadata = Metadata {
-            mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),
             ..Default::default()
         };
@@ -472,9 +462,8 @@ mod tests {
         let mut auth = Jwt::default();
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.token_name = "access_token".to_string();
+        auth.document.entry_path = Some("/access_token".to_string());
         auth.document.metadata = Metadata {
-            mime_type: Some("application".to_string()),
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
             ..Default::default()
         };
@@ -497,16 +486,15 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.token_name = "token".to_string();
+        auth.document.entry_path = Some("/token".to_string());
         auth.document.metadata = Metadata {
-            mime_type: Some("application".to_string()),
             mime_subtype: Some("json".to_string()),
             ..Default::default()
         };
 
         let (auth_name, auth_value) = auth.authenticate().await.unwrap();
-        assert_eq!(auth_name, "authorization".to_string().into_bytes());
-        assert_eq!(auth_value, "Bearer ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SkhhWFpsYms1aGJXVWlPaUpLYjJodWJua2lMQ0pwWVhRaU9qRTFPVGswTmpJM05UVXNJbVY0Y0NJNk16TXhOVFkwTVRZd056ZDkuQXFsUk4yeDZUMGJFMXBKSlowV1BRcm1MaUszN2lUODl6bExCaVJHNVp1MA==".as_bytes().to_vec());
+        assert_eq!(auth_name, b"authorization");
+        assert_eq!(auth_value, b"Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJHaXZlbk5hbWUiOiJKb2hubnkiLCJpYXQiOjE1OTk0NjI3NTUsImV4cCI6MzMxNTY0MTYwNzd9.AqlRN2x6T0bE1pJJZ0WPQrmLiK37iT89zlLBiRG5Zu0");
     }
     #[async_std::test]
     async fn authenticate_with_keycloak() {
@@ -530,19 +518,18 @@ mod tests {
 
         let mut auth = Jwt::default();
         auth.algorithm = Algorithm::RS256;
-        auth.format = Format::RsaComponents;
+        auth.signing_type = Some(SigningType::RsaComponents);
         auth.jwk = Some(jwk);
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.token_name = "access_token".to_string();
+        auth.document.entry_path = Some("/access_token".to_string());
         auth.document.metadata = Metadata {
-            mime_type: Some("application".to_string()),
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
             ..Default::default()
         };
 
         let (auth_name, auth_value) = auth.authenticate().await.unwrap();
-        assert_eq!(auth_name, "authorization".to_string().into_bytes());
+        assert_eq!(auth_name, b"authorization");
         assert!(100 < auth_value.len(), "The token is not in a good format");
     }
 }
