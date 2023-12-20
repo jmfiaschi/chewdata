@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/jmfiaschi/chewdata/compare/v2.1.0...v2.2.0) (2023-12-20)
+
+
+### Features
+
+* **jwt:** remove "token_name" and use the document.entry_path instead. Replace also format field by signing_type. ([#47](https://github.com/jmfiaschi/chewdata/issues/47)) ([b17a004](https://github.com/jmfiaschi/chewdata/commit/b17a00476857a6af1ebbe5678f4381d97a438a7e))
+
 # [2.2.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.1.0...v2.2.0-beta.1) (2023-12-20)
 
 
