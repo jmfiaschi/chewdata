@@ -15,8 +15,8 @@
 //! | keepalive     | -     | Enable the TCP keepalive.                                 | `true`        | `true` / `false`                                                       |
 //! | tcp_nodelay   | -     | Enable the TCP nodelay.                                   | `false`       | `true` / `false`                                                       |
 //! | parameters    | -     | Parameters used in the `path` that can be override.       | `null`        | Object or Array of objects                                             |
-//! | paginator     | -     | Paginator parameters.                                     | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
-//! | counter       | count | Use to find the total of elements in the resource. used for the paginator        | [`crate::connector::counter::curl::header::Header`]        | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
+//! | paginator_type | paginator | Paginator parameters.                                | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
+//! | counter_type  | count / counter | Use to find the total of elements in the resource.  | `null` | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
 //! | cache_mode    | cache | Enable the backend cache management and define the cache strategy. See the details here <https://github.com/06chaynes/http-cache/blob/main/http-cache/src/lib.rs#L265-L295> |    `null`    | `default` / `no_store` / `reload` / `no_cache` / `force_cache` / `if_cached` / `ignore_rules` |
 //!
 //! ### Examples
@@ -116,7 +116,7 @@ pub struct Curl {
     pub paginator_type: PaginatorType,
     #[serde(alias = "counter")]
     #[serde(alias = "count")]
-    pub counter_type: CounterType,
+    pub counter_type: Option<CounterType>,
     #[serde(alias = "cache")]
     pub cache_mode: Option<String>,
 }
@@ -157,7 +157,7 @@ impl Default for Curl {
             tcp_nodelay: false,
             parameters: Value::Null,
             paginator_type: PaginatorType::default(),
-            counter_type: CounterType::default(),
+            counter_type: None,
             cache_mode: None,
         }
     }
@@ -381,6 +381,7 @@ impl Connector for Curl {
     ///
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
+    /// use chewdata::connector::counter::curl::CounterType;
     /// use std::io;
     ///
     /// #[async_std::main]
@@ -388,6 +389,7 @@ impl Connector for Curl {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.path = "/status/200".to_string();
+    ///     connector.counter_type = Some(CounterType::default());
     ///     assert!(0 == connector.len().await?, "The remote document should have a length equal to zero.");
     ///     connector.path = "/get".to_string();
     ///     assert!(0 != connector.len().await?, "The remote document should have a length different than zero.");
@@ -397,7 +399,12 @@ impl Connector for Curl {
     /// ```
     #[instrument(name = "curl::len")]
     async fn len(&self) -> Result<usize> {
-        match self.counter_type.count(self).await {
+        let counter_type = match &self.counter_type {
+            Some(counter_type) => counter_type,
+            None => return Ok(0),
+        };
+
+        match counter_type.count(self).await {
             Ok(Some(count)) => Ok(count),
             Ok(None) => Ok(0),
             Err(e) => {
@@ -799,6 +806,7 @@ mod tests {
 
     use super::*;
     use crate::connector::authenticator::{basic::Basic, bearer::Bearer, AuthenticatorType};
+    use crate::connector::counter::curl::CounterType;
     use crate::document::json::Json;
     use futures::StreamExt;
 
@@ -840,6 +848,7 @@ mod tests {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.path = "/status/200".to_string();
+        connector.counter_type = Some(CounterType::default());
         assert!(
             0 == connector.len().await.unwrap(),
             "The remote document should have a length equal to zero."
@@ -855,6 +864,7 @@ mod tests {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.path = "/status/200".to_string();
+        connector.counter_type = Some(CounterType::default());
         assert_eq!(true, connector.is_empty().await.unwrap());
         connector.path = "/get".to_string();
         assert_eq!(false, connector.is_empty().await.unwrap());
