@@ -1,3 +1,10 @@
+## [2.2.1](https://github.com/jmfiaschi/chewdata/compare/v2.2.0...v2.2.1) (2023-12-20)
+
+
+### Bug Fixes
+
+* **curl:** set count_type optional and None by default ([f43fe7a](https://github.com/jmfiaschi/chewdata/commit/f43fe7acd036959ce864da6c19608937b47a16fe))
+
 # [2.2.0](https://github.com/jmfiaschi/chewdata/compare/v2.1.0...v2.2.0) (2023-12-20)
 
 
