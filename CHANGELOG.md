@@ -1,3 +1,15 @@
+# [2.3.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.2.1...v2.3.0-beta.1) (2023-12-29)
+
+
+### Bug Fixes
+
+* **keycloak:** set a timeout for unit test ([1c16b9b](https://github.com/jmfiaschi/chewdata/commit/1c16b9b54d0f96966cf0aba9becf9777c14b6792))
+
+
+### Features
+
+* **updater:** add filter "find" and retreive all text match the pattern ([23308c4](https://github.com/jmfiaschi/chewdata/commit/23308c4ac05a0ae713ead9f6e5c31072cf5aeda2))
+
 ## [2.2.1](https://github.com/jmfiaschi/chewdata/compare/v2.2.0...v2.2.1) (2023-12-20)
 
 

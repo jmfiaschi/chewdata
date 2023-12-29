@@ -33,7 +33,9 @@
 //! ]
 //! ```
 use crate::connector::Connector;
+use crate::document::DocumentType;
 use crate::{connector::curl::Curl, ConnectorStream};
+use async_std::stream::StreamExt;
 use async_stream::stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -115,6 +117,23 @@ impl Offset {
 
                 if connector.path() == new_connector.path() {
                     has_next = false;
+                }
+
+                // Loop until the connector stop to return data. Last check to avoid infinit loop.
+                // Define a counter will avoid to enter in this check.
+                if has_next && count_opt.is_none() {
+                    let document = DocumentType::guess(&new_connector.metadata())?;
+                    let mut dataset = match new_connector.fetch(&*document).await? {
+                        Some(dataset) => dataset,
+                        None => break
+                    };
+
+                    let data_opt = dataset.next().await;
+
+                    match data_opt {
+                        Some(_) => (),
+                        None => break,
+                    };
                 }
 
                 skip += limit;
@@ -227,5 +246,28 @@ mod tests {
         assert!(connector.is_some());
         let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_none());
+    }
+    #[async_std::test]
+    async fn paginate_until_reach_the_end() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = Method::Get;
+        connector.path = "/links/{{ paginator.skip }}/10".to_string();
+
+        let paginator = Offset {
+            skip: 0,
+            limit: 1,
+            ..Default::default()
+        };
+
+        let mut paging = paginator.paginate(&connector).await.unwrap();
+        let connector = paging.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let connector = paging.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let connector = paging.next().await.transpose().unwrap();
+        assert!(connector.is_some());
+        let connector = paging.next().await.transpose().unwrap();
+        assert!(connector.is_some());
     }
 }
