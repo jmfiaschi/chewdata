@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1703844769179,
+  "lastUpdate": 1703847056216,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -2351,6 +2351,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 20080,
             "range": "± 106",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc Fiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "7321e893e4c278f7b1b4ec4dbe12f243f9ded7fe",
+          "message": "feat(updater): add filter \"find\" and retreive all text match the pattern\n\n* chore(test_set_env): refacto\n\n* chore(tera function): improve code and documentation\n\n* fix(curl): paginator iterate until reach body without data if the counter is not set.\n\n* fix(keycloak): set a timeout for unit test",
+          "timestamp": "2023-12-29T11:38:34+01:00",
+          "tree_id": "f74bef0bcd3e51bbe3e4cbd8d6743e3895045cf0",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/7321e893e4c278f7b1b4ec4dbe12f243f9ded7fe"
+        },
+        "date": 1703847054739,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5187,
+            "range": "± 37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5174,
+            "range": "± 185",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 295001,
+            "range": "± 4792",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 19791,
+            "range": "± 88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10412,
+            "range": "± 42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13502,
+            "range": "± 63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 138439,
+            "range": "± 919",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 19901,
+            "range": "± 170",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 19994,
+            "range": "± 107",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 20114,
+            "range": "± 113",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 19981,
+            "range": "± 1157",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 20064,
+            "range": "± 146",
             "unit": "ns/iter"
           }
         ]
