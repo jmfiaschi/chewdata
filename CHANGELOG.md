@@ -1,3 +1,10 @@
+# [2.3.0](https://github.com/jmfiaschi/chewdata/compare/v2.2.1...v2.3.0) (2023-12-29)
+
+
+### Features
+
+* **updater:** add filter "find" and retreive all text match the pattern ([7321e89](https://github.com/jmfiaschi/chewdata/commit/7321e893e4c278f7b1b4ec4dbe12f243f9ded7fe))
+
 # [2.3.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.2.1...v2.3.0-beta.1) (2023-12-29)
 
 
