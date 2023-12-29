@@ -458,6 +458,7 @@ mod tests {
             "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
         connector.method = Method::Post;
+        connector.timeout = Some(60);
 
         let mut auth = Jwt::default();
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
@@ -506,6 +507,8 @@ mod tests {
             "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
         jwk_connector.path = "/certs".to_string();
         jwk_connector.method = Method::Get;
+        jwk_connector.timeout = Some(60);
+
         let mut datastream = jwk_connector.fetch(&jwk_document).await.unwrap().unwrap();
         datastream.next().await.unwrap();
         let jwk = datastream.next().await.unwrap().to_value();
