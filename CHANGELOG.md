@@ -1,3 +1,10 @@
+# [2.4.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.3.0...v2.4.0-beta.1) (2024-01-02)
+
+
+### Features
+
+* **updater:** add new filter/function `find` for tera. ([430e2ec](https://github.com/jmfiaschi/chewdata/commit/430e2ec9c9af208e9a0bfc51cf3dd15762658553))
+
 # [2.3.0](https://github.com/jmfiaschi/chewdata/compare/v2.2.1...v2.3.0) (2023-12-29)
 
 

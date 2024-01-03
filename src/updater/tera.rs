@@ -137,6 +137,8 @@ impl Tera {
         engine.register_filter("env", filters::string::set_env);
         engine.register_function("env", function::string::env);
         engine.register_function("get_env", function::string::env);
+        engine.register_function("find", function::string::find);
+        engine.register_filter("find", filters::string::find);
         // faker
         engine.register_function("fake_words", function::faker::words);
         engine.register_function("fake_sentences", function::faker::sentences);
