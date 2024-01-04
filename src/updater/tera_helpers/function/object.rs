@@ -6,6 +6,8 @@ use serde_json::value::Value;
 use std::collections::HashMap;
 use tera::*;
 
+use crate::helper::json_pointer::JsonPointer;
+
 /// Merge two Value together.
 ///
 /// # Arguments
@@ -338,6 +340,72 @@ fn replace_value_recursively(
     Ok(())
 }
 
+/// Extract from a list of object the attributes with the values. Keep the object structure.
+///
+/// # Arguments
+///
+/// * `from` - The list of objects or an object.
+/// * `attributes` - The .
+/// * `to` - The new value.
+/// * `level` - The depth level to apply the replacement.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use chewdata::updater::tera_helpers::function::object::extract;
+///
+/// let from = serde_json::from_str::<Value>(r#"[{"field1_1":{"field1_2":"value1_1"}},{"field2_1":{"field2_2":"value2_1"}}]"#).unwrap();
+/// let mut args = HashMap::new();
+/// args.insert("from".to_string(), from);
+/// args.insert("attributes".to_string(), Value::Array(vec![Value::String("field1_1.field1_2".to_string())]));
+///
+/// let result = extract(&args);
+/// assert!(result.is_ok());
+/// assert_eq!(
+///     serde_json::from_str::<Value>(r#"[{"field1_1":{"field1_2":"value1_1"}}]"#).unwrap(),
+///     result.unwrap()
+/// );
+/// ```
+pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
+    let extract_attributes = |value: &Value, attributes: &Vec<String>| -> Result<Value> {
+        let mut new_value = Value::default();
+        for attribute in attributes {
+            let attribute_json_pointer = attribute.to_json_pointer();
+            if let Some(found) = value.clone().search(&attribute_json_pointer)? {
+                new_value.merge_in(&attribute_json_pointer, &found)?;
+            }
+        }
+        Ok(new_value)
+    };
+
+    // Extracting and validating the 'attributes' argument
+    let attributes = args
+        .get("attributes")
+        .ok_or_else(|| Error::msg("Function `map` didn't receive an `attributes` argument"))
+        .and_then(|val| Ok(try_get_value!("map", "attributes", Vec<String>, val)))?;
+
+    args
+        .get("from")
+        .ok_or_else(|| Error::msg("Function `extract` didn't receive an `from` argument"))
+        .and_then(|val| match val {
+            Value::Array(vec) => {
+                let mut result = Vec::default();
+                for value in vec {
+                    let new_value = extract_attributes(value, &attributes)?;
+
+                    if new_value != Value::default() {
+                        result.append(&mut vec![new_value]);
+                    }
+                }
+                Ok(Value::Array(result))
+            },
+            Value::Object(_) => extract_attributes(val, &attributes),
+            _ => Err(Error::msg(format!("Function `extract` was called on an incorrect value: got `{}` but expected an list or an object", val))),
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -531,6 +599,65 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Value>(r#"[{"field_1":"@value_1","field_2":"@value_1"}]"#)
                 .unwrap(),
+            result.unwrap()
+        );
+    }
+    #[test]
+    fn test_extract_on_array() {
+        let from = serde_json::from_str::<Value>(
+            r#"[{"field1_1":{"field1_2":"value1_1"}},{"field2_1":{"field2_2":"value2_1"}}]"#,
+        )
+        .unwrap();
+
+        // Extract one attribute.
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), from.clone());
+        args.insert(
+            "attributes".to_string(),
+            Value::Array(vec![Value::String("field1_1.field1_2".to_string())]),
+        );
+
+        let result = extract(&args);
+        assert!(result.is_ok());
+        assert_eq!(
+            serde_json::from_str::<Value>(r#"[{"field1_1":{"field1_2":"value1_1"}}]"#).unwrap(),
+            result.unwrap()
+        );
+
+        // Extract two attributes.
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), from.clone());
+        args.insert(
+            "attributes".to_string(),
+            Value::Array(vec![
+                Value::String("field1_1.field1_2".to_string()),
+                Value::String("field2_1.field2_2".to_string()),
+            ]),
+        );
+
+        let result = extract(&args);
+        assert!(result.is_ok());
+        assert_eq!(from, result.unwrap());
+    }
+    #[test]
+    fn test_extract_on_object() {
+        let from = serde_json::from_str::<Value>(
+            r#"{"field1_1":{"field1_2":"value1_1"},"field2_1":{"field2_2":"value2_1"}}"#,
+        )
+        .unwrap();
+
+        // Extract one attribute.
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), from.clone());
+        args.insert(
+            "attributes".to_string(),
+            Value::Array(vec![Value::String("field1_1.field1_2".to_string())]),
+        );
+
+        let result = extract(&args);
+        assert!(result.is_ok());
+        assert_eq!(
+            serde_json::from_str::<Value>(r#"{"field1_1":{"field1_2":"value1_1"}}"#).unwrap(),
             result.unwrap()
         );
     }
