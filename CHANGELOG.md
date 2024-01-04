@@ -1,3 +1,10 @@
+# [2.5.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.4.0...v2.5.0-beta.1) (2024-01-04)
+
+
+### Features
+
+* **updater:** add new filter/function `extract` for tera. Extraction attributes from an object or list of object. ([3877868](https://github.com/jmfiaschi/chewdata/commit/38778688479f49fc9602a1df05819b3562ddfdd6))
+
 # [2.4.0](https://github.com/jmfiaschi/chewdata/compare/v2.3.0...v2.4.0) (2024-01-03)
 
 
