@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1704274411836,
+  "lastUpdate": 1704381281991,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -2543,6 +2543,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 19763,
             "range": "± 113",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a71928910d8aaaee4a886ff10162691969d210d3",
+          "message": "feat(updater): add new filter/function `extract` for tera. Extraction attributes from an object or list of object. (#51)",
+          "timestamp": "2024-01-04T16:02:02+01:00",
+          "tree_id": "a4f54b7d5648e0584abfa24bf2c9b7e35c108aee",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/a71928910d8aaaee4a886ff10162691969d210d3"
+        },
+        "date": 1704381280666,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5801,
+            "range": "± 129",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5666,
+            "range": "± 63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 295727,
+            "range": "± 3008",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 20342,
+            "range": "± 262",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10480,
+            "range": "± 81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13960,
+            "range": "± 154",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 140025,
+            "range": "± 1003",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 19511,
+            "range": "± 141",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 19681,
+            "range": "± 153",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 19701,
+            "range": "± 146",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 19723,
+            "range": "± 117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 19621,
+            "range": "± 144",
             "unit": "ns/iter"
           }
         ]
