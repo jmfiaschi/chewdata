@@ -3,13 +3,14 @@ use crate::{
     Context,
 };
 use async_std::task;
+use futures::StreamExt;
 use serde_json::Value;
 use std::{collections::HashMap, io};
-use futures::StreamExt;
 
 pub mod json_pointer;
 pub mod mustache;
 pub mod string;
+pub mod value;
 
 #[cfg(feature = "xml")]
 pub mod xml2json;

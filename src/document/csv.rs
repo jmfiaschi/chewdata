@@ -53,6 +53,7 @@
 extern crate csv;
 
 use crate::document::Document;
+use crate::helper::value::{Depth, Flatten};
 use crate::DataResult;
 use crate::{DataSet, Metadata};
 use csv::Trim;
@@ -335,23 +336,15 @@ impl Document for Csv {
 
         for data in dataset {
             let record = data.to_value();
-            match &record {
-                Value::Object(object) => {
-                    let mut values = Vec::<Value>::new();
 
-                    for (_, value) in flatten(object) {
-                        values.push(value);
-                    }
+            builder_writer.serialize(
+                record
+                    .flatten()?
+                    .values()
+                    .map(|value| value.clone())
+                    .collect::<Vec<Value>>(),
+            )?;
 
-                    builder_writer.serialize(values)
-                }
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("Can transform only object to csv string. {:?}", record),
-                    ))
-                }
-            }?;
             trace!(
                 record = format!("{:?}", record).as_str(),
                 "Record serialized"
@@ -387,31 +380,38 @@ impl Document for Csv {
             return Ok(Vec::default());
         }
 
+        if !self.metadata().has_headers.unwrap_or(false) {
+            return Ok(Vec::default());
+        }
+
         let mut builder_writer = self.writer_builder().from_writer(Vec::default());
-        let write_header = self.metadata().has_headers.unwrap_or(false);
-        let data = dataset.iter().next().unwrap();
 
-        let header = match data.to_value() {
-            Value::Object(object) => {
-                let keys = flatten(&object)
-                    .into_iter()
-                    .map(|(key, _)| key)
-                    .collect::<Vec<String>>();
-
-                match write_header {
-                    true => {
-                        builder_writer.write_record(keys)?;
-                        builder_writer
-                            .into_inner()
-                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
-                            .as_slice()
-                            .to_vec()
-                    }
-                    false => Vec::default(),
+        // Find object with max level
+        let mut deeper_object = Value::default();
+        {
+            let mut max_depth = 0;
+            for data in dataset.iter() {
+                let value = data.to_value().clone();
+                let depth = value.depth();
+                if depth > max_depth {
+                    max_depth = depth;
+                    deeper_object = value.clone();
                 }
             }
-            _ => Vec::default(),
-        };
+        }
+
+        builder_writer.write_record(
+            deeper_object
+                .flatten()?
+                .keys()
+                .map(|key| key.clone())
+                .collect::<Vec<String>>(),
+        )?;
+        let header = builder_writer
+            .into_inner()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
+            .as_slice()
+            .to_vec();
 
         if !header.is_empty() {
             trace!(
@@ -431,66 +431,6 @@ impl Document for Csv {
             .unwrap_or_else(|| DEFAULT_TERMINATOR.to_string())
             .as_bytes()
             .to_vec())
-    }
-}
-
-fn flatten(json: &Map<String, Value>) -> Map<String, Value> {
-    let mut obj = Map::new();
-    insert_object(&mut obj, None, json);
-    obj
-}
-
-fn insert_object(
-    base_json: &mut Map<String, Value>,
-    base_key: Option<&str>,
-    object: &Map<String, Value>,
-) {
-    for (key, value) in object {
-        let new_key = base_key.map_or_else(|| key.clone(), |base_key| format!("{base_key}.{key}"));
-
-        if let Some(array) = value.as_array() {
-            insert_array(base_json, Some(&new_key), array);
-        } else if let Some(object) = value.as_object() {
-            insert_object(base_json, Some(&new_key), object);
-        } else {
-            insert_value(base_json, &new_key, value.clone());
-        }
-    }
-}
-
-fn insert_array(base_json: &mut Map<String, Value>, base_key: Option<&str>, array: &[Value]) {
-    for (key, value) in array.iter().enumerate() {
-        let new_key = base_key.map_or_else(
-            || key.clone().to_string(),
-            |base_key| format!("{base_key}.{key}"),
-        );
-        if let Some(object) = value.as_object() {
-            insert_object(base_json, Some(&new_key), object);
-        } else if let Some(sub_array) = value.as_array() {
-            insert_array(base_json, Some(&new_key), sub_array);
-        } else {
-            insert_value(base_json, &new_key, value.clone());
-        }
-    }
-}
-
-fn insert_value(base_json: &mut Map<String, Value>, key: &str, to_insert: Value) {
-    debug_assert!(!to_insert.is_object());
-    debug_assert!(!to_insert.is_array());
-
-    // does the field aleardy exists?
-    if let Some(value) = base_json.get_mut(key) {
-        // is it already an array
-        if let Some(array) = value.as_array_mut() {
-            array.push(to_insert);
-        // or is there a collision
-        } else {
-            let value = std::mem::take(value);
-            base_json[key] = serde_json::json!([value, to_insert]);
-        }
-        // if it does not exist we can push the value untouched
-    } else {
-        base_json.insert(key.to_string(), serde_json::json!(to_insert));
     }
 }
 
