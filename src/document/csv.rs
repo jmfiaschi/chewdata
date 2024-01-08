@@ -337,13 +337,8 @@ impl Document for Csv {
         for data in dataset {
             let record = data.to_value();
 
-            builder_writer.serialize(
-                record
-                    .flatten()?
-                    .values()
-                    .map(|value| value.clone())
-                    .collect::<Vec<Value>>(),
-            )?;
+            builder_writer
+                .serialize(record.flatten()?.values().cloned().collect::<Vec<Value>>())?;
 
             trace!(
                 record = format!("{:?}", record).as_str(),
@@ -404,7 +399,7 @@ impl Document for Csv {
             deeper_object
                 .flatten()?
                 .keys()
-                .map(|key| key.clone())
+                .cloned()
                 .collect::<Vec<String>>(),
         )?;
         let header = builder_writer

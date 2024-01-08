@@ -1,3 +1,5 @@
+use json_value_merge::Merge;
+use regex::Regex;
 use serde_json::{Map, Value};
 use std::io;
 
@@ -111,6 +113,91 @@ fn depth(object: &Value) -> usize {
     }
 }
 
+/// Trait used to extract attribute from a Json Values.
+pub trait Extract {
+    /// used to extract attribute from a Json Values.
+    fn extract(&self, path: &str) -> io::Result<Value>;
+}
+
+impl Extract for serde_json::Value {
+    fn extract(&self, path: &str) -> io::Result<Value> {
+        let search_attribute_path_fields: Vec<&str> = path.split('/').skip(1).collect();
+
+        let mut new_value = Value::default();
+        attributes_extraction(
+            self,
+            &mut new_value,
+            &search_attribute_path_fields,
+            &mut Vec::default(),
+        )?;
+        Ok(new_value)
+    }
+}
+
+fn attributes_extraction(
+    from: &Value,
+    to: &mut Value,
+    search_attribute_path_fields: &Vec<&str>,
+    new_attribute_path_fields: &mut [String],
+) -> io::Result<()> {
+    if search_attribute_path_fields.is_empty() {
+        to.merge_in(&format!("/{}", new_attribute_path_fields.join("/")), from)?;
+        return Ok(());
+    }
+
+    let mut search_attribute_path_fields = search_attribute_path_fields.clone();
+    let current_field = search_attribute_path_fields.remove(0);
+
+    match (&from, current_field) {
+        (Value::Array(vec), "*") => {
+            for (index, value) in vec.iter().enumerate() {
+                let mut new_attribute_path_fields = new_attribute_path_fields.to_owned();
+                new_attribute_path_fields.push(index.to_string());
+                attributes_extraction(
+                    value,
+                    to,
+                    &search_attribute_path_fields,
+                    &mut new_attribute_path_fields,
+                )?;
+            }
+        }
+        (Value::Array(vec), _) => {
+            if let Ok(index) = current_field.parse::<usize>() {
+                if let Some(value) = vec.get(index) {
+                    let mut new_attribute_path_fields = new_attribute_path_fields.to_owned();
+                    new_attribute_path_fields.push(current_field.to_string());
+                    attributes_extraction(
+                        value,
+                        to,
+                        &search_attribute_path_fields,
+                        &mut new_attribute_path_fields,
+                    )?;
+                }
+            }
+        }
+        (Value::Object(map), _) => {
+            let re = Regex::new(current_field)
+                .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?;
+
+            for (key, value) in map {
+                if re.is_match(key.as_str()) {
+                    let mut new_attribute_path_fields = new_attribute_path_fields.to_owned();
+                    new_attribute_path_fields.push(key.to_string());
+                    attributes_extraction(
+                        value,
+                        to,
+                        &search_attribute_path_fields,
+                        &mut new_attribute_path_fields,
+                    )?;
+                }
+            }
+        }
+        (_, _) => (),
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,5 +227,34 @@ mod tests {
         .unwrap();
 
         assert_eq!(4, object.depth())
+    }
+    #[test]
+    fn test_extract() {
+        let object: Value = serde_json::from_str(
+            r#"{"field1":[{"field2":"value2","field3":{"field4":"value4"}},"value1"]}"#,
+        )
+        .unwrap();
+
+        let expected: Value =
+            serde_json::from_str(r#"{"field1":[{"field3":{"field4":"value4"}}]}"#).unwrap();
+        assert_eq!(expected, object.extract("/field1/*/field3").unwrap());
+
+        let expected: Value =
+            serde_json::from_str(r#"{"field1":[{"field3":{"field4":"value4"}}]}"#).unwrap();
+        assert_eq!(expected, object.extract("/field1/0/field3").unwrap());
+        assert_eq!(
+            Value::default(),
+            object.extract("/field1/1/field3").unwrap()
+        );
+
+        let object: Value = serde_json::from_str(
+            r#"{"field1":[{"field2":"value2","field3":{"field4":"value4"}},"value1",{"field5":"value5"}]}"#,
+        )
+        .unwrap();
+        let expected: Value = serde_json::from_str(
+            r#"{"field1":[{"field2":"value2","field3":{"field4":"value4"}},{"field5":"value5"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(expected, object.extract("/field1/*/field.+").unwrap());
     }
 }

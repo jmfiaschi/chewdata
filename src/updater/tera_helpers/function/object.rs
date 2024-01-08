@@ -6,7 +6,7 @@ use serde_json::value::Value;
 use std::collections::HashMap;
 use tera::*;
 
-use crate::helper::json_pointer::JsonPointer;
+use crate::helper::{json_pointer::JsonPointer, value::Extract};
 
 /// Merge two Value together.
 ///
@@ -371,10 +371,13 @@ pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
         let mut new_value = Value::default();
         for attribute in attributes {
             let attribute_json_pointer = attribute.to_json_pointer();
+            let value_extracted = value.extract(&attribute_json_pointer)?;
 
-            if let Some(found) = value.clone().search(&attribute_json_pointer)? {
-                new_value.merge_in(&attribute_json_pointer, &found)?;
+            if let Value::Null = value_extracted {
+                continue;
             }
+
+            new_value.merge(&value_extracted);
         }
         Ok(new_value)
     };
@@ -385,8 +388,7 @@ pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
         .ok_or_else(|| Error::msg("Function `extract` didn't receive an `attributes` argument"))
         .and_then(|val| Ok(try_get_value!("extract", "attributes", Vec<String>, val)))?;
 
-    args
-        .get("from")
+    args.get("from")
         .ok_or_else(|| Error::msg("Function `extract` didn't receive an `from` argument"))
         .and_then(|val| match val {
             Value::Array(vec) => {
@@ -399,9 +401,9 @@ pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
                     }
                 }
                 Ok(Value::Array(result))
-            },
+            }
             Value::Object(_) => extract_attributes(val, &attributes),
-            _ => Err(Error::msg(format!("Function `extract` was called on an incorrect value: got `{}` but expected an list or an object", val))),
+            _ => Ok(Value::Null),
         })
 }
 
