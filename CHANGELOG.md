@@ -1,3 +1,12 @@
+## [2.5.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.5.0...v2.5.1-beta.1) (2024-01-08)
+
+
+### Bug Fixes
+
+* **csv:** find the most deep object and not miss any columns to write in the csv file. ([2b309d4](https://github.com/jmfiaschi/chewdata/commit/2b309d4d113bac913fa3a334d989d5dd83bf0f07))
+* **extract:** able to extract from a object a list of attribute. allow regex. ([4e2e887](https://github.com/jmfiaschi/chewdata/commit/4e2e887dd905daba04fd03dbff0c24589b213e54))
+* **json_pointer:** all to escape `.`if an attribute contain this value. ([3d06f93](https://github.com/jmfiaschi/chewdata/commit/3d06f937b24620bdf3c0c045e2aab47590b1dfde))
+
 # [2.5.0](https://github.com/jmfiaschi/chewdata/compare/v2.4.0...v2.5.0) (2024-01-04)
 
 
