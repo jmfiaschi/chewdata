@@ -6,7 +6,7 @@ use serde_json::value::Value;
 use std::collections::HashMap;
 use tera::*;
 
-use crate::helper::json_pointer::JsonPointer;
+use crate::helper::{json_pointer::JsonPointer, value::Extract};
 
 /// Merge two Value together.
 ///
@@ -340,14 +340,12 @@ fn replace_value_recursively(
     Ok(())
 }
 
-/// Extract from a list of object the attributes with the values. Keep the object structure.
+/// Extract from a list of object, the attributes with the values. Keep the object structure.
 ///
 /// # Arguments
 ///
 /// * `from` - The list of objects or an object.
-/// * `attributes` - The .
-/// * `to` - The new value.
-/// * `level` - The depth level to apply the replacement.
+/// * `attributes` - The list of attribute to extract. Accept regular expression in the attribute names.
 ///
 /// # Examples
 ///
@@ -373,9 +371,13 @@ pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
         let mut new_value = Value::default();
         for attribute in attributes {
             let attribute_json_pointer = attribute.to_json_pointer();
-            if let Some(found) = value.clone().search(&attribute_json_pointer)? {
-                new_value.merge_in(&attribute_json_pointer, &found)?;
+            let value_extracted = value.extract(&attribute_json_pointer)?;
+
+            if let Value::Null = value_extracted {
+                continue;
             }
+
+            new_value.merge(&value_extracted);
         }
         Ok(new_value)
     };
@@ -383,11 +385,10 @@ pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
     // Extracting and validating the 'attributes' argument
     let attributes = args
         .get("attributes")
-        .ok_or_else(|| Error::msg("Function `map` didn't receive an `attributes` argument"))
-        .and_then(|val| Ok(try_get_value!("map", "attributes", Vec<String>, val)))?;
+        .ok_or_else(|| Error::msg("Function `extract` didn't receive an `attributes` argument"))
+        .and_then(|val| Ok(try_get_value!("extract", "attributes", Vec<String>, val)))?;
 
-    args
-        .get("from")
+    args.get("from")
         .ok_or_else(|| Error::msg("Function `extract` didn't receive an `from` argument"))
         .and_then(|val| match val {
             Value::Array(vec) => {
@@ -400,9 +401,9 @@ pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
                     }
                 }
                 Ok(Value::Array(result))
-            },
+            }
             Value::Object(_) => extract_attributes(val, &attributes),
-            _ => Err(Error::msg(format!("Function `extract` was called on an incorrect value: got `{}` but expected an list or an object", val))),
+            _ => Ok(Value::Null),
         })
 }
 
