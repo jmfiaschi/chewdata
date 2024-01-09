@@ -1,3 +1,10 @@
+## [2.5.1](https://github.com/jmfiaschi/chewdata/compare/v2.5.0...v2.5.1) (2024-01-09)
+
+
+### Bug Fixes
+
+* **extract:** able to extract from a object a list of attribute. allow to use regex. ([#52](https://github.com/jmfiaschi/chewdata/issues/52)) ([bf5e744](https://github.com/jmfiaschi/chewdata/commit/bf5e7443986f00729e7c841c3e803b7cb9aa8871))
+
 ## [2.5.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.5.0...v2.5.1-beta.1) (2024-01-08)
 
 
