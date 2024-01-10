@@ -6,7 +6,10 @@ use serde_json::value::Value;
 use std::collections::HashMap;
 use tera::*;
 
-use crate::helper::{json_pointer::JsonPointer, value::Extract};
+use crate::helper::{
+    json_pointer::JsonPointer,
+    value::{Extract, MergeAndReplace},
+};
 
 /// Merge two Value together.
 ///
@@ -377,7 +380,7 @@ pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
                 continue;
             }
 
-            new_value.merge(&value_extracted);
+            new_value.merge_replace(&value_extracted);
         }
         Ok(new_value)
     };
