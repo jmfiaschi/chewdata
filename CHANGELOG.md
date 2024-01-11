@@ -1,3 +1,15 @@
+# [2.7.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.6.0...v2.7.0-beta.1) (2024-01-11)
+
+
+### Bug Fixes
+
+* **apm:** fix error with pretty and jaeger ([a70cdb2](https://github.com/jmfiaschi/chewdata/commit/a70cdb21b27577e8959cc525aa0a520394c1589d))
+
+
+### Features
+
+* **local:** add cache for local connector ([f22f324](https://github.com/jmfiaschi/chewdata/commit/f22f324a4316d4c09bff5f4fda69f4218e975e76))
+
 # [2.6.0](https://github.com/jmfiaschi/chewdata/compare/v2.5.1...v2.6.0) (2024-01-11)
 
 
