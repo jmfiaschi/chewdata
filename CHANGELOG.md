@@ -1,3 +1,17 @@
+# [2.6.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.5.0...v2.6.0-beta.1) (2024-01-11)
+
+
+### Bug Fixes
+
+* **csv:** find the most deep object and not miss any columns to write in the csv file. ([2b309d4](https://github.com/jmfiaschi/chewdata/commit/2b309d4d113bac913fa3a334d989d5dd83bf0f07))
+* **extract:** able to extract from a object a list of attribute. allow regex. ([4e2e887](https://github.com/jmfiaschi/chewdata/commit/4e2e887dd905daba04fd03dbff0c24589b213e54))
+* **json_pointer:** all to escape `.`if an attribute contain this value. ([3d06f93](https://github.com/jmfiaschi/chewdata/commit/3d06f937b24620bdf3c0c045e2aab47590b1dfde))
+
+
+### Features
+
+* **extract:** add merge and replace methode for Value. Same as value.merge() but instead of append elements in a array, keep the same position and merge Value. ([c299ef9](https://github.com/jmfiaschi/chewdata/commit/c299ef9258192b604c5fe0ea9dd6e19ecf410870))
+
 # [2.5.0](https://github.com/jmfiaschi/chewdata/compare/v2.4.0...v2.5.0) (2024-01-04)
 
 
