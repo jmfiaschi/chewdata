@@ -1,3 +1,10 @@
+# [2.7.0](https://github.com/jmfiaschi/chewdata/compare/v2.6.0...v2.7.0) (2024-01-11)
+
+
+### Features
+
+* **local:** add cache for local connector ([#54](https://github.com/jmfiaschi/chewdata/issues/54)) ([8512b4c](https://github.com/jmfiaschi/chewdata/commit/8512b4cb696a17d6df214a6d1965c1ba342d5ad5))
+
 # [2.7.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.6.0...v2.7.0-beta.1) (2024-01-11)
 
 
