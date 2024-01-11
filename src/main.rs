@@ -40,12 +40,22 @@ async fn main() -> Result<()> {
 
     // Create new layer for stdout logs
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
+
+    #[cfg(feature = "apm")]
+    let layer = tracing_subscriber::fmt::layer()
+        .with_line_number(true)
+        .with_writer(non_blocking)
+        .with_filter(EnvFilter::from_default_env())
+        .boxed();
+
+    #[cfg(not(feature = "apm"))]
     let layer = tracing_subscriber::fmt::layer()
         .pretty()
         .with_line_number(true)
         .with_writer(non_blocking)
         .with_filter(EnvFilter::from_default_env())
         .boxed();
+
     layers.push(layer);
 
     tracing_subscriber::registry().with(layers).init();

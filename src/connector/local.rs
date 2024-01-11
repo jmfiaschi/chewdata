@@ -36,7 +36,8 @@ use super::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
-use crate::{DataSet, DataStream, Metadata};
+use crate::{DataResult, DataSet, DataStream, Metadata};
+use async_std::sync::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use fs2::FileExt;
@@ -46,12 +47,18 @@ use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::{Arc, OnceLock};
 use std::{
     fmt,
     io::{Error, ErrorKind, Read, Result, Seek, SeekFrom, Write},
 };
 use std::{fs, fs::OpenOptions};
+
+static CACHES: OnceLock<Arc<Mutex<HashMap<String, Vec<DataResult>>>>> = OnceLock::new();
 
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
@@ -62,6 +69,7 @@ pub struct Local {
     pub path: String,
     #[serde(alias = "params")]
     pub parameters: Value,
+    pub is_cached: bool,
 }
 
 impl fmt::Display for Local {
@@ -88,6 +96,7 @@ impl fmt::Debug for Local {
             .field("metadata", &self.metadata)
             .field("path", &self.path)
             .field("parameters", &self.parameters.display_only_for_debugging())
+            .field("is_cached", &self.is_cached)
             .finish()
     }
 }
@@ -98,6 +107,31 @@ impl Local {
             path,
             ..Default::default()
         }
+    }
+    fn cache_key(&self) -> String {
+        let mut hasher = DefaultHasher::new();
+        let key = format!("{}", self.path());
+        key.hash(&mut hasher);
+        hasher.finish().to_string()
+    }
+    pub async fn cache(&mut self) -> std::io::Result<Option<Vec<DataResult>>> {
+        let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+
+        let cache_key = self.cache_key();
+        if let Some(data_results) = caches.lock().await.get(&self.cache_key()) {
+            info!(cache_key, "Retrieve entries in the cache");
+            return Ok(Some(data_results.clone()));
+        }
+
+        Ok(None)
+    }
+    pub async fn set_cache(&mut self, dataset: &Vec<DataResult>) {
+        let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+
+        let cache_key = self.cache_key();
+        let mut map = caches.lock_arc().await;
+        map.insert(cache_key.clone(), dataset.clone());
+        info!(cache_key, "create entries in the cache");
     }
 }
 
@@ -294,6 +328,16 @@ impl Connector for Local {
             warn!(path = path, "This path is not fully resolved");
         }
 
+        if self.is_cached {
+            if let Some(dataset) = self.cache().await? {
+                return Ok(Some(Box::pin(stream! {
+                    for data in dataset {
+                        yield data;
+                    }
+                })));
+            }
+        }
+
         OpenOptions::new()
             .read(true)
             .write(false)
@@ -310,6 +354,10 @@ impl Connector for Local {
         }
 
         let dataset = document.read(&buff)?;
+
+        if self.is_cached {
+            self.set_cache(&dataset).await;
+        }
 
         Ok(Some(Box::pin(stream! {
             for data in dataset {
