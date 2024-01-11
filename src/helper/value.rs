@@ -198,6 +198,37 @@ fn attributes_extraction(
     Ok(())
 }
 
+// Trait that merge two objects together. Merging two array together will preserve the order and can replace values.
+pub trait MergeAndReplace {
+    /// Method use to merge two Json Values : ValueA <- ValueB. Merging two array together will preserve the order and can replace values.
+    fn merge_replace(&mut self, new_value: &Value);
+}
+
+impl MergeAndReplace for serde_json::Value {
+    fn merge_replace(&mut self, new_json_value: &Value) {
+        merge_replace(self, new_json_value);
+    }
+}
+
+fn merge_replace(a: &mut Value, b: &Value) {
+    match (a, b) {
+        (Value::Object(ref mut a), Value::Object(ref b)) => {
+            for (k, v) in b {
+                merge_replace(a.entry(k).or_insert(Value::default()), v);
+            }
+        }
+        (Value::Array(ref mut a), Value::Array(ref b)) => {
+            for (idx, value_b) in b.iter().enumerate() {
+                match a.get_mut(idx) {
+                    Some(value_a) => value_a.merge_replace(value_b),
+                    None => a.append(&mut vec![value_b.clone()]),
+                }
+            }
+        }
+        (a, b) => a.merge(b),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,5 +287,17 @@ mod tests {
         )
         .unwrap();
         assert_eq!(expected, object.extract("/field1/*/field.+").unwrap());
+    }
+    #[test]
+    fn test_merge_replace() {
+        let mut json_value: Value =
+            serde_json::from_str(r#"{"field":[{"field2":"value2"},{"field3":"value3"}]}"#).unwrap();
+        let json_value_to_merge: Value =
+            serde_json::from_str(r#"{"field":[{"field4":"value4"},{"field5":"value5"}]}"#).unwrap();
+        json_value.merge_replace(&json_value_to_merge);
+        assert_eq!(
+            r#"{"field":[{"field2":"value2","field4":"value4"},{"field3":"value3","field5":"value5"}]}"#,
+            json_value.to_string()
+        );
     }
 }
