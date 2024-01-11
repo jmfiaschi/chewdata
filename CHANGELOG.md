@@ -1,3 +1,10 @@
+# [2.6.0](https://github.com/jmfiaschi/chewdata/compare/v2.5.1...v2.6.0) (2024-01-11)
+
+
+### Features
+
+* **extract:** add merge_replace method for Value. Same as value.merge() but instead of append elements in a array, keep the same position and merge Value. ([#53](https://github.com/jmfiaschi/chewdata/issues/53)) ([d5e7d29](https://github.com/jmfiaschi/chewdata/commit/d5e7d29caf532c27321ad5d4e58a4ed947ee8698))
+
 # [2.6.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v2.6.0-beta.1...v2.6.0-beta.2) (2024-01-11)
 
 
