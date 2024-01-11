@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1704789197825,
+  "lastUpdate": 1704962727743,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -2735,6 +2735,102 @@ window.BENCHMARK_DATA = {
             "name": "password/",
             "value": 19190,
             "range": "± 99",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d5e7d29caf532c27321ad5d4e58a4ed947ee8698",
+          "message": "feat(extract): add merge_replace method for Value. Same as value.merge() but instead of append elements in a array, keep the same position and merge Value. (#53)\n\n* fix(csv): find the most deep object and not miss any columns to write in the csv file.\r\n* fix(json_pointer): all to escape `.`if an attribute contain this value.\r\n* fix(extract): able to extract from a object a list of attribute. allow regex.",
+          "timestamp": "2024-01-11T09:32:33+01:00",
+          "tree_id": "604c975e355a843403e3f856e9bb64c5fac7954a",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/d5e7d29caf532c27321ad5d4e58a4ed947ee8698"
+        },
+        "date": 1704962727075,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5581,
+            "range": "± 129",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5540,
+            "range": "± 50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 297985,
+            "range": "± 2602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 20174,
+            "range": "± 200",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10129,
+            "range": "± 75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13819,
+            "range": "± 52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 144753,
+            "range": "± 2003",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "words/",
+            "value": 19214,
+            "range": "± 1001",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sentences/",
+            "value": 19330,
+            "range": "± 299",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "paragraphs/",
+            "value": 19258,
+            "range": "± 686",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "phone_number/",
+            "value": 19444,
+            "range": "± 117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "password/",
+            "value": 19365,
+            "range": "± 100",
             "unit": "ns/iter"
           }
         ]
