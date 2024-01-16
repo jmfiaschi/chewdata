@@ -1,3 +1,10 @@
+# [2.8.0](https://github.com/jmfiaschi/chewdata/compare/v2.7.0...v2.8.0) (2024-1-16)
+
+
+### Features
+
+* **referential:** group in a struct and add cache for none dynamic connector ([#55](https://github.com/jmfiaschi/chewdata/issues/55)) ([5be00d4](https://github.com/jmfiaschi/chewdata/commit/5be00d492b8aab9f5b7f1853929eff386d751e6e))
+
 # [2.8.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.7.0...v2.8.0-beta.1) (2024-1-16)
 
 
