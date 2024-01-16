@@ -1,3 +1,17 @@
+# [2.8.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.7.0...v2.8.0-beta.1) (2024-1-16)
+
+
+### Bug Fixes
+
+* **referential:** doc ([00c9371](https://github.com/jmfiaschi/chewdata/commit/00c9371ce0b3db290bf0f32339d94409c34151d2))
+* **semantic-release:** node version >=20.8.1 is required. Found v18.19.0 ([6ed23e7](https://github.com/jmfiaschi/chewdata/commit/6ed23e7e2692ab56a7068b47d15f0f801158237a))
+
+
+### Features
+
+* **referential:** group in a struct and add cache for none dynamic connector. ([c928e60](https://github.com/jmfiaschi/chewdata/commit/c928e602ad79a6dbb34d5c32b3826010edc15029))
+* **referential:** group in a struct and add cache for none dynamic connector. ([5f19c06](https://github.com/jmfiaschi/chewdata/commit/5f19c067f0608a61cf155b53c51987911cce5036))
+
 # [2.7.0](https://github.com/jmfiaschi/chewdata/compare/v2.6.0...v2.7.0) (2024-01-11)
 
 
