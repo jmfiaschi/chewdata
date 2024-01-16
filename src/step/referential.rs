@@ -48,11 +48,11 @@ impl Referential {
     /// # Examples
     ///
     /// ```no_run
+    /// use chewdata::step::referential::Referential;
     /// use chewdata::step::reader::Reader;
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::{Connector, ConnectorType};
     /// use std::{io, collections::HashMap};
-    /// use chewdata::helper::referentials_reader_into_value;
     /// use serde_json::Value;
     /// use chewdata::DataResult;
     /// use chewdata::Context;
@@ -67,13 +67,14 @@ impl Referential {
     ///         connector_type: ConnectorType::InMemory(InMemory::new(r#"[{"column1":"value2"}]"#)),
     ///         ..Default::default()
     ///     };
-    ///     let mut referentials = HashMap::default();
-    ///     referentials.insert("ref_1".to_string(), referential_1);
-    ///     referentials.insert("ref_2".to_string(), referential_2);
+    ///     let mut hashmap = HashMap::default();
+    ///     hashmap.insert("ref_1".to_string(), referential_1);
+    ///     hashmap.insert("ref_2".to_string(), referential_2);
+    ///     let referentials = Referential::new(hashmap);
     ///
     ///     let context = Context::new("step_main".to_string(), DataResult::Ok(Value::Null)).unwrap();
     ///
-    ///     let values = referentials_reader_into_value(&referentials, &context).await?;
+    ///     let values = referentials.to_value(&context).await?;
     ///     let values_expected:HashMap<String, Vec<Value>> = serde_json::from_str(r#"{"ref_1":[{"column1":"value1"}],"ref_2":[{"column1":"value2"}]}"#).unwrap();
     ///
     ///     assert_eq!(values_expected, values);
