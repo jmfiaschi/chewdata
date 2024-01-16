@@ -1,11 +1,10 @@
-pub mod paginator;
-pub mod counter;
 #[cfg(feature = "curl")]
 pub mod authenticator;
 #[cfg(feature = "bucket")]
 pub mod bucket;
 #[cfg(feature = "bucket")]
 pub mod bucket_select;
+pub mod counter;
 #[cfg(feature = "curl")]
 pub mod curl;
 pub mod in_memory;
@@ -13,6 +12,7 @@ pub mod io;
 pub mod local;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
+pub mod paginator;
 #[cfg(feature = "psql")]
 pub mod psql;
 
@@ -29,17 +29,17 @@ use self::local::Local;
 use self::mongodb::Mongodb;
 #[cfg(feature = "psql")]
 use self::psql::Psql;
-use crate::DataSet;
 use crate::document::Document;
+use crate::DataSet;
 use crate::DataStream;
 use crate::Metadata;
 use async_trait::async_trait;
+use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
-use futures::stream::Stream;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "type")]
@@ -97,6 +97,26 @@ impl ConnectorType {
     }
 }
 
+impl ConnectorType {
+    pub fn inner(&self) -> &dyn Connector {
+        match self {
+            ConnectorType::InMemory(connector) => connector,
+            ConnectorType::Io(connector) => connector,
+            ConnectorType::Local(connector) => connector,
+            #[cfg(feature = "curl")]
+            ConnectorType::Curl(connector) => connector,
+            #[cfg(feature = "bucket")]
+            ConnectorType::Bucket(connector) => connector,
+            #[cfg(feature = "bucket")]
+            ConnectorType::BucketSelect(connector) => connector,
+            #[cfg(feature = "mongodb")]
+            ConnectorType::Mongodb(connector) => connector,
+            #[cfg(feature = "psql")]
+            ConnectorType::Psql(connector) => connector,
+        }
+    }
+}
+
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
 #[async_trait]
 pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
@@ -124,13 +144,22 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     /// Fetch data from the resource and set the inner of the connector.
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>>;
     /// Send the data from the inner connector to the remote resource.
-    async fn send(&mut self, document: &dyn Document, dataset: &DataSet) -> std::io::Result<Option<DataStream>>;
+    async fn send(
+        &mut self,
+        document: &dyn Document,
+        dataset: &DataSet,
+    ) -> std::io::Result<Option<DataStream>>;
     /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
-        Err(Error::new(ErrorKind::Unsupported, "function not implemented"))
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "function not implemented",
+        ))
     }
     /// Paginate through the current connector and return a stream of new connector with new parameters.
-    async fn paginate(&self) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>>;
+    async fn paginate(
+        &self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>>;
 }
 
 impl fmt::Display for dyn Connector {

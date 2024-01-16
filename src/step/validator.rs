@@ -88,14 +88,15 @@
 //!     ...
 //! ]
 //! ```
-use super::super::helper::referentials_reader_into_value;
 use super::DataResult;
+use super::reader::Reader;
+use super::referential::Referential;
 use crate::helper::json_pointer::JsonPointer;
 use crate::helper::mustache::Mustache;
 use crate::step::Step;
 use crate::updater::{ActionType, UpdaterType, INPUT_FIELD_KEY};
 use crate::Context;
-use crate::{step::reader::Reader, updater::Action};
+use crate::updater::Action;
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -103,9 +104,10 @@ use json_value_merge::Merge;
 use json_value_search::Search;
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     io,
 };
 use uuid::Uuid;
@@ -117,7 +119,7 @@ pub struct Validator {
     #[serde(alias = "u")]
     pub updater_type: UpdaterType,
     #[serde(alias = "refs")]
-    pub referentials: Option<HashMap<String, Reader>>,
+    pub referentials: HashMap<String, Reader>,
     #[serde(alias = "alias")]
     pub name: String,
     pub data_type: String,
@@ -136,7 +138,7 @@ impl Default for Validator {
         let uuid = Uuid::new_v4();
         Validator {
             updater_type: UpdaterType::default(),
-            referentials: None,
+            referentials: HashMap::default(),
             name: uuid.simple().to_string(),
             data_type: DataResult::OK.to_string(),
             concurrency_limit: 1,
@@ -239,11 +241,6 @@ impl Step for Validator {
         let mut receiver_stream = self.receive().await?;
 
         while let Some(ref mut context_received) = receiver_stream.next().await {
-            let referentials = match &self.referentials {
-                Some(referentials) => Some(referentials_reader_into_value(referentials, context_received).await?),
-                None => None,
-            };
-
             let data_result = context_received.input();
 
             
@@ -261,7 +258,7 @@ impl Step for Validator {
                 .update(
                     &record,
                     &context_received.steps(),
-                    &referentials,
+                    &Referential::new(self.referentials.clone()).to_value(context_received).await?,
                     &actions,
                 )
                 .and_then(|value| match value {

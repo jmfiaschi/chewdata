@@ -50,7 +50,7 @@ pub trait Updater: Send + Sync {
         &self,
         object: &Value,
         context: &Value,
-        mapping: &Option<HashMap<String, Vec<Value>>>,
+        mapping: &HashMap<String, Vec<Value>>,
         actions: &[Action],
     ) -> io::Result<Value>;
 }

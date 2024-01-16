@@ -2,6 +2,7 @@
 pub mod eraser;
 pub mod generator;
 pub mod reader;
+pub mod referential;
 pub mod transformer;
 pub mod validator;
 pub mod writer;
