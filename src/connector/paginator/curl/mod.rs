@@ -34,7 +34,7 @@ impl PaginatorType {
             PaginatorType::Offset(paginator) => {
                 let mut paginator = paginator.clone();
                 if paginator.count.is_none() && connector.counter_type.is_some() {
-                    paginator.count = Some(connector.clone().len().await?);
+                    paginator.count = Some(connector.len().await?);
                 }
 
                 paginator.paginate(connector).await

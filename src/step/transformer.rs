@@ -78,9 +78,9 @@
 //!     ...
 //! ]
 //! ```
-use super::super::helper::referentials_reader_into_value;
+use super::reader::Reader;
+use super::referential::Referential;
 use super::DataResult;
-use crate::step::reader::Reader;
 use crate::step::Step;
 use crate::updater::{Action, UpdaterType};
 use crate::Context;
@@ -89,7 +89,8 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, io};
+use std::collections::HashMap;
+use std::io;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -99,7 +100,7 @@ pub struct Transformer {
     #[serde(alias = "u")]
     pub updater_type: UpdaterType,
     #[serde(alias = "refs")]
-    pub referentials: Option<HashMap<String, Reader>>,
+    pub referentials: HashMap<String, Reader>,
     #[serde(alias = "alias")]
     pub name: String,
     pub data_type: String,
@@ -117,7 +118,7 @@ impl Default for Transformer {
         let uuid = Uuid::new_v4();
         Transformer {
             updater_type: UpdaterType::default(),
-            referentials: None,
+            referentials: HashMap::default(),
             name: uuid.simple().to_string(),
             data_type: DataResult::OK.to_string(),
             concurrency_limit: 1,
@@ -165,18 +166,13 @@ impl Step for Transformer {
                 self.send(context_received).await?;
                 continue;
             }
-
+            
             let record = data_result.to_value();
-
-            let referentials = match &self.referentials {
-                Some(referentials) => Some(referentials_reader_into_value(referentials, context_received).await?),
-                None => None,
-            };
 
             match self.updater_type.updater().update(
                 &record,
                 &context_received.to_value()?,
-                &referentials,
+                &Referential::new(self.referentials.clone()).to_value(context_received).await?,
                 &self.actions,
             ) {
                 Ok(new_record) => match new_record {

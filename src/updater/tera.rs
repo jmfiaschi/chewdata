@@ -29,7 +29,7 @@ impl Updater for Tera {
         &self,
         object: &Value,
         context: &Value,
-        mapping: &Option<HashMap<String, Vec<Value>>>,
+        mapping: &HashMap<String, Vec<Value>>,
         actions: &[Action],
     ) -> io::Result<Value> {
         let mut engine = Tera::engine();
@@ -38,10 +38,8 @@ impl Updater for Tera {
         tera_context.insert(super::INPUT_FIELD_KEY, &object);
         tera_context.insert(super::CONTEXT_FIELD_KEY, &context);
 
-        if let Some(mapping) = mapping {
-            for (field_path, object) in mapping {
-                tera_context.insert(&field_path.clone(), &object.clone());
-            }
+        for (field_path, object) in mapping {
+            tera_context.insert(&field_path.clone(), &object.clone());
         }
 
         let mut json_value = Value::default();

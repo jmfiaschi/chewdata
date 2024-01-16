@@ -1,5 +1,5 @@
 use chewdata::connector::in_memory::InMemory;
-use chewdata::connector::Connector;
+use chewdata::connector::{Connector, ConnectorClone};
 #[cfg(feature = "csv")]
 use chewdata::document::csv::Csv;
 use chewdata::document::json::Json;
@@ -17,6 +17,7 @@ use criterion::async_executor::FuturesExecutor;
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures::stream::StreamExt;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::{fs::OpenOptions, io::Read};
 
 fn document_read_benchmark(c: &mut Criterion) {
@@ -51,7 +52,7 @@ fn document_read_benchmark(c: &mut Criterion) {
 
         c.bench_function(format!("read_{}/", format).as_str(), move |b| {
             b.to_async(FuturesExecutor).iter(|| async {
-                let mut connector: Box<dyn Connector> = Box::new(connector.clone());
+                let mut connector: Box<dyn Connector> = connector.clone_box();
                 let mut dataset = connector.fetch(&*document).await.unwrap().unwrap();
                 while let Some(_) = dataset.next().await {}
             });
@@ -76,7 +77,7 @@ fn faker_benchmark(c: &mut Criterion) {
                 updater.update(
                     &Value::Null,
                     &Value::Null,
-                    &None,
+                    &HashMap::default(),
                     &vec![Action {
                         field: action_name.to_string(),
                         pattern: Some(action_pattern.to_string()),
