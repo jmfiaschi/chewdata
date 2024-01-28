@@ -7,6 +7,7 @@ pub mod transformer;
 pub mod validator;
 pub mod writer;
 
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{Context, DataResult};
 use async_channel::{Receiver, Sender};
 use async_std::stream;
@@ -115,7 +116,10 @@ pub trait Step: Send + Sync + StepClone {
 pub(crate) async fn send(sender: &Sender<Context>, context: &Context) {
     match sender.send(context.clone()).await {
         Ok(_) => {
-            trace!("Context sended into the channel")
+            trace!(
+                context = context.display_only_for_debugging(),
+                "Context sended in the channel"
+            )
         }
         Err(e) => {
             trace!(
@@ -134,7 +138,7 @@ pub(crate) async fn receive<'step>(
             match receiver.recv().await {
                 Ok(context_received) => {
                     trace!(
-                        context = format!("{:?}", context_received).as_str(),
+                        context = context_received.display_only_for_debugging(),
                         "A new context received from the channel"
                     );
 

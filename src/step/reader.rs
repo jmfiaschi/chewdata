@@ -191,7 +191,7 @@ async fn read<'step>(
 ) {            
     let dataset = match connector.fetch(document).await {
         Ok(Some(dataset)) => {
-            info!("forward read");
+            info!("read and forward data");
             dataset
         },
         Ok(None) => {

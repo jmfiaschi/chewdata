@@ -57,6 +57,7 @@
 //! | max_statistics_size  | -     | Max statistics size.                   | `null`        | unsigned number                                                                                                                                                       |
 //!
 use crate::document::Document;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::DataResult;
 use crate::{DataSet, Metadata};
 use arrow_integration_test::{schema_from_json, schema_to_json};
@@ -199,7 +200,7 @@ impl Document for Parquet {
                     Some(Value::Array(records)) => {
                         for record in records {
                             trace!(
-                                record = format!("{:?}", record).as_str(),
+                                record = record.display_only_for_debugging(),
                                 "Record deserialized"
                             );
                             dataset.push(DataResult::Ok(record));
@@ -207,7 +208,7 @@ impl Document for Parquet {
                     }
                     Some(record) => {
                         trace!(
-                            record = format!("{:?}", record).as_str(),
+                            record = record.display_only_for_debugging(),
                             "Record deserialized"
                         );
                         dataset.push(DataResult::Ok(record));
@@ -215,7 +216,7 @@ impl Document for Parquet {
                     None => {
                         warn!(
                             entry_path = format!("{:?}", entry_path).as_str(),
-                            record = format!("{:?}", record).as_str(),
+                            record = record.display_only_for_debugging(),
                             "Entry path not found"
                         );
                         dataset.push(DataResult::Err((
@@ -229,7 +230,7 @@ impl Document for Parquet {
                 },
                 None => {
                     trace!(
-                        record = format!("{:?}", record).as_str(),
+                        record = record.display_only_for_debugging(),
                         "Record deserialized"
                     );
                     dataset.push(DataResult::Ok(record));

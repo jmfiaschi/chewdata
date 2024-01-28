@@ -52,6 +52,7 @@
 //! [{"field1":"value1"},...]
 //! ```
 use crate::document::Document;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::helper::xml2json::JsonConfig;
 use crate::{DataResult, DataSet, Metadata};
 use json_value_merge::Merge;
@@ -199,14 +200,14 @@ impl Document for Xml {
             Some(record) => match record {
                 Value::Array(vec) => vec.into_iter().for_each(|record| {
                     trace!(
-                        record = format!("{:?}", &record).as_str(),
+                        record = record.display_only_for_debugging(),
                         "Record deserialized"
                     );
                     dataset.push(DataResult::Ok(record));
                 }),
                 _ => {
                     trace!(
-                        record = format!("{:?}", &record).as_str(),
+                        record = record.display_only_for_debugging(),
                         "Record deserialized"
                     );
                     dataset.push(DataResult::Ok(record));
@@ -215,7 +216,7 @@ impl Document for Xml {
             None => {
                 warn!(
                     entry_path = format!("{:?}", entry_path).as_str(),
-                    record = format!("{:?}", root_element).as_str(),
+                    record = root_element.display_only_for_debugging(),
                     "Entry path not found"
                 );
                 dataset.push(DataResult::Err((
@@ -281,7 +282,7 @@ impl Document for Xml {
         xml_without_root = xml_without_root.replace("\\n", "\n");
 
         trace!(
-            xml = format!("{:?}", &xml_without_root).as_str(),
+            xml = xml_without_root.display_only_for_debugging(),
             "Record serialized"
         );
 

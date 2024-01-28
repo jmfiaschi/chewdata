@@ -30,9 +30,11 @@
 //! Hello world !!!
 //! ```
 use crate::document::Document;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::Metadata;
 use crate::{DataResult, DataSet};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::io;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -77,9 +79,9 @@ impl Document for Byte {
     /// ```
     #[instrument(skip(buffer), name = "byte::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
-        let record = buffer.into();
+        let record: Value = buffer.into();
         trace!(
-            record = format!("{:?}", record).as_str(),
+            record = record.display_only_for_debugging(),
             "Record deserialized"
         );
         Ok(vec![DataResult::Ok(record)])
@@ -115,7 +117,7 @@ impl Document for Byte {
             buffer.append(&mut bytes);
 
             trace!(
-                record = format!("{:?}", record).as_str(),
+                record = record.display_only_for_debugging(),
                 "Record serialized"
             );
         }

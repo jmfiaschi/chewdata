@@ -50,6 +50,7 @@
 //! ]
 //! ```
 use crate::document::Document;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::DataResult;
 use crate::DataSet;
 use crate::Metadata;
@@ -135,7 +136,7 @@ impl Document for Json {
                     Some(Value::Array(records)) => {
                         for record in records {
                             trace!(
-                                record = format!("{:?}", record).as_str(),
+                                record = record.display_only_for_debugging(),
                                 "Record deserialized"
                             );
                             dataset.push(DataResult::Ok(record));
@@ -143,7 +144,7 @@ impl Document for Json {
                     }
                     Some(record) => {
                         trace!(
-                            record = format!("{:?}", record).as_str(),
+                            record = record.display_only_for_debugging(),
                             "Record deserialized"
                         );
                         dataset.push(DataResult::Ok(record));
@@ -151,7 +152,7 @@ impl Document for Json {
                     None => {
                         warn!(
                             entry_path = format!("{:?}", entry_path).as_str(),
-                            record = format!("{:?}", &record).as_str(),
+                            record = record.display_only_for_debugging(),
                             "Entry path not found in the record"
                         );
                         dataset.push(DataResult::Err((
@@ -166,7 +167,7 @@ impl Document for Json {
                 (Ok(Value::Array(records)), None) => {
                     for record in records {
                         trace!(
-                            record = format!("{:?}", record).as_str(),
+                            record = record.display_only_for_debugging(),
                             "Record deserialized"
                         );
                         dataset.push(DataResult::Ok(record.clone()));
@@ -174,7 +175,7 @@ impl Document for Json {
                 }
                 (Ok(record), None) => {
                     trace!(
-                        record = format!("{:?}", record).as_str(),
+                        record = record.display_only_for_debugging(),
                         "Record deserialized"
                     );
                     dataset.push(DataResult::Ok(record.clone()));
@@ -229,7 +230,7 @@ impl Document for Json {
                 };
 
                 trace!(
-                    record = format!("{:?}", value).as_str(),
+                    record = value.display_only_for_debugging(),
                     "Record serialized"
                 );
 

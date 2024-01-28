@@ -28,6 +28,7 @@
 //! ...
 //! ```
 use crate::document::Document;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::Metadata;
 use crate::{DataResult, DataSet};
 use serde::{Deserialize, Serialize};
@@ -96,7 +97,7 @@ impl Document for Toml {
                 .into_iter()
                 .map(|record| {
                     trace!(
-                        record = format!("{:?}", record).as_str(),
+                        record = record.display_only_for_debugging(),
                         "Record deserialized"
                     );
                     DataResult::Ok(record)
@@ -104,7 +105,7 @@ impl Document for Toml {
                 .collect(),
             record => {
                 trace!(
-                    record = format!("{:?}", record).as_str(),
+                    record = record.display_only_for_debugging(),
                     "Record deserialized"
                 );
                 vec![DataResult::Ok(record)]
@@ -146,7 +147,7 @@ impl Document for Toml {
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
             trace!(
-                record = format!("{:?}", record).as_str(),
+                record = record.display_only_for_debugging(),
                 "Record serialized"
             );
 

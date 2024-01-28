@@ -53,6 +53,7 @@
 extern crate csv;
 
 use crate::document::Document;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::helper::value::{Depth, Flatten};
 use crate::DataResult;
 use crate::{DataSet, Metadata};
@@ -200,7 +201,7 @@ impl Csv {
             .map(|record_result| match record_result {
                 Ok(record) => {
                     trace!(
-                        record = format!("{:?}", record).as_str(),
+                        record = record.display_only_for_debugging(),
                         "Record deserialized"
                     );
                     DataResult::Ok(Value::Object(record))
@@ -222,7 +223,7 @@ impl Csv {
             .map(|record_result| match record_result {
                 Ok(record) => {
                     trace!(
-                        record = format!("{:?}", record).as_str(),
+                        record = record.display_only_for_debugging(),
                         "Record deserialized"
                     );
                     let map = record
@@ -341,7 +342,7 @@ impl Document for Csv {
                 .serialize(record.flatten()?.values().cloned().collect::<Vec<Value>>())?;
 
             trace!(
-                record = format!("{:?}", record).as_str(),
+                record = record.display_only_for_debugging(),
                 "Record serialized"
             );
         }
