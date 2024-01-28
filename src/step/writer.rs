@@ -19,7 +19,7 @@
 //! | name          | alias   | Name step.                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type     | data    | Data type read for writing. skip other data type.                             | `ok`          | `ok` / `err`                                 |
 //! | concurrency_limit | -| Limit of steps to run in concurrence.                                        | `1`           | unsigned number                              |
-//! | dataset_size  | batch   | Stack size limit before to push data into the resource though the connector.     | `1000`        | unsigned number                              |
+//! | dataset_limit  | batch   | Stack size limit before to push data into the resource though the connector.     | `1000`        | unsigned number                              |
 //!
 //! ### Examples
 //!
@@ -37,7 +37,7 @@
 //!         },
 //!         "data": "ok",
 //!         "concurrency_limit": 1,
-//!         "dataset_size": 1000
+//!         "dataset_limit": 1000
 //!     },
 //!     {
 //!         "type": "writer",
@@ -79,7 +79,7 @@ pub struct Writer {
     #[serde(alias = "data")]
     pub data_type: String,
     #[serde(alias = "batch")]
-    pub dataset_size: usize,
+    pub dataset_limit: usize,
     pub concurrency_limit: usize,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
@@ -95,7 +95,7 @@ impl Default for Writer {
             document_type: DocumentType::default(),
             name: uuid.simple().to_string(),
             data_type: DataResult::OK.to_string(),
-            dataset_size: 1000,
+            dataset_limit: 1000,
             concurrency_limit: 1,
             receiver: None,
             sender: None,
@@ -127,7 +127,7 @@ impl Step for Writer {
         fields(name=self.name, 
         data_type=self.data_type,
         concurrency_limit=self.concurrency_limit,
-        dataset_size=self.dataset_size,
+        dataset_limit=self.dataset_limit,
     ))]
     async fn exec(&self) -> io::Result<()> {
         info!("Start writing data...");
@@ -136,7 +136,7 @@ impl Step for Writer {
         let document = self.document_type.clone().boxed_inner();
         let mut dataset = Vec::default();
 
-        let mut receiver_stream = self.receive().await?;
+        let mut receiver_stream = self.receive().await;
 
         connector.set_metadata(connector.metadata().merge(&document.metadata()));
 
@@ -147,7 +147,7 @@ impl Step for Writer {
         while let Some(context_received) = receiver_stream.next().await {
             if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("Handles only this data type");
-                self.send(&context_received).await?;
+                self.send(&context_received).await;
                 continue;
             }
             last_context_received = Some(context_received.clone());
@@ -160,11 +160,13 @@ impl Step for Writer {
                 {
                     match connector.send(&*document, &dataset).await {
                         Ok(_) => {
+                            info!("Write data with success");
+
                             for data in dataset {
                                 let mut context = context_received.clone();
-                                context.insert_step_result(self.name(), data)?;
+                                context.insert_step_result(self.name(), data);
 
-                                self.send(&context).await?;
+                                self.send(&context).await;
                             }
                         }
                         Err(e) => {
@@ -182,9 +184,9 @@ impl Step for Writer {
                                         data.to_value(),
                                         io::Error::new(e.kind(), e.to_string()),
                                     )),
-                                )?;
+                                );
 
-                                self.send(&context).await?;
+                                self.send(&context).await;
                             }
                         }
                     };
@@ -196,14 +198,17 @@ impl Step for Writer {
             connector.set_parameters(context_received.to_value()?);
             dataset.push(context_received.input());
 
-            if self.dataset_size <= dataset.len() && document.can_append() {
+            info!(dataset_length = dataset.len(), "data added into the dataset");
+
+            if self.dataset_limit <= dataset.len() && document.can_append() {
                 match connector.send(&*document, &dataset).await {
                     Ok(_) => {
-                        info!("Send data with success");
+                        info!("Write data with success");
+
                         for data in dataset {
                             let mut context = context_received.clone();
-                            context.insert_step_result(self.name(), data)?;
-                            self.send(&context).await?;
+                            context.insert_step_result(self.name(), data);
+                            self.send(&context).await;
                         }
                     }
                     Err(e) => {
@@ -221,9 +226,9 @@ impl Step for Writer {
                                     data.to_value(),
                                     io::Error::new(e.kind(), e.to_string()),
                                 )),
-                            )?;
+                            );
 
-                            self.send(&context).await?;
+                            self.send(&context).await;
                         }
                     }
                 };
@@ -234,24 +239,25 @@ impl Step for Writer {
 
         if !dataset.is_empty() {
             info!(
-                dataset_size = dataset.len(),
+                dataset_limit = dataset.len(),
                 "Last write"
             );
 
             match connector.send(&*document, &dataset).await {
                 Ok(_) => {
                     info!("Write data with success");
+
                     for data in dataset {
                         let context = match &last_context_received {
                             Some(context_received) => {
                                 let mut context = context_received.clone();
-                                context.insert_step_result(self.name(), data)?;
+                                context.insert_step_result(self.name(), data);
                                 context
                             }
-                            None => Context::new(self.name(), data)?,
+                            None => Context::new(self.name(), data),
                         };
 
-                        self.send(&context).await?;
+                        self.send(&context).await;
                     }
                 }
                 Err(e) => {
@@ -271,7 +277,7 @@ impl Step for Writer {
                                         data.to_value(),
                                         io::Error::new(e.kind(), e.to_string()),
                                     )),
-                                )?;
+                                );
                                 context
                             }
                             None => Context::new(
@@ -280,17 +286,17 @@ impl Step for Writer {
                                     data.to_value(),
                                     io::Error::new(e.kind(), e.to_string()),
                                 )),
-                            )?,
+                            ),
                         };
 
-                        self.send(&context).await?;
+                        self.send(&context).await;
                     }
                 }
             };
         }
 
-        trace!(
-            "Terminate with success. It stops sending context and it disconnect the channel"
+        info!(
+            "Stops writing data and sending context in the channel"
         );
 
         Ok(())
@@ -319,7 +325,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error)));
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -338,12 +344,10 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone()));
 
         let mut expected_context = context.clone();
-        expected_context
-            .insert_step_result("my_step".to_string(), DataResult::Ok(data.clone()))
-            .unwrap();
+        expected_context.insert_step_result("my_step".to_string(), DataResult::Ok(data.clone()));
 
         thread::spawn(move || {
             sender_input.try_send(context).unwrap();

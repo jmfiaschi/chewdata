@@ -23,14 +23,16 @@ pub struct Referential {
 static CACHES: OnceLock<Arc<Mutex<HashMap<String, Vec<Value>>>>> = OnceLock::new();
 
 impl Referential {
-    pub fn new(readers: HashMap<String, Reader>) -> Self {
-        Referential { readers }
+    pub fn new(readers: &HashMap<String, Reader>) -> Self {
+        Referential {
+            readers: readers.clone(),
+        }
     }
     pub async fn cache(&self, referential_name: &String) -> std::io::Result<Option<Vec<Value>>> {
         let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
 
         if let Some(results) = caches.lock().await.get(referential_name) {
-            info!(referential_name, "Retrieve entries from the cache");
+            trace!(referential_name, "Retrieve entries from the cache");
             return Ok(Some(results.clone()));
         }
 
@@ -40,8 +42,11 @@ impl Referential {
         let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
 
         let mut map = caches.lock_arc().await;
+        if map.contains_key(referential_name) {
+            return;
+        }
         map.insert(referential_name.clone(), values.clone());
-        info!(referential_name, "create entries in the cache");
+        trace!(referential_name, "create entries in the cache");
     }
     /// Return a HashMap of (string, values).
     ///
@@ -109,7 +114,7 @@ impl Referential {
             sender_output.close();
 
             let values = receive(&receiver_output)
-                .await?
+                .await
                 .map(|context| context.input().to_value())
                 .collect()
                 .await;
@@ -152,9 +157,9 @@ mod tests {
         map.insert("ref_1".to_string(), referential_1);
         map.insert("ref_2".to_string(), referential_2);
 
-        let referential = Referential::new(map);
+        let referential = Referential::new(&map);
 
-        let context = Context::new("step_main".to_string(), DataResult::Ok(Value::Null)).unwrap();
+        let context = Context::new("step_main".to_string(), DataResult::Ok(Value::Null));
 
         let values = referential.to_value(&context).await.unwrap();
 

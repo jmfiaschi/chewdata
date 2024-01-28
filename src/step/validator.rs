@@ -98,6 +98,7 @@ use crate::updater::{ActionType, UpdaterType, INPUT_FIELD_KEY};
 use crate::Context;
 use crate::updater::Action;
 use async_channel::{Receiver, Sender};
+use async_std::task;
 use async_trait::async_trait;
 use futures::StreamExt;
 use json_value_merge::Merge;
@@ -227,7 +228,13 @@ impl Step for Validator {
     ))]
     async fn exec(&self) -> io::Result<()> {
         info!("Start validating data...");
-        
+    
+
+        let receiver_stream = self.receive().await;
+
+        trace!("Warm up static referential before using it in the concurrent execution.");
+        Referential::new(&self.referentials).to_value(&Context::new(String::default(), DataResult::Ok(Value::default()))).await?;
+
         let actions: Vec<Action> = self
             .rules
             .iter()
@@ -238,92 +245,22 @@ impl Step for Validator {
             })
             .collect();
 
-        let mut receiver_stream = self.receive().await?;
+        // Validate in parallel mode.
+        let results: Vec<_> = receiver_stream.map(|context_received| {
+            let step = self.clone();
+            let actions = actions.clone();
+            task::spawn(async move {
+            parallel_exec(&step, &mut context_received.clone(), &actions.clone()).await
+        })}).buffer_unordered(10).collect().await;
 
-        while let Some(ref mut context_received) = receiver_stream.next().await {
-            let data_result = context_received.input();
+        results
+            .into_iter()
+            .filter(|result| result.is_err())
+            .map(|result| warn!("{:?}", result))
+            .for_each(drop);
 
-            
-            if !data_result.is_type(self.data_type.as_ref()) {
-                trace!("Handles only this data type");
-                self.send(context_received).await?;
-                continue;
-            }
-
-            let record = data_result.to_value();
-
-            let validator_result = self
-                .updater_type
-                .updater()
-                .update(
-                    &record,
-                    &context_received.steps(),
-                    &Referential::new(self.referentials.clone()).to_value(context_received).await?,
-                    &actions,
-                )
-                .and_then(|value| match value {
-                    Value::Object(_) => Ok(value),
-                    _ => Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        format!("The validation's result must be a boolean and not '{:?}'", value),
-                    )),
-                })
-                .and_then(|value| {
-                    let mut errors = String::default();
-
-                    for (rule_name, rule) in &self.rules {
-                        let value_result =
-                            value.clone().search(rule_name.to_json_pointer().as_str());
-
-                        let mut error = match value_result {
-                            Ok(Some(Value::Bool(true))) => continue,
-                            Ok(Some(Value::Bool(false))) => {
-                                rule.message.clone().unwrap_or(format!("The rule '{}' failed", rule_name))
-                            }
-                            Ok(Some(_)) => format!(
-                                "The rule '{}' has invalid result pattern '{:?}', it must be a boolean",
-                                rule_name,
-                                value_result.unwrap().unwrap()
-                            ),
-                            Ok(None) => format!(
-                                "The rule '{}' is not found in the validation result '{:?}'",
-                                rule_name,
-                                value_result.unwrap()
-                            ),
-                            Err(e) => e.to_string(),
-                        };
-
-                        if !errors.is_empty() {
-                            errors.push_str(self.error_separator.as_str());
-                        }
-
-                        let mut params = Value::default();
-                        params.merge_in(&format!("/{}", INPUT_FIELD_KEY), &record)?;
-                        params.merge_in("/rule/name", &Value::String(rule_name.clone()))?;
-
-                        error.replace_mustache(params);
-
-                        errors.push_str(error.as_str());
-                    }
-
-                    if !errors.is_empty() {
-                        Err(Error::new(ErrorKind::InvalidInput, errors))
-                    } else {
-                        Ok(record.clone())
-                    }
-                });
-
-            let new_data_result = match validator_result {
-                Ok(record) => DataResult::Ok(record),
-                Err(e) => DataResult::Err((record.clone(), e)),
-            };
-
-            context_received.insert_step_result(self.name(), new_data_result)?;
-            self.send(context_received).await?;
-        }
-
-        trace!(
-            "Terminate with success. It stops sending context and it disconnect the channel"
+        info!(
+            "StopIt stops sending context and it disconnect the channel"
         );
 
         Ok(())
@@ -334,6 +271,90 @@ impl Step for Validator {
     fn name(&self) -> String {
         self.name.clone()
     }
+}
+
+#[instrument(name = "validator::parallel_exec", skip(step, context_received))]
+async fn parallel_exec(step: &Validator, context_received: &mut Context, actions: &Vec<Action>) -> io::Result<()> {
+    let data_result = context_received.input();
+
+    if !data_result.is_type(step.data_type.as_ref()) {
+        trace!("Handles only this data type");
+        step.send(context_received).await;
+        return Ok(());
+    }
+
+    let record = data_result.to_value();
+
+    let validator_result = step
+        .updater_type
+        .updater()
+        .update(
+            &record,
+            &context_received.steps(),
+            &Referential::new(&step.referentials).to_value(context_received).await?,
+            &actions,
+        )
+        .and_then(|value| match value {
+            Value::Object(_) => Ok(value),
+            _ => Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("The validation's result must be a boolean and not '{:?}'", value),
+            )),
+        })
+        .and_then(|value| {
+            let mut errors = String::default();
+
+            for (rule_name, rule) in &step.rules {
+                let value_result =
+                    value.clone().search(rule_name.to_json_pointer().as_str());
+
+                let mut error = match value_result {
+                    Ok(Some(Value::Bool(true))) => continue,
+                    Ok(Some(Value::Bool(false))) => {
+                        rule.message.clone().unwrap_or(format!("The rule '{}' failed", rule_name))
+                    }
+                    Ok(Some(_)) => format!(
+                        "The rule '{}' has invalid result pattern '{:?}', it must be a boolean",
+                        rule_name,
+                        value_result.unwrap().unwrap()
+                    ),
+                    Ok(None) => format!(
+                        "The rule '{}' is not found in the validation result '{:?}'",
+                        rule_name,
+                        value_result.unwrap()
+                    ),
+                    Err(e) => e.to_string(),
+                };
+
+                if !errors.is_empty() {
+                    errors.push_str(step.error_separator.as_str());
+                }
+
+                let mut params = Value::default();
+                params.merge_in(&format!("/{}", INPUT_FIELD_KEY), &record)?;
+                params.merge_in("/rule/name", &Value::String(rule_name.clone()))?;
+
+                error.replace_mustache(params);
+
+                errors.push_str(error.as_str());
+            }
+
+            if !errors.is_empty() {
+                Err(Error::new(ErrorKind::InvalidInput, errors))
+            } else {
+                Ok(record.clone())
+            }
+        });
+
+    let new_data_result = match validator_result {
+        Ok(record) => DataResult::Ok(record),
+        Err(e) => DataResult::Err((record.clone(), e)),
+    };
+
+    context_received.insert_step_result(step.name(), new_data_result);
+    step.send(context_received).await;
+
+    Ok(())
 }
 
 #[derive(Debug, Deserialize, Clone, Default)]
@@ -354,7 +375,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error)));
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -373,12 +394,10 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone()));
 
         let mut expected_context = context.clone();
-        expected_context
-            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
-            .unwrap();
+        expected_context.insert_step_result("my_step".to_string(), DataResult::Ok(data));
 
         thread::spawn(move || {
             sender_input.try_send(context).unwrap();
@@ -435,7 +454,7 @@ mod tests {
                 serde_json::from_str(r#"{"number_1":"my_string","number_2":100,"text":"120"}"#)
                     .unwrap();
             let context =
-                Context::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+                Context::new("step_data_loading".to_string(), DataResult::Ok(data));
             sender_input.try_send(context).unwrap();
         });
         validator.exec().await.unwrap();
@@ -474,7 +493,7 @@ mod tests {
         thread::spawn(move || {
             let data = serde_json::from_str(r#"{"number":100}"#).unwrap();
             let context =
-                Context::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+                Context::new("step_data_loading".to_string(), DataResult::Ok(data));
             sender_input.try_send(context).unwrap();
         });
         validator.exec().await.unwrap();
