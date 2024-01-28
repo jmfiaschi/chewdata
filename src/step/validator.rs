@@ -245,12 +245,12 @@ impl Step for Validator {
             })
             .collect();
 
-        // Validate in parallel mode.
+        // Validate in concurrence with parallelism.
         let results: Vec<_> = receiver_stream.map(|context_received| {
             let step = self.clone();
             let actions = actions.clone();
             task::spawn(async move {
-            parallel_exec(&step, &mut context_received.clone(), &actions.clone()).await
+            validate(&step, &mut context_received.clone(), &actions.clone()).await
         })}).buffer_unordered(10).collect().await;
 
         results
@@ -260,7 +260,7 @@ impl Step for Validator {
             .for_each(drop);
 
         info!(
-            "StopIt stops sending context and it disconnect the channel"
+            "Stops validating and sending context in the channel"
         );
 
         Ok(())
@@ -273,8 +273,8 @@ impl Step for Validator {
     }
 }
 
-#[instrument(name = "validator::parallel_exec", skip(step, context_received))]
-async fn parallel_exec(step: &Validator, context_received: &mut Context, actions: &Vec<Action>) -> io::Result<()> {
+#[instrument(name = "validator::validate", skip(step, context_received))]
+async fn validate(step: &Validator, context_received: &mut Context, actions: &Vec<Action>) -> io::Result<()> {
     let data_result = context_received.input();
 
     if !data_result.is_type(step.data_type.as_ref()) {

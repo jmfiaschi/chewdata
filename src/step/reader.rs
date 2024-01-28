@@ -15,10 +15,11 @@
 //! | key         | alias | Description                                                                     | Default Value | Possible Values                              |
 //! | ----------- | ----- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |
 //! | type        | -     | Required in order to use reader step                                            | `reader`      | `reader` / `read` / `r`                      |
-//! | connector   | conn  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
-//! | document    | doc   | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]   |
-//! | name        | alias | Step name                                                                        | `null`        | Auto generate alphanumeric value             |
+//! | connector   | conn  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`]                     |
+//! | document    | doc   | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]                      |
+//! | name        | alias | Step name                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
+//! | concurrency_limit | - | Limit of steps to run in conccuence.                                          | `1`           | unsigned number                              |
 //!
 //! ### Examples
 //!
@@ -82,7 +83,7 @@ impl Default for Reader {
             data_type: DataResult::OK.to_string(),
             receiver: None,
             sender: None,
-            concurrency_limit: 10,
+            concurrency_limit: 1,
         }
     }
 }
@@ -148,7 +149,7 @@ impl Step for Reader {
                     let step = self.clone();
                     let context = Some(context_received.clone());
                     async move {
-                        concurrency_exec(&step, &mut connector.clone(), document, &context).await;
+                        read(&step, &mut connector.clone(), document, &context).await;
                 }}).await;
         }
 
@@ -169,13 +170,11 @@ impl Step for Reader {
                 .for_each_concurrent(None, |connector| {
                     let step = self.clone();
                     async move {
-                        concurrency_exec(&step, &mut connector.clone(), document, &None).await;
+                        read(&step, &mut connector.clone(), document, &None).await;
                 }}).await;
         }
 
-        info!(
-            "Stops reading data and sending context and it disconnect the channel"
-        );
+        info!("Stops reading data and sending context in the channel");
 
         Ok(())
     }
@@ -184,7 +183,7 @@ impl Step for Reader {
     }
 }
 
-async fn concurrency_exec<'step>(
+async fn read<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
     document: &'step dyn Document,

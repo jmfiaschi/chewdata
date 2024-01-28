@@ -18,7 +18,7 @@
 //! | referentials  | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the transformation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
 //! | name          | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                      |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                          |
-//! | concurrency_limit | -       | Limit of steps to run in conccuence.                                                                          | `1`           | unsigned number                                       |                                                           | `output`      | String                                                |
+//! | concurrency_limit | -       | Limit of steps to run in conccuence.                                                                          | `1`           | unsigned number                                       |
 //!
 //! #### Action
 //!
@@ -164,12 +164,13 @@ impl Step for Transformer {
         trace!("Warm up static referential before using it in the concurrent execution.");
         Referential::new(&self.referentials).to_value(&Context::new(String::default(), DataResult::Ok(Value::default()))).await?;
 
-        // Transform in parallel mode.
+        // Transform in concurrence with parallelism.
         let results: Vec<_> = receiver_stream.map(|context_received| {
             let step = self.clone();
             task::spawn(async move {
-            parallel_exec(&step, &mut context_received.clone()).await
-        })}).buffer_unordered(self.concurrency_limit).collect().await;
+                transform(&step, &mut context_received.clone()).await
+            })
+        }).buffer_unordered(self.concurrency_limit).collect().await;
 
         results
             .into_iter()
@@ -186,8 +187,8 @@ impl Step for Transformer {
     }
 }
 
-#[instrument(name = "transformer::parallel_exec", skip(step, context_received))]
-async fn parallel_exec(step: &Transformer, context_received: &mut Context) -> io::Result<()> {
+#[instrument(name = "transformer::transform", skip(step, context_received))]
+async fn transform(step: &Transformer, context_received: &mut Context) -> io::Result<()> {
     let data_result = context_received.input();
     if !data_result.is_type(step.data_type.as_ref()) {
         trace!("Handles only this data type");
