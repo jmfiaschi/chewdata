@@ -44,11 +44,11 @@ async fn main() -> io::Result<()> {
     thread::spawn(move || {
         let data: serde_json::Value =
             serde_json::from_str(r#"{"field_1":"value_1","field_2":"value_1"}"#).unwrap();
-        let context = Context::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+        let context = Context::new("step_data_loading".to_string(), DataResult::Ok(data));
         sender_input.try_send(context).unwrap();
 
         let data = serde_json::from_str(r#"{"field_1":"value_2","field_2":"value_2"}"#).unwrap();
-        let context = Context::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+        let context = Context::new("step_data_loading".to_string(), DataResult::Ok(data));
         sender_input.try_send(context).unwrap();
     });
 

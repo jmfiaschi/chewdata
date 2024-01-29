@@ -294,6 +294,7 @@ async fn validate(step: &Validator, context_received: &mut Context, actions: &Ve
             &Referential::new(&step.referentials).to_value(context_received).await?,
             &actions,
         )
+        .await
         .and_then(|value| match value {
             Value::Object(_) => Ok(value),
             _ => Err(Error::new(

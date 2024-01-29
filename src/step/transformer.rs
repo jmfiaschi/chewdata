@@ -203,7 +203,7 @@ async fn transform(step: &Transformer, context_received: &mut Context) -> io::Re
         &context_received.to_value()?,
         &Referential::new(&step.referentials).to_value(context_received).await?,
         &step.actions,
-    ) {
+    ).await {
         Ok(new_record) => match &new_record {
             Value::Array(array) => {
                 info!(

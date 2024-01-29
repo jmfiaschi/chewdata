@@ -2,6 +2,7 @@ mod tera;
 pub mod tera_helpers;
 
 use self::tera::Tera;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -44,9 +45,10 @@ impl UpdaterType {
 }
 
 /// Trait to format a field of an object with a template engine and a template field.
+#[async_trait]
 pub trait Updater: Send + Sync {
     /// Update the object with some mapping
-    fn update(
+    async fn update(
         &self,
         object: &Value,
         context: &Value,

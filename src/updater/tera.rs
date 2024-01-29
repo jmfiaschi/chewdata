@@ -3,7 +3,10 @@ extern crate tera;
 use super::Updater;
 use super::{Action, ActionType};
 use crate::helper::json_pointer::JsonPointer;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::updater::tera_helpers::{filters, function};
+use async_std::sync::Mutex;
+use async_trait::async_trait;
 use json_value_merge::Merge;
 use json_value_remove::Remove;
 use json_value_resolve::Resolve;
@@ -11,7 +14,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error as StdError;
+use std::sync::{Arc, OnceLock};
 use std::{fmt, io};
+use tera::Tera as TeraClient;
+
+static ENGINE: OnceLock<Arc<Mutex<Option<TeraClient>>>> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
@@ -23,37 +30,52 @@ impl fmt::Display for Tera {
     }
 }
 
+#[async_trait]
 impl Updater for Tera {
-    #[instrument(name = "tera::update")]
-    fn update(
+    #[instrument(name = "tera::update", skip(self, object, context, mapping, actions))]
+    async fn update(
         &self,
         object: &Value,
         context: &Value,
         mapping: &HashMap<String, Vec<Value>>,
         actions: &[Action],
     ) -> io::Result<Value> {
-        let mut engine = Tera::engine();
-        let mut tera_context = tera::Context::new();
+        trace!("Update start...");
 
-        tera_context.insert(super::INPUT_FIELD_KEY, &object);
-        tera_context.insert(super::CONTEXT_FIELD_KEY, &context);
+        let mut engine = self.engine().await;
+
+        let mut context_value = Value::default();
+        context_value.merge_in(format!("/{}", super::INPUT_FIELD_KEY).as_str(), &object)?;
+        context_value.merge_in(format!("/{}", super::CONTEXT_FIELD_KEY).as_str(), &context)?;
 
         for (field_path, object) in mapping {
-            tera_context.insert(&field_path.clone(), &object.clone());
+            context_value.merge_in(
+                format!("/{}", field_path).as_str(),
+                &Value::Array(object.clone()),
+            )?;
         }
 
-        let mut json_value = Value::default();
+        let mut tera_context = tera::Context::from_value(context_value).unwrap();
+
+        let mut output = Value::default();
         for action in actions {
             trace!(
-                field = action.field.as_str(),
-                "Field fetch into the pattern collection"
+                output = output.display_only_for_debugging(),
+                "Current output"
             );
-            tera_context.insert(super::OUPUT_FIELD_KEY, &json_value.clone());
+
+            tera_context.insert(super::OUPUT_FIELD_KEY, &output);
 
             let mut field_new_value = Value::default();
 
             match &action.pattern {
                 Some(pattern) => {
+                    trace!(
+                        field = action.field.as_str(),
+                        pattern = pattern,
+                        "Field/Pattern that will be apply on the output"
+                    );
+
                     let render_result: String =
                         match engine.render_str(pattern.as_str(), &tera_context) {
                             Ok(render_result) => Ok(render_result),
@@ -75,13 +97,16 @@ impl Updater for Tera {
                                 ),
                             )),
                         }?;
+
                     trace!(
-                        value = render_result.as_str(),
+                        value = render_result.display_only_for_debugging(),
                         "Field value before resolved it"
                     );
+
                     field_new_value = Value::resolve(render_result);
+
                     trace!(
-                        value = format!("{}", field_new_value).as_str(),
+                        value = field_new_value.display_only_for_debugging(),
                         "Field value after resolved it"
                     );
                 }
@@ -91,36 +116,47 @@ impl Updater for Tera {
             let json_pointer = action.field.to_json_pointer();
 
             trace!(
-                output = format!("{}", json_value).as_str(),
+                output = output.display_only_for_debugging(),
                 jpointer = json_pointer.to_string().as_str(),
-                data = format!("{}", field_new_value).as_str(),
+                data = field_new_value.display_only_for_debugging(),
                 "{:?} the new field",
                 action.action_type
             );
 
             match action.action_type {
                 ActionType::Merge => {
-                    json_value.merge_in(&json_pointer, &field_new_value)?;
+                    output.merge_in(&json_pointer, &field_new_value)?;
                 }
                 ActionType::Replace => {
-                    json_value.merge_in(&json_pointer, &Value::Null)?;
-                    json_value.merge_in(&json_pointer, &field_new_value)?;
+                    output.merge_in(&json_pointer, &Value::Null)?;
+                    output.merge_in(&json_pointer, &field_new_value)?;
                 }
                 ActionType::Remove => {
-                    json_value.remove(&json_pointer)?;
+                    output.remove(&json_pointer)?;
                 }
             }
         }
 
-        trace!(output = format!("{}", json_value).as_str(), "Update ended");
-        Ok(json_value)
+        trace!(
+            output = output.display_only_for_debugging(),
+            "Output updated with success"
+        );
+
+        Ok(output)
     }
 }
 
 impl Tera {
-    fn engine() -> tera::Tera {
-        let mut engine = tera::Tera::default();
+    async fn engine(&self) -> tera::Tera {
+        let arc = ENGINE.get_or_init(|| Arc::new(Mutex::new(None)));
 
+        if let Some(engine) = arc.lock().await.clone() {
+            return engine;
+        }
+
+        let mut guard = arc.lock_arc().await;
+
+        let mut engine = tera::Tera::default();
         engine.autoescape_on(vec![]);
         // register new filter
         engine.register_filter("merge", filters::object::merge);
@@ -176,6 +212,8 @@ impl Tera {
         engine.register_function("fake_credit_card", function::faker::credit_card);
         engine.register_function("fake_barcode", function::faker::barcode);
         engine.register_function("fake_password", function::faker::password);
+
+        *guard = Some(engine.clone());
 
         engine
     }
