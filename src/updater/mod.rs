@@ -5,7 +5,6 @@ use self::tera::Tera;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::io;
 
 pub const INPUT_FIELD_KEY: &str = "input";
@@ -52,7 +51,7 @@ pub trait Updater: Send + Sync {
         &self,
         object: &Value,
         context: &Value,
-        mapping: &HashMap<String, Vec<Value>>,
+        mapping: &Value,
         actions: &[Action],
     ) -> io::Result<Value>;
 }

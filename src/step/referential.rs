@@ -6,7 +6,7 @@ use std::{
 use async_std::{sync::Mutex, task};
 use futures::StreamExt;
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::io;
 
 use crate::Context;
@@ -20,7 +20,7 @@ pub struct Referential {
     readers: HashMap<String, Reader>,
 }
 
-static CACHES: OnceLock<Arc<Mutex<HashMap<String, Vec<Value>>>>> = OnceLock::new();
+static CACHES: OnceLock<Arc<Mutex<Map<String, Value>>>> = OnceLock::new();
 
 impl Referential {
     pub fn new(readers: &HashMap<String, Reader>) -> Self {
@@ -28,24 +28,18 @@ impl Referential {
             readers: readers.clone(),
         }
     }
-    pub async fn cache(&self, referential_name: &String) -> std::io::Result<Option<Vec<Value>>> {
-        let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
-
-        if let Some(results) = caches.lock().await.get(referential_name) {
-            trace!(referential_name, "Retrieve entries from the cache");
-            return Ok(Some(results.clone()));
-        }
-
-        Ok(None)
+    pub async fn cache(&self) -> Map<String, Value> {
+        let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(Map::default())));
+        caches.lock().await.clone()
     }
-    pub async fn set_cache(&self, referential_name: &String, values: &Vec<Value>) {
-        let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+    pub async fn set_cache(&self, referential_name: &String, referential_value: &Value) {
+        let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(Map::default())));
 
         let mut map = caches.lock_arc().await;
         if map.contains_key(referential_name) {
             return;
         }
-        map.insert(referential_name.clone(), values.clone());
+        map.insert(referential_name.clone(), referential_value.clone());
         trace!(referential_name, "create entries in the cache");
     }
     /// Return a HashMap of (string, values).
@@ -87,12 +81,11 @@ impl Referential {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn to_value(&self, context: &Context) -> io::Result<HashMap<String, Vec<Value>>> {
-        let mut referentials_vec = HashMap::new();
+    pub async fn to_value(&self, context: &Context) -> io::Result<Value> {
+        let mut referential_cache = self.cache().await;
 
         for (name, reader) in &self.readers {
-            if let Some(values) = &self.cache(name).await? {
-                referentials_vec.insert(name.clone(), values.clone());
+            if let Some(_) = referential_cache.get(name) {
                 continue;
             }
 
@@ -116,17 +109,17 @@ impl Referential {
             let values = receive(&receiver_output)
                 .await
                 .map(|context| context.input().to_value())
-                .collect()
+                .collect::<Vec<Value>>()
                 .await;
 
             if !reader.connector_type.inner().is_variable() {
-                self.set_cache(name, &values).await;
+                self.set_cache(name, &Value::Array(values.clone())).await;
             }
 
-            referentials_vec.insert(name.clone(), values);
+            referential_cache.insert(name.clone(), Value::Array(values));
         }
 
-        Ok(referentials_vec)
+        Ok(Value::Object(referential_cache))
     }
 }
 
@@ -163,7 +156,7 @@ mod tests {
 
         let values = referential.to_value(&context).await.unwrap();
 
-        let values_expected: HashMap<String, Vec<Value>> = serde_json::from_str(
+        let values_expected: Value = serde_json::from_str(
             r#"{"ref_1":[{"column1":"value1"},{"column1":"value2"}],"ref_2":[{"column1":"value3"},{"column1":"value4"}]}"#,
         )
         .unwrap();

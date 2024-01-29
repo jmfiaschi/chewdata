@@ -12,7 +12,6 @@ use json_value_remove::Remove;
 use json_value_resolve::Resolve;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::sync::{Arc, OnceLock};
 use std::{fmt, io};
@@ -37,7 +36,7 @@ impl Updater for Tera {
         &self,
         object: &Value,
         context: &Value,
-        mapping: &HashMap<String, Vec<Value>>,
+        mapping: &Value,
         actions: &[Action],
     ) -> io::Result<Value> {
         trace!("Update start...");
@@ -47,13 +46,7 @@ impl Updater for Tera {
         let mut context_value = Value::default();
         context_value.merge_in(format!("/{}", super::INPUT_FIELD_KEY).as_str(), &object)?;
         context_value.merge_in(format!("/{}", super::CONTEXT_FIELD_KEY).as_str(), &context)?;
-
-        for (field_path, object) in mapping {
-            context_value.merge_in(
-                format!("/{}", field_path).as_str(),
-                &Value::Array(object.clone()),
-            )?;
-        }
+        context_value.merge(mapping);
 
         let mut tera_context = tera::Context::from_value(context_value).unwrap();
 
