@@ -21,7 +21,7 @@
 //! | referentials    | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the validation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
 //! | name            | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                |
 //! | data_type       | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                    |
-//! | concurrency_limit   | - | Limit of steps to run in conccuence.                                                                          | `1`           | unsigned number                                 |
+//! | concurrency_limit   | -   | Limit of steps to run in conccuence.                                                                              | `1`           | unsigned number                                 |
 //! | rules           | -       | List of [`self::Rule`] indexed by their names                                                                     | `null`        | `{"rule_0": Rule,"rule_1": Rule}`               |
 //! | error_separator | -       | Separator use to delimite two errors                                                                              | `\r\n`        | String                                          |
 //!
@@ -204,7 +204,7 @@ impl Step for Validator {
     ///
     ///     thread::spawn(move || {
     ///         let data = serde_json::from_str(r#"{"number_1":"my_string","number_2":100,"text":"120"}"#).unwrap();
-    ///         let context = Context::new("step_data_loading".to_string(), DataResult::Ok(data)).unwrap();
+    ///         let context = Context::new("step_data_loading".to_string(), DataResult::Ok(data));
     ///         sender_input.try_send(context).unwrap();
     ///     });
     ///
@@ -251,7 +251,7 @@ impl Step for Validator {
             let actions = actions.clone();
             task::spawn(async move {
             validate(&step, &mut context_received.clone(), &actions.clone()).await
-        })}).buffer_unordered(10).collect().await;
+        })}).buffer_unordered(self.concurrency_limit).collect().await;
 
         results
             .into_iter()
@@ -292,7 +292,7 @@ async fn validate(step: &Validator, context_received: &mut Context, actions: &Ve
             &record,
             &context_received.steps(),
             &Referential::new(&step.referentials).to_value(context_received).await?,
-            &actions,
+            actions,
         )
         .await
         .and_then(|value| match value {

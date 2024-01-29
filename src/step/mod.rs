@@ -100,9 +100,8 @@ pub trait Step: Send + Sync + StepClone {
     fn set_sender(&mut self, sender: Sender<Context>);
     fn sender(&self) -> Option<&Sender<Context>>;
     async fn send(&self, context: &Context) {
-        match self.sender() {
-            Some(sender) => send(sender, context).await,
-            None => (),
+        if let Some(sender) = self.sender() {
+            send(sender, context).await
         }
     }
     async fn receive<'step>(&'step self) -> Pin<Box<dyn Stream<Item = Context> + Send + 'step>> {
@@ -133,7 +132,7 @@ pub(crate) async fn send(sender: &Sender<Context>, context: &Context) {
 pub(crate) async fn receive<'step>(
     receiver: &'step Receiver<Context>,
 ) -> Pin<Box<dyn Stream<Item = Context> + Send + 'step>> {
-    let stream = Box::pin(stream! {
+    Box::pin(stream! {
         loop {
             match receiver.recv().await {
                 Ok(context_received) => {
@@ -150,9 +149,7 @@ pub(crate) async fn receive<'step>(
                 }
             };
         }
-    });
-
-    stream
+    })
 }
 
 pub trait StepClone {

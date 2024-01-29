@@ -110,7 +110,7 @@ impl Local {
     }
     fn cache_key(&self) -> String {
         let mut hasher = DefaultHasher::new();
-        let key = format!("{}", self.path());
+        let key = self.path().to_string();
         key.hash(&mut hasher);
         hasher.finish().to_string()
     }
@@ -125,12 +125,12 @@ impl Local {
 
         Ok(None)
     }
-    pub async fn set_cache(&mut self, dataset: &Vec<DataResult>) {
+    pub async fn set_cache(&mut self, dataset: &[DataResult]) {
         let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
 
         let cache_key = self.cache_key();
         let mut map = caches.lock_arc().await;
-        map.insert(cache_key.clone(), dataset.clone());
+        map.insert(cache_key.clone(), dataset.to_owned());
         info!(cache_key, "create entries in the cache");
     }
 }

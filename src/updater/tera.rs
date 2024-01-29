@@ -44,8 +44,8 @@ impl Updater for Tera {
         let mut engine = self.engine().await;
 
         let mut context_value = Value::default();
-        context_value.merge_in(format!("/{}", super::INPUT_FIELD_KEY).as_str(), &object)?;
-        context_value.merge_in(format!("/{}", super::CONTEXT_FIELD_KEY).as_str(), &context)?;
+        context_value.merge_in(format!("/{}", super::INPUT_FIELD_KEY).as_str(), object)?;
+        context_value.merge_in(format!("/{}", super::CONTEXT_FIELD_KEY).as_str(), context)?;
         context_value.merge(mapping);
 
         let mut tera_context = tera::Context::from_value(context_value).unwrap();

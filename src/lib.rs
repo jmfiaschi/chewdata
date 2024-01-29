@@ -306,7 +306,7 @@ impl Context {
             input: data_result,
         }
     }
-    pub fn insert_step_result(&mut self, step_name: String, data_result: DataResult) -> () {
+    pub fn insert_step_result(&mut self, step_name: String, data_result: DataResult) {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 

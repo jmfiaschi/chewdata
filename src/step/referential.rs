@@ -69,12 +69,12 @@ impl Referential {
     ///     let mut hashmap = HashMap::default();
     ///     hashmap.insert("ref_1".to_string(), referential_1);
     ///     hashmap.insert("ref_2".to_string(), referential_2);
-    ///     let referentials = Referential::new(hashmap);
+    ///     let referentials = Referential::new(&hashmap);
     ///
-    ///     let context = Context::new("step_main".to_string(), DataResult::Ok(Value::Null)).unwrap();
+    ///     let context = Context::new("step_main".to_string(), DataResult::Ok(Value::Null));
     ///
     ///     let values = referentials.to_value(&context).await?;
-    ///     let values_expected:HashMap<String, Vec<Value>> = serde_json::from_str(r#"{"ref_1":[{"column1":"value1"}],"ref_2":[{"column1":"value2"}]}"#).unwrap();
+    ///     let values_expected:Value = serde_json::from_str(r#"{"ref_1":[{"column1":"value1"}],"ref_2":[{"column1":"value2"}]}"#).unwrap();
     ///
     ///     assert_eq!(values_expected, values);
     ///
@@ -85,7 +85,7 @@ impl Referential {
         let mut referential_cache = self.cache().await;
 
         for (name, reader) in &self.readers {
-            if let Some(_) = referential_cache.get(name) {
+            if referential_cache.get(name).is_some() {
                 continue;
             }
 
