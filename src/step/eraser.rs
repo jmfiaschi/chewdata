@@ -108,7 +108,7 @@ impl Step for Eraser {
         
         let mut connector = self.connector_type.clone().boxed_inner();
         let mut exclude_paths = self.exclude_paths.clone();
-        let mut receiver_stream = self.receive().await?;
+        let mut receiver_stream = self.receive().await;
         // Used to check if one data has been received.
         let mut has_data_been_received = false;
 
@@ -119,7 +119,7 @@ impl Step for Eraser {
 
             if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("Handles only this data type");
-                self.send(context_received).await?;
+                self.send(context_received).await;
                 continue;
             }
 
@@ -132,8 +132,8 @@ impl Step for Eraser {
                 exclude_paths.push(path);
             }
 
-            context_received.insert_step_result(self.name(), context_received.input())?;
-            self.send(context_received).await?;
+            context_received.insert_step_result(self.name(), context_received.input());
+            self.send(context_received).await;
         }
 
         // No data has been received, clean the connector.
@@ -142,7 +142,7 @@ impl Step for Eraser {
         }
 
         trace!(
-            "Terminate with success. It stops sending context and it disconnect the channel"
+            "Stops cleaning data and sending context in the channel"
         );
 
         Ok(())
@@ -167,7 +167,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error)));
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -186,11 +186,9 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone()));
         let mut expected_context = context.clone();
-        expected_context
-            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
-            .unwrap();
+        expected_context.insert_step_result("my_step".to_string(), DataResult::Ok(data));
 
         thread::spawn(move || {
             sender_input.try_send(context).unwrap();

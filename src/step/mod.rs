@@ -7,6 +7,7 @@ pub mod transformer;
 pub mod validator;
 pub mod writer;
 
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{Context, DataResult};
 use async_channel::{Receiver, Sender};
 use async_std::stream;
@@ -98,53 +99,45 @@ pub trait Step: Send + Sync + StepClone {
     fn receiver(&self) -> Option<&Receiver<Context>>;
     fn set_sender(&mut self, sender: Sender<Context>);
     fn sender(&self) -> Option<&Sender<Context>>;
-    async fn send(&self, context: &Context) -> io::Result<()> {
-        match self.sender() {
-            Some(sender) => send(sender, context).await,
-            None => return Ok(()),
+    async fn send(&self, context: &Context) {
+        if let Some(sender) = self.sender() {
+            send(sender, context).await
         }
     }
-    async fn receive<'step>(
-        &'step self,
-    ) -> io::Result<Pin<Box<dyn Stream<Item = Context> + Send + 'step>>> {
+    async fn receive<'step>(&'step self) -> Pin<Box<dyn Stream<Item = Context> + Send + 'step>> {
         match self.receiver() {
             Some(receiver) => receive(receiver).await,
-            None => Ok(Box::pin(stream::empty::<Context>())),
+            None => Box::pin(stream::empty::<Context>()),
         }
     }
 }
 
-pub(crate) async fn send(sender: &Sender<Context>, context: &Context) -> io::Result<()> {
+pub(crate) async fn send(sender: &Sender<Context>, context: &Context) {
     match sender.send(context.clone()).await {
         Ok(_) => {
-            trace!("Context sended into the channel")
+            trace!(
+                context = context.display_only_for_debugging(),
+                "Context sended in the channel"
+            )
         }
         Err(e) => {
             trace!(
                 error = format!("{:?}", e).as_str(),
                 "The channel is disconnected. the step can't send any context",
             );
-
-            return Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "The step has been disconnected from the channel. the step can't send any context"
-                    .to_string(),
-            ));
         }
     }
-
-    Ok(())
 }
 
 pub(crate) async fn receive<'step>(
     receiver: &'step Receiver<Context>,
-) -> io::Result<Pin<Box<dyn Stream<Item = Context> + Send + 'step>>> {
-    let stream = Box::pin(stream! {
+) -> Pin<Box<dyn Stream<Item = Context> + Send + 'step>> {
+    Box::pin(stream! {
         loop {
             match receiver.recv().await {
                 Ok(context_received) => {
                     trace!(
-                        context = format!("{:?}", context_received).as_str(),
+                        context = context_received.display_only_for_debugging(),
                         "A new context received from the channel"
                     );
 
@@ -156,9 +149,7 @@ pub(crate) async fn receive<'step>(
                 }
             };
         }
-    });
-
-    Ok(stream)
+    })
 }
 
 pub trait StepClone {

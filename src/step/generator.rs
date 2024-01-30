@@ -138,7 +138,7 @@ impl Step for Generator {
     async fn exec(&self) -> io::Result<()> {
         info!("Start generating data...");
         
-        let mut receiver_stream = self.receive().await?;
+        let mut receiver_stream = self.receive().await;
         let mut has_data_been_received = false;
         let dataset_size = self.dataset_size;
 
@@ -149,26 +149,26 @@ impl Step for Generator {
 
             if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("Handles only this data type");
-                self.send(&context_received).await?;
+                self.send(&context_received).await;
                 continue;
             }
 
             for _ in 0..dataset_size {
                 let mut context = context_received.clone();
-                context.insert_step_result(self.name(), context.input())?;
-                self.send(&context).await?;
+                context.insert_step_result(self.name(), context.input());
+                self.send(&context).await;
             }
         }
 
         if !has_data_been_received {
             for _ in 0..dataset_size {
-                let context = Context::new(self.name(), DataResult::Ok(Value::Null))?;
-                self.send(&context).await?;
+                let context = Context::new(self.name(), DataResult::Ok(Value::Null));
+                self.send(&context).await;
             }
         }
 
         trace!(
-            "Terminate with success. It stops sending context and it disconnect the channel"
+            "Stops generating data and sending context in the channel"
         );
 
         Ok(())
@@ -192,7 +192,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error)));
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -211,11 +211,9 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone()));
         let mut expected_context = context.clone();
-        expected_context
-            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
-            .unwrap();
+        expected_context.insert_step_result("my_step".to_string(), DataResult::Ok(data));
 
         thread::spawn(move || {
             sender_input.try_send(context).unwrap();

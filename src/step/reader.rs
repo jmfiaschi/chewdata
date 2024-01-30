@@ -15,10 +15,11 @@
 //! | key         | alias | Description                                                                     | Default Value | Possible Values                              |
 //! | ----------- | ----- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |
 //! | type        | -     | Required in order to use reader step                                            | `reader`      | `reader` / `read` / `r`                      |
-//! | connector   | conn  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
-//! | document    | doc   | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]   |
-//! | name        | alias | Step name                                                                        | `null`        | Auto generate alphanumeric value             |
+//! | connector   | conn  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`]                     |
+//! | document    | doc   | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]                      |
+//! | name        | alias | Step name                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
+//! | concurrency_limit | - | Limit of steps to run in conccuence.                                          | `1`           | unsigned number                              |
 //!
 //! ### Examples
 //!
@@ -45,6 +46,7 @@ use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, Context};
 use async_channel::{Receiver, Sender};
+use async_std::task;
 use async_trait::async_trait;
 use futures::StreamExt;
 use serde::Deserialize;
@@ -81,7 +83,7 @@ impl Default for Reader {
             data_type: DataResult::OK.to_string(),
             receiver: None,
             sender: None,
-            concurrency_limit: 10,
+            concurrency_limit: 1,
         }
     }
 }
@@ -115,7 +117,7 @@ impl Step for Reader {
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.ref_inner();
         connector.set_metadata(connector.metadata().merge(&document.metadata()));
-        let mut receiver_stream = self.receive().await?;
+        let mut receiver_stream = self.receive().await;
         // Used to check if one data has been received.
         let mut has_data_been_received = false;
         
@@ -126,24 +128,53 @@ impl Step for Reader {
 
             if !context_received.input().is_type(self.data_type.as_ref()) {
                 trace!("Handles only this data type");
-                self.send(&context_received).await?;
+                self.send(&context_received).await;
                 continue;
             }
 
             connector.set_parameters(context_received.to_value()?);
-
-            exec_connector(self, &mut connector, document, &Some(context_received)).await?
+            
+            connector.paginate().await?
+                .filter_map(|connector_result| async { match connector_result {
+                    Ok(connector) => Some(connector),
+                    Err(e) => {
+                        warn!(
+                            error = e.to_string().as_str(),
+                            "Pagination through the paginator failed"
+                        );
+                        None
+                    }
+                }})
+                .for_each_concurrent(None, |connector| {
+                    let step = self.clone();
+                    let context = Some(context_received.clone());
+                    async move {
+                        read(&step, &mut connector.clone(), document, &context).await;
+                }}).await;
         }
 
         // If data has not been received and the channel has been close, run last time the step.
         // It arrive when the previous step don't push data through the pipe.
         if !has_data_been_received {
-            exec_connector(self, &mut connector, document, &None).await?
+            connector.paginate().await?
+                .filter_map(|connector_result| async { match connector_result {
+                    Ok(connector) => Some(connector),
+                    Err(e) => {
+                        warn!(
+                            error = e.to_string().as_str(),
+                            "Pagination through the paginator failed"
+                        );
+                        None
+                    }
+                }})
+                .for_each_concurrent(None, |connector| {
+                    let step = self.clone();
+                    async move {
+                        read(&step, &mut connector.clone(), document, &None).await;
+                }}).await;
         }
 
-        trace!(
-            "Terminate with success. It stops sending context and it disconnect the channel"
-        );
+        info!("Stops reading data and sending context in the channel");
 
         Ok(())
     }
@@ -152,71 +183,48 @@ impl Step for Reader {
     }
 }
 
-async fn exec_connector<'step>(
+async fn read<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
     document: &'step dyn Document,
     context: &'step Option<Context>,
-) -> io::Result<()> {
-    let paging = connector.paginate().await?;
-
-    paging
-        .for_each_concurrent(
-            Some(step.concurrency_limit),
-            |connector_result| async move {
-                let mut connector = match connector_result {
-                    Ok(connector) => {
-                        info!("Retrieve a new connector through the paginator");
-                        
-                        connector
-                    },
-                    Err(e) => {
-                        warn!(
-                            error = e.to_string().as_str(),
-                            "Pagination through the paginator failed"
-                        );
-                        return;
-                    }
-                };
-                match send_data_into_channel(step, &mut connector, document, context).await {
-                    Ok(Some(_)) => trace!("All data has been pushed into the channel"),
-                    Ok(None) => trace!("No data to push into the channel"),
-                    Err(e) => warn!(
-                        error = e.to_string().as_str(),
-                        "Can't push data into the channel"
-                    ),
-                };
-            },
-        )
-        .await;
-
-    Ok(())
-}
-
-async fn send_data_into_channel<'step>(
-    step: &'step Reader,
-    connector: &'step mut Box<dyn Connector>,
-    document: &'step dyn Document,
-    context: &'step Option<Context>,
-) -> io::Result<Option<()>> {
-    let mut dataset = match connector.fetch(document).await? {
-        Some(dataset) => dataset,
-        None => return Ok(None),
+) {            
+    let dataset = match connector.fetch(document).await {
+        Ok(Some(dataset)) => {
+            info!("read and forward data");
+            dataset
+        },
+        Ok(None) => {
+            info!("No data found through the connector");
+            return
+        },
+        Err(e) => {
+            warn!(
+                error = e.to_string().as_str(),
+                "fetch data failed"
+            );
+            return;
+        }
     };
 
-    while let Some(data_result) = dataset.next().await {
-        let context = match context.clone() {
-            Some(ref mut context) => {
-                context.insert_step_result(step.name(), data_result)?;
-                context.clone()
-            }
-            None => Context::new(step.name(), data_result)?,
-        };
+    let step = step.clone();
+    let context = context.clone();
 
-        step.send(&context).await?;
-    }
-
-    Ok(Some(()))
+    task::spawn(async move {
+        let step: Reader = step.clone();
+        dataset.map(|data_result| async {
+            let context = match context.clone() {
+                Some(ref mut context) => {
+                    context.insert_step_result(step.name(), data_result);
+                    context.clone()
+                },
+                None => Context::new(step.name(), data_result),
+            };
+            step.send(&context).await;
+        }).buffer_unordered(usize::MAX)
+        .collect::<Vec<_>>()
+        .await;
+    }).await;
 }
 
 #[cfg(test)]
@@ -235,7 +243,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error)));
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -254,13 +262,11 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone()));
 
         let mut expected_context = context.clone();
         let data2: Value = serde_json::from_str(r#"{"field_1":"value_2"}"#).unwrap();
-        expected_context
-            .insert_step_result("my_step".to_string(), DataResult::Ok(data2))
-            .unwrap();
+        expected_context.insert_step_result("my_step".to_string(), DataResult::Ok(data2));
 
         thread::spawn(move || {
             sender_input.try_send(context).unwrap();

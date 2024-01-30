@@ -23,7 +23,8 @@ use self::step::StepType;
 use async_channel::{Receiver, Sender};
 use async_std::task;
 use connector::Connector;
-use futures::stream::Stream;
+use futures::stream::{self, Stream};
+use futures::StreamExt;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -39,7 +40,7 @@ pub async fn exec(
     output_sender: Option<Sender<Context>>,
 ) -> io::Result<()> {
     let mut steps = Vec::default();
-    let mut handles = Vec::default();
+    //let mut handles = Vec::default();
     let step_types_len = step_types.len();
     let mut previous_step_receiver = input_receiver;
 
@@ -69,13 +70,17 @@ pub async fn exec(
         previous_step_receiver = Some(receiver);
     }
 
-    for step in steps {
-        handles.push(task::spawn(async move { step.exec().await }));
-    }
+    let results: Vec<Result<_>> = stream::iter(steps)
+        .map(|step| task::spawn(async move { step.exec().await }))
+        .buffer_unordered(usize::MAX)
+        .collect()
+        .await;
 
-    for result in futures::future::join_all(handles).await {
-        result?;
-    }
+    results
+        .into_iter()
+        .filter(|result| result.is_err())
+        .map(|result| warn!("{:?}", result))
+        .for_each(drop);
 
     Ok(())
 }
@@ -292,23 +297,21 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(step_name: String, data_result: DataResult) -> Result<Self> {
+    pub fn new(step_name: String, data_result: DataResult) -> Self {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
-        Ok(Context {
+        Context {
             steps: Value::Object(map),
             input: data_result,
-        })
+        }
     }
-    pub fn insert_step_result(&mut self, step_name: String, data_result: DataResult) -> Result<()> {
+    pub fn insert_step_result(&mut self, step_name: String, data_result: DataResult) {
         let mut map = Map::default();
         map.insert(step_name, data_result.to_value());
 
         self.steps.merge(&Value::Object(map));
         self.input = data_result;
-
-        Ok(())
     }
     pub fn input(&self) -> DataResult {
         self.input.clone()

@@ -17,7 +17,6 @@ use criterion::async_executor::FuturesExecutor;
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures::stream::StreamExt;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::{fs::OpenOptions, io::Read};
 
 fn document_read_benchmark(c: &mut Criterion) {
@@ -74,16 +73,19 @@ fn faker_benchmark(c: &mut Criterion) {
 
         c.bench_function(format!("{}/", action_name).as_str(), move |b| {
             b.to_async(FuturesExecutor).iter(|| async {
-                updater.update(
-                    &Value::Null,
-                    &Value::Null,
-                    &HashMap::default(),
-                    &vec![Action {
-                        field: action_name.to_string(),
-                        pattern: Some(action_pattern.to_string()),
-                        action_type: ActionType::Merge,
-                    }],
-                )
+                updater
+                    .update(
+                        &Value::default(),
+                        &Value::default(),
+                        &Value::default(),
+                        &vec![Action {
+                            field: action_name.to_string(),
+                            pattern: Some(action_pattern.to_string()),
+                            action_type: ActionType::Merge,
+                        }],
+                    )
+                    .await
+                    .unwrap();
             });
         });
     }

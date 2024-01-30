@@ -1,3 +1,16 @@
+# [2.9.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.0...v2.9.0-beta.1) (2024-1-29)
+
+
+### Bug Fixes
+
+* **cargo:** license ([81320e9](https://github.com/jmfiaschi/chewdata/commit/81320e9302821a83803b4e97a2d295ef1c5a39e1))
+* **project:** lint and tests ([9445e78](https://github.com/jmfiaschi/chewdata/commit/9445e78886a40d93763b1955dcf83ea148b4c790))
+
+
+### Features
+
+* **document:** hide record in the logs ([a24ac59](https://github.com/jmfiaschi/chewdata/commit/a24ac595a73439c33fa76f03b5f1eded3adaa10b))
+
 # [2.8.0](https://github.com/jmfiaschi/chewdata/compare/v2.7.0...v2.8.0) (2024-1-16)
 
 

@@ -18,7 +18,7 @@
 //! | referentials  | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the transformation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
 //! | name          | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                      |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                          |
-//! | concurrency_limit | -       | Limit of steps to run in conccuence.                                                                          | `1`           | unsigned number                                       |                                                           | `output`      | String                                                |
+//! | concurrency_limit | -       | Limit of steps to run in conccuence.                                                                          | `1`           | unsigned number                                       |
 //!
 //! #### Action
 //!
@@ -85,6 +85,7 @@ use crate::step::Step;
 use crate::updater::{Action, UpdaterType};
 use crate::Context;
 use async_channel::{Receiver, Sender};
+use async_std::task;
 use async_trait::async_trait;
 use futures::StreamExt;
 use serde::Deserialize;
@@ -92,6 +93,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::io;
 use uuid::Uuid;
+use crate::helper::string::DisplayOnlyForDebugging;
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -155,74 +157,98 @@ impl Step for Transformer {
         concurrency_limit=self.concurrency_limit,
     ))]
     async fn exec(&self) -> io::Result<()> {
-        info!("Start transforming data...");
+        info!("Starts transforming data...");
 
-        let mut receiver_stream = self.receive().await?;
+        let receiver_stream = self.receive().await;
 
-        while let Some(ref mut context_received) = receiver_stream.next().await {
-            let data_result = context_received.input();
-            if !data_result.is_type(self.data_type.as_ref()) {
-                trace!("Handles only this data type");
-                self.send(context_received).await?;
-                continue;
-            }
-            
-            let record = data_result.to_value();
+        trace!("Warm up static referential before using it in the concurrent execution.");
+        Referential::new(&self.referentials).to_value(&Context::new(String::default(), DataResult::Ok(Value::default()))).await?;
 
-            match self.updater_type.updater().update(
-                &record,
-                &context_received.to_value()?,
-                &Referential::new(self.referentials.clone()).to_value(context_received).await?,
-                &self.actions,
-            ) {
-                Ok(new_record) => match new_record {
-                    Value::Array(array) => {
-                        for array_value in array {
-                            context_received
-                                .insert_step_result(self.name(), DataResult::Ok(array_value))?;
-                            self.send(context_received).await?;
-                        }
-                    }
-                    Value::Null => {
-                        trace!(
-                            record = format!("{}", new_record).as_str(),
-                            "Record skip because the value is null"
-                        );
-                        continue;
-                    }
-                    _ => {
-                        context_received
-                            .insert_step_result(self.name(), DataResult::Ok(new_record))?;
-                        self.send(context_received).await?;
-                    }
-                },
-                Err(e) => {
-                    warn!(
-                        record = format!("{}", record).as_str(),
-                        error = format!("{}", e).as_str(),
-                        context = format!("{:?}", context_received).as_str(),
-                        "The transformer's updater raise an error"
-                    );
+        // Transform in concurrence with parallelism.
+        let results: Vec<_> = receiver_stream.map(|context_received| {
+            let step = self.clone();
+            task::spawn(async move {
+                transform(&step, &mut context_received.clone()).await
+            })
+        }).buffer_unordered(self.concurrency_limit).collect().await;
 
-                    context_received
-                        .insert_step_result(self.name(), DataResult::Err((record, e)))?;
-                    self.send(context_received).await?;
-                }
-            };
-        }
+        results
+            .into_iter()
+            .filter(|result| result.is_err())
+            .map(|result| warn!("{:?}", result))
+            .for_each(drop);
 
-        trace!(
-            "Terminate with success. It stops sending context and it disconnect the channel"
-        );
+        info!("Stops transforming data and sending context in the channel");
 
         Ok(())
-    }
-    fn number(&self) -> usize {
-        self.concurrency_limit
     }
     fn name(&self) -> String {
         self.name.clone()
     }
+}
+
+#[instrument(name = "transformer::transform", skip(step, context_received))]
+async fn transform(step: &Transformer, context_received: &mut Context) -> io::Result<()> {
+    let data_result = context_received.input();
+    if !data_result.is_type(step.data_type.as_ref()) {
+        trace!("Handles only this data type");
+        step.send(context_received).await;
+        return Ok(());
+    }
+    
+    let record = data_result.to_value();
+
+    match step.updater_type.updater().update(
+        &record,
+        &context_received.to_value()?,
+        &Referential::new(&step.referentials).to_value(context_received).await?,
+        &step.actions,
+    ).await {
+        Ok(new_record) => match &new_record {
+            Value::Array(array) => {
+                info!(
+                    from = record.display_only_for_debugging(),
+                    to = new_record.display_only_for_debugging(),
+                    "data transformed with success"
+                );
+
+                for array_value in array {
+                    context_received.insert_step_result(step.name(), DataResult::Ok(array_value.clone()));
+                    step.send(context_received).await;
+                }
+            }
+            Value::Null => {
+                info!(
+                    record = new_record.display_only_for_debugging(),
+                    "Record skip because the value is null"
+                );
+            }
+            _ => {
+                info!(
+                    from = record.display_only_for_debugging(),
+                    to = new_record.display_only_for_debugging(),
+                    "data transformed with success"
+                );
+
+                context_received.insert_step_result(step.name(), DataResult::Ok(new_record.clone()));
+                step.send(context_received).await;
+            }
+        },
+        Err(e) => {
+            warn!(
+                from = record.display_only_for_debugging(),
+                error = format!("{}", e).as_str(),
+                context = context_received.display_only_for_debugging(),
+                "The transformer's updater raise an error"
+            );
+
+            context_received.insert_step_result(step.name(), DataResult::Err((record.clone(), e)));
+
+            step.send(context_received).await;
+        }
+    };
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -239,7 +265,7 @@ mod tests {
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
         let error = Error::new(ErrorKind::InvalidData, "My error");
-        let context = Context::new("before".to_string(), DataResult::Err((data, error))).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Err((data, error)));
         let expected_context = context.clone();
 
         thread::spawn(move || {
@@ -258,13 +284,11 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone()));
 
         let mut expected_context = context.clone();
         let data2: Value = serde_json::from_str(r#"{"field_1":"value_2"}"#).unwrap();
-        expected_context
-            .insert_step_result("my_step".to_string(), DataResult::Ok(data2))
-            .unwrap();
+        expected_context.insert_step_result("my_step".to_string(), DataResult::Ok(data2));
 
         thread::spawn(move || {
             sender_input.try_send(context).unwrap();
@@ -285,19 +309,15 @@ mod tests {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        let context = Context::new("before".to_string(), DataResult::Ok(data.clone())).unwrap();
+        let context = Context::new("before".to_string(), DataResult::Ok(data.clone()));
 
         let mut expected_context_1 = context.clone();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_1"}"#).unwrap();
-        expected_context_1
-            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
-            .unwrap();
+        expected_context_1.insert_step_result("my_step".to_string(), DataResult::Ok(data));
 
         let mut expected_context_2 = context.clone();
         let data: Value = serde_json::from_str(r#"{"field_1":"value_2"}"#).unwrap();
-        expected_context_2
-            .insert_step_result("my_step".to_string(), DataResult::Ok(data))
-            .unwrap();
+        expected_context_2.insert_step_result("my_step".to_string(), DataResult::Ok(data));
 
         thread::spawn(move || {
             sender_input.try_send(context).unwrap();
