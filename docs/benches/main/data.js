@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1706601998337,
+  "lastUpdate": 1706605598201,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3089,6 +3089,72 @@ window.BENCHMARK_DATA = {
             "name": "read_parquet/",
             "value": 140952,
             "range": "± 2323",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc Fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc Fiaschi",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "e24aeb20992727a3f4bf4e7afc5bdaedfd3586c6",
+          "message": "chore(Cargo): fix the version",
+          "timestamp": "2024-01-30T09:56:53+01:00",
+          "tree_id": "63b41ac2a9a80d0db36763c66c021440849a2541",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/e24aeb20992727a3f4bf4e7afc5bdaedfd3586c6"
+        },
+        "date": 1706605597393,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5260,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5167,
+            "range": "± 69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 296467,
+            "range": "± 3856",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 20447,
+            "range": "± 139",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10582,
+            "range": "± 128",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13898,
+            "range": "± 190",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 137862,
+            "range": "± 930",
             "unit": "ns/iter"
           }
         ]
