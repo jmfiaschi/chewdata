@@ -1,3 +1,10 @@
+## [2.8.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.0...v2.8.1) (2024-1-30)
+
+
+### Performance Improvements
+
+* **transform:** use tera::Context::from_value instead of tera_context.insert with Value serialization. ([#56](https://github.com/jmfiaschi/chewdata/issues/56)) ([acd1126](https://github.com/jmfiaschi/chewdata/commit/acd1126a412ca975238efdbf96a4addea06cfca0))
+
 # [2.9.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.0...v2.9.0-beta.1) (2024-1-29)
 
 
