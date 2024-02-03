@@ -158,9 +158,11 @@ impl Step for Writer {
                 if connector.is_resource_will_change(context_received.to_value()?)?
                     && !dataset.is_empty()
                 {
+                    info!(dataset_length = dataset.len(), "Next write");
+
                     match connector.send(&*document, &dataset).await {
                         Ok(_) => {
-                            info!("Write data with success");
+                            info!(dataset_length = dataset.len(), "Write with success");
 
                             for data in dataset {
                                 let mut context = context_received.clone();
@@ -198,12 +200,12 @@ impl Step for Writer {
             connector.set_parameters(context_received.to_value()?);
             dataset.push(context_received.input());
 
-            info!(dataset_length = dataset.len(), "data added into the dataset");
-
             if self.dataset_limit <= dataset.len() && document.can_append() {
+                info!(dataset_length = dataset.len(), "Next write");
+
                 match connector.send(&*document, &dataset).await {
                     Ok(_) => {
-                        info!("Write data with success");
+                        info!(dataset_length = dataset.len(), "Write with success");
 
                         for data in dataset {
                             let mut context = context_received.clone();
@@ -238,14 +240,11 @@ impl Step for Writer {
         }
 
         if !dataset.is_empty() {
-            info!(
-                dataset_limit = dataset.len(),
-                "Last write"
-            );
+            info!(dataset_length = dataset.len(), "Last write");
 
             match connector.send(&*document, &dataset).await {
                 Ok(_) => {
-                    info!("Write data with success");
+                    info!(dataset_length = dataset.len(), "Write with success");
 
                     for data in dataset {
                         let context = match &last_context_received {
