@@ -51,10 +51,12 @@ use crate::document::Document;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::DataResult;
 use crate::{DataSet, Metadata};
+use json_value_merge::Merge;
 use json_value_search::Search;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io;
+use std::io::{self, Write};
 
 const DEFAULT_MIME_TYPE: &str = "x-ndjson";
 const DEFAULT_TERMINATOR: &str = "\n";
@@ -208,22 +210,18 @@ impl Document for Jsonl {
 
         let serialize_value_into_buffer =
             |has_terminator: bool, buf: &mut Vec<u8>, value: &Value| -> io::Result<()> {
-                let mut new_buf = buf;
-
-                if has_terminator {
-                    new_buf.append(&mut DEFAULT_TERMINATOR.as_bytes().to_vec());
+                if has_terminator && self.entry_path.is_none() {
+                    buf.write_all(DEFAULT_TERMINATOR.as_bytes())?;
                 }
 
-                match value {
-                    Value::String(string) => {
-                        // Avoid to put '"' for a single string
-                        new_buf.append(&mut string.as_bytes().to_vec());
-                    }
-                    _ => match self.is_pretty {
-                        true => serde_json::to_writer_pretty(&mut new_buf, &value)?,
-                        false => serde_json::to_writer(&mut new_buf, &value)?,
-                    },
-                };
+                if self.entry_path.is_some() && !buf.is_empty() {
+                    buf.write_all(&[b','])?;
+                }
+
+                match self.is_pretty {
+                    true => serde_json::to_writer_pretty(buf, &value)?,
+                    false => serde_json::to_writer(buf, &value)?,
+                }
 
                 trace!(
                     record = value.display_only_for_debugging(),
@@ -271,6 +269,42 @@ impl Document for Jsonl {
             .unwrap_or_else(|| DEFAULT_TERMINATOR.to_string())
             .as_bytes()
             .to_vec())
+    }
+    /// See [`Document::header`] for more details.
+    fn header(&self, _dataset: &DataSet) -> io::Result<Vec<u8>> {
+        if let Some(entry_path) = &self.entry_path {
+            let mut entry_path_value = Value::default();
+            entry_path_value.merge_in(entry_path, &Value::default())?;
+
+            let re = Regex::new(r#"([}\]]|null\]|null\})"#)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+            let entry_path_header = re
+                .replace_all(entry_path_value.to_string().as_str(), "")
+                .to_string();
+
+            return Ok(entry_path_header.into_bytes());
+        }
+
+        Ok(Default::default())
+    }
+    /// See [`Document::footer`] for more details.
+    fn footer(&self, _dataset: &DataSet) -> io::Result<Vec<u8>> {
+        if let Some(entry_path) = &self.entry_path {
+            let mut entry_path_value = Value::default();
+            entry_path_value.merge_in(entry_path, &Value::default())?;
+
+            let re = Regex::new(r#"[^}\]]"#)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+            let entry_path_footer = re
+                .replace_all(entry_path_value.to_string().as_str(), "")
+                .to_string();
+
+            return Ok(entry_path_footer.into_bytes());
+        }
+
+        Ok(Default::default())
     }
 }
 
@@ -374,12 +408,47 @@ mod tests {
         ];
         let buffer = document.write(&dataset).unwrap();
         assert_eq!(
-            r#"a
-b
-c"#
-            .as_bytes()
-            .to_vec(),
+            r#""a"
+"b"
+"c""#
+                .as_bytes()
+                .to_vec(),
             buffer
         );
+    }
+    #[test]
+    fn write_array_string_with_entry_path() {
+        let mut document = Jsonl::default();
+        document.entry_path = Some("/field/*".to_owned());
+        let dataset = vec![
+            DataResult::Ok(serde_json::from_str(r#"["a","b"]"#).unwrap()),
+            DataResult::Ok(serde_json::from_str(r#""c""#).unwrap()),
+        ];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(r#""a","b","c""#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn write_header_with_entry_path() {
+        let mut document = Jsonl::default();
+        document.entry_path = Some("/field/*".to_owned());
+        let buffer = document.header(&Vec::default()).unwrap();
+        assert_eq!(r#"{"field":["#.as_bytes().to_vec(), buffer);
+
+        let mut document = Jsonl::default();
+        document.entry_path = Some("/field".to_owned());
+        let buffer = document.header(&Vec::default()).unwrap();
+        assert_eq!(r#"{"field":"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn write_footer_with_entry_path() {
+        let mut document = Jsonl::default();
+        document.entry_path = Some("/field/*".to_owned());
+        let buffer = document.footer(&Vec::default()).unwrap();
+        assert_eq!(r#"]}"#.as_bytes().to_vec(), buffer);
+
+        let mut document = Jsonl::default();
+        document.entry_path = Some("/field".to_owned());
+        let buffer = document.footer(&Vec::default()).unwrap();
+        assert_eq!(r#"}"#.as_bytes().to_vec(), buffer);
     }
 }
