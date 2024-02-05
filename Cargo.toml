@@ -47,8 +47,8 @@ clap = { version = "4.3" }
 version = { version = "3.0", default-features = false}
 serde_yaml = { version = "0.9", default-features = false }
 deser-hjson = { version = "2.1", default-features = false }
-sha2 = { version = "0.10", default-features = false }
-sha3 = { version = "0.10", default-features = false }
+sha2 = { version = "0.10", default-features = false, features = ["oid", "std"] }
+sha3 = { version = "0.10", default-features = false, features = ["oid", "std"] }
 base16ct = { version = "0.2", default-features = false, features = ["alloc"] }
 # Lock local files
 fs2 = { version = "0.4", default-features = false }
