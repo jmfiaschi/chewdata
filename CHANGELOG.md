@@ -1,3 +1,13 @@
+# [2.9.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.1...v2.9.0-beta.1) (2024-2-5)
+
+
+### Features
+
+* **curl:** remove " for data with "x-www-form-urlencoded" ([73db63e](https://github.com/jmfiaschi/chewdata/commit/73db63eadd4f18ed9cb08b3db3c2ab5c78a19fd8))
+* **json/jsonl:** write entry_path if define ([a431bdb](https://github.com/jmfiaschi/chewdata/commit/a431bdb3e545302904ef6af51f6440830c3bab2b))
+* **local:** add checksum generation and validation ([bb75236](https://github.com/jmfiaschi/chewdata/commit/bb75236a3d4328cb0bebe89aecdb11853656c3ee))
+* **local:** add checksum generation and validation ([a85c3b9](https://github.com/jmfiaschi/chewdata/commit/a85c3b9a55bcb8c9d2d4112c8160f7beba77936e))
+
 ## [2.8.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.0...v2.8.1) (2024-1-30)
 
 
