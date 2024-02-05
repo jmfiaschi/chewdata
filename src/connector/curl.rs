@@ -75,6 +75,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
@@ -463,9 +464,20 @@ impl Connector for Curl {
                 let mut buffer = Vec::default();
 
                 let dataset = vec![DataResult::Ok(self.parameters_without_context()?)];
-                buffer.append(&mut document.header(&dataset)?);
-                buffer.append(&mut document.write(&dataset)?);
-                buffer.append(&mut document.footer(&dataset)?);
+                buffer.write_all(&mut document.header(&dataset)?)?;
+                buffer.write_all(&mut document.write(&dataset)?)?;
+                buffer.write_all(&mut document.footer(&dataset)?)?;
+
+                if let Some(mime_subtype) = document.metadata().mime_subtype {
+                    if mime_subtype == "x-www-form-urlencoded" {
+                        if buffer.starts_with(&[b'"']) {
+                            buffer = buffer.drain(1..).collect();
+                        }
+                        if buffer.ends_with(&[b'"']) {
+                            buffer.pop();
+                        }
+                    }
+                }
 
                 req = req.body(buffer.clone());
                 req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
@@ -587,6 +599,17 @@ impl Connector for Curl {
                 buffer.append(&mut document.header(dataset)?);
                 buffer.append(&mut document.write(dataset)?);
                 buffer.append(&mut document.footer(dataset)?);
+
+                if let Some(mime_subtype) = document.metadata().mime_subtype {
+                    if mime_subtype == "x-www-form-urlencoded" {
+                        if buffer.starts_with(&[b'"']) {
+                            buffer = buffer.drain(1..).collect();
+                        }
+                        if buffer.ends_with(&[b'"']) {
+                            buffer.pop();
+                        }
+                    }
+                }
 
                 req = req.body(buffer.clone());
                 req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
