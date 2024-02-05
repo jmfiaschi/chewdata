@@ -10,7 +10,8 @@
 //! | type       | -      | Required in order to use this connector                                                          | `local`       | `local`               |
 //! | metadata   | meta   | Override metadata information                                                                    | `null`        | [`crate::Metadata`] |
 //! | path       | -      | Path of a file or list of files. Allow wildcard charater `*` and mustache variables              | `null`        | String                |
-//! | parameters | params | Variable that can be use in the path. Parameters of the connector is merged with the current data | `null`        | List of key and value |
+//! | parameters | params | Variable that can be use in the path. Parameters of the connector is merged with the current data | `null`       | List of key and value |
+//! | algo_with_checksum   | checksum | Text corresponding to '[algorithm]:[checksum to check]'                              | `null`        | 'sha224' / 'sha256' / 'sha384' / 'sha512'  / 'sha3_224'  / 'sha3_256'  / 'sha3_384'  / 'sha3_512' |
 //!
 //! ### Examples
 //!
@@ -34,6 +35,7 @@
 use super::paginator::local::wildcard::Wildcard;
 use super::Connector;
 use crate::document::Document;
+use crate::helper::checksum::str_to_hasher_with_checksum;
 use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataResult, DataSet, DataStream, Metadata};
@@ -50,6 +52,7 @@ use serde_json::{Map, Value};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::io;
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::{
@@ -70,6 +73,8 @@ pub struct Local {
     #[serde(alias = "params")]
     pub parameters: Value,
     pub is_cached: bool,
+    #[serde(alias = "checksum")]
+    pub algo_with_checksum: Option<String>,
 }
 
 impl fmt::Display for Local {
@@ -97,6 +102,7 @@ impl fmt::Debug for Local {
             .field("path", &self.path)
             .field("parameters", &self.parameters.display_only_for_debugging())
             .field("is_cached", &self.is_cached)
+            .field("algo_with_checksum", &self.algo_with_checksum)
             .finish()
     }
 }
@@ -323,6 +329,7 @@ impl Connector for Local {
     async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
         let mut buff = Vec::default();
         let path = self.path();
+        let algo_with_checksum_opt = self.algo_with_checksum.clone();
 
         if path.has_mustache() {
             warn!(path = path, "This path is not fully resolved");
@@ -351,6 +358,25 @@ impl Connector for Local {
 
         if !document.has_data(&buff)? {
             return Ok(None);
+        }
+
+        if let Some(algo_with_checksum) = &algo_with_checksum_opt {
+            if let (hasher, Some(checksum)) = str_to_hasher_with_checksum(algo_with_checksum)? {
+                let mut hasher = hasher.clone();
+                hasher.update(&buff);
+
+                let digest = base16ct::lower::encode_string(&hasher.finalize());
+
+                if !digest.eq(checksum) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        format!(
+                            "Checksum verification failed. {}({}) != configuration({})",
+                            path, digest, checksum
+                        ),
+                    ));
+                }
+            };
         }
 
         let dataset = document.read(&buff)?;
@@ -460,7 +486,23 @@ impl Connector for Local {
         file.unlock()?;
         trace!(path = path, "Unlock the resource");
 
-        info!(path = path, "Send data with success");
+        info!(
+            path = path,
+            checksum = match &self.algo_with_checksum {
+                Some(algo_with_checksum) => {
+                    let (hasher, _) = str_to_hasher_with_checksum(algo_with_checksum)?;
+                    let mut hasher = hasher.clone();
+                    let mut buff = Vec::default();
+                    file.seek(SeekFrom::Start(0))?;
+                    file.read_to_end(&mut buff)?;
+                    hasher.update(&buff);
+                    base16ct::lower::encode_string(&hasher.finalize())
+                }
+                None => "algorithm undefined".to_string(),
+            },
+            "Send data with success"
+        );
+
         Ok(None)
     }
     /// See [`Connector::erase`] for more details.

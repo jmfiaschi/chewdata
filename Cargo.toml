@@ -47,6 +47,9 @@ clap = { version = "4.3" }
 version = { version = "3.0", default-features = false}
 serde_yaml = { version = "0.9", default-features = false }
 deser-hjson = { version = "2.1", default-features = false }
+sha2 = { version = "0.10", default-features = false }
+sha3 = { version = "0.10", default-features = false }
+base16ct = { version = "0.2", default-features = false, features = ["alloc"] }
 # Lock local files
 fs2 = { version = "0.4", default-features = false }
 # For Templates
@@ -59,7 +62,7 @@ toml = { version = "0.8", default-features = false, optional = true, features = 
 parquet = { version = "49.0", default-features = false, optional = true, features = ["cli","arrow","flate2","brotli","lz4","zstd","snap"] }
 arrow-json = { version = "49.0", default-features = false, optional = true } # used to create the batch with json_value
 arrow-integration-test = { version = "49.0", default-features = false, optional = true } # used to transform json_value to schema
-bytes = { version = "1.4", default-features = false, optional = true, features = ["std"] }
+bytes = { version = "1.5", default-features = false, optional = true, features = ["std"] }
 # For Connectors
 ## bucket
 aws-config = { version = "1.0", optional = true }
