@@ -1,3 +1,10 @@
+# [2.9.0](https://github.com/jmfiaschi/chewdata/compare/v2.8.1...v2.9.0) (2024-2-6)
+
+
+### Features
+
+* **json/jsonl:** write entry_path if define ([#57](https://github.com/jmfiaschi/chewdata/issues/57)) ([81fa6f6](https://github.com/jmfiaschi/chewdata/commit/81fa6f602197b51472db091a13f209a57aa9c4e6))
+
 # [2.9.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.1...v2.9.0-beta.1) (2024-2-5)
 
 
