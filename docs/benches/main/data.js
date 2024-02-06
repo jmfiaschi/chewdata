@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1706605598201,
+  "lastUpdate": 1707205269844,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3155,6 +3155,72 @@ window.BENCHMARK_DATA = {
             "name": "read_parquet/",
             "value": 137862,
             "range": "± 930",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "81fa6f602197b51472db091a13f209a57aa9c4e6",
+          "message": "feat(json/jsonl): write entry_path if define (#57)\n\n* chore(write): improve logs\r\n* feat(local): add checksum generation and validation\r\n* feat(json/jsonl): write entry_path if define\r\n* feat(curl): remove \" for data with \"x-www-form-urlencoded\"",
+          "timestamp": "2024-02-06T08:29:22+01:00",
+          "tree_id": "0638d00c78acb9ce80ef963c0c68ee77b773c0ce",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/81fa6f602197b51472db091a13f209a57aa9c4e6"
+        },
+        "date": 1707205269213,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5548,
+            "range": "± 163",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5474,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 298184,
+            "range": "± 4238",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 20776,
+            "range": "± 418",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10894,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13716,
+            "range": "± 50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 137046,
+            "range": "± 1140",
             "unit": "ns/iter"
           }
         ]
