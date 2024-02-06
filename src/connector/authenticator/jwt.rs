@@ -12,7 +12,7 @@
 //! | key               | -     | Key used for the signing_type                                        | `null`        | String                                                                                     |
 //! | payload           | -     | The jwt payload                                                      | `null`        | Object or Array of objects                                                                 |
 //! | parameters        | -     | The parameters used to remplace variables in the payload             | `null`        | Object or Array of objects                                                                 |
-//! | token             | -     | The token that can be override if necessary                          | `null`        | String                                                                                     |
+//! | token_path        | -     | The token path where is store the token in the response object       | `/token`      | String                                                                                     |
 //!
 //! ### Examples
 //!
@@ -40,15 +40,13 @@
 //!                     "path": "/tokens",
 //!                     "method": "post"
 //!                 },
-//!                 "document": {
-//!                     "entry_path": "/my_token_field"
-//!                 }
 //!                 "key": "my_key",
 //!                 "payload": {
 //!                     "alg":"HS256",
 //!                     "claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},
 //!                     "key":"my_key"
-//!                 }
+//!                 },
+//!                 "token_path": "/token"
 //!             }
 //!         }
 //!     }
@@ -62,6 +60,7 @@ use async_std::prelude::StreamExt;
 use async_std::sync::Arc;
 use async_std::sync::Mutex;
 use async_trait::async_trait;
+use json_value_search::Search;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -91,6 +90,7 @@ pub struct Jwt {
     pub signing_type: Option<SigningType>,
     pub key: String,
     pub payload: Box<Value>,
+    pub token_path: String,
 }
 
 impl fmt::Debug for Jwt {
@@ -110,6 +110,7 @@ impl fmt::Debug for Jwt {
                     .display_only_for_debugging(),
             )
             .field("payload", &self.payload.display_only_for_debugging())
+            .field("token_path", &self.token_path)
             .finish()
     }
 }
@@ -141,8 +142,9 @@ impl Default for Jwt {
             document: Box::<Jsonl>::default(),
             jwk: None,
             signing_type: None,
-            key: "".to_string(),
+            key: "".to_owned(),
             payload: Box::new(Value::Null),
+            token_path: "/token".to_string(),
         }
     }
 }
@@ -209,7 +211,7 @@ impl Jwt {
         };
 
         let token_value = match datastream.next().await {
-            Some(data_result) => data_result.to_value(),
+            Some(data_result) => data_result.to_value().search(&self.token_path)?,
             None => {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
@@ -219,7 +221,7 @@ impl Jwt {
         };
 
         match token_value {
-            Value::String(token_value) => {
+            Some(Value::String(token_value)) => {
                 let token_key = self.token_key();
                 let tokens = TOKENS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
 
@@ -440,7 +442,7 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.document.entry_path = Some("/token".to_string());
+        auth.token_path = "/token".to_string();
         auth.document.metadata = Metadata {
             mime_subtype: Some("json".to_string()),
             ..Default::default()
@@ -463,7 +465,7 @@ mod tests {
         let mut auth = Jwt::default();
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.document.entry_path = Some("/access_token".to_string());
+        auth.token_path = "/access_token".to_string();
         auth.document.metadata = Metadata {
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
             ..Default::default()
@@ -487,7 +489,7 @@ mod tests {
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.document.entry_path = Some("/token".to_string());
+        auth.token_path = "/token".to_string();
         auth.document.metadata = Metadata {
             mime_subtype: Some("json".to_string()),
             ..Default::default()
@@ -525,7 +527,7 @@ mod tests {
         auth.jwk = Some(jwk);
         auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.document.entry_path = Some("/access_token".to_string());
+        auth.token_path = "/access_token".to_string();
         auth.document.metadata = Metadata {
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
             ..Default::default()

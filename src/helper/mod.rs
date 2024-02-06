@@ -1,3 +1,4 @@
+pub mod checksum;
 pub mod json_pointer;
 pub mod mustache;
 pub mod string;
