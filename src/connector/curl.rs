@@ -464,9 +464,9 @@ impl Connector for Curl {
                 let mut buffer = Vec::default();
 
                 let dataset = vec![DataResult::Ok(self.parameters_without_context()?)];
-                buffer.write_all(&mut document.header(&dataset)?)?;
-                buffer.write_all(&mut document.write(&dataset)?)?;
-                buffer.write_all(&mut document.footer(&dataset)?)?;
+                buffer.write_all(&document.header(&dataset)?)?;
+                buffer.write_all(&document.write(&dataset)?)?;
+                buffer.write_all(&document.footer(&dataset)?)?;
 
                 if let Some(mime_subtype) = document.metadata().mime_subtype {
                     if mime_subtype == "x-www-form-urlencoded" {

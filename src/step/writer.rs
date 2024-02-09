@@ -132,6 +132,7 @@ impl Step for Writer {
     async fn exec(&self) -> io::Result<()> {
         info!("Start writing data...");
         
+        let mut total_written: usize = 0;
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.clone().boxed_inner();
         let mut dataset = Vec::default();
@@ -162,7 +163,8 @@ impl Step for Writer {
 
                     match connector.send(&*document, &dataset).await {
                         Ok(_) => {
-                            info!(dataset_length = dataset.len(), "Write with success");
+                            total_written+=dataset.len();
+                            info!(dataset_length = dataset.len(), total = &total_written, "Write with success");
 
                             for data in dataset {
                                 let mut context = context_received.clone();
@@ -205,7 +207,8 @@ impl Step for Writer {
 
                 match connector.send(&*document, &dataset).await {
                     Ok(_) => {
-                        info!(dataset_length = dataset.len(), "Write with success");
+                        total_written+=dataset.len();
+                        info!(dataset_length = dataset.len(), total = total_written, "Write with success");
 
                         for data in dataset {
                             let mut context = context_received.clone();
@@ -244,7 +247,8 @@ impl Step for Writer {
 
             match connector.send(&*document, &dataset).await {
                 Ok(_) => {
-                    info!(dataset_length = dataset.len(), "Write with success");
+                    total_written+=dataset.len();
+                    info!(dataset_length = dataset.len(), total = total_written, "Write with success");
 
                     for data in dataset {
                         let context = match &last_context_received {
@@ -295,6 +299,7 @@ impl Step for Writer {
         }
 
         info!(
+            total = total_written,
             "Stops writing data and sending context in the channel"
         );
 
