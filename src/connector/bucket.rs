@@ -431,7 +431,10 @@ impl Connector for Bucket {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let get_object = self
@@ -528,14 +531,17 @@ impl Connector for Bucket {
         dataset: &DataSet,
     ) -> std::io::Result<Option<DataStream>> {
         let mut content_file = Vec::default();
-        let path_resolved = self.path();
+        let path = self.path();
         let terminator = document.terminator()?;
         let footer = document.footer(dataset)?;
         let header = document.header(dataset)?;
         let body = document.write(dataset)?;
 
-        if path_resolved.has_mustache() {
-            warn!(path = path_resolved, "This path is not fully resolved");
+        if path.has_mustache() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let position = match document.can_append() {
@@ -544,10 +550,7 @@ impl Connector for Bucket {
         };
 
         if !self.is_empty().await? {
-            info!(
-                path = path_resolved.to_string().as_str(),
-                "Fetch existing data"
-            );
+            info!(path = path.to_string().as_str(), "Fetch existing data");
             {
                 let get_object = self
                     .client()
@@ -600,7 +603,7 @@ impl Connector for Bucket {
             .await?
             .put_object()
             .bucket(&self.bucket)
-            .key(&path_resolved)
+            .key(&path)
             .tagging(self.tagging())
             .content_type(self.metadata().content_type())
             .set_metadata(Some(
@@ -623,7 +626,7 @@ impl Connector for Bucket {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        info!(path = path_resolved, "Send data with success");
+        info!(path = path, "Send data with success");
         Ok(None)
     }
     fn set_metadata(&mut self, metadata: Metadata) {
@@ -639,7 +642,10 @@ impl Connector for Bucket {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         self.client()

@@ -332,7 +332,10 @@ impl Connector for Local {
         let algo_with_checksum_opt = self.algo_with_checksum.clone();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         if self.is_cached {
@@ -445,7 +448,10 @@ impl Connector for Local {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let position = match document.can_append() {
@@ -538,7 +544,10 @@ impl Connector for Local {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let paths = glob(path.as_str()).map_err(|e| Error::new(ErrorKind::NotFound, e))?;

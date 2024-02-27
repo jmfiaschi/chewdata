@@ -209,7 +209,10 @@ impl BucketSelect {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let input_serialization = match metadata.mime_subtype.as_deref() {

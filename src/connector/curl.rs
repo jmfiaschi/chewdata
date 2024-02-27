@@ -75,7 +75,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
-use std::io::Write;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
@@ -83,7 +82,7 @@ use std::time;
 use std::time::Duration;
 use std::{
     fmt,
-    io::{Error, ErrorKind, Result},
+    io::{Error, ErrorKind, Result, Write},
 };
 use surf::middleware::{Middleware, Next};
 use surf::{
@@ -451,7 +450,10 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
@@ -462,8 +464,12 @@ impl Connector for Curl {
         match self.method {
             Method::Post | Method::Put | Method::Patch => {
                 let mut buffer = Vec::default();
+                let mut parameters_without_context = self.parameters_without_context()?;
+                parameters_without_context.replace_mustache(self.parameters.clone());
 
-                let dataset = vec![DataResult::Ok(self.parameters_without_context()?)];
+                let dataset = vec![DataResult::Ok(parameters_without_context)];
+                let mut document = document.clone_box();
+                document.set_entry_path(String::default());
                 buffer.write_all(&document.header(&dataset)?)?;
                 buffer.write_all(&document.write(&dataset)?)?;
                 buffer.write_all(&document.footer(&dataset)?)?;
@@ -584,7 +590,10 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
@@ -696,7 +705,10 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
