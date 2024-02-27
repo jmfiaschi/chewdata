@@ -18,6 +18,7 @@
 //! | paginator_type | paginator | Paginator parameters.                                | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
 //! | counter_type  | count / counter | Use to find the total of elements in the resource.  | `null` | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
 //! | cache_mode    | cache | Enable the backend cache management and define the cache strategy. See the details here <https://github.com/06chaynes/http-cache/blob/main/http-cache/src/lib.rs#L265-L295> |    `null`    | `default` / `no_store` / `reload` / `no_cache` / `force_cache` / `if_cached` / `ignore_rules` |
+//! | redirection_limit    | - | Limit of redirection |    `5`    | Integer |
 //!
 //! ### Examples
 //!
