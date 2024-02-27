@@ -119,6 +119,7 @@ pub struct Curl {
     pub counter_type: Option<CounterType>,
     #[serde(alias = "cache")]
     pub cache_mode: Option<String>,
+    pub redirection_limit: usize,
 }
 
 impl fmt::Debug for Curl {
@@ -139,6 +140,7 @@ impl fmt::Debug for Curl {
             .field("paginator_type", &self.paginator_type)
             .field("counter_type", &self.counter_type)
             .field("cache_mode", &self.cache_mode)
+            .field("redirection_limit", &self.redirection_limit)
             .finish()
     }
 }
@@ -159,6 +161,7 @@ impl Default for Curl {
             paginator_type: PaginatorType::default(),
             counter_type: None,
             cache_mode: None,
+            redirection_limit: 5,
         }
     }
 }
@@ -210,7 +213,12 @@ impl Curl {
             .try_into()
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
-        client = client.with(Logger::new());
+        client = client
+            .with(Logger::new())
+            .with(surf::middleware::Redirect::new(
+                self.redirection_limit as u8,
+            ));
+
         if let Some(authenticator_type) = self.authenticator_type.clone() {
             client = client.with(Authenticator::new(authenticator_type));
         }
