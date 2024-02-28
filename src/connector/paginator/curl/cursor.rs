@@ -57,9 +57,6 @@ use std::io::Result;
 pub struct Cursor {
     pub limit: usize,
     pub entry_path: String,
-    #[serde(rename = "document")]
-    #[serde(alias = "doc")]
-    pub document_type: DocumentType,
     #[serde(rename = "next")]
     pub next_token: Option<String>,
 }
@@ -68,7 +65,6 @@ impl Default for Cursor {
     fn default() -> Self {
         Cursor {
             limit: 100,
-            document_type: DocumentType::default(),
             next_token: None,
             entry_path: "/next".to_string(),
         }
@@ -83,7 +79,6 @@ impl Cursor {
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::{PaginatorType, cursor::Cursor};
-    /// use chewdata::document::DocumentType;
     /// use surf::http::Method;
     /// use async_std::prelude::*;
     /// use std::io;
@@ -98,7 +93,6 @@ impl Cursor {
     ///     let paginator = Cursor {
     ///         limit: 1,
     ///         entry_path: "/uuid".to_string(),
-    ///         document_type: DocumentType::default(),
     ///         ..Default::default()
     ///     };
     ///
@@ -113,7 +107,7 @@ impl Cursor {
     #[instrument(name = "cursor::paginate")]
     pub async fn paginate(&self, connector: &Curl) -> Result<ConnectorStream> {
         let connector = connector.clone();
-        let mut document = self.document_type.clone().boxed_inner();
+        let mut document = DocumentType::guess(&connector.metadata())?;
         let mut has_next = true;
         let limit = self.limit;
         let entry_path = self.entry_path.clone();
@@ -126,6 +120,8 @@ impl Cursor {
 
                 if let Some(next_token) = next_token_opt {
                     new_parameters.merge_in("/paginator/next", &Value::String(next_token))?;
+                } else {
+                    new_parameters.merge_in("/paginator/next", &Value::String("".to_string()))?;
                 }
 
                 new_parameters
@@ -171,7 +167,6 @@ mod tests {
     use crate::connector::curl::Curl;
     use crate::connector::paginator::curl::cursor::Cursor;
     use crate::document::json::Json;
-    use crate::document::DocumentType;
     use futures::StreamExt;
     use http_types::Method;
 
@@ -187,7 +182,6 @@ mod tests {
         let paginator = Cursor {
             limit: 1,
             entry_path: "/uuid".to_string(),
-            document_type: DocumentType::default(),
             ..Default::default()
         };
 

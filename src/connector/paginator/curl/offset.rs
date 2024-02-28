@@ -99,6 +99,7 @@ impl Offset {
         let limit = self.limit;
         let mut skip = self.skip;
         let count_opt = self.count;
+        let document = DocumentType::guess(&connector.metadata())?;
 
         let stream = Box::pin(stream! {
             while has_next {
@@ -122,7 +123,6 @@ impl Offset {
                 // Loop until the connector stop to return data. Last check to avoid infinit loop.
                 // Define a counter will avoid to enter in this check.
                 if has_next && count_opt.is_none() {
-                    let document = DocumentType::guess(&new_connector.metadata())?;
                     let mut dataset = match new_connector.fetch(&*document).await? {
                         Some(dataset) => dataset,
                         None => break
