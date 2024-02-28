@@ -203,6 +203,20 @@ async fn read<'step>(
                 error = e.to_string().as_str(),
                 "fetch data failed"
             );
+
+            if let Some(context) = context {
+                let mut context_in_err = context.clone();
+                context_in_err.insert_step_result(
+                    step.name(),
+                    DataResult::Err((
+                        context.input().to_value(),
+                        io::Error::new(e.kind(), e.to_string()),
+                    )),
+                );
+
+                step.send(&context_in_err).await;
+            }
+
             return;
         }
     };
