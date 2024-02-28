@@ -49,7 +49,7 @@ impl Default for Byte {
     fn default() -> Self {
         let metadata = Metadata {
             mime_type: Some(mime::APPLICATION.to_string()),
-            mime_subtype: Some(mime::APPLICATION_OCTET_STREAM.to_string()),
+            mime_subtype: Some(mime::OCTET_STREAM.to_string()),
             ..Default::default()
         };
         Byte { metadata }
