@@ -95,6 +95,11 @@ impl Document for Jsonl {
     }
     /// See [`Document::set_entry_path`] for more details.
     fn set_entry_path(&mut self, entry_path: String) {
+        if entry_path.is_empty() {
+            self.entry_path = None;
+            return;
+        }
+
         self.entry_path = Some(entry_path);
     }
     /// See [`Document::read`] for more details.
