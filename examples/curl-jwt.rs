@@ -34,14 +34,14 @@ async fn main() -> io::Result<()> {
                     "type": "curl",
                     "endpoint": "http://jwtbuilder.jamiekurtz.com",
                     "path": "/tokens",
-                    "method": "post"
+                    "method": "post",
+                    "parameters": {
+                        "alg":"HS256",
+                        "claims":{"GivenName":"Johnny","username":"{{ CURL_BASIC_AUTH_USERNAME }}","password":"{{ CURL_BASIC_AUTH_PASSWORD }}","iat":1599462755,"exp":33156416077},
+                        "key":"my_key"
+                    },
                 },
                 "key": "my_key",
-                "payload": {
-                    "alg":"HS256",
-                    "claims":{"GivenName":"Johnny","username":"{{ CURL_BASIC_AUTH_USERNAME }}","password":"{{ CURL_BASIC_AUTH_PASSWORD }}","iat":1599462755,"exp":33156416077},
-                    "key":"my_key"
-                },
                 "signing": "secret",
                 "document": {
                     "metadata": {

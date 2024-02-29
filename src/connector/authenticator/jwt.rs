@@ -10,9 +10,7 @@
 //! | jwk               | -     | The Json web key used to sign                                        | `null`        | [Object](https://datatracker.ietf.org/doc/html/rfc7517#page-5)                             |
 //! | signing_type      | signing | Define the signing to used for the token validation                | `secret`      | `secret` / `base64secret` / `rsa_pem` / `rsa_components` / `ec_pem` / `rsa_der` / `ec_der` |
 //! | key               | -     | Key used for the signing_type                                        | `null`        | String                                                                                     |
-//! | payload           | -     | The jwt payload                                                      | `null`        | Object or Array of objects                                                                 |
-//! | parameters        | -     | The parameters used to remplace variables in the payload             | `null`        | Object or Array of objects                                                                 |
-//! | token_path        | -     | The token path where is store the token in the response object       | `/token`      | String                                                                                     |
+//! | document          | -     | Document jsonl format use to read retreaved data. You can change only the jsonl's parameter. | `jsonl` | jsonl`                                                                     |
 //!
 //! ### Examples
 //!
@@ -38,15 +36,17 @@
 //!                     "type": "curl",
 //!                     "endpoint": "http://my_api.com",
 //!                     "path": "/tokens",
-//!                     "method": "post"
+//!                     "method": "post",
+//!                     "parameters": {
+//!                         "alg":"HS256",
+//!                         "claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},
+//!                         "key":"my_key"
+//!                     },
 //!                 },
 //!                 "key": "my_key",
-//!                 "payload": {
-//!                     "alg":"HS256",
-//!                     "claims":{"GivenName":"Johnny","username":"{{ username }}","password":"{{ password }}","iat":1599462755,"exp":33156416077},
-//!                     "key":"my_key"
-//!                 },
-//!                 "token_path": "/token"
+//!                 "document":{
+//!                     "entry_path":"/token"
+//!                 }
 //!             }
 //!         }
 //!     }
@@ -60,7 +60,6 @@ use async_std::prelude::StreamExt;
 use async_std::sync::Arc;
 use async_std::sync::Mutex;
 use async_trait::async_trait;
-use json_value_search::Search;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -89,8 +88,6 @@ pub struct Jwt {
     #[serde(alias = "signing")]
     pub signing_type: Option<SigningType>,
     pub key: String,
-    pub payload: Box<Value>,
-    pub token_path: String,
 }
 
 impl fmt::Debug for Jwt {
@@ -109,8 +106,6 @@ impl fmt::Debug for Jwt {
                     .to_obfuscate()
                     .display_only_for_debugging(),
             )
-            .field("payload", &self.payload.display_only_for_debugging())
-            .field("token_path", &self.token_path)
             .finish()
     }
 }
@@ -143,8 +138,6 @@ impl Default for Jwt {
             jwk: None,
             signing_type: None,
             key: "".to_owned(),
-            payload: Box::new(Value::Null),
-            token_path: "/token".to_string(),
         }
     }
 }
@@ -169,12 +162,12 @@ impl Jwt {
     ///    connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///    connector.path = "/tokens".to_string();
     ///    connector.method = Method::Post;
+    ///    connector.parameters = serde_json::from_str(
+    ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
+    ///    )?;
     ///
     ///    let mut auth = Jwt::default();
     ///    auth.key = "my_key".to_string();
-    ///    auth.payload = serde_json::from_str(
-    ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
-    ///    )?;
     ///    auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
     ///    auth.document.entry_path = Some("/token".to_string());
     ///    auth.document.metadata = Metadata {
@@ -200,7 +193,6 @@ impl Jwt {
         };
 
         connector.set_metadata(connector.metadata().merge(&self.document.metadata()));
-        connector.set_parameters(*self.payload.clone());
 
         let mut datastream = match connector.fetch(&*self.document).await? {
             Some(datastream) => datastream,
@@ -211,17 +203,17 @@ impl Jwt {
         };
 
         let token_value = match datastream.next().await {
-            Some(data_result) => data_result.to_value().search(&self.token_path)?,
+            Some(data_result) => data_result.to_value(),
             None => {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
-                    "Can't find JWT in empty data stream",
+                    "Can't find JWT in the data stream",
                 ))
             }
         };
 
         match token_value {
-            Some(Value::String(token_value)) => {
+            Value::String(token_value) => {
                 let token_key = self.token_key();
                 let tokens = TOKENS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
 
@@ -305,11 +297,8 @@ impl Jwt {
     fn token_key(&self) -> String {
         let mut hasher = DefaultHasher::new();
         let key = format!(
-            "{:?}:{:?}:{:?}:{:?}",
-            self.algorithm,
-            self.signing_type,
-            self.document.entry_path,
-            self.payload.to_string()
+            "{:?}:{:?}:{:?}",
+            self.algorithm, self.signing_type, self.document.entry_path,
         );
         key.hash(&mut hasher);
         hasher.finish().to_string()
@@ -345,12 +334,12 @@ impl Authenticator for Jwt {
     ///     connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     connector.path = "/tokens".to_string();
     ///     connector.method = Method::Post;
+    ///     connector.parameters = serde_json::from_str(
+    ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
+    ///     ).unwrap();
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
-    ///     auth.payload = serde_json::from_str(
-    ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
-    ///     ).unwrap();
     ///     auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
     ///     auth.document.entry_path = Some("/token".to_string());
     ///     auth.document.metadata = Metadata {
@@ -436,17 +425,17 @@ mod tests {
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         connector.path = "/tokens".to_string();
         connector.method = Method::Post;
-
-        let mut auth = Jwt::default();
-        auth.payload = serde_json::from_str(
+        connector.parameters = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
+
+        let mut auth = Jwt::default();
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.token_path = "/token".to_string();
         auth.document.metadata = Metadata {
             mime_subtype: Some("json".to_string()),
             ..Default::default()
         };
+        auth.document.entry_path = Some("/token".to_string());
 
         match auth.refresh().await {
             Ok(_) => (),
@@ -461,11 +450,11 @@ mod tests {
         connector.path = "/token".to_string();
         connector.method = Method::Post;
         connector.timeout = Some(60);
+        connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
         let mut auth = Jwt::default();
-        auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.token_path = "/access_token".to_string();
+        auth.document.entry_path = Some("/access_token".to_string());
         auth.document.metadata = Metadata {
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
             ..Default::default()
@@ -482,14 +471,14 @@ mod tests {
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         connector.path = "/tokens".to_string();
         connector.method = Method::Post;
+        connector.parameters = serde_json::from_str(
+            r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
+        ).unwrap();
 
         let mut auth = Jwt::default();
         auth.key = "my_key".to_string();
-        auth.payload = serde_json::from_str(
-            r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
-        ).unwrap();
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.token_path = "/token".to_string();
+        auth.document.entry_path = Some("/token".to_string());
         auth.document.metadata = Metadata {
             mime_subtype: Some("json".to_string()),
             ..Default::default()
@@ -520,14 +509,14 @@ mod tests {
             "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
         connector.method = Method::Post;
+        connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
         let mut auth = Jwt::default();
         auth.algorithm = Algorithm::RS256;
         auth.signing_type = Some(SigningType::RsaComponents);
         auth.jwk = Some(jwk);
-        auth.payload = Box::new(Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string()));
         auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
-        auth.token_path = "/access_token".to_string();
+        auth.document.entry_path = Some("/access_token".to_string());
         auth.document.metadata = Metadata {
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
             ..Default::default()
