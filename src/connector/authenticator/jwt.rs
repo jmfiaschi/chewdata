@@ -450,7 +450,7 @@ mod tests {
 
         match auth.refresh().await {
             Ok(_) => (),
-            Err(_) => assert!(false, "The token can't be refreshed."),
+            Err(e) => assert!(false, "The token can't be refreshed: '{}'", e),
         };
     }
     #[async_std::test]
@@ -473,7 +473,7 @@ mod tests {
 
         match auth.refresh().await {
             Ok(_) => (),
-            Err(_) => assert!(false, "The token can't be refreshed."),
+            Err(e) => assert!(false, "The token can't be refreshed: '{}'", e),
         };
     }
     #[async_std::test]
