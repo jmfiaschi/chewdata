@@ -170,7 +170,7 @@ impl Default for Curl {
             paginator_type: PaginatorType::default(),
             counter_type: None,
             cache_mode: None,
-            redirection_limit: 1,
+            redirection_limit: 5,
         }
     }
 }
@@ -1130,5 +1130,78 @@ mod tests {
         connector.path = "/status/200".to_string();
         connector.erase().await.unwrap();
         assert_eq!(true, connector.is_empty().await.unwrap());
+    }
+    #[async_std::test]
+    async fn test_redirection_with_fetch() {
+        let document = Json::default();
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = "/redirect/1".to_string();
+        connector.redirection_limit = 1;
+
+        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        assert!(
+            0 < datastream.count().await,
+            "The inner connector should have a size upper than zero."
+        );
+
+        connector.path = "/redirect/2".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.fetch(&document).await;
+        assert!(
+            result.is_err(),
+            "The inner connector should raise an error."
+        );
+    }
+    #[async_std::test]
+    async fn test_redirection_with_send() {
+        let document = Json::default();
+
+        let expected_result1 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        let dataset = vec![expected_result1];
+
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = "/redirect/1".to_string();
+        connector.redirection_limit = 1;
+
+        let datastream = connector.send(&document, &dataset).await.unwrap().unwrap();
+        assert!(
+            0 < datastream.count().await,
+            "The inner connector should have a size upper than zero."
+        );
+
+        connector.path = "/redirect/2".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.send(&document, &dataset).await;
+        assert!(
+            result.is_err(),
+            "The inner connector should raise an error."
+        );
+    }
+    #[async_std::test]
+    async fn test_redirection_with_erase() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = "/redirect/1".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.erase().await;
+        assert!(
+            result.is_ok(),
+            "The inner connector shouldn't raise an error."
+        );
+
+        connector.path = "/redirect/2".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.erase().await;
+        assert!(
+            result.is_err(),
+            "The inner connector should raise an error."
+        );
     }
 }
