@@ -1,3 +1,10 @@
+# [2.10.0](https://github.com/jmfiaschi/chewdata/compare/v2.9.0...v2.10.0) (2024-03-08)
+
+
+### Features
+
+* **curl:** handle redirection ([#58](https://github.com/jmfiaschi/chewdata/issues/58)) ([0fc663f](https://github.com/jmfiaschi/chewdata/commit/0fc663f7820f5b2bd22fb13ff15007466dd99d19))
+
 # [2.10.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.9.0...v2.10.0-beta.1) (2024-3-2)
 
 
