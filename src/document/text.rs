@@ -51,8 +51,8 @@ impl Default for Text {
     fn default() -> Self {
         let metadata = Metadata {
             terminator: Some(DEFAULT_TERMINATOR.to_string()),
-            mime_type: Some(mime::TEXT.to_string()),
-            mime_subtype: Some(mime::PLAIN.to_string()),
+            mime_type: Some(mime::PLAIN.to_string()),
+            mime_subtype: Some(mime::TEXT.to_string()),
             charset: Some(mime::UTF_8.to_string()),
             ..Default::default()
         };
@@ -61,6 +61,10 @@ impl Default for Text {
 }
 
 impl Document for Text {
+    /// See [`Document::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata.clone();
+    }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Text::default().metadata.merge(&self.metadata)

@@ -137,7 +137,7 @@ impl Extract for serde_json::Value {
 fn attributes_extraction(
     from: &Value,
     to: &mut Value,
-    search_attribute_path_fields: &Vec<&str>,
+    search_attribute_path_fields: &[&str],
     new_attribute_path_fields: &mut [String],
 ) -> io::Result<()> {
     if search_attribute_path_fields.is_empty() {
@@ -145,7 +145,7 @@ fn attributes_extraction(
         return Ok(());
     }
 
-    let mut search_attribute_path_fields = search_attribute_path_fields.clone();
+    let mut search_attribute_path_fields = search_attribute_path_fields.to_owned();
     let current_field = search_attribute_path_fields.remove(0);
 
     match (&from, current_field) {

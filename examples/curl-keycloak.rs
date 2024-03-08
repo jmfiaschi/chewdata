@@ -41,7 +41,8 @@ async fn main() -> io::Result<()> {
                     "type": "curl",
                     "endpoint": "http://localhost:8083/auth/realms/test/protocol/openid-connect",
                     "path": "/token",
-                    "method": "post"
+                    "method": "post",
+                    "parameters": "client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password",
                 },
                 "algorithm":"RS256",
                 "jwk": {
@@ -58,7 +59,6 @@ async fn main() -> io::Result<()> {
                     "x5t#S256": "-WBOVu1q7fKqKz5j7JNaoYCZUal2AlZRqC49GS4lyXQ"
                 },
                 "signing": "rsa_components",
-                "payload": "client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password",
                 "document": {
                     "metadata": {
                         "mime_subtype": "x-www-form-urlencoded"

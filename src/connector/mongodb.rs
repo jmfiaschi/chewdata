@@ -68,6 +68,8 @@ static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Mongodb {
+    #[serde(skip)]
+    document: Option<Box<dyn ChewdataDocument>>,
     pub endpoint: String,
     #[serde(alias = "db")]
     pub database: String,
@@ -92,6 +94,7 @@ impl Default for Mongodb {
         update_option.upsert = Some(true);
 
         Mongodb {
+            document: None,
             endpoint: Default::default(),
             database: Default::default(),
             collection: Default::default(),
@@ -109,6 +112,7 @@ impl fmt::Debug for Mongodb {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Mongodb")
             // Can contain sensitive data
+            .field("document", &self.document)
             .field("endpoint", &self.endpoint.display_only_for_debugging())
             .field("database", &self.database)
             .field("collection", &self.collection)
@@ -163,6 +167,22 @@ impl Mongodb {
 
 #[async_trait]
 impl Connector for Mongodb {
+    /// See [`Connector::set_document`] for more details.
+    fn set_document(&mut self, document: Box<dyn ChewdataDocument>) -> Result<()> {
+        self.document = Some(document);
+
+        Ok(())
+    }
+    /// See [`Connector::document`] for more details.
+    fn document(&self) -> Result<&Box<dyn ChewdataDocument>> {
+        match &self.document {
+            Some(document) => Ok(document),
+            None => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "The document has not been set in the connector",
+            )),
+        }
+    }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
         format!("{}/{}/{}", self.endpoint, self.database, self.collection)
@@ -228,20 +248,17 @@ impl Connector for Mongodb {
     ///
     /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
-    /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
-    ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
-    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
+    ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -251,10 +268,8 @@ impl Connector for Mongodb {
     /// }
     /// ```
     #[instrument(name = "mongodb::fetch")]
-    async fn fetch(
-        &mut self,
-        document: &dyn ChewdataDocument,
-    ) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
+        let document = self.document()?;
         let options = *self.find_options.clone();
         let filter: Option<Document> = match self.filter(&self.parameters) {
             Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
@@ -292,7 +307,6 @@ impl Connector for Mongodb {
     /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
     /// use serde_json::from_str;
     /// use async_std::prelude::*;
@@ -300,8 +314,6 @@ impl Connector for Mongodb {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
-    ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
@@ -311,17 +323,13 @@ impl Connector for Mongodb {
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
-    ///     connector.send(&document, &dataset).await.unwrap();
+    ///     connector.send(&dataset).await.unwrap();
     ///
     ///     Ok(())
     /// }
     /// ```
     #[instrument(skip(dataset), name = "mongodb::send")]
-    async fn send(
-        &mut self,
-        _document: &dyn ChewdataDocument,
-        dataset: &DataSet,
-    ) -> std::io::Result<Option<DataStream>> {
+    async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut docs: Vec<Document> = Vec::default();
         for data in dataset {
             docs.push(
@@ -394,15 +402,12 @@ impl Connector for Mongodb {
     /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
     /// use async_std::prelude::*;
     /// use std::io;
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
-    ///
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
@@ -411,12 +416,12 @@ impl Connector for Mongodb {
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1];
-    ///     connector.send(&document, &dataset).await.unwrap();
+    ///     connector.send(&dataset).await.unwrap();
     ///     connector.erase().await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
     ///     connector_read.filter = Default::default();
-    ///     let datastream = connector_read.fetch(&document).await.unwrap();
+    ///     let datastream = connector_read.fetch().await.unwrap();
     ///     assert!(datastream.is_none(), "The datastream should be empty");
     ///
     ///     Ok(())
@@ -478,7 +483,8 @@ mod tests {
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
         connector.collection = "startup_log".into();
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(Box::new(document)).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -493,20 +499,21 @@ mod tests {
         connector.database = "tests".into();
         connector.collection = "send_1".into();
         connector.erase().await.unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
-        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch().await.unwrap().unwrap();
         assert_eq!(
             "value1",
             datastream
@@ -540,21 +547,22 @@ mod tests {
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "tests".into();
         connector.collection = "send_2".into();
+        connector.set_document(Box::new(document)).unwrap();
         connector.erase().await.unwrap();
 
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
-        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch().await.unwrap().unwrap();
         let data_1 = datastream.next().await.unwrap();
         let data_1_id = data_1.to_value().search("/_id").unwrap().unwrap();
 
@@ -562,11 +570,11 @@ mod tests {
         result3.merge_in("/_id", &data_1_id).unwrap();
         let expected_result3 = DataResult::Ok(result3);
         let dataset = vec![expected_result3.clone()];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
-        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch().await.unwrap().unwrap();
         assert_eq!(
             "value3",
             datastream
@@ -604,12 +612,13 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.set_document(Box::new(document)).unwrap();
+        connector.send(&dataset).await.unwrap();
         connector.erase().await.unwrap();
 
         let mut connector_read = connector.clone();
         connector_read.filter = Default::default();
-        let datastream = connector_read.fetch(&document).await.unwrap();
+        let datastream = connector_read.fetch().await.unwrap();
         assert!(datastream.is_none(), "The datastream should be empty.");
     }
 }

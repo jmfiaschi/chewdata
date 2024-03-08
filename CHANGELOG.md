@@ -1,3 +1,27 @@
+# [2.10.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.9.0...v2.10.0-beta.1) (2024-3-2)
+
+
+### Bug Fixes
+
+* **byte:** subtype mime ([9dd7b17](https://github.com/jmfiaschi/chewdata/commit/9dd7b174ab6d89f84636213688c366da48e5eb37))
+* **connector:** raise error if path not fully resolved ([9adeff8](https://github.com/jmfiaschi/chewdata/commit/9adeff88d117f68e0bbfa358a0f765688d4a718c))
+* **curl:** use document type guesser for paginators ([f5c921f](https://github.com/jmfiaschi/chewdata/commit/f5c921f80951e728f7580a864df7cfc5e176b374))
+* **document type guesser:** add jsonl and txt ([d74d85d](https://github.com/jmfiaschi/chewdata/commit/d74d85dbbe3bcdc96d7a3920f1076d703d788831))
+* **json/jsonl:** set entry_path to none if empty ([de41d98](https://github.com/jmfiaschi/chewdata/commit/de41d985e4223f41d63e87619a3f590c6a8c8ee3))
+* **parquet:** set entry_path to none if empty ([205c968](https://github.com/jmfiaschi/chewdata/commit/205c968dafa4d5cbb3a1ff8808b751df9be15333))
+* **test:** add exception in assertion ([7f1dd43](https://github.com/jmfiaschi/chewdata/commit/7f1dd432dc3acfa520727243b1576b90df645329))
+* **text:** mime type and subtype ([a673b90](https://github.com/jmfiaschi/chewdata/commit/a673b907eaaa24aacaffa63ff8ea0fb651c6bcd6))
+
+
+### Features
+
+* **curl:** add redirection limit ([ed85ef0](https://github.com/jmfiaschi/chewdata/commit/ed85ef02ba5442ea723b8f4aedc0cc2ed982ecf0))
+* **curl:** add redirection limit ([b39005c](https://github.com/jmfiaschi/chewdata/commit/b39005c3ab8a90b3397c271bfa74598804257fda))
+* **curl:** handle redirection ([5e98964](https://github.com/jmfiaschi/chewdata/commit/5e98964e331174f7c6f32169493f6a038c574795))
+* **jwt:** remove payload and token_entry. reuse document.entry_path and refresh_connector.parameters ([2de8565](https://github.com/jmfiaschi/chewdata/commit/2de8565b35987e8184ce29660a2685e0b02db87f))
+* **reader:** If context in input and the connector failed, forward in error the context ([f2d7749](https://github.com/jmfiaschi/chewdata/commit/f2d774994e154e0cd63fc574855a818803d1c036))
+* **writer:** display the total amount of data written. ([1fc54de](https://github.com/jmfiaschi/chewdata/commit/1fc54de297ed6398ed7dc519ba884a354a24c0c8))
+
 # [2.9.0](https://github.com/jmfiaschi/chewdata/compare/v2.8.1...v2.9.0) (2024-2-6)
 
 

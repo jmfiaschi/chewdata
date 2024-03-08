@@ -145,12 +145,15 @@ impl Csv {
             .comment
             .as_ref()
             .map(|value| builder.comment(Some(*value.as_bytes().to_vec().first().unwrap())));
-        metadata.terminator.map(|value| match value.as_str() {
-            "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
-            _ => builder.terminator(csv::Terminator::Any(
-                *value.as_bytes().to_vec().first().unwrap(),
-            )),
-        });
+        metadata
+            .terminator
+            .clone()
+            .map(|value| match value.as_str() {
+                "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
+                _ => builder.terminator(csv::Terminator::Any(
+                    *value.as_bytes().to_vec().first().unwrap(),
+                )),
+            });
 
         builder
     }
@@ -179,12 +182,15 @@ impl Csv {
             .escape
             .as_ref()
             .map(|value| builder.escape(*value.as_bytes().to_vec().first().unwrap()));
-        metadata.terminator.map(|value| match value.as_str() {
-            "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
-            _ => builder.terminator(csv::Terminator::Any(
-                *value.as_bytes().to_vec().first().unwrap(),
-            )),
-        });
+        metadata
+            .terminator
+            .clone()
+            .map(|value| match value.as_str() {
+                "CRLF" | "CR" | "LF" | "\n\r" => builder.terminator(csv::Terminator::CRLF),
+                _ => builder.terminator(csv::Terminator::Any(
+                    *value.as_bytes().to_vec().first().unwrap(),
+                )),
+            });
         match self.quote_style.to_uppercase().as_ref() {
             "ALWAYS" => builder.quote_style(csv::QuoteStyle::Always),
             "NEVER" => builder.quote_style(csv::QuoteStyle::Never),
@@ -245,6 +251,10 @@ impl Csv {
 }
 
 impl Document for Csv {
+    /// See [`Document::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata.clone();
+    }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Csv::default().metadata.merge(&self.metadata)

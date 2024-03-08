@@ -160,6 +160,7 @@ mod tests {
         connector.endpoint = "postgres://admin:admin@localhost".into();
         connector.database = "postgres".into();
         connector.collection = "public.read".into();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = Offset {
             skip: 0,
@@ -170,11 +171,11 @@ mod tests {
         let mut paging = paginator.paginate(&connector).await.unwrap();
 
         let mut connector = paging.next().await.transpose().unwrap().unwrap();
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector.fetch().await.unwrap().unwrap();
         let data_1 = datastream.next().await.unwrap();
 
         let mut connector = paging.next().await.transpose().unwrap().unwrap();
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector.fetch().await.unwrap().unwrap();
         let data_2 = datastream.next().await.unwrap();
         assert!(
             data_1 != data_2,

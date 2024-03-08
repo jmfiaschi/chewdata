@@ -128,7 +128,7 @@ impl DocumentType {
                     metadata: metadata.clone(),
                     ..Default::default()
                 }),
-                "x-ndjson" => Box::new(Jsonl {
+                "x-ndjson" | "jsonl" => Box::new(Jsonl {
                     metadata: metadata.clone(),
                     ..Default::default()
                 }),
@@ -137,10 +137,10 @@ impl DocumentType {
                     metadata: metadata.clone(),
                     ..Default::default()
                 }),
-                "text" => Box::new(Text {
+                "text" | "txt" => Box::new(Text {
                     metadata: metadata.clone(),
                 }),
-                "application/octet-stream" => Box::new(Byte {
+                "octet-stream" => Box::new(Byte {
                     metadata: metadata.clone(),
                 }),
                 #[cfg(feature = "toml")]
@@ -158,7 +158,10 @@ impl DocumentType {
                 _ => {
                     return Err(Error::new(
                         ErrorKind::InvalidData,
-                        "The document can't be guessed",
+                        format!(
+                            "The document can't be guessed with this format '{}'",
+                            mime_subtype
+                        ),
                     ))
                 }
             },
@@ -169,9 +172,8 @@ impl DocumentType {
 
 /// Every document_builder that implement this trait can get/write json_value through a connector.
 pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
-    fn metadata(&self) -> Metadata {
-        Metadata::default()
-    }
+    fn set_metadata(&mut self, metadata: Metadata);
+    fn metadata(&self) -> Metadata;
     /// Check if the buffer has data
     fn has_data(&self, buffer: &[u8]) -> io::Result<bool> {
         Ok(!buffer.is_empty())

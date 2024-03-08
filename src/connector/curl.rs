@@ -18,6 +18,7 @@
 //! | paginator_type | paginator | Paginator parameters.                                | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
 //! | counter_type  | count / counter | Use to find the total of elements in the resource.  | `null` | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
 //! | cache_mode    | cache | Enable the backend cache management and define the cache strategy. See the details here <https://github.com/06chaynes/http-cache/blob/main/http-cache/src/lib.rs#L265-L295> |    `null`    | `default` / `no_store` / `reload` / `no_cache` / `force_cache` / `if_cached` / `ignore_rules` |
+//! | redirection_limit    | - | Limit of redirection |    `5`    | Integer |
 //!
 //! ### Examples
 //!
@@ -75,7 +76,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
-use std::io::Write;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
@@ -83,7 +83,7 @@ use std::time;
 use std::time::Duration;
 use std::{
     fmt,
-    io::{Error, ErrorKind, Result},
+    io::{Error, ErrorKind, Result, Write},
 };
 use surf::middleware::{Middleware, Next};
 use surf::{
@@ -95,9 +95,19 @@ use surf::{Request, Response};
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
 
+const REDIRECT_CODES: &[surf::http::StatusCode] = &[
+    surf::http::StatusCode::MovedPermanently,
+    surf::http::StatusCode::Found,
+    surf::http::StatusCode::SeeOther,
+    surf::http::StatusCode::TemporaryRedirect,
+    surf::http::StatusCode::PermanentRedirect,
+];
+
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Curl {
+    #[serde(skip)]
+    document: Option<Box<dyn Document>>,
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
@@ -120,11 +130,13 @@ pub struct Curl {
     pub counter_type: Option<CounterType>,
     #[serde(alias = "cache")]
     pub cache_mode: Option<String>,
+    pub redirection_limit: usize,
 }
 
 impl fmt::Debug for Curl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Curl")
+            .field("document", &self.document)
             .field("metadata", &self.metadata)
             .field("authenticator_type", &self.authenticator_type)
             .field("endpoint", &self.endpoint)
@@ -140,6 +152,7 @@ impl fmt::Debug for Curl {
             .field("paginator_type", &self.paginator_type)
             .field("counter_type", &self.counter_type)
             .field("cache_mode", &self.cache_mode)
+            .field("redirection_limit", &self.redirection_limit)
             .finish()
     }
 }
@@ -147,6 +160,7 @@ impl fmt::Debug for Curl {
 impl Default for Curl {
     fn default() -> Self {
         Curl {
+            document: None,
             metadata: Metadata::default(),
             authenticator_type: None,
             endpoint: "".into(),
@@ -160,6 +174,7 @@ impl Default for Curl {
             paginator_type: PaginatorType::default(),
             counter_type: None,
             cache_mode: None,
+            redirection_limit: 5,
         }
     }
 }
@@ -212,6 +227,7 @@ impl Curl {
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
         client = client.with(Logger::new());
+
         if let Some(authenticator_type) = self.authenticator_type.clone() {
             client = client.with(Authenticator::new(authenticator_type));
         }
@@ -265,6 +281,22 @@ impl Curl {
 
 #[async_trait]
 impl Connector for Curl {
+    /// See [`Connector::set_document`] for more details.
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
+        self.document = Some(document.clone());
+
+        Ok(())
+    }
+    /// See [`Connector::document`] for more details.
+    fn document(&self) -> Result<&Box<dyn Document>> {
+        match &self.document {
+            Some(document) => Ok(document),
+            None => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "The document has not been set in the connector",
+            )),
+        }
+    }
     /// See [`Connector::path`] for more details.
     ///
     /// # Examples
@@ -368,13 +400,12 @@ impl Connector for Curl {
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;
     }
-    /// See [`Connector::set_metadata`] for more details.
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        match &self.document {
+            Some(document) => self.metadata.clone().merge(&document.metadata()),
+            None => self.metadata.clone(),
+        }
     }
     /// See [`Connector::len`] for more details.
     ///
@@ -431,12 +462,15 @@ impl Connector for Curl {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
+    ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
     ///     connector.path = "/json".to_string();
-    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
+    ///     connector.set_document(document);
+    ///
+    ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero."
@@ -446,29 +480,37 @@ impl Connector for Curl {
     /// }
     /// ```
     #[instrument(name = "curl::fetch")]
-    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let client = self.client().await?;
         let path = self.path();
+        let document = self.document()?;
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, &url);
+        let mut request_builder = client.request(self.method, &url);
 
         match self.method {
             Method::Post | Method::Put | Method::Patch => {
                 let mut buffer = Vec::default();
+                let mut parameters_without_context = self.parameters_without_context()?;
+                parameters_without_context.replace_mustache(self.parameters.clone());
 
-                let dataset = vec![DataResult::Ok(self.parameters_without_context()?)];
-                buffer.write_all(&mut document.header(&dataset)?)?;
-                buffer.write_all(&mut document.write(&dataset)?)?;
-                buffer.write_all(&mut document.footer(&dataset)?)?;
+                let dataset = vec![DataResult::Ok(parameters_without_context)];
+                let mut document = document.clone_box();
+                document.set_entry_path(String::default());
+                buffer.write_all(&document.header(&dataset)?)?;
+                buffer.write_all(&document.write(&dataset)?)?;
+                buffer.write_all(&document.footer(&dataset)?)?;
 
-                if let Some(mime_subtype) = document.metadata().mime_subtype {
+                if let Some(mime_subtype) = &document.metadata().mime_subtype {
                     if mime_subtype == "x-www-form-urlencoded" {
                         if buffer.starts_with(&[b'"']) {
                             buffer = buffer.drain(1..).collect();
@@ -479,20 +521,22 @@ impl Connector for Curl {
                     }
                 }
 
-                req = req.body(buffer.clone());
-                req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
+                request_builder = request_builder.body(buffer.clone());
+                request_builder =
+                    request_builder.header(headers::CONTENT_LENGTH, buffer.len().to_string());
             }
             _ => (),
         };
 
         // Force to replace the `application/octet-stream` by the connector content type.
         if !self.metadata().content_type().is_empty() {
-            req = req.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         // Force the headers
         for (key, value) in self.headers.iter() {
-            req = req.header(
+            request_builder = request_builder.header(
                 HeaderName::from_bytes(key.clone().into_bytes())
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
                 HeaderValue::from_bytes(value.clone().into_bytes())
@@ -500,28 +544,76 @@ impl Connector for Curl {
             );
         }
 
-        info!(
-            url = url.as_str(),
-            "Ready to retrieve data from the resource"
-        );
+        let mut request = request_builder.build();
+        let bytes = request.take_body().into_bytes().await.unwrap();
+        let mut base_url = request.url().clone();
+        let mut data = Vec::default();
+        let mut redirect_count: u8 = 0;
 
-        let mut res = client
-            .send(req.build())
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        while redirect_count <= self.redirection_limit as u8 {
+            let mut new_request = request.clone();
+            if !bytes.is_empty() {
+                new_request.set_body(bytes.clone());
+            }
 
-        let data = res
-            .body_bytes()
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+            if let Some(content_type) = request.content_type() {
+                new_request.set_content_type(content_type);
+            }
 
-        if !res.status().is_success() {
+            let mut res: Response = client
+                .send(new_request)
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+            if REDIRECT_CODES.contains(&res.status()) {
+                if let Some(location) = res.header(headers::LOCATION) {
+                    let http_req: &mut surf::http::Request = request.as_mut();
+                    *http_req.url_mut() = match Url::parse(location.last().as_str()) {
+                        Ok(valid_url) => {
+                            base_url = valid_url;
+                            base_url.clone()
+                        }
+                        Err(e) => match e {
+                            surf::http::url::ParseError::RelativeUrlWithoutBase => base_url
+                                .join(location.last().as_str())
+                                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                            e => {
+                                return Err(Error::new(ErrorKind::InvalidData, e));
+                            }
+                        },
+                    };
+                    redirect_count += 1;
+                    continue;
+                }
+            }
+
+            data = res
+                .body_bytes()
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+            if !res.status().is_success() {
+                return Err(Error::new(
+                    ErrorKind::Interrupted,
+                    format!(
+                        "The http call on '{}' failed with status code '{}' and response: {}",
+                        base_url,
+                        res.status(),
+                        String::from_utf8(data)
+                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                    ),
+                ));
+            }
+
+            break;
+        }
+
+        if redirect_count > self.redirection_limit as u8 {
             return Err(Error::new(
                 ErrorKind::Interrupted,
                 format!(
-                    "Curl failed with status code '{}' and response's body: {}",
-                    res.status(),
-                    String::from_utf8(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                    "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
+                    self.redirection_limit
                 ),
             ));
         }
@@ -556,15 +648,18 @@ impl Connector for Curl {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
+    ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Post;
     ///     connector.path = "/post".to_string();
+    ///     connector.set_document(document);
+    ///
     ///     let expected_result1 =
     ///        DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1];
-    ///     let mut datastream = connector.send(&document, &dataset).await.unwrap().unwrap();
+    ///     let mut datastream = connector.send(&dataset).await.unwrap().unwrap();
     ///     let value = datastream.next().await.unwrap().to_value();
     ///     assert_eq!(
     ///        r#"[{"column1":"value1"}]"#,
@@ -575,22 +670,22 @@ impl Connector for Curl {
     /// }
     /// ```
     #[instrument(skip(dataset), name = "curl::send")]
-    async fn send(
-        &mut self,
-        document: &dyn Document,
-        dataset: &DataSet,
-    ) -> std::io::Result<Option<DataStream>> {
+    async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
+        let document = self.document()?.clone();
         let client = self.client().await?;
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, &url);
+        let mut request_builder = client.request(self.method, &url);
 
         match self.method {
             Method::Post | Method::Put | Method::Patch => {
@@ -600,7 +695,7 @@ impl Connector for Curl {
                 buffer.append(&mut document.write(dataset)?);
                 buffer.append(&mut document.footer(dataset)?);
 
-                if let Some(mime_subtype) = document.metadata().mime_subtype {
+                if let Some(mime_subtype) = &document.metadata().mime_subtype {
                     if mime_subtype == "x-www-form-urlencoded" {
                         if buffer.starts_with(&[b'"']) {
                             buffer = buffer.drain(1..).collect();
@@ -611,20 +706,22 @@ impl Connector for Curl {
                     }
                 }
 
-                req = req.body(buffer.clone());
-                req = req.header(headers::CONTENT_LENGTH, buffer.len().to_string());
+                request_builder = request_builder.body(buffer.clone());
+                request_builder =
+                    request_builder.header(headers::CONTENT_LENGTH, buffer.len().to_string());
             }
             _ => (),
         };
 
         // Force to replace the `application/octet-stream` by the connector content type.
         if !self.metadata().content_type().is_empty() {
-            req = req.header(headers::CONTENT_TYPE, self.metadata().content_type());
+            request_builder =
+                request_builder.header(headers::CONTENT_TYPE, self.metadata().content_type());
         }
 
         // Force the headers
         for (key, value) in self.headers.iter() {
-            req = req.header(
+            request_builder = request_builder.header(
                 HeaderName::from_bytes(key.clone().into_bytes())
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
                 HeaderValue::from_bytes(value.clone().into_bytes())
@@ -632,44 +729,93 @@ impl Connector for Curl {
             );
         }
 
-        info!(
-            url = url.as_str(),
-            "Ready to retrieve data into the resource"
-        );
+        let mut request = request_builder.build();
+        let bytes = request.take_body().into_bytes().await.unwrap();
+        let mut base_url = request.url().clone();
+        let mut data = Vec::default();
+        let mut redirect_count: u8 = 0;
 
-        let mut res = client
-            .send(req.build())
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        while redirect_count <= self.redirection_limit as u8 {
+            let mut new_request = request.clone();
+            if !bytes.is_empty() {
+                new_request.set_body(bytes.clone());
+            }
 
-        let data = res
-            .body_bytes()
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+            if let Some(content_type) = request.content_type() {
+                new_request.set_content_type(content_type);
+            }
 
-        if !res.status().is_success() {
+            let mut res: Response = client
+                .send(new_request)
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+            if REDIRECT_CODES.contains(&res.status()) {
+                if let Some(location) = res.header(headers::LOCATION) {
+                    let http_req: &mut surf::http::Request = request.as_mut();
+                    *http_req.url_mut() = match Url::parse(location.last().as_str()) {
+                        Ok(valid_url) => {
+                            base_url = valid_url;
+                            base_url.clone()
+                        }
+                        Err(e) => match e {
+                            surf::http::url::ParseError::RelativeUrlWithoutBase => base_url
+                                .join(location.last().as_str())
+                                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                            e => {
+                                return Err(Error::new(ErrorKind::InvalidData, e));
+                            }
+                        },
+                    };
+                    redirect_count += 1;
+                    continue;
+                }
+            }
+
+            data = res
+                .body_bytes()
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+            if !res.status().is_success() {
+                return Err(Error::new(
+                    ErrorKind::Interrupted,
+                    format!(
+                        "The http call on '{}' failed with status code '{}' and response: {}",
+                        base_url,
+                        res.status(),
+                        String::from_utf8(data)
+                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                    ),
+                ));
+            }
+
+            break;
+        }
+
+        if redirect_count > self.redirection_limit as u8 {
             return Err(Error::new(
                 ErrorKind::Interrupted,
                 format!(
-                    "Curl failed with status code '{}' and response's body: {}",
-                    res.status(),
-                    String::from_utf8(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                    "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
+                    self.redirection_limit
                 ),
             ));
         }
 
-        if !data.is_empty() {
-            let dataset = document.read(&data)?;
+        info!(url = url.as_str(), "Fetch data with success");
 
-            return Ok(Some(Box::pin(stream! {
-                for data in dataset {
-                    yield data;
-                }
-            })));
+        if !document.has_data(&data)? {
+            return Ok(None);
         }
 
-        info!(url = url.as_str(), "Send data with success");
-        Ok(None)
+        let dataset = document.read(&data)?;
+
+        Ok(Some(Box::pin(stream! {
+            for data in dataset {
+                yield data;
+            }
+        })))
     }
     /// See [`Connector::erase`] for more details.
     ///
@@ -696,17 +842,20 @@ impl Connector for Curl {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut req = client.request(self.method, &url);
+        let mut request_builder = client.request(self.method, &url);
 
         // Force the headers
         for (key, value) in self.headers.iter() {
-            req = req.header(
+            request_builder = request_builder.header(
                 HeaderName::from_bytes(key.clone().into_bytes())
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
                 HeaderValue::from_bytes(value.clone().into_bytes())
@@ -714,22 +863,65 @@ impl Connector for Curl {
             );
         }
 
-        info!(url = url.as_str(), "Ready to erase data in the resource");
+        let mut request = request_builder.build();
+        let mut base_url = request.url().clone();
+        let mut redirect_count: u8 = 0;
 
-        let mut res = client
-            .send(req.build())
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        while redirect_count <= self.redirection_limit as u8 {
+            let mut res: Response = client
+                .send(request.clone())
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        if !res.status().is_success() {
+            if REDIRECT_CODES.contains(&res.status()) {
+                if let Some(location) = res.header(headers::LOCATION) {
+                    let http_req: &mut surf::http::Request = request.as_mut();
+                    *http_req.url_mut() = match Url::parse(location.last().as_str()) {
+                        Ok(valid_url) => {
+                            base_url = valid_url;
+                            base_url.clone()
+                        }
+                        Err(e) => match e {
+                            surf::http::url::ParseError::RelativeUrlWithoutBase => base_url
+                                .join(location.last().as_str())
+                                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                            e => {
+                                return Err(Error::new(ErrorKind::InvalidData, e));
+                            }
+                        },
+                    };
+                    redirect_count += 1;
+                    continue;
+                }
+            }
+
+            let data = res
+                .body_bytes()
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+
+            if !res.status().is_success() {
+                return Err(Error::new(
+                    ErrorKind::Interrupted,
+                    format!(
+                        "The http call on '{}' failed with status code '{}' and response: {}",
+                        base_url,
+                        res.status(),
+                        String::from_utf8(data)
+                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                    ),
+                ));
+            }
+
+            break;
+        }
+
+        if redirect_count > self.redirection_limit as u8 {
             return Err(Error::new(
                 ErrorKind::Interrupted,
                 format!(
-                    "Curl failed with status code '{}' and response's body: {}",
-                    res.status(),
-                    res.body_string()
-                        .await
-                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                    "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
+                    self.redirection_limit
                 ),
             ));
         }
@@ -899,7 +1091,8 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/json".to_string();
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(Box::new(document)).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -916,7 +1109,8 @@ mod tests {
             "my-username",
             "my-password",
         ))));
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(Box::new(document)).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -931,7 +1125,8 @@ mod tests {
         connector.path = "/bearer".to_string();
         connector.authenticator_type =
             Some(Box::new(AuthenticatorType::Bearer(Bearer::new("abcd1234"))));
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(Box::new(document)).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -946,8 +1141,10 @@ mod tests {
         connector.path = "/post".to_string();
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        connector.set_document(Box::new(document)).unwrap();
+
         let dataset = vec![expected_result1];
-        let mut datastream = connector.send(&document, &dataset).await.unwrap().unwrap();
+        let mut datastream = connector.send(&dataset).await.unwrap().unwrap();
         let value = datastream.next().await.unwrap().to_value();
         assert_eq!(
             r#"[{"column1":"value1"}]"#,
@@ -961,5 +1158,80 @@ mod tests {
         connector.path = "/status/200".to_string();
         connector.erase().await.unwrap();
         assert_eq!(true, connector.is_empty().await.unwrap());
+    }
+    #[async_std::test]
+    async fn test_redirection_with_fetch() {
+        let document = Json::default();
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = "/redirect/1".to_string();
+        connector.redirection_limit = 1;
+        connector.set_document(Box::new(document)).unwrap();
+
+        let datastream = connector.fetch().await.unwrap().unwrap();
+        assert!(
+            0 < datastream.count().await,
+            "The inner connector should have a size upper than zero."
+        );
+
+        connector.path = "/redirect/2".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.fetch().await;
+        assert!(
+            result.is_err(),
+            "The inner connector should raise an error."
+        );
+    }
+    #[async_std::test]
+    async fn test_redirection_with_send() {
+        let document = Json::default();
+
+        let expected_result1 =
+            DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        let dataset = vec![expected_result1];
+
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = "/redirect/1".to_string();
+        connector.redirection_limit = 1;
+        connector.set_document(Box::new(document)).unwrap();
+
+        let datastream = connector.send(&dataset).await.unwrap().unwrap();
+        assert!(
+            0 < datastream.count().await,
+            "The inner connector should have a size upper than zero."
+        );
+
+        connector.path = "/redirect/2".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.send(&dataset).await;
+        assert!(
+            result.is_err(),
+            "The inner connector should raise an error."
+        );
+    }
+    #[async_std::test]
+    async fn test_redirection_with_erase() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = "/redirect/1".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.erase().await;
+        assert!(
+            result.is_ok(),
+            "The inner connector shouldn't raise an error."
+        );
+
+        connector.path = "/redirect/2".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.erase().await;
+        assert!(
+            result.is_err(),
+            "The inner connector should raise an error."
+        );
     }
 }

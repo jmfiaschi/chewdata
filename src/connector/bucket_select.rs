@@ -85,6 +85,8 @@ const DEFAULT_ENDPOINT: &str = "http://localhost:9000";
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct BucketSelect {
+    #[serde(skip)]
+    document: Option<Box<dyn Document>>,
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
@@ -105,6 +107,7 @@ pub struct BucketSelect {
 impl fmt::Debug for BucketSelect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BucketSelect")
+            .field("document", &self.document)
             .field("metadata", &self.metadata)
             .field("endpoint", &self.endpoint)
             .field("profile", &self.profile)
@@ -123,6 +126,7 @@ impl fmt::Debug for BucketSelect {
 impl Default for BucketSelect {
     fn default() -> Self {
         BucketSelect {
+            document: None,
             metadata: Metadata::default(),
             query: "select * from s3object".to_string(),
             endpoint: None,
@@ -209,7 +213,10 @@ impl BucketSelect {
         let path = self.path();
 
         if path.has_mustache() {
-            warn!(path = path, "This path is not fully resolved");
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
         }
 
         let input_serialization = match metadata.mime_subtype.as_deref() {
@@ -399,17 +406,32 @@ impl BucketSelect {
 
 #[async_trait]
 impl Connector for BucketSelect {
+    /// See [`Connector::set_document`] for more details.
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
+        self.document = Some(document.clone());
+
+        Ok(())
+    }
+    /// See [`Connector::document`] for more details.
+    fn document(&self) -> Result<&Box<dyn Document>> {
+        match &self.document {
+            Some(document) => Ok(document),
+            None => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "The document has not been set in the connector",
+            )),
+        }
+    }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = Box::new(parameters);
     }
-    /// See [`Connector::set_metadata`] for more details.
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        match &self.document {
+            Some(document) => self.metadata.clone().merge(&document.metadata()),
+            None => self.metadata.clone(),
+        }
     }
     /// See [`Connector::is_variable`] for more details.
     ///
@@ -571,17 +593,16 @@ impl Connector for BucketSelect {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = BucketSelect::default();
-    ///     connector.metadata = Metadata {
-    ///         ..Json::default().metadata
-    ///     };
     ///     connector.path = "/data/one_line.json".to_string();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket/".to_string();
     ///     connector.query = "select * from s3object".to_string();
-    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
+    ///     connector.set_document(document);
+    ///
+    ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -591,7 +612,8 @@ impl Connector for BucketSelect {
     /// }
     /// ```
     #[instrument(name = "bucket_select::fetch")]
-    async fn fetch(&mut self, document: &dyn Document) -> Result<Option<DataStream>> {
+    async fn fetch(&mut self) -> Result<Option<DataStream>> {
+        let document = self.document()?.clone();
         let mut buffer = Vec::default();
         let path = self.path();
 
@@ -599,13 +621,14 @@ impl Connector for BucketSelect {
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),
         ) {
-            let mut connector = self.clone();
-
-            let mut metadata = connector.metadata();
+            let mut connector_for_header = self.clone();
+            let mut document_for_header = document.clone();
+            let mut metadata = document_for_header.metadata().clone();
             metadata.has_headers = Some(false);
+            document_for_header.set_metadata(metadata);
+            connector_for_header.set_document(document_for_header.clone())?;
 
-            connector.set_metadata(metadata);
-            connector.query = format!(
+            connector_for_header.query = format!(
                 "{} {}",
                 self.query
                     .clone()
@@ -616,7 +639,7 @@ impl Connector for BucketSelect {
                 "limit 1"
             );
 
-            buffer.append(&mut connector.fetch_data().await?);
+            buffer.append(&mut connector_for_header.fetch_data().await?);
         }
 
         buffer.append(&mut self.fetch_data().await?);
@@ -636,11 +659,7 @@ impl Connector for BucketSelect {
     }
     /// See [`Connector::send`] for more details.
     #[instrument(skip(_dataset), name = "bucket_select::send")]
-    async fn send(
-        &mut self,
-        _document: &dyn Document,
-        _dataset: &DataSet,
-    ) -> std::io::Result<Option<DataStream>> {
+    async fn send(&mut self, _dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         unimplemented!("Can't send data. Use the bucket connector instead of this connector")
     }
     /// See [`Connector::erase`] for more details.
@@ -772,13 +791,12 @@ mod tests {
     }
     #[async_std::test]
     async fn len() {
+        let document = Json::default();
         let mut connector = BucketSelect::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.metadata = Metadata {
-            ..Json::default().metadata
-        };
+        connector.set_document(Box::new(document)).unwrap();
         assert!(
             0 < connector.len().await.unwrap(),
             "The length of the document is not greather than 0"
@@ -788,13 +806,12 @@ mod tests {
     }
     #[async_std::test]
     async fn is_empty() {
+        let document = Json::default();
         let mut connector = BucketSelect::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.metadata = Metadata {
-            ..Json::default().metadata
-        };
+        connector.set_document(Box::new(document)).unwrap();
         assert_eq!(false, connector.is_empty().await.unwrap());
         connector.path = "data/not_found.json".to_string();
         assert_eq!(true, connector.is_empty().await.unwrap());
@@ -804,13 +821,11 @@ mod tests {
         let document = Json::default();
 
         let mut connector = BucketSelect::default();
-        connector.metadata = Metadata {
-            ..Json::default().metadata
-        };
         connector.path = "data/one_line.json".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.query = "select * from s3object".to_string();
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(Box::new(document)).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -826,11 +841,11 @@ mod tests {
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/multi_lines.json".to_string();
         connector.query = "select * from s3object[*]._1 LIMIT 1".to_string();
-        connector.metadata = document.metadata();
+        connector.set_document(Box::new(document)).unwrap();
 
         let expected_data: Value = serde_json::from_str(r#"{"number": 10,"group": 1456,"string": "value to test","long-string": "Long val\nto test","boolean": true,"special_char": "é","rename_this": "field must be renamed","date": "2019-12-31","filesize": 1000000,"round": 10.156,"url": "?search=test me","list_to_sort": "A,B,C","code": "value_to_map","remove_field": "field to remove"}"#,).unwrap();
 
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector.fetch().await.unwrap().unwrap();
 
         assert_eq!(
             DataResult::Ok(expected_data),
@@ -872,11 +887,11 @@ mod tests {
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/multi_lines.csv".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.metadata = document.metadata();
+        connector.set_document(Box::new(document)).unwrap();
 
         let expected_data: Value = serde_json::from_str(r#"{"number": 10,"group": 1456,"string": "value to test","long-string": "Long val\nto test","boolean": true,"special_char": "é","rename_this": "field must be renamed","date": "2019-12-31","filesize": 1000000,"round": 10.156,"url": "?search=test me","list_to_sort": "A,B,C","code": "value_to_map","remove_field": "field to remove"}"#,).unwrap();
 
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector.fetch().await.unwrap().unwrap();
 
         assert_eq!(
             DataResult::Ok(expected_data),
@@ -901,11 +916,11 @@ mod tests {
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/multi_lines-without_header.csv".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.metadata = document.metadata();
+        connector.set_document(Box::new(document)).unwrap();
 
         let expected_data: Value = serde_json::from_str(r#"[10,1456,"value to test","Long val\nto test",true,"é","field must be renamed","2019-12-31",1000000,10.156,"?search=test me","A,B,C","value_to_map","field to remove"]"#).unwrap();
 
-        let mut datastream = connector.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector.fetch().await.unwrap().unwrap();
 
         assert_eq!(
             DataResult::Ok(expected_data),
@@ -915,13 +930,13 @@ mod tests {
     }
     #[async_std::test]
     async fn paginate() {
+        let document = Json::default();
+
         let mut connector = BucketSelect::default();
         connector.path = "data/multi_lines.json".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.metadata = Metadata {
-            ..Json::default().metadata
-        };
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = BucketSelectPaginator::new(&connector).await.unwrap();
 
@@ -938,15 +953,15 @@ mod tests {
     }
     #[async_std::test]
     async fn paginate_with_wildcard() {
+        let document = Json::default();
+
         let mut connector = BucketSelect::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json$".to_string();
         connector.query = "select * from s3object".to_string();
         connector.limit = Some(5);
         connector.skip = 1;
-        connector.metadata = Metadata {
-            ..Json::default().metadata
-        };
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = BucketSelectPaginator::new(&connector).await.unwrap();
 

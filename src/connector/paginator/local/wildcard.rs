@@ -90,12 +90,15 @@ mod tests {
     use futures::StreamExt;
 
     use super::*;
-    use crate::connector::local::Local;
+    use crate::{connector::local::Local, document::json::Json};
 
     #[async_std::test]
     async fn paginate() {
+        let document = Json::default();
         let mut connector = Local::default();
         connector.path = "./data/one_line.*".to_string();
+        connector.set_document(Box::new(document)).unwrap();
+
         let paginator = Wildcard::new(&connector).unwrap();
 
         let mut paging = paginator.paginate(&connector).await.unwrap();

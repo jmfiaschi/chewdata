@@ -31,7 +31,7 @@ use async_trait::async_trait;
 use futures::Stream;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{Cursor, Result, Seek, SeekFrom, Write};
+use std::io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::{fmt, io};
@@ -39,6 +39,8 @@ use std::{fmt, io};
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 pub struct InMemory {
+    #[serde(skip)]
+    document: Option<Box<dyn Document>>,
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
@@ -109,6 +111,22 @@ impl InMemory {
 
 #[async_trait]
 impl Connector for InMemory {
+    /// See [`Connector::set_document`] for more details.
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
+        self.document = Some(document.clone());
+
+        Ok(())
+    }
+    /// See [`Connector::document`] for more details.
+    fn document(&self) -> Result<&Box<dyn Document>> {
+        match &self.document {
+            Some(document) => Ok(document),
+            None => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "The document has not been set in the connector",
+            )),
+        }
+    }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
         "in_memory".to_string()
@@ -144,13 +162,12 @@ impl Connector for InMemory {
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
-    /// See [`Connector::set_metadata`] for more details.
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        match &self.document {
+            Some(document) => self.metadata.clone().merge(&document.metadata()),
+            None => self.metadata.clone(),
+        }
     }
     /// See [`Connector::is_resource_will_change`] for more details.
     fn is_resource_will_change(&self, _new_parameters: Value) -> Result<bool> {
@@ -171,9 +188,10 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Jsonl::default();
+    ///     let document = Box::new(Jsonl::default());
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
+    ///     connector.set_document(document);
+    ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -183,7 +201,8 @@ impl Connector for InMemory {
     /// }
     /// ```
     #[instrument(name = "in_memory::fetch")]
-    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
+        let document = self.document()?;
         let resource = self.memory.lock().await;
 
         info!("Fetch data with success");
@@ -214,25 +233,26 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Jsonl::default();
+    ///     let document = Box::new(Jsonl::default());
     ///
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-    ///     connector.send(&document, &dataset).await.unwrap();
+    ///     connector.set_document(document);
+    ///     connector.send(&dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+    ///     let mut datastream = connector_read.fetch().await.unwrap().unwrap();
     ///     assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
     ///
     ///     let expected_result2 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
     ///     let dataset = vec![expected_result2.clone()];
-    ///     connector.send(&document, &dataset).await.unwrap();
+    ///     connector.send(&dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+    ///     let mut datastream = connector_read.fetch().await.unwrap().unwrap();
     ///     assert_eq!(expected_result1, datastream.next().await.unwrap());
     ///     assert_eq!(expected_result2, datastream.next().await.unwrap());
     ///
@@ -240,11 +260,8 @@ impl Connector for InMemory {
     /// }
     /// ```
     #[instrument(skip(dataset), name = "in_memory::send")]
-    async fn send(
-        &mut self,
-        document: &dyn Document,
-        dataset: &DataSet,
-    ) -> std::io::Result<Option<DataStream>> {
+    async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
+        let document = self.document()?;
         let position = match document.can_append() {
             true => Some(-(document.footer(dataset)?.len() as isize)),
             false => None,
@@ -291,10 +308,14 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Jsonl::default();
+    ///     let document = Box::new(Jsonl::default());
+    ///
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+    ///     connector.set_document(document);
+    ///
     ///     connector.erase().await.unwrap();
-    ///     let datastream = connector.fetch(&document).await.unwrap();
+    ///
+    ///     let datastream = connector.fetch().await.unwrap();
     ///     assert!(datastream.is_none(), "The datastream must be empty");
     ///
     ///     Ok(())
@@ -320,6 +341,7 @@ impl Connector for InMemory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::document::json::Json;
     use crate::document::jsonl::Jsonl;
     use crate::DataResult;
     use futures::StreamExt;
@@ -343,7 +365,8 @@ mod tests {
     async fn fetch() {
         let document = Jsonl::default();
         let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(Box::new(document)).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -357,19 +380,20 @@ mod tests {
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
         let mut connector = InMemory::new(r#""#);
-        connector.send(&document, &dataset).await.unwrap();
+        connector.set_document(Box::new(document)).unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch().await.unwrap().unwrap();
         assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
 
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch().await.unwrap().unwrap();
         assert_eq!(expected_result1, datastream.next().await.unwrap());
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
@@ -377,13 +401,16 @@ mod tests {
     async fn erase() {
         let document = Jsonl::default();
         let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+        connector.set_document(Box::new(document)).unwrap();
         connector.erase().await.unwrap();
-        let datastream = connector.fetch(&document).await.unwrap();
+        let datastream = connector.fetch().await.unwrap();
         assert!(datastream.is_none(), "The datastream must be empty");
     }
     #[async_std::test]
     async fn paginate() {
-        let connector = InMemory::default();
+        let mut connector = InMemory::default();
+        let document = Json::default();
+        connector.set_document(Box::new(document)).unwrap();
         let mut paging = connector.paginate().await.unwrap();
         assert!(
             paging.next().await.transpose().unwrap().is_some(),

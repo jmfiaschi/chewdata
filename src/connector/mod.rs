@@ -120,6 +120,15 @@ impl ConnectorType {
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
 #[async_trait]
 pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
+    fn set_document(&mut self, _document: Box<dyn Document>) -> Result<()> {
+        Ok(())
+    }
+    fn document(&self) -> Result<&Box<dyn Document>> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "function not implemented",
+        ))
+    }
     fn is_resource_will_change(&self, new_parameters: Value) -> Result<bool>;
     /// Set parameters.
     fn set_parameters(&mut self, parameters: Value);
@@ -142,13 +151,9 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     /// Path of the document
     fn path(&self) -> String;
     /// Fetch data from the resource and set the inner of the connector.
-    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>>;
+    async fn fetch(&mut self) -> std::io::Result<Option<DataStream>>;
     /// Send the data from the inner connector to the remote resource.
-    async fn send(
-        &mut self,
-        document: &dyn Document,
-        dataset: &DataSet,
-    ) -> std::io::Result<Option<DataStream>>;
+    async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>>;
     /// Erase the content of the resource.
     async fn erase(&mut self) -> Result<()> {
         Err(Error::new(

@@ -40,7 +40,6 @@ pub async fn exec(
     output_sender: Option<Sender<Context>>,
 ) -> io::Result<()> {
     let mut steps = Vec::default();
-    //let mut handles = Vec::default();
     let step_types_len = step_types.len();
     let mut previous_step_receiver = input_receiver;
 

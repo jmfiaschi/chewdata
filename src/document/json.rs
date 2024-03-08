@@ -91,12 +91,21 @@ impl Default for Json {
 }
 
 impl Document for Json {
+    /// See [`Document::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata.clone();
+    }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Json::default().metadata.merge(&self.metadata)
     }
     /// See [`Document::set_entry_path`] for more details.
     fn set_entry_path(&mut self, entry_path: String) {
+        if entry_path.is_empty() {
+            self.entry_path = None;
+            return;
+        }
+
         self.entry_path = Some(entry_path);
     }
     /// See [`Document::has_data`] for more details.

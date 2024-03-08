@@ -49,7 +49,7 @@ impl Default for Byte {
     fn default() -> Self {
         let metadata = Metadata {
             mime_type: Some(mime::APPLICATION.to_string()),
-            mime_subtype: Some(mime::APPLICATION_OCTET_STREAM.to_string()),
+            mime_subtype: Some(mime::OCTET_STREAM.to_string()),
             ..Default::default()
         };
         Byte { metadata }
@@ -57,6 +57,10 @@ impl Default for Byte {
 }
 
 impl Document for Byte {
+    /// See [`Document::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: Metadata) {
+        self.metadata = metadata.clone();
+    }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Byte::default().metadata.merge(&self.metadata)

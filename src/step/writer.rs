@@ -14,8 +14,8 @@
 //! | key           | alias   | Description                                                                     | Default Value | Possible Values                              |
 //! | ------------- | ------- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |
 //! | type          | -       | Required in order to use writer step.                                            | `writer`      | `writer` / `write` / `w`                     |
-//! | connector     | conn    | Connector type to use in order to read a resource.                               | `io`          | See [`crate::connector`] |
-//! | document      | doc     | Document type to use in order to manipulate the resource.                        | `json`        | See [`crate::document`]   |
+//! | connector_tyoe     | conn / connector    | Connector type to use in order to read a resource.                               | `io`          | See [`crate::connector`] |
+//! | document_tyoe      | doc / document    | Document type to use in order to manipulate the resource.                        | `json`        | See [`crate::document`]   |
 //! | name          | alias   | Name step.                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type     | data    | Data type read for writing. skip other data type.                             | `ok`          | `ok` / `err`                                 |
 //! | concurrency_limit | -| Limit of steps to run in concurrence.                                        | `1`           | unsigned number                              |
@@ -132,13 +132,14 @@ impl Step for Writer {
     async fn exec(&self) -> io::Result<()> {
         info!("Start writing data...");
         
+        let mut total_written: usize = 0;
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.clone().boxed_inner();
+        connector.set_document(document.clone())?;
+        
         let mut dataset = Vec::default();
 
         let mut receiver_stream = self.receive().await;
-
-        connector.set_metadata(connector.metadata().merge(&document.metadata()));
 
         // Use to init the connector during the loop
         let default_connector = connector.clone();
@@ -160,9 +161,10 @@ impl Step for Writer {
                 {
                     info!(dataset_length = dataset.len(), "Next write");
 
-                    match connector.send(&*document, &dataset).await {
+                    match connector.send(&dataset).await {
                         Ok(_) => {
-                            info!(dataset_length = dataset.len(), "Write with success");
+                            total_written+=dataset.len();
+                            info!(dataset_length = dataset.len(), total = &total_written, "Write with success");
 
                             for data in dataset {
                                 let mut context = context_received.clone();
@@ -203,9 +205,10 @@ impl Step for Writer {
             if self.dataset_limit <= dataset.len() && document.can_append() {
                 info!(dataset_length = dataset.len(), "Next write");
 
-                match connector.send(&*document, &dataset).await {
+                match connector.send(&dataset).await {
                     Ok(_) => {
-                        info!(dataset_length = dataset.len(), "Write with success");
+                        total_written+=dataset.len();
+                        info!(dataset_length = dataset.len(), total = total_written, "Write with success");
 
                         for data in dataset {
                             let mut context = context_received.clone();
@@ -242,9 +245,10 @@ impl Step for Writer {
         if !dataset.is_empty() {
             info!(dataset_length = dataset.len(), "Last write");
 
-            match connector.send(&*document, &dataset).await {
+            match connector.send(&dataset).await {
                 Ok(_) => {
-                    info!(dataset_length = dataset.len(), "Write with success");
+                    total_written+=dataset.len();
+                    info!(dataset_length = dataset.len(), total = total_written, "Write with success");
 
                     for data in dataset {
                         let context = match &last_context_received {
@@ -295,6 +299,7 @@ impl Step for Writer {
         }
 
         info!(
+            total = total_written,
             "Stops writing data and sending context in the channel"
         );
 
