@@ -124,7 +124,7 @@ impl Offset {
 
 #[cfg(test)]
 mod tests {
-    use crate::document::{json::Json, DocumentClone};
+    use crate::document::json::Json;
 
     use super::*;
     use futures::StreamExt;
@@ -160,7 +160,7 @@ mod tests {
         connector.endpoint = "postgres://admin:admin@localhost".into();
         connector.database = "postgres".into();
         connector.collection = "public.read".into();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = Offset {
             skip: 0,

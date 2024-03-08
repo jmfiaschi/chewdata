@@ -115,8 +115,8 @@ impl Step for Reader {
         info!("Start reading data...");
         
         let mut connector = self.connector_type.clone().boxed_inner();
-        let document = self.document_type.ref_inner();
-        connector.set_document(&document.clone_box())?;
+        let document = self.document_type.clone().boxed_inner();
+        connector.set_document(document)?;
 
         let mut receiver_stream = self.receive().await;
         // Used to check if one data has been received.

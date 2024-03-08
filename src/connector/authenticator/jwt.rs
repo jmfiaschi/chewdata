@@ -53,7 +53,6 @@
 //! ]
 //! ```
 use super::Authenticator;
-use crate::document::DocumentClone;
 use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{connector::ConnectorType, document::jsonl::Jsonl};
 use async_std::prelude::StreamExt;
@@ -192,7 +191,7 @@ impl Jwt {
             None => return Ok(()),
         };
 
-        connector.set_document(&self.document.clone_box())?;
+        connector.set_document(self.document.clone())?;
 
         let mut datastream = match connector.fetch().await? {
             Some(datastream) => datastream,
@@ -499,9 +498,7 @@ mod tests {
         jwk_connector.path = "/certs".to_string();
         jwk_connector.method = Method::Get;
         jwk_connector.timeout = Some(60);
-        jwk_connector
-            .set_document(&jwk_document.clone_box())
-            .unwrap();
+        jwk_connector.set_document(Box::new(jwk_document)).unwrap();
 
         let mut datastream = jwk_connector.fetch().await.unwrap().unwrap();
         datastream.next().await.unwrap();

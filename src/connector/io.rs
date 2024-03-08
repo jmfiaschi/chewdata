@@ -58,7 +58,7 @@ fn default_eof() -> String {
 #[async_trait]
 impl Connector for Io {
     /// See [`Connector::set_document`] for more details.
-    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
         self.document = Some(document.clone());
 
         Ok(())
@@ -163,7 +163,7 @@ impl Connector for Io {
 
 #[cfg(test)]
 mod tests {
-    use crate::document::{json::Json, DocumentClone};
+    use crate::document::json::Json;
 
     use super::*;
     use async_std::prelude::StreamExt;
@@ -172,7 +172,7 @@ mod tests {
     async fn paginate() {
         let document = Json::default();
         let mut connector = Io::default();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();
         assert!(

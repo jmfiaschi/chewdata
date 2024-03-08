@@ -112,7 +112,7 @@ impl InMemory {
 #[async_trait]
 impl Connector for InMemory {
     /// See [`Connector::set_document`] for more details.
-    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
         self.document = Some(document.clone());
 
         Ok(())
@@ -343,7 +343,6 @@ mod tests {
     use super::*;
     use crate::document::json::Json;
     use crate::document::jsonl::Jsonl;
-    use crate::document::DocumentClone;
     use crate::DataResult;
     use futures::StreamExt;
 
@@ -366,7 +365,7 @@ mod tests {
     async fn fetch() {
         let document = Jsonl::default();
         let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
@@ -381,7 +380,7 @@ mod tests {
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
         let mut connector = InMemory::new(r#""#);
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
@@ -402,7 +401,7 @@ mod tests {
     async fn erase() {
         let document = Jsonl::default();
         let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         connector.erase().await.unwrap();
         let datastream = connector.fetch().await.unwrap();
         assert!(datastream.is_none(), "The datastream must be empty");
@@ -411,7 +410,7 @@ mod tests {
     async fn paginate() {
         let mut connector = InMemory::default();
         let document = Json::default();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         let mut paging = connector.paginate().await.unwrap();
         assert!(
             paging.next().await.transpose().unwrap().is_some(),

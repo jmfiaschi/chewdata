@@ -407,7 +407,7 @@ impl BucketSelect {
 #[async_trait]
 impl Connector for BucketSelect {
     /// See [`Connector::set_document`] for more details.
-    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
         self.document = Some(document.clone());
 
         Ok(())
@@ -626,7 +626,7 @@ impl Connector for BucketSelect {
             let mut metadata = document_for_header.metadata().clone();
             metadata.has_headers = Some(false);
             document_for_header.set_metadata(&metadata);
-            connector_for_header.set_document(&document_for_header.clone())?;
+            connector_for_header.set_document(document_for_header.clone())?;
 
             connector_for_header.query = format!(
                 "{} {}",
@@ -752,7 +752,7 @@ mod tests {
     use super::*;
     #[cfg(feature = "csv")]
     use crate::document::csv::Csv;
-    use crate::document::{json::Json, DocumentClone};
+    use crate::document::json::Json;
     // use crate::document::jsonl::Jsonl;
     use futures::StreamExt;
 
@@ -796,7 +796,7 @@ mod tests {
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         assert!(
             0 < connector.len().await.unwrap(),
             "The length of the document is not greather than 0"
@@ -811,7 +811,7 @@ mod tests {
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         assert_eq!(false, connector.is_empty().await.unwrap());
         connector.path = "data/not_found.json".to_string();
         assert_eq!(true, connector.is_empty().await.unwrap());
@@ -824,7 +824,7 @@ mod tests {
         connector.path = "data/one_line.json".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
@@ -841,7 +841,7 @@ mod tests {
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/multi_lines.json".to_string();
         connector.query = "select * from s3object[*]._1 LIMIT 1".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let expected_data: Value = serde_json::from_str(r#"{"number": 10,"group": 1456,"string": "value to test","long-string": "Long val\nto test","boolean": true,"special_char": "é","rename_this": "field must be renamed","date": "2019-12-31","filesize": 1000000,"round": 10.156,"url": "?search=test me","list_to_sort": "A,B,C","code": "value_to_map","remove_field": "field to remove"}"#,).unwrap();
 
@@ -887,7 +887,7 @@ mod tests {
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/multi_lines.csv".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let expected_data: Value = serde_json::from_str(r#"{"number": 10,"group": 1456,"string": "value to test","long-string": "Long val\nto test","boolean": true,"special_char": "é","rename_this": "field must be renamed","date": "2019-12-31","filesize": 1000000,"round": 10.156,"url": "?search=test me","list_to_sort": "A,B,C","code": "value_to_map","remove_field": "field to remove"}"#,).unwrap();
 
@@ -916,7 +916,7 @@ mod tests {
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/multi_lines-without_header.csv".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let expected_data: Value = serde_json::from_str(r#"[10,1456,"value to test","Long val\nto test",true,"é","field must be renamed","2019-12-31",1000000,10.156,"?search=test me","A,B,C","value_to_map","field to remove"]"#).unwrap();
 
@@ -936,7 +936,7 @@ mod tests {
         connector.path = "data/multi_lines.json".to_string();
         connector.bucket = "my-bucket".to_string();
         connector.query = "select * from s3object".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = BucketSelectPaginator::new(&connector).await.unwrap();
 
@@ -961,7 +961,7 @@ mod tests {
         connector.query = "select * from s3object".to_string();
         connector.limit = Some(5);
         connector.skip = 1;
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = BucketSelectPaginator::new(&connector).await.unwrap();
 

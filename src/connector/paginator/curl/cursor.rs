@@ -117,7 +117,7 @@ impl Cursor {
         let stream = Box::pin(stream! {
             while has_next {
                 let mut new_connector = connector.clone();
-                new_connector.set_document(&document.clone_box())?;
+                new_connector.set_document(document.clone())?;
 
                 let mut new_parameters = connector.parameters.clone();
 
@@ -169,7 +169,6 @@ mod tests {
     use crate::connector::paginator::curl::cursor::Cursor;
     use crate::connector::Connector;
     use crate::document::json::Json;
-    use crate::document::DocumentClone;
     use futures::StreamExt;
     use http_types::Method;
 
@@ -180,7 +179,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/uuid?next={{ paginator.next }}".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = Cursor {
             limit: 1,

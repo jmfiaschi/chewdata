@@ -282,7 +282,7 @@ impl Curl {
 #[async_trait]
 impl Connector for Curl {
     /// See [`Connector::set_document`] for more details.
-    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
         self.document = Some(document.clone());
 
         Ok(())
@@ -1023,7 +1023,6 @@ mod tests {
     use crate::connector::authenticator::{basic::Basic, bearer::Bearer, AuthenticatorType};
     use crate::connector::counter::curl::CounterType;
     use crate::document::json::Json;
-    use crate::document::DocumentClone;
     use futures::StreamExt;
 
     #[test]
@@ -1092,7 +1091,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/json".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
@@ -1110,7 +1109,7 @@ mod tests {
             "my-username",
             "my-password",
         ))));
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
@@ -1126,7 +1125,7 @@ mod tests {
         connector.path = "/bearer".to_string();
         connector.authenticator_type =
             Some(Box::new(AuthenticatorType::Bearer(Bearer::new("abcd1234"))));
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
@@ -1142,7 +1141,7 @@ mod tests {
         connector.path = "/post".to_string();
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let dataset = vec![expected_result1];
         let mut datastream = connector.send(&dataset).await.unwrap().unwrap();
@@ -1167,7 +1166,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.path = "/redirect/1".to_string();
         connector.redirection_limit = 1;
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
@@ -1196,7 +1195,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.path = "/redirect/1".to_string();
         connector.redirection_limit = 1;
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let datastream = connector.send(&dataset).await.unwrap().unwrap();
         assert!(

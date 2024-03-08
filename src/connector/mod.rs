@@ -120,7 +120,7 @@ impl ConnectorType {
 /// Struct that implement this trait can get a reader or writer in order to do something on a document.
 #[async_trait]
 pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
-    fn set_document(&mut self, _document: &Box<dyn Document>) -> Result<()> {
+    fn set_document(&mut self, _document: Box<dyn Document>) -> Result<()> {
         Ok(())
     }
     fn document(&self) -> Result<&Box<dyn Document>> {

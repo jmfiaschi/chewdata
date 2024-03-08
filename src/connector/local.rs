@@ -146,8 +146,8 @@ impl Local {
 #[async_trait]
 impl Connector for Local {
     /// See [`Connector::set_document`] for more details.
-    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
-        self.document = Some(document.clone());
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
+        self.document = Some(document);
 
         Ok(())
     }
@@ -601,7 +601,6 @@ mod tests {
 
     use super::*;
     use crate::document::json::Json;
-    use crate::document::DocumentClone;
     use crate::DataResult;
 
     #[test]
@@ -659,7 +658,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Local::default();
         connector.path = "./data/one_line.json".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
@@ -676,7 +675,7 @@ mod tests {
         let mut connector = Local::default();
         connector.path = "./data/out/test_local_send".to_string();
         connector.erase().await.unwrap();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
@@ -702,7 +701,7 @@ mod tests {
         let expected_result =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result];
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         connector.send(&dataset).await.unwrap();
         connector.erase().await.unwrap();
         let datastream = connector.fetch().await.unwrap();
@@ -717,7 +716,7 @@ mod tests {
         let expected_result =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result];
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         connector.send(&dataset).await.unwrap();
         connector.erase().await.unwrap();
         let datastream = connector.fetch().await.unwrap();

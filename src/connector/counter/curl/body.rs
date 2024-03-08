@@ -101,7 +101,7 @@ impl Body {
         document.set_entry_path(self.entry_path.clone());
 
         let mut connector = connector.clone();
-        connector.set_document(&document.clone_box())?;
+        connector.set_document(document.clone())?;
 
         if let Some(path) = self.path.clone() {
             connector.path = path;
@@ -143,7 +143,7 @@ impl Body {
 mod tests {
     use http_types::Method;
 
-    use crate::document::{json::Json, DocumentClone};
+    use crate::document::json::Json;
 
     use super::*;
 
@@ -155,7 +155,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Post;
         connector.path = "/anything?count=10".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let mut counter = Body::default();
         counter.entry_path = "/args/count".to_string();
@@ -172,7 +172,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Post;
         connector.path = "/anything?count=10".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let mut counter = Body::default();
         counter.entry_path = "/args/not_found".to_string();

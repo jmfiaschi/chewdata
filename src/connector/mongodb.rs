@@ -168,8 +168,8 @@ impl Mongodb {
 #[async_trait]
 impl Connector for Mongodb {
     /// See [`Connector::set_document`] for more details.
-    fn set_document(&mut self, document: &Box<dyn ChewdataDocument>) -> Result<()> {
-        self.document = Some(document.clone());
+    fn set_document(&mut self, document: Box<dyn ChewdataDocument>) -> Result<()> {
+        self.document = Some(document);
 
         Ok(())
     }
@@ -453,7 +453,6 @@ impl Connector for Mongodb {
 mod tests {
     use super::*;
     use crate::document::json::Json;
-    use crate::document::DocumentClone;
     use crate::DataResult;
     use async_std::prelude::StreamExt;
     use json_value_merge::Merge;
@@ -484,7 +483,7 @@ mod tests {
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
         connector.collection = "startup_log".into();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
@@ -500,7 +499,7 @@ mod tests {
         connector.database = "tests".into();
         connector.collection = "send_1".into();
         connector.erase().await.unwrap();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
@@ -548,7 +547,7 @@ mod tests {
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "tests".into();
         connector.collection = "send_2".into();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         connector.erase().await.unwrap();
 
         let expected_result1 =
@@ -613,7 +612,7 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1];
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         connector.send(&dataset).await.unwrap();
         connector.erase().await.unwrap();
 

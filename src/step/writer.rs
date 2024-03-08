@@ -135,7 +135,7 @@ impl Step for Writer {
         let mut total_written: usize = 0;
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.clone().boxed_inner();
-        connector.set_document(&document.clone_box())?;
+        connector.set_document(document.clone())?;
         
         let mut dataset = Vec::default();
 

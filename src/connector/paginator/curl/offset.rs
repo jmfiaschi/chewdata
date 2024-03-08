@@ -152,7 +152,6 @@ mod tests {
     use crate::document::json::Json;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
-    use crate::document::DocumentClone;
     use futures::StreamExt;
     use http_types::Method;
 
@@ -168,7 +167,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = Offset {
             skip: 1,
@@ -200,7 +199,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/get".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = Offset {
             ..Default::default()
@@ -219,7 +218,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = Offset {
             skip: 0,
@@ -245,7 +244,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = Offset {
             skip: 0,

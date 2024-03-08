@@ -236,7 +236,7 @@ impl Bucket {
 #[async_trait]
 impl Connector for Bucket {
     /// See [`Connector::set_document`] for more details.
-    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
+    fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
         self.document = Some(document.clone());
 
         Ok(())
@@ -850,7 +850,6 @@ impl BucketPaginator {
 mod tests {
     use super::*;
     use crate::document::json::Json;
-    use crate::document::DocumentClone;
     use crate::DataResult;
     use futures::StreamExt;
 
@@ -917,7 +916,7 @@ mod tests {
         let mut connector = Bucket::default();
         connector.path = "data/one_line.json".to_string();
         connector.bucket = "my-bucket".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
@@ -936,7 +935,7 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
         connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
@@ -959,7 +958,7 @@ mod tests {
         let mut connector = Bucket::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();
 
@@ -978,7 +977,7 @@ mod tests {
         let mut connector = Bucket::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();
 
@@ -999,7 +998,7 @@ mod tests {
         connector.path = "data/*.json*".to_string();
         connector.limit = Some(5);
         connector.skip = 2;
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();
 

@@ -127,7 +127,7 @@ impl Offset {
 mod tests {
     use futures::StreamExt;
 
-    use crate::document::{json::Json, DocumentClone};
+    use crate::document::json::Json;
 
     use super::*;
 
@@ -139,7 +139,7 @@ mod tests {
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
         connector.database = "local".into();
         connector.collection = "startup_log".into();
-        connector.set_document(&document.clone_box()).unwrap();
+        connector.set_document(Box::new(document)).unwrap();
 
         let paginator = Offset {
             skip: 0,
