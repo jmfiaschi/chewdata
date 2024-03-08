@@ -327,7 +327,7 @@ impl Authenticator for Jwt {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
@@ -336,6 +336,7 @@ impl Authenticator for Jwt {
     ///     connector.parameters = serde_json::from_str(
     ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///     ).unwrap();
+    ///     connector.set_document(document.clone());
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
@@ -352,7 +353,9 @@ impl Authenticator for Jwt {
     ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
     ///     connector.method = Method::Get;
     ///     connector.path = "/bearer".to_string();
-    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
+    ///     connector.set_document(document);
+    ///
+    ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     let len = datastream.count().await;
     ///     assert!(0 < len, "Should read one some bytes.");
     ///

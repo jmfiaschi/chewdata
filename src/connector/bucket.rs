@@ -429,15 +429,13 @@ impl Connector for Bucket {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///     let mut connector = Bucket::default();
-    ///     connector.metadata = Metadata {
-    ///         ..Json::default().metadata
-    ///     };
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
-    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
+    ///     connector.set_document(document);
+    ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero"
@@ -509,13 +507,13 @@ impl Connector for Bucket {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/out/test_bucket_send".to_string();
-    ///     connector.set_document(&document.clone_box());
+    ///     connector.set_document(document.clone());
     ///
     ///     connector.erase().await.unwrap();
     ///     let expected_result1 =
@@ -540,7 +538,7 @@ impl Connector for Bucket {
     ///     connector.send(&dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+    ///     let mut datastream = connector_read.fetch().await.unwrap().unwrap();
     ///     assert_eq!(expected_result1, datastream.next().await.unwrap());
     ///     assert_eq!(expected_result2, datastream.next().await.unwrap());
     ///

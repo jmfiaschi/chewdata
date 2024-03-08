@@ -188,9 +188,9 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Jsonl::default();
+    ///     let document = Box::new(Jsonl::default());
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-    ///     connector.set_document(&document.clone_box());
+    ///     connector.set_document(document);
     ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
@@ -233,13 +233,13 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Jsonl::default();
+    ///     let document = Box::new(Jsonl::default());
     ///
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-    ///     connector.set_document(&document.clone_box())
+    ///     connector.set_document(document);
     ///     connector.send(&dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
@@ -308,10 +308,10 @@ impl Connector for InMemory {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Jsonl::default();
+    ///     let document = Box::new(Jsonl::default());
     ///
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
-    ///     connector.set_document(&document.clone_box());
+    ///     connector.set_document(document);
     ///
     ///     connector.erase().await.unwrap();
     ///

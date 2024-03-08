@@ -330,9 +330,9 @@ impl Connector for Local {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///     let mut connector = Local::default();
-    ///     connector.set_document(&document.clone_box())
+    ///     connector.set_document(document);
     ///     connector.path = "./data/one_line.json".to_string();
     ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
@@ -427,14 +427,14 @@ impl Connector for Local {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/out/test_local_send".to_string();
-    ///     connector.set_document(&document.clone_box())?;
+    ///     connector.set_document(document)?;
     ///     connector.erase().await.unwrap();
     ///     connector.send(&dataset).await.unwrap();
     ///
@@ -542,18 +542,18 @@ impl Connector for Local {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/out/test_local_erase".to_string();
     ///     let expected_result =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result];
-    ///     connector.set_document(&document.clone_box())
+    ///     connector.set_document(document);
     ///
     ///     connector.send(&dataset).await.unwrap();
     ///     connector.erase().await.unwrap();
-    ///     let datastream = connector.fetch(&document).await.unwrap();
+    ///     let datastream = connector.fetch().await.unwrap();
     ///     assert!(datastream.is_none(), "No datastream with empty body");
     ///
     ///     Ok(())

@@ -593,14 +593,14 @@ impl Connector for BucketSelect {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = BucketSelect::default();
     ///     connector.path = "/data/one_line.json".to_string();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket/".to_string();
     ///     connector.query = "select * from s3object".to_string();
-    ///     connector.set_document(&document.clone_box());
+    ///     connector.set_document(document);
     ///
     ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(

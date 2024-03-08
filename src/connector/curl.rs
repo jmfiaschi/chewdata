@@ -462,13 +462,13 @@ impl Connector for Curl {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
     ///     connector.path = "/json".to_string();
-    ///     connector.set_document(&document.clone_box());
+    ///     connector.set_document(document);
     ///
     ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
@@ -648,13 +648,13 @@ impl Connector for Curl {
     ///
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Json::default();
+    ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Post;
     ///     connector.path = "/post".to_string();
-    ///     connector.set_document(&document.clone_box());
+    ///     connector.set_document(document);
     ///
     ///     let expected_result1 =
     ///        DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
