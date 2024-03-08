@@ -47,12 +47,13 @@ fn document_read_benchmark(c: &mut Criterion) {
             .read_to_end(&mut buf)
             .unwrap();
 
-        let connector: InMemory = buf.into();
+        let mut connector: InMemory = buf.into();
+        connector.set_document(document).unwrap();
 
         c.bench_function(format!("read_{}/", format).as_str(), move |b| {
             b.to_async(FuturesExecutor).iter(|| async {
                 let mut connector: Box<dyn Connector> = connector.clone_box();
-                let mut dataset = connector.fetch(&*document).await.unwrap().unwrap();
+                let mut dataset = connector.fetch().await.unwrap().unwrap();
                 while let Some(_) = dataset.next().await {}
             });
         });
