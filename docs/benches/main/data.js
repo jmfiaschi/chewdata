@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1707205269844,
+  "lastUpdate": 1709934339280,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3221,6 +3221,72 @@ window.BENCHMARK_DATA = {
             "name": "read_parquet/",
             "value": 137046,
             "range": "± 1140",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0fc663f7820f5b2bd22fb13ff15007466dd99d19",
+          "message": "feat(curl): handle redirection (#58)\n\n* feat(writer): display the total amount of data written.\r\n\r\n* fix(connector): raise error if path not fully resolved\r\n\r\n* feat(curl): add redirection limit\r\n\r\n* feat(reader): If context in input and the connector failed, forward in error the context\r\n\r\n* fix(text): mime type and subtype\r\n\r\n* fix(document type guesser): add jsonl and txt\r\n\r\n* fix(byte): subtype mime\r\n\r\n* fix(json/jsonl): set entry_path to none if empty\r\n\r\n* fix(parquet): set entry_path to none if empty\r\n\r\n* fix(test): add exception in assertion\r\n\r\n* feat(curl): handle redirection\r\n\r\n* feat(jwt): remove payload and token_entry. reuse document.entry_path and refresh_connector.parameters",
+          "timestamp": "2024-03-08T22:29:00+01:00",
+          "tree_id": "2e9e09c7fedb08e0d411697ccb75a4e7250b9b12",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/0fc663f7820f5b2bd22fb13ff15007466dd99d19"
+        },
+        "date": 1709934338669,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 5441,
+            "range": "± 122",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 5313,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 298395,
+            "range": "± 3707",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 22071,
+            "range": "± 125",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10450,
+            "range": "± 38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13847,
+            "range": "± 78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 141254,
+            "range": "± 1755",
             "unit": "ns/iter"
           }
         ]
