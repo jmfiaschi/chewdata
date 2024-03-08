@@ -625,7 +625,7 @@ impl Connector for BucketSelect {
             let mut document_for_header = document.clone();
             let mut metadata = document_for_header.metadata().clone();
             metadata.has_headers = Some(false);
-            document_for_header.set_metadata(&metadata);
+            document_for_header.set_metadata(metadata);
             connector_for_header.set_document(document_for_header.clone())?;
 
             connector_for_header.query = format!(
