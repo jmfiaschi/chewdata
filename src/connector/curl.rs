@@ -106,6 +106,8 @@ const REDIRECT_CODES: &[surf::http::StatusCode] = &[
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Curl {
+    #[serde(skip)]
+    document: Option<Box<dyn Document>>,
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
@@ -134,6 +136,7 @@ pub struct Curl {
 impl fmt::Debug for Curl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Curl")
+            .field("document", &self.document)
             .field("metadata", &self.metadata)
             .field("authenticator_type", &self.authenticator_type)
             .field("endpoint", &self.endpoint)
@@ -157,6 +160,7 @@ impl fmt::Debug for Curl {
 impl Default for Curl {
     fn default() -> Self {
         Curl {
+            document: None,
             metadata: Metadata::default(),
             authenticator_type: None,
             endpoint: "".into(),
@@ -277,6 +281,22 @@ impl Curl {
 
 #[async_trait]
 impl Connector for Curl {
+    /// See [`Connector::set_document`] for more details.
+    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
+        self.document = Some(document.clone());
+
+        Ok(())
+    }
+    /// See [`Connector::document`] for more details.
+    fn document(&self) -> Result<&Box<dyn Document>> {
+        match &self.document {
+            Some(document) => Ok(document),
+            None => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "The document has not been set in the connector",
+            )),
+        }
+    }
     /// See [`Connector::path`] for more details.
     ///
     /// # Examples
@@ -380,13 +400,12 @@ impl Connector for Curl {
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = parameters;
     }
-    /// See [`Connector::set_metadata`] for more details.
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        match &self.document {
+            Some(document) => self.metadata.clone().merge(&document.metadata()),
+            None => self.metadata.clone(),
+        }
     }
     /// See [`Connector::len`] for more details.
     ///
@@ -444,11 +463,14 @@ impl Connector for Curl {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let document = Json::default();
+    ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Get;
     ///     connector.path = "/json".to_string();
-    ///     let datastream = connector.fetch(&document).await.unwrap().unwrap();
+    ///     connector.set_document(&document.clone_box());
+    ///
+    ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
     ///         "The inner connector should have a size upper than zero."
@@ -458,9 +480,10 @@ impl Connector for Curl {
     /// }
     /// ```
     #[instrument(name = "curl::fetch")]
-    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let client = self.client().await?;
         let path = self.path();
+        let document = self.document()?;
 
         if path.has_mustache() {
             return Err(Error::new(
@@ -487,7 +510,7 @@ impl Connector for Curl {
                 buffer.write_all(&document.write(&dataset)?)?;
                 buffer.write_all(&document.footer(&dataset)?)?;
 
-                if let Some(mime_subtype) = document.metadata().mime_subtype {
+                if let Some(mime_subtype) = &document.metadata().mime_subtype {
                     if mime_subtype == "x-www-form-urlencoded" {
                         if buffer.starts_with(&[b'"']) {
                             buffer = buffer.drain(1..).collect();
@@ -626,14 +649,17 @@ impl Connector for Curl {
     /// #[async_std::main]
     /// async fn main() -> io::Result<()> {
     ///     let document = Json::default();
+    ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::Post;
     ///     connector.path = "/post".to_string();
+    ///     connector.set_document(&document.clone_box());
+    ///
     ///     let expected_result1 =
     ///        DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1];
-    ///     let mut datastream = connector.send(&document, &dataset).await.unwrap().unwrap();
+    ///     let mut datastream = connector.send(&dataset).await.unwrap().unwrap();
     ///     let value = datastream.next().await.unwrap().to_value();
     ///     assert_eq!(
     ///        r#"[{"column1":"value1"}]"#,
@@ -644,11 +670,8 @@ impl Connector for Curl {
     /// }
     /// ```
     #[instrument(skip(dataset), name = "curl::send")]
-    async fn send(
-        &mut self,
-        document: &dyn Document,
-        dataset: &DataSet,
-    ) -> std::io::Result<Option<DataStream>> {
+    async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
+        let document = self.document()?.clone();
         let client = self.client().await?;
         let path = self.path();
 
@@ -672,7 +695,7 @@ impl Connector for Curl {
                 buffer.append(&mut document.write(dataset)?);
                 buffer.append(&mut document.footer(dataset)?);
 
-                if let Some(mime_subtype) = document.metadata().mime_subtype {
+                if let Some(mime_subtype) = &document.metadata().mime_subtype {
                     if mime_subtype == "x-www-form-urlencoded" {
                         if buffer.starts_with(&[b'"']) {
                             buffer = buffer.drain(1..).collect();
@@ -1000,6 +1023,7 @@ mod tests {
     use crate::connector::authenticator::{basic::Basic, bearer::Bearer, AuthenticatorType};
     use crate::connector::counter::curl::CounterType;
     use crate::document::json::Json;
+    use crate::document::DocumentClone;
     use futures::StreamExt;
 
     #[test]
@@ -1068,7 +1092,8 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/json".to_string();
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(&document.clone_box()).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -1085,7 +1110,8 @@ mod tests {
             "my-username",
             "my-password",
         ))));
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(&document.clone_box()).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -1100,7 +1126,8 @@ mod tests {
         connector.path = "/bearer".to_string();
         connector.authenticator_type =
             Some(Box::new(AuthenticatorType::Bearer(Bearer::new("abcd1234"))));
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(&document.clone_box()).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -1115,8 +1142,10 @@ mod tests {
         connector.path = "/post".to_string();
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
+        connector.set_document(&document.clone_box()).unwrap();
+
         let dataset = vec![expected_result1];
-        let mut datastream = connector.send(&document, &dataset).await.unwrap().unwrap();
+        let mut datastream = connector.send(&dataset).await.unwrap().unwrap();
         let value = datastream.next().await.unwrap().to_value();
         assert_eq!(
             r#"[{"column1":"value1"}]"#,
@@ -1138,8 +1167,9 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.path = "/redirect/1".to_string();
         connector.redirection_limit = 1;
+        connector.set_document(&document.clone_box()).unwrap();
 
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -1148,7 +1178,7 @@ mod tests {
         connector.path = "/redirect/2".to_string();
         connector.redirection_limit = 1;
 
-        let result = connector.fetch(&document).await;
+        let result = connector.fetch().await;
         assert!(
             result.is_err(),
             "The inner connector should raise an error."
@@ -1166,8 +1196,9 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.path = "/redirect/1".to_string();
         connector.redirection_limit = 1;
+        connector.set_document(&document.clone_box()).unwrap();
 
-        let datastream = connector.send(&document, &dataset).await.unwrap().unwrap();
+        let datastream = connector.send(&dataset).await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -1176,7 +1207,7 @@ mod tests {
         connector.path = "/redirect/2".to_string();
         connector.redirection_limit = 1;
 
-        let result = connector.send(&document, &dataset).await;
+        let result = connector.send(&dataset).await;
         assert!(
             result.is_err(),
             "The inner connector should raise an error."

@@ -42,10 +42,7 @@
 //!     "count": 1200
 //! }
 //! ```
-use crate::{
-    connector::{curl::Curl, Connector},
-    document::DocumentType,
-};
+use crate::connector::{curl::Curl, Connector};
 use async_std::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -100,17 +97,17 @@ impl Body {
     /// ```
     #[instrument(name = "body::count")]
     pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
-        let metadata = connector.metadata();
-        let mut document = DocumentType::guess(&metadata)?.clone();
+        let mut document = connector.document()?.clone();
         document.set_entry_path(self.entry_path.clone());
 
         let mut connector = connector.clone();
+        connector.set_document(&document.clone_box())?;
 
         if let Some(path) = self.path.clone() {
             connector.path = path;
         }
 
-        let mut dataset = match connector.fetch(&*document.clone()).await? {
+        let mut dataset = match connector.fetch().await? {
             Some(dataset) => dataset,
             None => {
                 trace!("No data found");
@@ -146,17 +143,19 @@ impl Body {
 mod tests {
     use http_types::Method;
 
-    use crate::document::{json::Json, Document};
+    use crate::document::{json::Json, DocumentClone};
 
     use super::*;
 
     #[async_std::test]
     async fn count_return_value() {
+        let document = Json::default();
+
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Post;
         connector.path = "/anything?count=10".to_string();
-        connector.metadata = Json::default().metadata();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let mut counter = Body::default();
         counter.entry_path = "/args/count".to_string();
@@ -167,11 +166,13 @@ mod tests {
     }
     #[async_std::test]
     async fn count_not_return_value() {
+        let document = Json::default();
+
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Post;
         connector.path = "/anything?count=10".to_string();
-        connector.metadata = Json::default().metadata();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let mut counter = Body::default();
         counter.entry_path = "/args/not_found".to_string();

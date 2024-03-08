@@ -86,6 +86,8 @@ const DEFAULT_ENDPOINT: &str = "http://localhost:9000";
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Bucket {
+    #[serde(skip)]
+    document: Option<Box<dyn Document>>,
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
@@ -108,6 +110,7 @@ pub struct Bucket {
 impl fmt::Debug for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Bucket")
+            .field("document", &self.document)
             .field("metadata", &self.metadata)
             .field("endpoint", &self.endpoint)
             .field("profile", &self.profile)
@@ -134,6 +137,7 @@ impl Default for Bucket {
         );
 
         Bucket {
+            document: None,
             metadata: Metadata::default(),
             endpoint: None,
             profile: "default".to_string(),
@@ -231,6 +235,22 @@ impl Bucket {
 
 #[async_trait]
 impl Connector for Bucket {
+    /// See [`Connector::set_document`] for more details.
+    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
+        self.document = Some(document.clone());
+
+        Ok(())
+    }
+    /// See [`Connector::document`] for more details.
+    fn document(&self) -> Result<&Box<dyn Document>> {
+        match &self.document {
+            Some(document) => Ok(document),
+            None => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "The document has not been set in the connector",
+            )),
+        }
+    }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
         self.parameters = Box::new(parameters);
@@ -427,7 +447,8 @@ impl Connector for Bucket {
     /// }
     /// ```
     #[instrument(name = "bucket::fetch")]
-    async fn fetch(&mut self, document: &dyn Document) -> Result<Option<DataStream>> {
+    async fn fetch(&mut self) -> Result<Option<DataStream>> {
+        let document = self.document()?;
         let path = self.path();
 
         if path.has_mustache() {
@@ -494,18 +515,20 @@ impl Connector for Bucket {
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/out/test_bucket_send".to_string();
+    ///     connector.set_document(&document.clone_box());
+    ///
     ///     connector.erase().await.unwrap();
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"[{"column1":"value1"}]"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
     ///     connector
-    ///         .send(&document, &dataset)
+    ///         .send(&dataset)
     ///         .await
     ///         .unwrap();
     ///
     ///     let mut connector_read = connector.clone();
     ///     let mut datastream = connector_read
-    ///         .fetch(&document)
+    ///         .fetch()
     ///         .await
     ///         .unwrap()
     ///         .unwrap();
@@ -514,7 +537,7 @@ impl Connector for Bucket {
     ///     let expected_result2 =
     ///         DataResult::Ok(serde_json::from_str(r#"[{"column1":"value2"}]"#).unwrap());
     ///     let dataset = vec![expected_result2.clone()];
-    ///     connector.send(&document, &dataset).await.unwrap();
+    ///     connector.send(&dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
     ///     let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
@@ -525,11 +548,8 @@ impl Connector for Bucket {
     /// }
     /// ```
     #[instrument(skip(dataset), name = "bucket::send")]
-    async fn send(
-        &mut self,
-        document: &dyn Document,
-        dataset: &DataSet,
-    ) -> std::io::Result<Option<DataStream>> {
+    async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
+        let document = self.document()?;
         let mut content_file = Vec::default();
         let path = self.path();
         let terminator = document.terminator()?;
@@ -629,12 +649,12 @@ impl Connector for Bucket {
         info!(path = path, "Send data with success");
         Ok(None)
     }
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        match &self.document {
+            Some(document) => self.metadata.clone().merge(&document.metadata()),
+            None => self.metadata.clone(),
+        }
     }
     /// See [`Connector::erase`] for more details.
     #[instrument(name = "bucket::erase")]
@@ -830,6 +850,7 @@ impl BucketPaginator {
 mod tests {
     use super::*;
     use crate::document::json::Json;
+    use crate::document::DocumentClone;
     use crate::DataResult;
     use futures::StreamExt;
 
@@ -894,12 +915,11 @@ mod tests {
     async fn fetch() {
         let document = Json::default();
         let mut connector = Bucket::default();
-        connector.metadata = Metadata {
-            ..Json::default().metadata
-        };
         connector.path = "data/one_line.json".to_string();
         connector.bucket = "my-bucket".to_string();
-        let datastream = connector.fetch(&document).await.unwrap().unwrap();
+        connector.set_document(&document.clone_box()).unwrap();
+
+        let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
             0 < datastream.count().await,
             "The inner connector should have a size upper than zero."
@@ -916,27 +936,30 @@ mod tests {
         let expected_result1 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
         let dataset = vec![expected_result1.clone()];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.set_document(&document.clone_box()).unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch().await.unwrap().unwrap();
         assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
 
         let expected_result2 =
             DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
         let dataset = vec![expected_result2.clone()];
-        connector.send(&document, &dataset).await.unwrap();
+        connector.send(&dataset).await.unwrap();
 
         let mut connector_read = connector.clone();
-        let mut datastream = connector_read.fetch(&document).await.unwrap().unwrap();
+        let mut datastream = connector_read.fetch().await.unwrap().unwrap();
         assert_eq!(expected_result1, datastream.next().await.unwrap());
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
     #[async_std::test]
     async fn paginator_paginate() {
+        let document = Json::default();
         let mut connector = Bucket::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/one_line.json".to_string();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();
 
@@ -951,9 +974,11 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_paginate_with_wildcard() {
+        let document = Json::default();
         let mut connector = Bucket::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();
 
@@ -968,11 +993,13 @@ mod tests {
     }
     #[async_std::test]
     async fn paginator_paginate_with_wildcard_limit_skip() {
+        let document = Json::default();
         let mut connector = Bucket::default();
         connector.bucket = "my-bucket".to_string();
         connector.path = "data/*.json*".to_string();
         connector.limit = Some(5);
         connector.skip = 2;
+        connector.set_document(&document.clone_box()).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();
 

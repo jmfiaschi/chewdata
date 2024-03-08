@@ -35,12 +35,14 @@ use async_stream::stream;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::Result;
+use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 #[serde(default, deny_unknown_fields)]
 pub struct Io {
+    #[serde(skip)]
+    document: Option<Box<dyn Document>>,
     #[serde(rename = "metadata")]
     #[serde(alias = "meta")]
     pub metadata: Metadata,
@@ -55,17 +57,32 @@ fn default_eof() -> String {
 
 #[async_trait]
 impl Connector for Io {
+    /// See [`Connector::set_document`] for more details.
+    fn set_document(&mut self, document: &Box<dyn Document>) -> Result<()> {
+        self.document = Some(document.clone());
+
+        Ok(())
+    }
+    /// See [`Connector::document`] for more details.
+    fn document(&self) -> Result<&Box<dyn Document>> {
+        match &self.document {
+            Some(document) => Ok(document),
+            None => Err(Error::new(
+                ErrorKind::InvalidInput,
+                "The document has not been set in the connector",
+            )),
+        }
+    }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
         "stdout".to_string()
     }
-    /// See [`Connector::set_metadata`] for more details.
-    fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
-        self.metadata.clone()
+        match &self.document {
+            Some(document) => self.metadata.clone().merge(&document.metadata()),
+            None => self.metadata.clone(),
+        }
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, _parameters: Value) {}
@@ -79,8 +96,9 @@ impl Connector for Io {
     }
     /// See [`Connector::fetch`] for more details.
     #[instrument(name = "io::fetch")]
-    async fn fetch(&mut self, document: &dyn Document) -> std::io::Result<Option<DataStream>> {
+    async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let stdin = BufReader::new(stdin());
+        let document = self.document()?;
 
         trace!("Retreive lines");
         let mut lines = stdin.lines();
@@ -111,12 +129,9 @@ impl Connector for Io {
     }
     /// See [`Connector::send`] for more details.
     #[instrument(name = "io::send", skip(dataset))]
-    async fn send(
-        &mut self,
-        document: &dyn Document,
-        dataset: &DataSet,
-    ) -> std::io::Result<Option<DataStream>> {
+    async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut buffer = Vec::default();
+        let document = self.document()?;
 
         buffer.append(&mut document.header(dataset)?);
         buffer.append(&mut document.write(dataset)?);
@@ -148,12 +163,16 @@ impl Connector for Io {
 
 #[cfg(test)]
 mod tests {
+    use crate::document::{json::Json, DocumentClone};
+
     use super::*;
     use async_std::prelude::StreamExt;
 
     #[async_std::test]
     async fn paginate() {
-        let connector = Io::default();
+        let document = Json::default();
+        let mut connector = Io::default();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();
         assert!(

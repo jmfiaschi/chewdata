@@ -15,8 +15,8 @@
 //! | key         | alias | Description                                                                     | Default Value | Possible Values                              |
 //! | ----------- | ----- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |
 //! | type        | -     | Required in order to use reader step                                            | `reader`      | `reader` / `read` / `r`                      |
-//! | connector   | conn  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`]                     |
-//! | document    | doc   | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]                      |
+//! | connector_type   | conn / connector  | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`]                     |
+//! | document_type    | doc  / document  | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]                      |
 //! | name        | alias | Step name                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
 //! | concurrency_limit | - | Limit of steps to run in conccuence.                                          | `1`           | unsigned number                              |
@@ -41,7 +41,7 @@
 //! ]
 //! ```
 use crate::connector::Connector;
-use crate::document::{Document, DocumentType};
+use crate::document::DocumentType;
 use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, Context};
@@ -116,7 +116,8 @@ impl Step for Reader {
         
         let mut connector = self.connector_type.clone().boxed_inner();
         let document = self.document_type.ref_inner();
-        connector.set_metadata(connector.metadata().merge(&document.metadata()));
+        connector.set_document(&document.clone_box())?;
+
         let mut receiver_stream = self.receive().await;
         // Used to check if one data has been received.
         let mut has_data_been_received = false;
@@ -149,7 +150,7 @@ impl Step for Reader {
                     let step = self.clone();
                     let context = Some(context_received.clone());
                     async move {
-                        read(&step, &mut connector.clone(), document, &context).await;
+                        read(&step, &mut connector.clone(), &context).await;
                 }}).await;
         }
 
@@ -170,7 +171,7 @@ impl Step for Reader {
                 .for_each_concurrent(None, |connector| {
                     let step = self.clone();
                     async move {
-                        read(&step, &mut connector.clone(), document, &None).await;
+                        read(&step, &mut connector.clone(), &None).await;
                 }}).await;
         }
 
@@ -186,10 +187,9 @@ impl Step for Reader {
 async fn read<'step>(
     step: &'step Reader,
     connector: &'step mut Box<dyn Connector>,
-    document: &'step dyn Document,
     context: &'step Option<Context>,
 ) {            
-    let dataset = match connector.fetch(document).await {
+    let dataset = match connector.fetch().await {
         Ok(Some(dataset)) => {
             info!("read and forward data");
             dataset

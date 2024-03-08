@@ -33,7 +33,6 @@
 //! ]
 //! ```
 use crate::connector::Connector;
-use crate::document::DocumentType;
 use crate::{connector::curl::Curl, ConnectorStream};
 use async_std::stream::StreamExt;
 use async_stream::stream;
@@ -99,7 +98,6 @@ impl Offset {
         let limit = self.limit;
         let mut skip = self.skip;
         let count_opt = self.count;
-        let document = DocumentType::guess(&connector.metadata())?;
 
         let stream = Box::pin(stream! {
             while has_next {
@@ -123,7 +121,7 @@ impl Offset {
                 // Loop until the connector stop to return data. Last check to avoid infinit loop.
                 // Define a counter will avoid to enter in this check.
                 if has_next && count_opt.is_none() {
-                    let mut dataset = match new_connector.fetch(&*document).await? {
+                    let mut dataset = match new_connector.fetch().await? {
                         Some(dataset) => dataset,
                         None => break
                     };
@@ -151,8 +149,10 @@ impl Offset {
 #[cfg(test)]
 mod tests {
     use crate::connector::curl::Curl;
+    use crate::document::json::Json;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
+    use crate::document::DocumentClone;
     use futures::StreamExt;
     use http_types::Method;
 
@@ -161,8 +161,6 @@ mod tests {
     #[cfg(feature = "xml")]
     #[async_std::test]
     async fn paginate() {
-        use crate::connector::curl::Curl;
-
         let mut document = Xml::default();
         document.entry_path = "/html/body/*/a".to_string();
 
@@ -170,6 +168,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let paginator = Offset {
             skip: 1,
@@ -181,24 +180,12 @@ mod tests {
 
         let mut connector = paging.next().await.transpose().unwrap().unwrap();
         assert_eq!("/links/1/10", connector.path().as_str());
-        let len1 = connector
-            .fetch(&document)
-            .await
-            .unwrap()
-            .unwrap()
-            .count()
-            .await;
+        let len1 = connector.fetch().await.unwrap().unwrap().count().await;
         assert!(0 < len1, "Can't read the content of the file.");
 
         let mut connector = paging.next().await.transpose().unwrap().unwrap();
         assert_eq!("/links/2/10", connector.path().as_str());
-        let len2 = connector
-            .fetch(&document)
-            .await
-            .unwrap()
-            .unwrap()
-            .count()
-            .await;
+        let len2 = connector.fetch().await.unwrap().unwrap().count().await;
         assert!(0 < len2, "Can't read the content of the file.");
 
         assert!(
@@ -208,10 +195,12 @@ mod tests {
     }
     #[async_std::test]
     async fn paginate_one_time() {
+        let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/get".to_string();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let paginator = Offset {
             ..Default::default()
@@ -225,10 +214,12 @@ mod tests {
     }
     #[async_std::test]
     async fn paginate_tree_times_and_parallize() {
+        let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let paginator = Offset {
             skip: 0,
@@ -249,10 +240,12 @@ mod tests {
     }
     #[async_std::test]
     async fn paginate_until_reach_the_end() {
+        let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::Get;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
+        connector.set_document(&document.clone_box()).unwrap();
 
         let paginator = Offset {
             skip: 0,

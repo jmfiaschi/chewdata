@@ -161,6 +161,10 @@ impl Document for Xml {
     fn set_entry_path(&mut self, entry_path: String) {
         self.entry_path = entry_path;
     }
+    /// See [`Document::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: &Metadata) {
+        self.metadata = metadata.clone();
+    }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Xml::default().metadata.merge(&self.metadata)

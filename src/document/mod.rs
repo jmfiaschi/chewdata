@@ -172,9 +172,8 @@ impl DocumentType {
 
 /// Every document_builder that implement this trait can get/write json_value through a connector.
 pub trait Document: Send + Sync + DocumentClone + std::fmt::Debug {
-    fn metadata(&self) -> Metadata {
-        Metadata::default()
-    }
+    fn set_metadata(&mut self, metadata: &Metadata);
+    fn metadata(&self) -> Metadata;
     /// Check if the buffer has data
     fn has_data(&self, buffer: &[u8]) -> io::Result<bool> {
         Ok(!buffer.is_empty())

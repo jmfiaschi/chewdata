@@ -89,6 +89,10 @@ impl Default for Jsonl {
 }
 
 impl Document for Jsonl {
+    /// See [`Document::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: &Metadata) {
+        self.metadata = metadata.clone();
+    }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Jsonl::default().metadata.merge(&self.metadata)

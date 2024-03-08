@@ -65,6 +65,10 @@ impl Default for Yaml {
 }
 
 impl Document for Yaml {
+    /// See [`Document::set_metadata`] for more details.
+    fn set_metadata(&mut self, metadata: &Metadata) {
+        self.metadata = metadata.clone();
+    }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
         Yaml::default().metadata.merge(&self.metadata)

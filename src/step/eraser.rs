@@ -14,7 +14,7 @@
 //! | key           | alias   | Description                                                                     | Default Value | Possible Values                              |
 //! | ------------- | ------- | ------------------------------------------------------------------------------- | ------------- | -------------------------------------------- |
 //! | type          | -       | Required in order to use eraser step                                            | `eraser`      | `eraser` / `eraser` / `truncate` / `e`       |
-//! | connector     | conn    | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
+//! | connector_type     | conn / connector    | Connector type to use in order to read a resource                               | `io`          | See [`crate::connector`] |
 //! | name          | alias   | Name step                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | exclude_paths | exclude | resource to exclude for the erase step                                          | `null`        | List of string                               |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                                 |

@@ -53,7 +53,7 @@
 //! ]
 //! ```
 use super::Authenticator;
-use crate::document::Document;
+use crate::document::DocumentClone;
 use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{connector::ConnectorType, document::jsonl::Jsonl};
 use async_std::prelude::StreamExt;
@@ -192,9 +192,9 @@ impl Jwt {
             None => return Ok(()),
         };
 
-        connector.set_metadata(connector.metadata().merge(&self.document.metadata()));
+        connector.set_document(&self.document.clone_box())?;
 
-        let mut datastream = match connector.fetch(&*self.document).await? {
+        let mut datastream = match connector.fetch().await? {
             Some(datastream) => datastream,
             None => {
                 trace!("No data have been retrieve from the refresh endpoint");
@@ -499,8 +499,11 @@ mod tests {
         jwk_connector.path = "/certs".to_string();
         jwk_connector.method = Method::Get;
         jwk_connector.timeout = Some(60);
+        jwk_connector
+            .set_document(&jwk_document.clone_box())
+            .unwrap();
 
-        let mut datastream = jwk_connector.fetch(&jwk_document).await.unwrap().unwrap();
+        let mut datastream = jwk_connector.fetch().await.unwrap().unwrap();
         datastream.next().await.unwrap();
         let jwk = datastream.next().await.unwrap().to_value();
 
