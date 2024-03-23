@@ -102,3 +102,7 @@ lto = true
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docs_rs"]
+
+[[example]]
+name = "jwt-decode"
+path = "examples/commands/jwt-decode.rs"
