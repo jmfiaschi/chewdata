@@ -1,3 +1,15 @@
+# [2.11.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.10.1-beta.1...v2.11.0-beta.1) (2024-05-19)
+
+
+### Bug Fixes
+
+* **helper:** change value in the test ([8b3a4e7](https://github.com/jmfiaschi/chewdata/commit/8b3a4e7d0b53bd2c816a26364425bd9340d6602a))
+
+
+### Features
+
+* **cargo:** upgrade versions ([f7689d1](https://github.com/jmfiaschi/chewdata/commit/f7689d1df08d3f284deb47c5a70409075429b922))
+
 ## [2.10.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.10.0...v2.10.1-beta.1) (2024-05-19)
 
 
