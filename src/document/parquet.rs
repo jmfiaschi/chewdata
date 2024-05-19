@@ -49,7 +49,7 @@
 //! | data_page_size_limit | -     | Page size limit.                       | `null`        | unsigned number                                                                                                                                                       |
 //! | max_row_group_size   | -     | Max row group size.                    | `null`        | unsigned number                                                                                                                                                       |
 //! | created_by           | -     | App/User that the create the resource. | `chewdata`    | String                                                                                                                                                                |
-//! | encoding             | -     | Resource encoding.                     | `PLAIN`       | `PLAIN` / `BIT_PACKED` / `PLAIN_DICTIONARY` / `RLE` / `DELTA_BINARY_PACKED` / `DELTA_LENGTH_BYTE_ARRAY` / `DELTA_BYTE_ARRAY` / `RLE_DICTIONARY` / `BYTE_STREAM_SPLIT` |
+//! | encoding             | -     | Resource encoding.                     | `PLAIN`       | `PLAIN` / `PLAIN_DICTIONARY` / `RLE` / `DELTA_BINARY_PACKED` / `DELTA_LENGTH_BYTE_ARRAY` / `DELTA_BYTE_ARRAY` / `RLE_DICTIONARY` / `BYTE_STREAM_SPLIT` |
 //! | compression          | -     | Resource compression.                  | `GZIP`        | `GZIP` / `UNCOMPRESSED` / `SNAPPY` / `LZO` / `BROTLI` / `LZ4` / `LZ4_RAW` / `ZSTD`                                                                                    |
 //! | compression level    | -     | Level of the compression. The value depend on the type of the compression | `null`        | 0..11                                                                                                                              |
 //! | has_dictionary       | -     | Use a dictionary.                      | `null`        | `true` / `false`                                                                                                                                                      |
@@ -333,7 +333,6 @@ impl Document for Parquet {
             if let Some(encoding) = &options.encoding {
                 properties_builder =
                     properties_builder.set_encoding(match encoding.to_uppercase().as_str() {
-                        "BIT_PACKED" => Encoding::BIT_PACKED,
                         "PLAIN" => Encoding::PLAIN,
                         "PLAIN_DICTIONARY" => Encoding::PLAIN_DICTIONARY,
                         "RLE" => Encoding::RLE,

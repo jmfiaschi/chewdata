@@ -1,5 +1,3 @@
-version: "3.6"
-
 services:
     minio:
         image: minio/minio:latest
@@ -81,26 +79,29 @@ services:
             - 8082:8080
 
     keycloak:
-        image: jboss/keycloak
+        image: quay.io/keycloak/keycloak
         restart: always
         environment:
-            - KEYCLOAK_LOGLEVEL=DEBUG
-            - DB_VENDOR=postgres
-            - DB_USER=${PSQL_USERNAME}
-            - DB_DATABASE=${PSQL_DB}
-            - DB_PASSWORD=${PSQL_PASSWORD}
-            - DB_PORT=5432
-            - DB_ADDR=psql
-            - KEYCLOAK_USER=${KEYCLOAK_USER}
-            - KEYCLOAK_PASSWORD=${KEYCLOAK_PASSWORD}
+            - KC_LOG_LEVEL=DEBUG
+            - KC_DB_URL_HOST=psql
+            - KC_DB=${PSQL_DB}
+            - KC_DB_USERNAME=${PSQL_USERNAME}
+            - KC_DB_PASSWORD=${PSQL_PASSWORD}
+            - KC_DB_URL=jdbc:postgresql://psql:5432/postgres
+            - KC_HOSTNAME=localhost
+            - KC_HOSTNAME_PORT=8083
+            - KC_HEALTH_ENABLED=true
+            - KC_METRICS_ENABLED=true
+            - KEYCLOAK_ADMIN=${KEYCLOAK_USER}
+            - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_PASSWORD}
             - KEYCLOAK_STATISTICS=all
-            - KEYCLOAK_IMPORT=/tmp/import/realm-import.json
         depends_on:
             - psql
         ports:
             - "8083:8080"
         volumes:
-            - ./.config/realm-import.json:/tmp/import/realm-import.json
+            - ./.config/realm.json:/opt/keycloak/data/import/realm.json
+        command: ["start-dev", "--import-realm"]
 
     rabbitmq:
         image: rabbitmq:3-management-alpine

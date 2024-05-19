@@ -21,7 +21,7 @@
 //! | referentials    | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the validation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
 //! | name            | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                |
 //! | data_type       | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                    |
-//! | concurrency_limit   | -   | Limit of steps to run in conccuence.                                                                              | `1`           | unsigned number                                 |
+//! | concurrency_limit   | -   | Limit of steps to run in concurrence.                                                                              | `1`           | unsigned number                                 |
 //! | rules           | -       | List of [`self::Rule`] indexed by their names                                                                     | `null`        | `{"rule_0": Rule,"rule_1": Rule}`               |
 //! | error_separator | -       | Separator use to delimite two errors                                                                              | `\r\n`        | String                                          |
 //!

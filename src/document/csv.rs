@@ -428,16 +428,6 @@ impl Document for Csv {
 
         Ok(header)
     }
-    /// See [`Document::terminator`] for more details.
-    fn terminator(&self) -> io::Result<Vec<u8>> {
-        Ok(self
-            .metadata
-            .terminator
-            .clone()
-            .unwrap_or_else(|| DEFAULT_TERMINATOR.to_string())
-            .as_bytes()
-            .to_vec())
-    }
 }
 
 #[cfg(test)]

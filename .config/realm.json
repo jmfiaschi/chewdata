@@ -1,7 +1,6 @@
 {
   "id": "test",
   "realm": "test",
-  "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,
   "refreshTokenMaxReuse": 0,
@@ -26,7 +25,7 @@
   "oauth2DeviceCodeLifespan": 600,
   "oauth2DevicePollingInterval": 5,
   "enabled": true,
-  "sslRequired": "external",
+  "sslRequired": "none",
   "registrationAllowed": false,
   "registrationEmailAsUsername": false,
   "rememberMe": false,
@@ -88,29 +87,35 @@
   "webAuthnPolicyPasswordlessCreateTimeout": 0,
   "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
   "webAuthnPolicyPasswordlessAcceptableAaguids": [],
-  "users" : [ {
-    "id" : "e29073db-9a03-4a06-82f2-4cc1e56d71e4",
-    "createdTimestamp" : 1671221785237,
-    "username" : "obiwan",
-    "enabled" : true,
-    "totp" : false,
-    "emailVerified" : false,
-    "firstName" : "Obi-Wan",
-    "lastName" : "Kenobi",
-    "email" : "obiwan@localhost",
-    "credentials" : [ {
-      "id" : "002405b1-b3ee-4c75-90e5-ebc77d221e21",
-      "type" : "password",
-      "createdDate" : 1671999631790,
-      "secretData" : "{\"value\":\"wG0NtqDdGofYxO4QL+J6hcbmLOXfnhMa/GKMBkDwHZX3CYG2G72ZYLBzlcpxp7B1AObJGRgcRhP2rd04Oq/IDQ==\",\"salt\":\"xm2m7jAU3K8Iqvs9u1E6vg==\",\"additionalParameters\":{}}",
-      "credentialData" : "{\"hashIterations\":27500,\"algorithm\":\"pbkdf2-sha256\",\"additionalParameters\":{}}"
-    } ],
-    "disableableCredentialTypes" : [ ],
-    "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-test" ],
-    "notBefore" : 0,
-    "groups" : [ ]
-  } ],
+  "users": [
+    {
+      "id": "e29073db-9a03-4a06-82f2-4cc1e56d71e4",
+      "createdTimestamp": 1671221785237,
+      "username": "obiwan",
+      "enabled": true,
+      "totp": false,
+      "emailVerified": false,
+      "firstName": "Obi-Wan",
+      "lastName": "Kenobi",
+      "email": "obiwan@localhost",
+      "credentials": [
+        {
+          "id": "002405b1-b3ee-4c75-90e5-ebc77d221e21",
+          "type": "password",
+          "createdDate": 1671999631790,
+          "secretData": "{\"value\":\"wG0NtqDdGofYxO4QL+J6hcbmLOXfnhMa/GKMBkDwHZX3CYG2G72ZYLBzlcpxp7B1AObJGRgcRhP2rd04Oq/IDQ==\",\"salt\":\"xm2m7jAU3K8Iqvs9u1E6vg==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":27500,\"algorithm\":\"pbkdf2-sha256\",\"additionalParameters\":{}}"
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-test"
+      ],
+      "notBefore": 0,
+      "groups": []
+    }
+  ],
   "scopeMappings": [
     {
       "clientScope": "offline_access",

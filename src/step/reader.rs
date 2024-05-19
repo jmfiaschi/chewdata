@@ -19,7 +19,7 @@
 //! | document_type    | doc  / document  | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]                      |
 //! | name        | alias | Step name                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
-//! | concurrency_limit | - | Limit of steps to run in conccuence.                                          | `1`           | unsigned number                              |
+//! | concurrency_limit | - | Limit of steps to run in concurrence.                                          | `1`           | unsigned number                              |
 //!
 //! ### Examples
 //!

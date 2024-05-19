@@ -448,7 +448,7 @@ mod tests {
     async fn refresh_with_keycloak() {
         let mut connector = Curl::default();
         connector.endpoint =
-            "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
+            "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
         connector.method = Method::Post;
         connector.timeout = Some(60);
@@ -497,7 +497,7 @@ mod tests {
 
         let mut jwk_connector = Curl::default();
         jwk_connector.endpoint =
-            "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
+            "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         jwk_connector.path = "/certs".to_string();
         jwk_connector.method = Method::Get;
         jwk_connector.timeout = Some(60);
@@ -509,7 +509,7 @@ mod tests {
 
         let mut connector = Curl::default();
         connector.endpoint =
-            "http://localhost:8083/auth/realms/test/protocol/openid-connect".to_string();
+            "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
         connector.method = Method::Post;
         connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
