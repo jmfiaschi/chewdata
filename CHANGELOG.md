@@ -1,3 +1,12 @@
+## [2.10.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.10.0...v2.10.1-beta.1) (2024-05-19)
+
+
+### Bug Fixes
+
+* **csv:** remove terminator function, the serializer already add the terminator. ([c53aea2](https://github.com/jmfiaschi/chewdata/commit/c53aea266de27cef841e4bccd56da75678950173))
+* **curl:** test redirect with delete comment due the httpbin error. ([4aea513](https://github.com/jmfiaschi/chewdata/commit/4aea5130ffdddbdf80889725bed477c0dc0cc7a2))
+* **keycloak:** adapt test with new version of keycloak ([a8071c4](https://github.com/jmfiaschi/chewdata/commit/a8071c4150ecce796282bb9fe6acfc36070f47ba))
+
 # [2.10.0](https://github.com/jmfiaschi/chewdata/compare/v2.9.0...v2.10.0) (2024-03-08)
 
 
