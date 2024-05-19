@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1709934339280,
+  "lastUpdate": 1716150791040,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3287,6 +3287,72 @@ window.BENCHMARK_DATA = {
             "name": "read_parquet/",
             "value": 141254,
             "range": "± 1755",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3c2fd034b0cf633650d88350e8bb10c8c1d03cd2",
+          "message": "fix(keycloak): adapt test with new version of keycloak (#59)\n\n* chore(example): add jwt decode command as example\r\n\r\n* chore(docker-compose): remove version\r\n\r\n* fix(curl): test redirect with delete comment due the httpbin error.\r\n\r\n* fix(csv): remove terminator function, the serializer already add the terminator.\r\n\r\n* fix(keycloak): adapt test with new version of keycloak",
+          "timestamp": "2024-05-19T22:16:51+02:00",
+          "tree_id": "74ac3368359ee204776ad9ab47133ffa363dae92",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/3c2fd034b0cf633650d88350e8bb10c8c1d03cd2"
+        },
+        "date": 1716150790298,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 4566,
+            "range": "± 24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 4469,
+            "range": "± 63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 298261,
+            "range": "± 3590",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 19983,
+            "range": "± 114",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 10872,
+            "range": "± 135",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13988,
+            "range": "± 59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 126591,
+            "range": "± 1007",
             "unit": "ns/iter"
           }
         ]
