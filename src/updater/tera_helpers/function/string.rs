@@ -408,7 +408,7 @@ mod tests {
         // Test case 1: Valid name and value
         let mut args = HashMap::new();
         args.insert("value".to_string(), Value::String("new_value".to_string()));
-        args.insert("name".to_string(), Value::String("MY_ENV_VAR".to_string()));
+        args.insert("name".to_string(), Value::String("MY_ENV_VAR1".to_string()));
 
         let result = set_env(&args).unwrap();
         assert_eq!(result, value);
@@ -438,10 +438,10 @@ mod tests {
     fn test_env() {
         // Test case 1: Environment variable exists
         let mut args = HashMap::new();
-        args.insert("name".to_string(), Value::String("MY_ENV_VAR".to_string()));
+        args.insert("name".to_string(), Value::String("MY_ENV_VAR2".to_string()));
 
         // Mock environment variable for testing
-        std::env::set_var(format!("{}:MY_ENV_VAR", crate::PROJECT_NAME), "TestValue");
+        std::env::set_var(format!("{}:MY_ENV_VAR2", crate::PROJECT_NAME), "TestValue");
 
         let result = env(&args).unwrap();
         assert_eq!(result, Value::String("TestValue".to_string()));
