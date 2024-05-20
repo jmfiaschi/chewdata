@@ -1,3 +1,10 @@
+# [2.11.0](https://github.com/jmfiaschi/chewdata/compare/v2.10.0...v2.11.0) (2024-05-20)
+
+
+### Features
+
+* **keycloak:** adapt test with new version of keycloak ([#59](https://github.com/jmfiaschi/chewdata/issues/59)) ([8653957](https://github.com/jmfiaschi/chewdata/commit/8653957ed61ed93225549a49c165d37c56e63df9))
+
 # [2.11.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.10.1-beta.1...v2.11.0-beta.1) (2024-05-19)
 
 
