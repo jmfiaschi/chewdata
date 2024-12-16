@@ -167,43 +167,65 @@ impl Psql {
                         continue;
                     }
 
-                    query_binding.add("NULL");
+                    query_binding
+                        .add("NULL")
+                        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                 }
                 Some(Value::String(string)) => {
                     let mut is_query_binded = false;
                     if let Ok(date) = string.parse::<NaiveDate>() {
-                        query_binding.add(date);
+                        query_binding
+                            .add(date)
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                         is_query_binded = true;
                     }
                     if let Ok(date) = string.parse::<NaiveDateTime>() {
-                        query_binding.add(date);
+                        query_binding
+                            .add(date)
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                         is_query_binded = true;
                     }
                     if let Ok(date) = string.parse::<DateTime<Utc>>() {
-                        query_binding.add(date);
+                        query_binding
+                            .add(date)
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                         is_query_binded = true;
                     }
                     if !is_query_binded {
-                        query_binding.add(string);
+                        query_binding
+                            .add(string)
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                     }
                 }
                 Some(Value::Number(number)) => {
                     if number.is_f64() {
-                        query_binding.add(number.as_f64().unwrap_or_default());
+                        query_binding
+                            .add(number.as_f64().unwrap_or_default())
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                     } else if number.is_i64() {
-                        query_binding.add(number.as_i64().unwrap_or_default());
+                        query_binding
+                            .add(number.as_i64().unwrap_or_default())
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                     } else if number.is_u64() {
-                        query_binding.add(number.as_u64().unwrap_or_default() as i64);
+                        query_binding
+                            .add(number.as_u64().unwrap_or_default() as i64)
+                            .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                     }
                 }
                 Some(Value::Bool(boolean)) => {
-                    query_binding.add(boolean);
+                    query_binding
+                        .add(boolean)
+                        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                 }
                 Some(Value::Array(vec)) => {
-                    query_binding.add(Value::Array(vec.clone()));
+                    query_binding
+                        .add(Value::Array(vec.clone()))
+                        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                 }
                 Some(Value::Object(map)) => {
-                    query_binding.add(Value::Object(map.clone()));
+                    query_binding
+                        .add(Value::Object(map.clone()))
+                        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
                 }
                 None => {
                     warn!(
