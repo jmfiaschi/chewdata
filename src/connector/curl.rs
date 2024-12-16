@@ -512,10 +512,10 @@ impl Connector for Curl {
 
                 if let Some(mime_subtype) = &document.metadata().mime_subtype {
                     if mime_subtype == "x-www-form-urlencoded" {
-                        if buffer.starts_with(&[b'"']) {
+                        if buffer.starts_with(b"\"") {
                             buffer = buffer.drain(1..).collect();
                         }
-                        if buffer.ends_with(&[b'"']) {
+                        if buffer.ends_with(b"\"") {
                             buffer.pop();
                         }
                     }
@@ -697,10 +697,10 @@ impl Connector for Curl {
 
                 if let Some(mime_subtype) = &document.metadata().mime_subtype {
                     if mime_subtype == "x-www-form-urlencoded" {
-                        if buffer.starts_with(&[b'"']) {
+                        if buffer.starts_with(b"\"") {
                             buffer = buffer.drain(1..).collect();
                         }
-                        if buffer.ends_with(&[b'"']) {
+                        if buffer.ends_with(b"\"") {
                             buffer.pop();
                         }
                     }

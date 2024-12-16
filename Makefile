@@ -89,7 +89,7 @@ integration-tests: start test\:docs test\:integration
 
 lint: ##		Lint with all features.
 lint: ##			USAGE: make lint
-	@cargo clippy  --features "xml csv parquet toml bucket curl mongodb psql"
+	@cargo clippy --all-features
 
 coverage: ##	Run code coverage with all features.
 coverage: ##		USAGE: make coverage
