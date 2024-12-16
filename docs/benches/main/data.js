@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1716185954946,
+  "lastUpdate": 1734385332986,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -3419,6 +3419,72 @@ window.BENCHMARK_DATA = {
             "name": "read_parquet/",
             "value": 126860,
             "range": "± 802",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "19343e3748e3f7f9a910d74f7f133b89d2bd3273",
+          "message": "feat(project): prefix variable environments with CHEWDATA (#60)\n\n* feat(project): prefix variable environments with CHEWDATA\r\n\r\n* fix(makefile): replace docker-compose by docker",
+          "timestamp": "2024-12-16T22:26:11+01:00",
+          "tree_id": "83fe8dfec2c0fd1ee12ce58fc851437a00971a9b",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/19343e3748e3f7f9a910d74f7f133b89d2bd3273"
+        },
+        "date": 1734385332183,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json/",
+            "value": 4737,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl/",
+            "value": 4721,
+            "range": "± 153",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml/",
+            "value": 299026,
+            "range": "± 20077",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv/",
+            "value": 19476,
+            "range": "± 118",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml/",
+            "value": 9926,
+            "range": "± 195",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml/",
+            "value": 13680,
+            "range": "± 68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet/",
+            "value": 127958,
+            "range": "± 1173",
             "unit": "ns/iter"
           }
         ]
