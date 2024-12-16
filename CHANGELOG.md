@@ -1,3 +1,13 @@
+# [2.12.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v2.12.0-beta.1...v2.12.0-beta.2) (2024-12-16)
+
+
+### Bug Fixes
+
+* **cargo:** fix linter ([418b3b5](https://github.com/jmfiaschi/chewdata/commit/418b3b58b42f0e8ac4965df7745902f01b8867c5))
+* **cargo:** update ([eee39fe](https://github.com/jmfiaschi/chewdata/commit/eee39fe114c71d6a2bd9d5950bea925d728f755c))
+* **cargo:** update ([4207788](https://github.com/jmfiaschi/chewdata/commit/420778829703d0f788b87fa0d5ef816d60e45d69))
+* **cargo:** update ([4e9280f](https://github.com/jmfiaschi/chewdata/commit/4e9280f307eed7370efe85708f38361f400a4a18))
+
 # [2.12.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.11.0...v2.12.0-beta.1) (2024-12-16)
 
 
