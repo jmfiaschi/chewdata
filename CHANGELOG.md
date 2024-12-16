@@ -1,3 +1,15 @@
+# [2.12.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.11.0...v2.12.0-beta.1) (2024-12-16)
+
+
+### Bug Fixes
+
+* **makefile:** replace docker-compose by docker ([74b3e5d](https://github.com/jmfiaschi/chewdata/commit/74b3e5d6abca193b76b77324c0f24214b3daeed0))
+
+
+### Features
+
+* **project:** prefix variable environments with CHEWDATA ([d557046](https://github.com/jmfiaschi/chewdata/commit/d557046e2ed3901692cf0e0f5ec7b0f10ad94488))
+
 # [2.11.0](https://github.com/jmfiaschi/chewdata/compare/v2.10.0...v2.11.0) (2024-05-20)
 
 
