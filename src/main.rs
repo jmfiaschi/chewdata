@@ -75,14 +75,14 @@ async fn main() -> Result<()> {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        deser_hjson::from_str(env::Vars::apply(buf).as_str())
+                        deser_hjson::from_str(buf.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME)).as_str())
                             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
                     },
                     "yaml"|"yml" => {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        let config = env::Vars::apply(buf);
+                        let config = buf.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME));
                         let documents = serde_yaml::Deserializer::from_str(config.as_str());
                         let mut steps = Vec::<StepType>::default();
 
@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
             ))
         }
         (Some(json), _) => {
-            deser_hjson::from_str(env::Vars::apply(json.to_string()).as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+            deser_hjson::from_str(json.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME)).as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
         }
         _ => serde_json::from_str(DEFAULT_PROCESSORS)
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),

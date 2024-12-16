@@ -146,9 +146,9 @@ pub fn base64_decode(args: &HashMap<String, Value>) -> Result<Value> {
 /// use chewdata::updater::tera_helpers::function::string::env;
 ///
 /// let mut args = HashMap::new();
-/// args.insert("name".to_string(), Value::String("my_key".to_string()));
+/// args.insert("name".to_string(), Value::String("MY_KEY".to_string()));
 ///
-/// std::env::set_var("chewdata:my_key", "my_var");
+/// std::env::set_var("CHEWDATA_MY_KEY", "my_var");
 ///
 /// let value = env(&args).unwrap();
 /// assert_eq!("my_var", value.as_str().unwrap());
@@ -161,7 +161,7 @@ pub fn env(args: &HashMap<String, Value>) -> Result<Value> {
         .and_then(|val| Ok(try_get_value!("env", "name", String, val)))?;
 
     // Avoiding to override the system environment variable
-    let var_env_key = format!("{}:{}", crate::PROJECT_NAME, name);
+    let var_env_key = format!("{}_{}", str::to_uppercase(crate::PROJECT_NAME), name);
 
     // Try to get the environment variable value
     match std::env::var(var_env_key).ok() {
@@ -195,12 +195,12 @@ pub fn env(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// let mut args = HashMap::new();
 /// args.insert("value".to_string(), Value::String("my_var".to_string()));
-/// args.insert("name".to_string(), Value::String("my_key".to_string()));
+/// args.insert("name".to_string(), Value::String("MY_KEY".to_string()));
 ///
 /// let value = set_env(&args).unwrap();
 ///
 /// assert_eq!("my_var", value.as_str().unwrap());
-/// let value = std::env::var("chewdata:my_key").unwrap();
+/// let value = std::env::var("CHEWDATA_MY_KEY").unwrap();
 /// assert_eq!("my_var", value);
 /// ```
 pub fn set_env(args: &HashMap<String, Value>) -> Result<Value> {
@@ -217,7 +217,7 @@ pub fn set_env(args: &HashMap<String, Value>) -> Result<Value> {
         .and_then(|val| Ok(try_get_value!("env", "name", String, val)))?;
 
     // Avoiding to override the system environment variable
-    let var_env_key = format!("{}:{}", crate::PROJECT_NAME, name);
+    let var_env_key = format!("{}_{}", str::to_uppercase(crate::PROJECT_NAME), name);
 
     std::env::set_var(var_env_key, &value_string);
 
@@ -441,7 +441,10 @@ mod tests {
         args.insert("name".to_string(), Value::String("MY_ENV_VAR2".to_string()));
 
         // Mock environment variable for testing
-        std::env::set_var(format!("{}:MY_ENV_VAR2", crate::PROJECT_NAME), "TestValue");
+        std::env::set_var(
+            format!("{}_MY_ENV_VAR2", str::to_uppercase(crate::PROJECT_NAME)),
+            "TestValue",
+        );
 
         let result = env(&args).unwrap();
         assert_eq!(result, Value::String("TestValue".to_string()));

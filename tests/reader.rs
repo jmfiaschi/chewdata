@@ -87,13 +87,16 @@ fn it_should_read_file_in_bucket_with_one_line() {
     let config = r#"[{"type":"r","connector":{"type":"bucket","bucket":"my-bucket","path":"data/one_line.json","endpoint": "{{ BUCKET_ENDPOINT }}"}},{"type":"w"}]"#;
     let output = Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
-        .env("BUCKET_ENDPOINT", env::var("BUCKET_ENDPOINT").unwrap())
         .env(
-            "BUCKET_ACCESS_KEY_ID",
+            "CHEWDATA_BUCKET_ENDPOINT",
+            env::var("BUCKET_ENDPOINT").unwrap(),
+        )
+        .env(
+            "CHEWDATA_BUCKET_ACCESS_KEY_ID",
             env::var("BUCKET_ACCESS_KEY_ID").unwrap(),
         )
         .env(
-            "BUCKET_SECRET_ACCESS_KEY",
+            "CHEWDATA_BUCKET_SECRET_ACCESS_KEY",
             env::var("BUCKET_SECRET_ACCESS_KEY").unwrap(),
         )
         .env("RUST_LOG", "null")
@@ -125,7 +128,7 @@ fn it_should_read_data_get_api() {
     let config = r#"[{"type":"r","connector": {"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/get"}},{"type":"w"}]"#;
     let output = Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
-        .env("CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
+        .env("CHEWDATA_CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
         .env("RUST_LOG", "null")
         .current_dir(repo_dir())
         .output()
@@ -153,10 +156,14 @@ fn it_should_read_data_get_api_with_basic() {
     let config = r#"[{"type":"r","connector":{"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/basic-auth/my-username/my-password","authenticator":{"type": "basic","username":"{{ CURL_BASIC_AUTH_USERNAME }}","password":"{{ CURL_BASIC_AUTH_PASSWORD }}"}}},{"type":"w"}]"#;
     let output = Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
-        .env("CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
+        .env("CHEWDATA_CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
         .env(
-            "CURL_BASIC_AUTH_USERNAME",
+            "CHEWDATA_CURL_BASIC_AUTH_USERNAME",
             env::var("CURL_BASIC_AUTH_USERNAME").unwrap(),
+        )
+        .env(
+            "CHEWDATA_CURL_BASIC_AUTH_PASSWORD",
+            env::var("CURL_BASIC_AUTH_PASSWORD").unwrap(),
         )
         .env("RUST_LOG", "null")
         .current_dir(repo_dir())
@@ -188,8 +195,11 @@ fn it_should_read_data_get_api_with_bearer() {
     let config = r#"[{"type":"r","connector":{"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/bearer","authenticator":{"type": "bearer","token":"{{ CURL_BEARER_TOKEN }}"}}},{"type":"w"}]"#;
     let output = Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
-        .env("CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
-        .env("CURL_BEARER_TOKEN", env::var("CURL_BEARER_TOKEN").unwrap())
+        .env("CHEWDATA_CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
+        .env(
+            "CHEWDATA_CURL_BEARER_TOKEN",
+            env::var("CURL_BEARER_TOKEN").unwrap(),
+        )
         .env("RUST_LOG", "null")
         .current_dir(repo_dir())
         .output()

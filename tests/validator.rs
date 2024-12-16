@@ -61,10 +61,10 @@ fn it_should_apply_simple_validation() {
                 );
                 let output = Command::new(debug_dir().join(APP_NAME))
                     .args(&[config])
-                    .env("TEMPLATE_ENGINE", template_engine)
-                    .env("RULE_NAME", rule_name)
-                    .env("RULE_PATTERN_TERA", rule_pattern)
-                    .env("RULE_PATTERN_MESSAGE", rule_message)
+                    .env("CHEWDATA_TEMPLATE_ENGINE", template_engine)
+                    .env("CHEWDATA_RULE_NAME", rule_name)
+                    .env("CHEWDATA_RULE_PATTERN_TERA", rule_pattern)
+                    .env("CHEWDATA_RULE_PATTERN_MESSAGE", rule_message)
                     .env("RUST_LOG", "null")
                     .current_dir(repo_dir())
                     .output()
@@ -72,7 +72,7 @@ fn it_should_apply_simple_validation() {
 
                 let json_result = String::from_utf8_lossy(output.stdout.as_slice());
                 let error_result = String::from_utf8_lossy(output.stderr.as_slice());
-                
+
                 assert!(
                     error_result.is_empty(),
                     "stderr is not empty with this value {}.",

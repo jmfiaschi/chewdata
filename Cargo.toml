@@ -25,7 +25,7 @@ tracing-opentelemetry = { version = "0.22", default-features = false, features= 
 opentelemetry = { version = "0.21", default-features = false, features= ["trace"], optional = true}
 opentelemetry-jaeger = { version = "0.20", default-features = false, features= ["rt-async-std"], optional = true}
 glob = { version = "0.3", default-features = false }
-env_applier = { version = "0.1", default-features = false }
+env_applier = { version = "1.1.1", default-features = false }
 serde_json = { version = "1.0", default-features = false, features= ["std"] }
 json_value_merge = { version = "2.0", default-features = false }
 json_value_remove = { version = "1.0", default-features = false }
