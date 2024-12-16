@@ -89,7 +89,7 @@ integration-tests: start test\:docs test\:integration
 
 lint: ##		Lint with all features.
 lint: ##			USAGE: make lint
-	@cargo clippy  --features "xml csv parquet toml bucket curl mongodb psql"
+	@cargo clippy --all-features
 
 coverage: ##	Run code coverage with all features.
 coverage: ##		USAGE: make coverage
@@ -117,60 +117,60 @@ minio: ##			USAGE: make minio
 minio:
 	echo "${BLUE}Run Minio server.${NC}"
 	echo "${YELLOW}Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY} ${NC}"
-	@docker-compose up -d minio nginx
+	@docker compose up -d minio nginx
 
 minio\:install:
 	echo "${BLUE}Configure Minio server.${NC}"
-	@docker-compose run --rm mc alias set s3 http://nginx:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
-	@docker-compose run --rm mc mb -p s3/my-bucket
-	@docker-compose run --rm mc cp -r /root/data s3/my-bucket
+	@docker compose run --rm mc alias set s3 http://nginx:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
+	@docker compose run --rm mc mb -p s3/my-bucket
+	@docker compose run --rm mc cp -r /root/data s3/my-bucket
 
 httpbin: ##	Start httpbin APIs in local.
 httpbin: ##		USAGE: make httpbin
 httpbin:
 	echo "${BLUE}Run httpbin server.${NC}"
 	echo "${YELLOW}Host: http://localhost:8080 ${NC}"
-	@docker-compose up -d httpbin
+	@docker compose up -d httpbin
 
 mongo: ##		Start mongo server in local.
 mongo: ##			USAGE: make mongo
 mongo:
 	echo "${BLUE}Run mongo server.${NC}"
-	@docker-compose up -d mongo-admin mongo
+	@docker compose up -d mongo-admin mongo
 
 psql: ##		Start psql server in local.
 psql: ##			USAGE: make psql
 psql:
 	echo "${BLUE}Run psql server.${NC}"
-	@docker-compose up -d psql
+	@docker compose up -d psql
 
 adminer: ##	Start db admin in local.
 adminer: ##		USAGE: make adminer
 adminer:
 	echo "${BLUE}Run admin db${NC}"
 	echo "${YELLOW}Host: http://localhost:8081 ${NC}"
-	@docker-compose up -d adminer
+	@docker compose up -d adminer
 
 keycloak: ##	Start keycloak server in local.
 keycloak: ##		USAGE: make keycloak
 keycloak:
 	echo "${BLUE}Run keycloak${NC}"
 	echo "${YELLOW}Host: http://localhost:8083 ${NC}"
-	@docker-compose up -d keycloak
+	@docker compose up -d keycloak
 
 apm: ##		Start APM server in local.
 apm: ##			USAGE: make apm
 apm:
 	echo "${BLUE}Run monitoring${NC}"
 	echo "${YELLOW}Host: http://localhost:16686 ${NC}"
-	@docker-compose up -d monitoring
+	@docker compose up -d monitoring
 
 rabbitmq: ##	Start rabbitmq server in local.
 rabbitmq: ##		USAGE: make rabbitmq
 rabbitmq:
 	echo "${BLUE}Run rabbitmq${NC}"
 	echo "${YELLOW}Host: http://localhost:15672 ${NC}"
-	@docker-compose up -d rabbitmq
+	@docker compose up -d rabbitmq
 	echo "${BLUE}Init rabbitmq${NC}"
 	curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/exchanges/%2f/users.event -d"{\"type\":\"direct\",\"auto_delete\":false,\"durable\":true,\"internal\":false,\"arguments\":{}}"
 	curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/queues/%2f/users.events -d"{\"auto_delete\":false,\"durable\":true,\"arguments\":{}}"
@@ -186,7 +186,7 @@ start: debug minio minio\:install httpbin mongo adminer keycloak
 stop: ##		Stop all servers in local.
 stop: ##			USAGE: make stop
 stop:
-	@docker-compose down
+	@docker compose down
 
 clean: ##		Clean the project in local.
 clean: ##			USAGE: make clean

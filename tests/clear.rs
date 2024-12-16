@@ -31,7 +31,7 @@ fn it_should_clear_one_file() {
     let output_file_path = "./data/out/clear_one_file.json";
     Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
-        .env("APP_FILE_PATH_OUTPUT", &output_file_path)
+        .env("CHEWDATA_APP_FILE_PATH_OUTPUT", &output_file_path)
         .env("RUST_LOG", "null")
         .current_dir(repo_dir())
         .output()
@@ -44,7 +44,7 @@ fn it_should_clear_one_file() {
     );
     let output = Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
-        .env("APP_FILE_PATH_OUTPUT", &output_file_path)
+        .env("CHEWDATA_APP_FILE_PATH_OUTPUT", &output_file_path)
         .env("RUST_LOG", "null")
         .current_dir(repo_dir())
         .output()
@@ -70,7 +70,7 @@ fn it_should_clear_one_file() {
     );
     let output = Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
-        .env("APP_FILE_PATH_OUTPUT", &output_file_path)
+        .env("CHEWDATA_APP_FILE_PATH_OUTPUT", &output_file_path)
         .env("RUST_LOG", "null")
         .current_dir(repo_dir())
         .output()

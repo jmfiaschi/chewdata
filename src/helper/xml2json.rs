@@ -162,7 +162,7 @@ impl JsonBuilder {
         // Add any attributes
         for attr in event.attributes().flatten() {
             let value = attr
-                .decode_and_unescape_value(reader)
+                .decode_and_unescape_value(reader.decoder())
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
             let mut key = self.attrkey.to_string().as_bytes().to_vec();
             key.append(&mut attr.key.as_ref().to_vec());

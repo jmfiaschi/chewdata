@@ -214,8 +214,17 @@ It is possible to chain chewdata program :
 ```bash
 task_A=$(echo '{"variable": "a"}' | chewdata '[{"type":"r"},{"type":"transformer","actions":[{"field":"/","pattern":"{{ input | json_encode() }}"},{"field":"value","pattern":"10"}]},{"type":"w", "doc":{"type":"jsonl"}}]') &&\
 task_B=$(echo '{"variable": "b"}' | chewdata '[{"type":"r"},{"type":"transformer","actions":[{"field":"/","pattern":"{{ input | json_encode() }}"},{"field":"value","pattern":"20"}]},{"type":"w", "doc":{"type":"jsonl"}}]') &&\
-echo $task_A | VAR_B=$task_B chewdata '[{"type":"r"},{"type":"transformer","actions":[{"field":"var_b","pattern":"{{ get_env(name=\"VAR_B\") }}"},{"field":"result","pattern":"{{ output.var_b.value * input.value }}"},{"field":"var_b","type":"remove"}]},{"type":"w"}]'
+echo $task_A | CHEWDATA_VAR_B=$task_B chewdata '[{"type":"r"},{"type":"transformer","actions":[{"field":"var_b","pattern":"{{ get_env(name=\"VAR_B\") }}"},{"field":"result","pattern":"{{ output.var_b.value * input.value }}"},{"field":"var_b","type":"remove"}]},{"type":"w"}]'
 [{"result":200}]
+```
+
+### Apply custom environmnet variables
+
+If you want to inject an environment variable, please prefix it with `CHEWDATA`. 
+It's mandatory in order to avoid collision and for security.
+
+```bash
+CHEWDATA_VAR_B=$task_B CHEWDATA_CURL_ENDPOINT=my_endpoint RUST_LOG=info chewdata '[{"type":"r"},{"type":"transformer","actions":[{"field":"var_b","pattern":"{{ get_env(name=\"VAR_B\") }}"},{"field":"result","pattern":"{{ output.var_b.value * input.value }}"},{"field":"var_b","type":"remove"}]},{"type":"w", "connector": {"type": "curl","endpoint": "{{ CURL_ENDPOINT }}","path": "/post","method": "post"}}]'
 ```
 
 ## How it works ?

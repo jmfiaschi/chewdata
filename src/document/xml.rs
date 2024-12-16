@@ -489,7 +489,10 @@ mod tests {
             serde_json::from_str(r#"{"elt":{"@column_1":"line_1"}}"#).unwrap(),
         )];
         let buffer = document.write(&dataset).unwrap();
-        assert_eq!(r#"<elt column_1="line_1"/>"#.as_bytes().to_vec(), buffer);
+        assert_eq!(
+            r#"<elt column_1="line_1"></elt>"#.as_bytes().to_vec(),
+            buffer
+        );
     }
     #[test]
     fn write_with_text_key() {

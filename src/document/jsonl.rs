@@ -224,7 +224,7 @@ impl Document for Jsonl {
                 }
 
                 if self.entry_path.is_some() && !buf.is_empty() {
-                    buf.write_all(&[b','])?;
+                    buf.write_all(b",")?;
                 }
 
                 match self.is_pretty {
