@@ -1,3 +1,10 @@
+# [2.12.0](https://github.com/jmfiaschi/chewdata/compare/v2.11.0...v2.12.0) (2024-12-16)
+
+
+### Features
+
+* **project:** prefix variable environments with CHEWDATA ([#60](https://github.com/jmfiaschi/chewdata/issues/60)) ([19343e3](https://github.com/jmfiaschi/chewdata/commit/19343e3748e3f7f9a910d74f7f133b89d2bd3273))
+
 # [2.12.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v2.12.0-beta.1...v2.12.0-beta.2) (2024-12-16)
 
 
