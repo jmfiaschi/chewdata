@@ -21,9 +21,9 @@ path = "benches/benchmark.rs"
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
 tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter","tracing-log","json","ansi"] }
 tracing-appender = { version = "0.2", default-features = false }
-tracing-opentelemetry = { version = "0.22", default-features = false, features= ["tracing-log"] }
-opentelemetry = { version = "0.21", default-features = false, features= ["trace"], optional = true}
-opentelemetry-jaeger = { version = "0.20", default-features = false, features= ["rt-async-std"], optional = true}
+tracing-opentelemetry = { version = "0.28", default-features = false, features= ["tracing-log"] }
+opentelemetry = { version = "0.27", default-features = false, features= ["trace"], optional = true}
+opentelemetry-jaeger = { version = "0.22", default-features = false, features= ["rt-async-std"], optional = true}
 glob = { version = "0.3", default-features = false }
 env_applier = { version = "1.1.1", default-features = false }
 serde_json = { version = "1.0", default-features = false, features= ["std"] }
@@ -42,7 +42,7 @@ mime = { version = "0.3", default-features = false }
 base64 = { version = "0.22", default-features = false, features = ["std"] }
 regex = { version = "1.10" }
 chrono = { version = "0.4", default-features = false, features = ["std","clock"] }
-fake = { version = "2.9", default-features = false, features = ["random_color"] }
+fake = { version = "3.0", default-features = false, features = ["random_color"] }
 clap = { version = "4.5" }
 version = { version = "3.0", default-features = false}
 serde_yaml = { version = "0.9", default-features = false }
@@ -56,7 +56,7 @@ fs2 = { version = "0.4", default-features = false }
 tera = { version = "1.19", default-features = false, features = ["builtins"] }
 uuid = { version = "1.8", features = ["std", "v4"] }
 # For readers
-quick-xml = { version = "0.31", default-features = false, optional = true, features = ["serialize"] }
+quick-xml = { version = "0.37", default-features = false, optional = true, features = ["serialize"] }
 csv = { version = "1.3", default-features = false, optional = true }
 toml = { version = "0.8", default-features = false, optional = true, features = ["parse", "display"] }
 parquet = { version = "51.0", default-features = false, optional = true, features = ["cli","arrow","flate2","brotli","lz4","zstd","snap"] }
