@@ -16,12 +16,14 @@ use tracing::*;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
+use macro_rules_attribute::apply;
+use smol_macros::main;
 
 const ARG_JSON: &str = "json";
 const ARG_FILE: &str = "file";
 const DEFAULT_PROCESSORS: &str = r#"[{"type": "r"},{"type": "w"}]"#;
 
-#[async_std::main]
+#[apply(main!)]
 async fn main() -> Result<()> {
     let mut layers = Vec::new();
 

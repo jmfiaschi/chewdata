@@ -55,13 +55,13 @@
 use super::Authenticator;
 use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{connector::ConnectorType, document::jsonl::Jsonl};
-use async_std::prelude::StreamExt;
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
+use std::sync::Arc;
+use async_lock::Mutex;
 use async_trait::async_trait;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::stream::StreamExt;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -152,10 +152,13 @@ impl Jwt {
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use chewdata::Metadata;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///    let mut connector = Curl::default();
     ///    connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
@@ -321,11 +324,14 @@ impl Authenticator for Jwt {
     /// use chewdata::Metadata;
     /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt, Authenticator};
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
-    /// use futures::StreamExt;
+    /// use smol::stream::StreamExt;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
@@ -415,13 +421,15 @@ impl Authenticator for Jwt {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use crate::connector::curl::Curl;
     use crate::connector::Connector;
     use crate::document::json::Json;
     use crate::Metadata;
     use http_types::Method;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn refresh_with_jwt_builder() {
         let mut connector = Curl::default();
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
@@ -444,7 +452,7 @@ mod tests {
             Err(e) => assert!(false, "The token can't be refreshed: '{}'", e),
         };
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn refresh_with_keycloak() {
         let mut connector = Curl::default();
         connector.endpoint =
@@ -467,7 +475,7 @@ mod tests {
             Err(e) => assert!(false, "The token can't be refreshed: '{}'", e),
         };
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn authenticate_jwt_builder() {
         let mut connector = Curl::default();
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
@@ -490,7 +498,7 @@ mod tests {
         assert_eq!(auth_name, b"authorization");
         assert_eq!(auth_value, b"Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJHaXZlbk5hbWUiOiJKb2hubnkiLCJpYXQiOjE1OTk0NjI3NTUsImV4cCI6MzMxNTY0MTYwNzd9.AqlRN2x6T0bE1pJJZ0WPQrmLiK37iT89zlLBiRG5Zu0");
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn authenticate_with_keycloak() {
         let mut jwk_document = Json::default();
         jwk_document.entry_path = Some("/keys".to_string());

@@ -109,11 +109,14 @@ impl Authenticator for Bearer {
     ///
     /// ```no_run
     /// use chewdata::connector::authenticator::{AuthenticatorType, bearer::Bearer, Authenticator};
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     /// use serde_json::Value;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let token = "my_token";
     ///
@@ -149,8 +152,10 @@ impl Authenticator for Bearer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn authenticate_without_base64() {
         let token = "my_token_not_in_base64";
 
@@ -170,7 +175,7 @@ mod tests {
             .to_vec()
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn authenticate_with_base64() {
         let token = "my_token_in_base64";
 

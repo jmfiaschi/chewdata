@@ -54,7 +54,6 @@
 //! | compression level    | -     | Level of the compression. The value depend on the type of the compression | `null`        | 0..11                                                                                                                              |
 //! | has_dictionary       | -     | Use a dictionary.                      | `null`        | `true` / `false`                                                                                                                                                      |
 //! | has_statistics       | -     | Use statistics.                        | `null`        | `true` / `false`                                                                                                                                                      |
-//! | max_statistics_size  | -     | Max statistics size.                   | `null`        | unsigned number                                                                                                                                                       |
 //!
 use crate::document::Document;
 use crate::helper::string::DisplayOnlyForDebugging;
@@ -100,7 +99,6 @@ pub struct ParquetOptions {
     compression_level: Option<usize>,
     has_dictionary: Option<bool>,
     has_statistics: Option<String>,
-    max_statistics_size: Option<usize>,
 }
 
 const DEFAULT_SUBTYPE: &str = "parquet";
@@ -132,7 +130,6 @@ impl Default for ParquetOptions {
             compression_level: None,
             has_statistics: None,
             has_dictionary: Some(false),
-            max_statistics_size: None,
             max_row_group_size: None,
             dictionary_page_size_limit: None,
             data_page_size_limit: None,
@@ -359,9 +356,6 @@ impl Document for Parquet {
             }
             if let Some(size) = options.max_row_group_size {
                 properties_builder = properties_builder.set_max_row_group_size(size);
-            }
-            if let Some(size) = options.max_statistics_size {
-                properties_builder = properties_builder.set_max_statistics_size(size);
             }
             if let Some(version) = options.version {
                 properties_builder = properties_builder.set_writer_version(match version {

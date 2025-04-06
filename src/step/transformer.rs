@@ -85,9 +85,8 @@ use crate::step::Step;
 use crate::updater::{Action, UpdaterType};
 use crate::Context;
 use async_channel::{Receiver, Sender};
-use async_std::task;
-use async_trait::async_trait;
 use futures::StreamExt;
+use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -167,7 +166,7 @@ impl Step for Transformer {
         // Transform in concurrence with parallelism.
         let results: Vec<_> = receiver_stream.map(|context_received| {
             let step = self.clone();
-            task::spawn(async move {
+            smol::spawn(async move {
                 transform(&step, &mut context_received.clone()).await
             })
         }).buffer_unordered(self.concurrency_limit).collect().await;
@@ -254,11 +253,13 @@ async fn transform(step: &Transformer, context_received: &mut Context) -> io::Re
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use serde_json::Value;
     use std::io::{Error, ErrorKind};
     use std::thread;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_different_data_result_type() {
         let mut step = Transformer::default();
         let (sender_input, receiver_input) = async_channel::unbounded();
@@ -278,7 +279,7 @@ mod tests {
 
         assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_same_data_result_type() {
         let mut step = Transformer::default();
         let (sender_input, receiver_input) = async_channel::unbounded();
@@ -303,7 +304,7 @@ mod tests {
 
         assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_array() {
         let mut step = Transformer::default();
         let (sender_input, receiver_input) = async_channel::unbounded();

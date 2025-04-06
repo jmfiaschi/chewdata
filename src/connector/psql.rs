@@ -39,8 +39,8 @@ use crate::helper::json_pointer::JsonPointer;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{helper::mustache::Mustache, DataResult};
 use crate::{DataSet, DataStream};
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
+use std::sync::Arc;
+use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
@@ -304,10 +304,13 @@ impl Connector for Psql {
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "psql://admin:admin@localhost:5432".into();
@@ -342,11 +345,14 @@ impl Connector for Psql {
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
-    /// use futures::StreamExt;
+    /// use smol::stream::StreamExt;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -485,10 +491,13 @@ impl Connector for Psql {
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
     /// use chewdata::DataResult;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "postgres://admin:admin@localhost:5432".into();
@@ -568,10 +577,13 @@ impl Connector for Psql {
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
     /// use chewdata::DataResult;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "psql://admin:admin@localhost".into();
@@ -616,9 +628,11 @@ impl Connector for Psql {
 mod tests {
     use super::*;
     use crate::DataResult;
-    use futures::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn len() {
         let mut connector = Psql::default();
         connector.endpoint = "psql://admin:admin@localhost:5432".into();
@@ -627,7 +641,7 @@ mod tests {
         let len = connector.len().await.unwrap();
         assert!(0 < len, "The connector should have a size upper than zero.");
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch() {
         let mut connector = Psql::default();
         connector.endpoint = "psql://admin:admin@localhost:5432".into();
@@ -639,7 +653,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch_with_parameters() {
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -658,7 +672,7 @@ mod tests {
             "The datastream must contain one record."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn erase() {
         let mut connector = Psql::default();
         connector.endpoint = "psql://admin:admin@localhost".into();
@@ -675,7 +689,7 @@ mod tests {
         let datastream = connector_read.fetch().await.unwrap();
         assert!(datastream.is_none(), "The datastream should be empty.");
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn send_new_data() {
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost:5432".into();
@@ -725,7 +739,7 @@ mod tests {
                 .unwrap()
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn update_existing_data() {
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -784,7 +798,7 @@ mod tests {
                 .unwrap()
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn upsert() {
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();
@@ -846,7 +860,7 @@ mod tests {
                 .unwrap()
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn sql_injection() {
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();

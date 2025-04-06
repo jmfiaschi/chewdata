@@ -98,9 +98,8 @@ use crate::updater::{ActionType, UpdaterType, INPUT_FIELD_KEY};
 use crate::Context;
 use crate::updater::Action;
 use async_channel::{Receiver, Sender};
-use async_std::task;
-use async_trait::async_trait;
 use futures::StreamExt;
+use async_trait::async_trait;
 use json_value_merge::Merge;
 use json_value_search::Search;
 use serde::Deserialize;
@@ -172,7 +171,8 @@ impl Step for Validator {
     /// This step validate the values of a dataset.
     ///
     /// # Example: simple validations
-    /// ```rust
+    /// 
+    /// ```no_run
     /// use std::io;
     /// use serde_json::Value;
     /// use json_value_search::Search;
@@ -182,8 +182,10 @@ impl Step for Validator {
     /// use chewdata::step::validator::{Validator, Rule};
     /// use std::thread;
     /// use std::collections::{BTreeMap, HashMap};
-    ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let (sender_input, receiver_input) = async_channel::unbounded();
     ///     let (sender_output, receiver_output) = async_channel::unbounded();
@@ -249,7 +251,7 @@ impl Step for Validator {
         let results: Vec<_> = receiver_stream.map(|context_received| {
             let step = self.clone();
             let actions = actions.clone();
-            task::spawn(async move {
+            smol::spawn(async move {
             validate(&step, &mut context_received.clone(), &actions.clone()).await
         })}).buffer_unordered(self.concurrency_limit).collect().await;
 
@@ -367,9 +369,11 @@ pub struct Rule {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use std::thread;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_different_data_result_type() {
         let mut step = Validator::default();
         let (sender_input, receiver_input) = async_channel::unbounded();
@@ -389,7 +393,7 @@ mod tests {
 
         assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_same_data_result_type() {
         let mut step = Validator::default();
         let (sender_input, receiver_input) = async_channel::unbounded();
@@ -412,7 +416,7 @@ mod tests {
 
         assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec() {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();
@@ -470,7 +474,7 @@ mod tests {
             assert_eq!(error_result_expected, error_result);
         }
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_validation_error() {
         let (sender_input, receiver_input) = async_channel::unbounded();
         let (sender_output, receiver_output) = async_channel::unbounded();

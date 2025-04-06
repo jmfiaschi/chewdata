@@ -102,11 +102,14 @@ impl Authenticator for Basic {
     ///
     /// ```no_run
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic, Authenticator};
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     /// use base64::Engine;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let username = "my_username";
     ///     let password = "my_password";
@@ -140,8 +143,10 @@ impl Authenticator for Basic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn authenticate() {
         let username = "my_username";
         let password = "my_password";

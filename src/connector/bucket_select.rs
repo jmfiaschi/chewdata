@@ -47,9 +47,9 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
-use async_std::prelude::*;
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
+use smol::prelude::*;
+use std::sync::Arc;
+use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use aws_config::meta::credentials::CredentialsProviderChain;
@@ -543,7 +543,10 @@ impl Connector for BucketSelect {
     /// use chewdata::Metadata;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
@@ -588,10 +591,13 @@ impl Connector for BucketSelect {
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
-    /// use futures::StreamExt;
+    /// use smol::stream::StreamExt;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
@@ -706,10 +712,13 @@ impl BucketSelectPaginator {
     /// ```no_run
     /// use chewdata::connector::bucket_select::{BucketSelect, BucketSelectPaginator};
     /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
@@ -754,7 +763,9 @@ mod tests {
     use crate::document::csv::Csv;
     use crate::document::json::Json;
     // use crate::document::jsonl::Jsonl;
-    use futures::StreamExt;
+    use smol::stream::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
     #[test]
     fn is_variable() {
@@ -789,7 +800,7 @@ mod tests {
         connector.set_parameters(params);
         assert_eq!("/dir/filename_value.ext", connector.path());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn len() {
         let document = Json::default();
         let mut connector = BucketSelect::default();
@@ -804,7 +815,7 @@ mod tests {
         connector.path = "data/not-found-file".to_string();
         assert_eq!(0, connector.len().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn is_empty() {
         let document = Json::default();
         let mut connector = BucketSelect::default();
@@ -816,7 +827,7 @@ mod tests {
         connector.path = "data/not_found.json".to_string();
         assert_eq!(true, connector.is_empty().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch() {
         let document = Json::default();
 
@@ -831,7 +842,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn json_document() {
         use crate::DataResult;
 
@@ -854,7 +865,7 @@ mod tests {
         );
     }
     // Face issue in the github CI
-    // #[async_std::test]
+    // #[apply(test!)]
     // async fn json_lines() {
     //     use crate::DataResult;
 
@@ -877,7 +888,7 @@ mod tests {
     //     );
     // }
     #[cfg(feature = "csv")]
-    #[async_std::test]
+    #[apply(test!)]
     async fn csv_with_header() {
         use crate::DataResult;
 
@@ -900,7 +911,7 @@ mod tests {
         );
     }
     #[cfg(feature = "csv")]
-    #[async_std::test]
+    #[apply(test!)]
     async fn csv_without_header() {
         use crate::DataResult;
 
@@ -928,7 +939,7 @@ mod tests {
             "The connector has no data."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let document = Json::default();
 
@@ -951,7 +962,7 @@ mod tests {
             "Can't paginate more than one time."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_with_wildcard() {
         let document = Json::default();
 

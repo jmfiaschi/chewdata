@@ -67,10 +67,13 @@ impl Header {
     /// use chewdata::connector::curl::Curl;
     /// use chewdata::connector::counter::curl::header::Header;
     /// use surf::http::Method;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
@@ -134,11 +137,12 @@ impl Header {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use http_types::Method;
 
-    use super::*;
-
-    #[async_std::test]
+    #[apply(test!)]
     async fn count_return_value() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
@@ -151,7 +155,7 @@ mod tests {
             "Counter count() must return a value upper than 0."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn count_not_return_value() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();

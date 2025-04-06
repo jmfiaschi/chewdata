@@ -35,20 +35,20 @@
 use super::paginator::local::wildcard::Wildcard;
 use super::Connector;
 use crate::document::Document;
-use crate::helper::checksum::str_to_hasher_with_checksum;
+use crate::helper::checksum::{hasher, str_to_algorithm_name_with_checksum};
 use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataResult, DataSet, DataStream, Metadata};
-use async_std::sync::Mutex;
+use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
-use fs2::FileExt;
 use futures::Stream;
 use glob::glob;
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use smol::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -57,9 +57,9 @@ use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::{
     fmt,
-    io::{Error, ErrorKind, Read, Result, Seek, SeekFrom, Write},
+    io::{Error, ErrorKind, Result, SeekFrom},
 };
-use std::{fs, fs::OpenOptions};
+use async_fs::OpenOptions;
 
 static CACHES: OnceLock<Arc<Mutex<HashMap<String, Vec<DataResult>>>>> = OnceLock::new();
 
@@ -79,23 +79,6 @@ pub struct Local {
     pub algo_with_checksum: Option<String>,
 }
 
-impl fmt::Display for Local {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut buffer = String::default();
-        OpenOptions::new()
-            .read(true)
-            .write(false)
-            .create(false)
-            .append(false)
-            .truncate(false)
-            .open(self.path())
-            .unwrap()
-            .read_to_string(&mut buffer)
-            .unwrap();
-
-        write!(f, "{}", buffer)
-    }
-}
 
 impl fmt::Debug for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -202,7 +185,10 @@ impl Connector for Local {
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Local::default();
     ///     connector.path = "./Cargo.toml".to_string();
@@ -222,7 +208,7 @@ impl Connector for Local {
             ));
         }
 
-        let len = match fs::metadata(self.path()) {
+        let len = match async_fs::metadata(self.path()).await {
             Ok(metadata) => {
                 let len = metadata.len() as usize;
                 info!(len = len, "Find the length");
@@ -323,12 +309,15 @@ impl Connector for Local {
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
-    /// use async_std::io::{Read, Write};
-    /// use async_std::prelude::*;
-    /// use futures::StreamExt;
+    /// use smol::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+    /// use smol::prelude::*;
+    /// use smol::stream::StreamExt;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///     let mut connector = Local::default();
@@ -373,8 +362,10 @@ impl Connector for Local {
             .create(false)
             .append(false)
             .truncate(false)
-            .open(&path)?
-            .read_to_end(&mut buff)?;
+            .open(&path)
+            .await?
+            .read_to_end(&mut buff)
+            .await?;
 
         info!(path = path, "Fetch data with success");
 
@@ -382,9 +373,9 @@ impl Connector for Local {
             return Ok(None);
         }
 
-        if let Some(algo_with_checksum) = &algo_with_checksum_opt {
-            if let (hasher, Some(checksum)) = str_to_hasher_with_checksum(algo_with_checksum)? {
-                let mut hasher = hasher.clone();
+        if let Some(algorithm_name_with_checksum) = &algo_with_checksum_opt {
+            if let (algorithm_name, Some(checksum)) = str_to_algorithm_name_with_checksum(algorithm_name_with_checksum)? {
+                let mut hasher = hasher(algorithm_name)?;
                 hasher.update(&buff);
 
                 let digest = base16ct::lower::encode_string(&hasher.finalize());
@@ -422,10 +413,13 @@ impl Connector for Local {
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
@@ -481,48 +475,48 @@ impl Connector for Local {
             .create(true)
             .write(true)
             .truncate(false)
-            .open(path.as_str())?;
+            .open(path.as_str())
+            .await?;
 
-        file.lock_exclusive()?;
         trace!(path = path, "Lock the resource");
 
-        let file_len = file.metadata()?.len();
+        let file_len = file.metadata().await?.len();
 
         match position {
             Some(pos) => match file_len as isize + pos {
-                start if start > 0 => file.seek(SeekFrom::Start(start as u64)),
-                _ => file.seek(SeekFrom::Start(0)),
+                start if start > 0 => file.seek(SeekFrom::Start(start as u64)).await,
+                _ => file.seek(SeekFrom::Start(0)).await,
             },
-            None => file.seek(SeekFrom::Start(0)),
+            None => file.seek(SeekFrom::Start(0)).await,
         }?;
 
         if 0 == file_len {
-            file.write_all(&header)?;
+            file.write_all(&header).await?;
         }
         if 0 < file_len && file_len > (header.len() as u64 + footer.len() as u64) {
-            file.write_all(&terminator)?;
+            file.write_all(&terminator).await?;
         }
-        file.write_all(&body)?;
-        file.write_all(&footer)?;
+        file.write_all(&body).await?;
+        file.write_all(&footer).await?;
+        file.flush().await?;
         trace!(path = path, "Write data into the resource");
 
-        file.unlock()?;
-        trace!(path = path, "Unlock the resource");
+        let checksum = match &self.algo_with_checksum {
+            Some(algorithm_name_with_checksum) => {
+                let (algorithm_name, _) = str_to_algorithm_name_with_checksum(algorithm_name_with_checksum)?;
+                let mut hasher = hasher(algorithm_name)?;
+                let mut buff = Vec::default();
+                file.seek(SeekFrom::Start(0)).await?;
+                file.read_to_end(&mut buff).await?;
+                hasher.update(&buff);
+                base16ct::lower::encode_string(&hasher.finalize())
+            }
+            None => "algorithm undefined".to_string()
+        };
 
         info!(
             path = path,
-            checksum = match &self.algo_with_checksum {
-                Some(algo_with_checksum) => {
-                    let (hasher, _) = str_to_hasher_with_checksum(algo_with_checksum)?;
-                    let mut hasher = hasher.clone();
-                    let mut buff = Vec::default();
-                    file.seek(SeekFrom::Start(0))?;
-                    file.read_to_end(&mut buff)?;
-                    hasher.update(&buff);
-                    base16ct::lower::encode_string(&hasher.finalize())
-                }
-                None => "algorithm undefined".to_string(),
-            },
+            checksum = checksum,
             "Send data with success"
         );
 
@@ -537,10 +531,13 @@ impl Connector for Local {
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
@@ -579,7 +576,8 @@ impl Connector for Local {
                     .append(false)
                     .write(true)
                     .truncate(true)
-                    .open(path.display().to_string())?,
+                    .open(path.display().to_string())
+                    .await?,
                 Err(e) => return Err(Error::new(ErrorKind::NotFound, e)),
             };
         }
@@ -597,7 +595,9 @@ impl Connector for Local {
 
 #[cfg(test)]
 mod tests {
-    use futures::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
+    use smol_macros::test;
 
     use super::*;
     use crate::document::json::Json;
@@ -634,7 +634,7 @@ mod tests {
         connector.set_parameters(params);
         assert_eq!("/dir/filename_value.ext", connector.path());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn len() {
         let mut connector = Local::default();
         connector.path = "./data/one_line.json".to_string();
@@ -645,7 +645,7 @@ mod tests {
         connector.path = "./not_found_file".to_string();
         assert_eq!(0, connector.len().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn is_empty() {
         let mut connector = Local::default();
         connector.path = "./data/one_line.json".to_string();
@@ -653,7 +653,7 @@ mod tests {
         connector.path = "./null_file".to_string();
         assert_eq!(true, connector.is_empty().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch() {
         let document = Json::default();
         let mut connector = Local::default();
@@ -665,7 +665,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn send() {
         let document = Json::default();
 
@@ -692,7 +692,7 @@ mod tests {
         assert_eq!(expected_result1, datastream.next().await.unwrap());
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn erase() {
         let document = Json::default();
 
@@ -707,7 +707,7 @@ mod tests {
         let datastream = connector.fetch().await.unwrap();
         assert!(datastream.is_none(), "No datastream with empty body.");
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn erase_with_wildcard() {
         let document = Json::default();
 

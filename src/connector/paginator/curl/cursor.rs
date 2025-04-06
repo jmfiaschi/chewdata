@@ -44,7 +44,7 @@
 //! ```
 use crate::connector::Connector;
 use crate::{connector::curl::Curl, ConnectorStream};
-use async_std::stream::StreamExt;
+use smol::stream::StreamExt;
 use async_stream::stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -79,10 +79,13 @@ impl Cursor {
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::{PaginatorType, cursor::Cursor};
     /// use surf::http::Method;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
@@ -169,10 +172,12 @@ mod tests {
     use crate::connector::paginator::curl::cursor::Cursor;
     use crate::connector::Connector;
     use crate::document::json::Json;
-    use futures::StreamExt;
+    use smol::stream::StreamExt;
     use http_types::Method;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let document = Json::default();
         let mut connector = Curl::default();

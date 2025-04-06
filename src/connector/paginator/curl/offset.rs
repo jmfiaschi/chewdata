@@ -34,7 +34,7 @@
 //! ```
 use crate::connector::Connector;
 use crate::{connector::curl::Curl, ConnectorStream};
-use async_std::stream::StreamExt;
+use smol::stream::StreamExt;
 use async_stream::stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -68,10 +68,13 @@ impl Offset {
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::offset::Offset;
     /// use surf::http::Method;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
@@ -152,13 +155,15 @@ mod tests {
     use crate::document::json::Json;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
-    use futures::StreamExt;
+    use smol::stream::StreamExt;
     use http_types::Method;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
     use super::*;
 
     #[cfg(feature = "xml")]
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let mut document = Xml::default();
         document.entry_path = "/html/body/*/a".to_string();
@@ -192,7 +197,7 @@ mod tests {
             "The content of this two files is not different."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_one_time() {
         let document = Json::default();
         let mut connector = Curl::default();
@@ -211,7 +216,7 @@ mod tests {
         let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_none());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_tree_times_and_parallize() {
         let document = Json::default();
         let mut connector = Curl::default();
@@ -237,7 +242,7 @@ mod tests {
         let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_none());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_until_reach_the_end() {
         let document = Json::default();
         let mut connector = Curl::default();

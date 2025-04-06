@@ -46,11 +46,14 @@ impl Scan {
     ///
     /// ```no_run
     /// use chewdata::connector::psql::Psql;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     /// use chewdata::connector::counter::psql::scan::Scan;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
@@ -81,11 +84,12 @@ impl Scan {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use crate::connector::psql::Psql;
 
-    use super::*;
-
-    #[async_std::test]
+    #[apply(test!)]
     async fn count() {
         let mut connector = Psql::default();
         connector.endpoint = "postgres://admin:admin@localhost".into();

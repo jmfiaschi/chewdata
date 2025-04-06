@@ -46,7 +46,6 @@ use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, Context};
 use async_channel::{Receiver, Sender};
-use async_std::task;
 use async_trait::async_trait;
 use futures::StreamExt;
 use serde::Deserialize;
@@ -224,7 +223,7 @@ async fn read<'step>(
     let step = step.clone();
     let context = context.clone();
 
-    task::spawn(async move {
+    smol::spawn(async move {
         let step: Reader = step.clone();
         dataset.map(|data_result| async {
             let context = match context.clone() {
@@ -243,14 +242,15 @@ async fn read<'step>(
 
 #[cfg(test)]
 mod tests {
-    use crate::connector::in_memory::InMemory;
-
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use serde_json::Value;
     use std::io::{Error, ErrorKind};
     use std::thread;
+    use crate::connector::in_memory::InMemory;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_different_data_result_type() {
         let mut step = Reader::default();
         let (sender_input, receiver_input) = async_channel::unbounded();
@@ -270,7 +270,7 @@ mod tests {
 
         assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_same_data_result_type() {
         let mut step = Reader::default();
         let (sender_input, receiver_input) = async_channel::unbounded();

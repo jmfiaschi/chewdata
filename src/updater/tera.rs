@@ -5,7 +5,7 @@ use super::{Action, ActionType};
 use crate::helper::json_pointer::JsonPointer;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::updater::tera_helpers::{filters, function};
-use async_std::sync::Mutex;
+use async_lock::Mutex;
 use async_trait::async_trait;
 use json_value_merge::Merge;
 use json_value_remove::Remove;

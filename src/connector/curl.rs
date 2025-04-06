@@ -60,8 +60,8 @@ use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataResult, DataSet, DataStream, Metadata};
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
+use std::sync::Arc;
+use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
@@ -416,7 +416,10 @@ impl Connector for Curl {
     /// use chewdata::connector::counter::curl::CounterType;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
@@ -457,10 +460,13 @@ impl Connector for Curl {
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::document::json::Json;
     /// use surf::http::Method;
-    /// use futures::StreamExt;
+    /// use smol::stream::StreamExt;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
@@ -641,12 +647,15 @@ impl Connector for Curl {
     /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
     /// use surf::http::Method;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use json_value_search::Search;
     /// use serde_json::Value;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
@@ -825,7 +834,10 @@ impl Connector for Curl {
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
@@ -1023,7 +1035,9 @@ mod tests {
     use crate::connector::authenticator::{basic::Basic, bearer::Bearer, AuthenticatorType};
     use crate::connector::counter::curl::CounterType;
     use crate::document::json::Json;
-    use futures::StreamExt;
+    use smol::stream::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
     #[test]
     fn is_variable() {
@@ -1058,7 +1072,7 @@ mod tests {
         connector.set_parameters(params);
         assert_eq!("/resource/value", connector.path());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn len() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
@@ -1074,7 +1088,7 @@ mod tests {
             "The remote document should have a length different than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn is_empty() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
@@ -1084,7 +1098,7 @@ mod tests {
         connector.path = "/get".to_string();
         assert_eq!(false, connector.is_empty().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch() {
         let document = Json::default();
         let mut connector = Curl::default();
@@ -1098,7 +1112,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch_with_basic() {
         let document = Json::default();
         let mut connector = Curl::default();
@@ -1116,7 +1130,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch_with_bearer() {
         let document = Json::default();
         let mut connector = Curl::default();
@@ -1132,7 +1146,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn send() {
         let document = Json::default();
         let mut connector = Curl::default();
@@ -1151,7 +1165,7 @@ mod tests {
             value.search("/data").unwrap().unwrap()
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn erase() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
@@ -1159,7 +1173,7 @@ mod tests {
         connector.erase().await.unwrap();
         assert_eq!(true, connector.is_empty().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn test_redirection_with_fetch() {
         let document = Json::default();
         let mut connector = Curl::default();
@@ -1183,7 +1197,7 @@ mod tests {
             "The inner connector should raise an error."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn test_redirection_with_send() {
         let document = Json::default();
 
@@ -1213,7 +1227,7 @@ mod tests {
         );
     }
     // httpbin return 500 code error.
-    // #[async_std::test]
+    // #[apply(test!)]
     // async fn test_redirection_with_erase() {
     //     let mut connector = Curl::default();
     //     connector.endpoint = "http://localhost:8080".to_string();

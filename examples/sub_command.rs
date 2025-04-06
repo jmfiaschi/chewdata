@@ -1,7 +1,10 @@
 use std::io::{self, Read, Write};
 use std::process::{Command, Stdio};
 
-#[async_std::main]
+use macro_rules_attribute::apply;
+use smol_macros::main;
+
+#[apply(main!)]
 async fn main() -> io::Result<()> {
     let data_to_transform = b"column1,column2\nvalue1,value2\n";
     let config = r#"[{"type":"r","connector":{"type":"io"},"document":{"type":"csv"}},{"type":"w","document":{"type":"jsonl"}}]"#;

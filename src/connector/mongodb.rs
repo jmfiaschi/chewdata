@@ -40,12 +40,13 @@ use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{
     document::Document as ChewdataDocument, helper::mustache::Mustache, DataSet, DataStream,
 };
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
+use std::sync::Arc;
+use async_compat::{Compat, CompatExt};
+use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
-use futures::StreamExt;
+use smol::stream::StreamExt;
 use mongodb::{
     bson::{doc, Document},
     options::{FindOptions, UpdateOptions},
@@ -157,6 +158,7 @@ impl Mongodb {
         trace!(client_key, "Create a new client");
         let mut map = clients.lock_arc().await;
         let client = Client::with_uri_str(&self.endpoint)
+            .compat()
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
         map.insert(client_key, client.clone());
@@ -210,10 +212,12 @@ impl Connector for Mongodb {
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
-    ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -249,10 +253,12 @@ impl Connector for Mongodb {
     /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
-    ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -271,18 +277,21 @@ impl Connector for Mongodb {
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let document = self.document()?;
         let options = *self.find_options.clone();
-        let filter: Option<Document> = match self.filter(&self.parameters) {
+        let filter: Document = match self.filter(&self.parameters) {
             Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
-            None => None,
+            None => Document::new(),
         };
 
         let client = self.client().await?;
         let db = client.database(&self.database);
         let collection = db.collection::<Document>(&self.collection);
-        let cursor = collection
-            .find(filter, options)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        let cursor = Compat::new(async {
+            collection
+                .find(filter)
+                .with_options(options)
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))
+        }).await?;
         let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect().await;
         let data = serde_json::to_vec(&docs)?;
 
@@ -309,10 +318,12 @@ impl Connector for Mongodb {
     /// use chewdata::connector::Connector;
     /// use chewdata::DataResult;
     /// use serde_json::from_str;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
-    ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -369,14 +380,16 @@ impl Connector for Mongodb {
                 "Query to update the collection"
             );
 
-            let result = collection
-                .update_many(
-                    filter_update,
-                    doc! {"$set": doc_without_id},
-                    *update_options.clone(),
-                )
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            let result = Compat::new(async {
+                collection
+                    .update_many(
+                        filter_update,
+                        doc! {"$set": doc_without_id}
+                    )
+                    .with_options(*update_options.clone())
+                    .await
+                    .map_err(|e| Error::new(ErrorKind::Interrupted, e))
+            }).await?;
 
             if 0 < result.matched_count {
                 trace!(
@@ -403,10 +416,12 @@ impl Connector for Mongodb {
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use chewdata::DataResult;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
-    ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -433,10 +448,13 @@ impl Connector for Mongodb {
 
         let db = client.database(&self.database);
         let collection = db.collection::<Document>(&self.collection);
-        collection
-            .delete_many(doc! {}, None)
+
+        Compat::new(async {
+            collection
+            .delete_many(doc! {})
             .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))
+        }).await?;
 
         info!("Erase data with success");
         Ok(())
@@ -454,11 +472,12 @@ mod tests {
     use super::*;
     use crate::document::json::Json;
     use crate::DataResult;
-    use async_std::prelude::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use json_value_merge::Merge;
     use json_value_search::Search;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn is_empty() {
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -466,7 +485,7 @@ mod tests {
         connector.collection = "startup_log".into();
         assert_eq!(false, connector.is_empty().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn len() {
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -475,7 +494,7 @@ mod tests {
         let len = connector.len().await.unwrap();
         assert!(0 < len, "The connector should have a size upper than zero.");
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch() {
         let document = Json::default();
 
@@ -490,7 +509,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn send_new_data() {
         let document = Json::default();
 
@@ -539,7 +558,7 @@ mod tests {
                 .unwrap()
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn update_existing_data() {
         let document = Json::default();
 
@@ -600,7 +619,7 @@ mod tests {
                 .unwrap()
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn erase() {
         let document = Json::default();
 
