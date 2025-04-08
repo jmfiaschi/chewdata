@@ -26,13 +26,18 @@ services:
             - "9000:9000"
             - "9001:9001"
         depends_on:
-            - minio
+            minio:
+                condition: service_healthy
+
 
     mc:
         image: minio/mc:latest
         volumes:
             - ./.cache/minio/root:/root
             - ./data:/root/data
+        depends_on:
+            minio:
+                condition: service_healthy
 
     httpbin:
         image: kennethreitz/httpbin:latest
@@ -46,13 +51,20 @@ services:
         environment:
             MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
             MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+        healthcheck:
+            test: ["CMD","mongosh", "--eval", "db.adminCommand('ping')"]
+            interval: 5s
+            timeout: 5s
+            retries: 3
+            start_period: 5s
 
     mongo-admin:
         image: mongo-express
         ports:
             - 8081:8081
         depends_on:
-            - mongo
+            mongo:
+                condition: service_healthy
         environment:
             ME_CONFIG_MONGODB_SERVER: mongo
             ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_USERNAME}
@@ -69,12 +81,18 @@ services:
             POSTGRES_DB: ${PSQL_DB}
         volumes:
             - ./.config/psql.sql:/docker-entrypoint-initdb.d/setup.sql
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
     adminer:
         image: adminer
         restart: always
         depends_on:
-            - psql
+            psql:
+                condition: service_healthy
         ports:
             - 8082:8080
 
@@ -96,12 +114,25 @@ services:
             - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_PASSWORD}
             - KEYCLOAK_STATISTICS=all
         depends_on:
-            - psql
+            psql:
+                condition: service_healthy
         ports:
             - "8083:8080"
+        healthcheck:
+            test: ['CMD-SHELL', '[ -f /tmp/HealthCheck.java ] || echo "public class HealthCheck { public static void main(String[] args) throws java.lang.Throwable { System.exit(java.net.HttpURLConnection.HTTP_OK == ((java.net.HttpURLConnection)new java.net.URL(args[0]).openConnection()).getResponseCode() ? 0 : 1); } }" > /tmp/HealthCheck.java && java /tmp/HealthCheck.java http://keycloak:9000/health/live']
+            interval: 5s
+            timeout: 5s
+            retries: 30
         volumes:
             - ./.config/realm.json:/opt/keycloak/data/import/realm.json
         command: ["start-dev", "--import-realm"]
+
+    keycloak-ready:
+        image: busybox
+        command: echo "I'm ready for tests"
+        depends_on:
+            keycloak:
+                condition: service_healthy
 
     rabbitmq:
         image: rabbitmq:3-management-alpine

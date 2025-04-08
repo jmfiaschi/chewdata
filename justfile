@@ -121,7 +121,7 @@ adminer:
 keycloak:
     @echo "Run keycloak"
     @echo "Host: http://localhost:8083 "
-    docker-compose up -d keycloak
+    docker-compose up -d keycloak-ready
 
 apm:
     @echo "Run monitoring"
