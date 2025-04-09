@@ -17,15 +17,15 @@ build:
     cargo build --lib --bins --tests --benches --features "xml csv parquet toml bucket curl mongodb psql"
 
 # Run the project with 'json_config' data in argument
-run-with-json json_config:
+run-with-json json_config: debug
     cargo run '{{json_config}}'
 
 # Run the project with json 'file_path' in argument
-run-with-file file_path:
+run-with-file file_path: debug
     cargo run -- --file '{{file_path}}'
 
 # Run the project without arguments
-run:
+run: debug
     cargo run
 
 # Run an example with all features enabled
@@ -69,26 +69,30 @@ test_libs_by_feature:
 test_integration:
     cargo test --tests --features "xml csv parquet toml bucket curl mongodb psql"
 
-unit-tests: test_libs
-integration-tests: test_docs test_integration
+unit-tests: start test_libs
 
+integration-tests: start test_docs test_integration
+
+# Lint with all features.
 lint:
     cargo clippy --all-features
 
-coverage:
+coverage: start
     cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
 
-coverage_ut:
+coverage_ut: start
     rustup toolchain install nightly
     cargo install cargo-tarpaulin
     cargo +nightly tarpaulin --out Xml --lib --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
 
-coverage_it:
+coverage_it: start
     cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
 
+# Benchmark the project.
 bench:
     cargo criterion --benches --output-format bencher --plotting-backend disabled --features "xml csv parquet toml bucket curl mongodb psql"
 
+# Start minio in local.
 minio:
     @echo "Run Minio server."
     @echo "Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY}"
@@ -100,34 +104,41 @@ minio_install:
     docker-compose run --rm mc mb -p s3/my-bucket
     docker-compose run --rm mc cp -r /root/data s3/my-bucket
 
+# Start httpbin APIs in local.
 httpbin:
     @echo "Run httpbin server."
     @echo "Host: http://localhost:8080 "
     docker-compose up -d httpbin
 
+# Start mongo server in local.
 mongo:
     @echo "Run mongo server."
     docker-compose up -d mongo-admin mongo
 
+# Start psql server in local.
 psql:
     @echo "Run psql server."
     docker-compose up -d psql
 
+# Start db admin in local.
 adminer:
     @echo "Run admin db"
     @echo "Host: http://localhost:8081 "
     docker-compose up -d adminer
 
+# Start keycloak server in local.
 keycloak:
     @echo "Run keycloak"
     @echo "Host: http://localhost:8083 "
     docker-compose up -d keycloak-ready
 
+# Start APM server in local.
 apm:
     @echo "Run monitoring"
     @echo "Host: http://localhost:16686 "
     docker-compose up -d monitoring
 
+# Start rabbitmq server in local.
 rabbitmq:
     @echo "Run rabbitmq"
     @echo "Host: http://localhost:15672 "
