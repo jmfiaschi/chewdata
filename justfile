@@ -96,53 +96,53 @@ bench:
 minio:
     @echo "Run Minio server."
     @echo "Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY}"
-    docker-compose up -d minio nginx
+    docker compose up -d minio nginx
 
 minio_install:
     @echo "Configure Minio server."
-    docker-compose run --rm mc alias set s3 http://nginx:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
-    docker-compose run --rm mc mb -p s3/my-bucket
-    docker-compose run --rm mc cp -r /root/data s3/my-bucket
+    docker compose run --rm mc alias set s3 http://nginx:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
+    docker compose run --rm mc mb -p s3/my-bucket
+    docker compose run --rm mc cp -r /root/data s3/my-bucket
 
 # Start httpbin APIs in local.
 httpbin:
     @echo "Run httpbin server."
     @echo "Host: http://localhost:8080 "
-    docker-compose up -d httpbin
+    docker compose up -d httpbin
 
 # Start mongo server in local.
 mongo:
     @echo "Run mongo server."
-    docker-compose up -d mongo-admin mongo
+    docker compose up -d mongo-admin mongo
 
 # Start psql server in local.
 psql:
     @echo "Run psql server."
-    docker-compose up -d psql
+    docker compose up -d psql
 
 # Start db admin in local.
 adminer:
     @echo "Run admin db"
     @echo "Host: http://localhost:8081 "
-    docker-compose up -d adminer
+    docker compose up -d adminer
 
 # Start keycloak server in local.
 keycloak:
     @echo "Run keycloak"
     @echo "Host: http://localhost:8083 "
-    docker-compose up -d keycloak-ready
+    docker compose up -d keycloak-ready
 
 # Start APM server in local.
 apm:
     @echo "Run monitoring"
     @echo "Host: http://localhost:16686 "
-    docker-compose up -d monitoring
+    docker compose up -d monitoring
 
 # Start rabbitmq server in local.
 rabbitmq:
     @echo "Run rabbitmq"
     @echo "Host: http://localhost:15672 "
-    docker-compose up -d rabbitmq
+    docker compose up -d rabbitmq
     @echo "Init rabbitmq"
     curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/exchanges/%2f/users.event -d "{\"type\":\"direct\",\"auto_delete\":false,\"durable\":true,\"internal\":false,\"arguments\":{}}"
     curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/queues/%2f/users.events -d "{\"auto_delete\":false,\"durable\":true,\"arguments\":{}}"
@@ -156,7 +156,7 @@ start: debug minio minio_install httpbin mongo adminer keycloak
 
 # Stop all servers
 stop:
-    docker-compose down
+    docker compose down
 
 # Clean the project and stop servers
 clean: stop
