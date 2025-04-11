@@ -34,38 +34,28 @@ use tera::*;
 ///
 /// ```
 pub fn words(args: &HashMap<String, Value>) -> Result<Value> {
-    let min_value = match args.get("min") {
-        Some(val) => try_get_value!("words", "min", Value, val),
-        None => Value::default(),
-    };
+    let min = args
+        .get("min")
+        .and_then(Value::as_u64)
+        .map(|v| v as usize)
+        .unwrap_or(1);
 
-    let min = match min_value.as_u64() {
-        Some(min) => min as usize,
-        None => 1,
-    };
-
-    let max_value = match args.get("max") {
-        Some(val) => try_get_value!("words", "max", Value, val),
-        None => Value::default(),
-    };
-
-    let max = match max_value.as_u64() {
-        Some(max) => max as usize,
-        None => min + 1,
-    };
+    let max = args
+        .get("max")
+        .and_then(Value::as_u64)
+        .map(|v| v as usize)
+        .unwrap_or(min + 1);
 
     if min >= max {
         return Err(Error::msg(
-            "Function `words` the argument `max` must be upper than the argument `min`",
+            "Function `words`: the argument `max` must be greater than `min`.",
         ));
     }
 
-    let separator_value = match args.get("separator") {
-        Some(val) => try_get_value!("words", "separator", Value, val),
-        None => Value::default(),
-    };
-
-    let separator = separator_value.as_str().unwrap_or(" ");
+    let separator = args
+        .get("separator")
+        .and_then(Value::as_str)
+        .unwrap_or(" ");
 
     let words = Words(min..max).fake::<Vec<String>>().join(separator);
 
@@ -86,42 +76,31 @@ pub fn words(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// ```
 pub fn sentences(args: &HashMap<String, Value>) -> Result<Value> {
-    let min_value = match args.get("min") {
-        Some(val) => try_get_value!("sentences", "min", Value, val),
-        None => Value::default(),
-    };
+    let min = args
+        .get("min")
+        .and_then(Value::as_u64)
+        .map(|v| v as usize)
+        .unwrap_or(0);
 
-    let min = match min_value.as_u64() {
-        Some(min) => min as usize,
-        None => 0,
-    };
-
-    let max_value = match args.get("max") {
-        Some(val) => try_get_value!("sentences", "max", Value, val),
-        None => Value::default(),
-    };
-
-    let max = match max_value.as_u64() {
-        Some(max) => max as usize,
-        None => min + 1,
-    };
+    let max = args
+        .get("max")
+        .and_then(Value::as_u64)
+        .map(|v| v as usize)
+        .unwrap_or(min + 1);
 
     if min >= max {
         return Err(Error::msg(
-            "Function `sentences` the argument `max` must be upper than the argument `min`",
+            "Function `sentences`: the argument `max` must be greater than `min`.",
         ));
     }
 
-    let separator_value = match args.get("separator") {
-        Some(val) => try_get_value!("sentences", "separator", Value, val),
-        None => Value::default(),
-    };
+    let separator = args
+        .get("separator")
+        .and_then(Value::as_str)
+        .unwrap_or(" ");
 
-    let separator = separator_value.as_str().unwrap_or(" ");
-
-    let words = Sentences(min..max).fake::<Vec<String>>().join(separator);
-
-    Ok(Value::String(words))
+    let sentences = Sentences(min..max).fake::<Vec<String>>().join(separator);
+    Ok(Value::String(sentences))
 }
 
 /// Generate paragraphs
@@ -138,42 +117,31 @@ pub fn sentences(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// ```
 pub fn paragraphs(args: &HashMap<String, Value>) -> Result<Value> {
-    let min_value = match args.get("min") {
-        Some(val) => try_get_value!("paragraphs", "min", Value, val),
-        None => Value::default(),
-    };
+    let min = args
+        .get("min")
+        .and_then(Value::as_u64)
+        .map(|v| v as usize)
+        .unwrap_or(0);
 
-    let min = match min_value.as_u64() {
-        Some(min) => min as usize,
-        None => 0,
-    };
-
-    let max_value = match args.get("max") {
-        Some(val) => try_get_value!("paragraphs", "max", Value, val),
-        None => Value::default(),
-    };
-
-    let max = match max_value.as_u64() {
-        Some(max) => max as usize,
-        None => min + 1,
-    };
+    let max = args
+        .get("max")
+        .and_then(Value::as_u64)
+        .map(|v| v as usize)
+        .unwrap_or(min + 1);
 
     if min >= max {
         return Err(Error::msg(
-            "Function `paragraphs` the argument `max` must be upper than the argument `min`",
+            "Function `paragraphs`: the argument `max` must be greater than `min`.",
         ));
     }
 
-    let separator_value = match args.get("separator") {
-        Some(val) => try_get_value!("paragraphs", "separator", Value, val),
-        None => Value::default(),
-    };
+    let separator = args
+        .get("separator")
+        .and_then(Value::as_str)
+        .unwrap_or("\n");
 
-    let separator = separator_value.as_str().unwrap_or("\n");
-
-    let words = Paragraphs(min..max).fake::<Vec<String>>().join(separator);
-
-    Ok(Value::String(words))
+    let paragraphs = Paragraphs(min..max).fake::<Vec<String>>().join(separator);
+    Ok(Value::String(paragraphs))
 }
 
 /// Generate first name
@@ -634,24 +602,19 @@ pub fn digit(_args: &HashMap<String, Value>) -> Result<Value> {
 /// ```
 pub fn phone_number(args: &HashMap<String, Value>) -> Result<Value> {
     let default = "##########";
-    let format_value = match args.get("format") {
-        Some(val) => try_get_value!("phone_number", "format", Value, val),
-        None => Value::String(default.to_string()),
-    };
 
-    let format = match format_value.as_str() {
-        Some(format) => format,
-        None => default,
-    };
+    let format = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or(default);
 
-    let phone: String = format
-        .chars()
-        .map(|x| match x {
-            '^' => char::from_digit((1..10).fake(), 10).unwrap(),
-            '#' => char::from_digit((0..10).fake(), 10).unwrap(),
+    let phone: String = format.chars().map(|ch| {
+        match ch {
+            '^' => std::char::from_digit((1..10).fake(), 10).unwrap(),
+            '#' => std::char::from_digit((0..10).fake(), 10).unwrap(),
             other => other,
-        })
-        .collect();
+        }
+    }).collect();
 
     Ok(Value::String(phone))
 }
