@@ -81,7 +81,7 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-async-s
 macro_rules_attribute = "0.2.0"
 
 [dev-dependencies]
-criterion = { version = "0.5", default-features = false, features = ["default", "stable"] }
+criterion = { version = "0.5", default-features = false, features = ["default", "csv_output","html_reports","async_futures","async_smol"] }
 serde_json =  { version = "1.0", default-features = false, features= ["std"] }
 
 [features]

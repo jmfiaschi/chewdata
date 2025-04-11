@@ -14,8 +14,14 @@ use serde_json::value::Value;
 use std::collections::HashMap;
 use tera::*;
 
-/// Generate words
+/// Generate words.
+/// 
+/// # Arguments
 ///
+/// * `min` - Minumal number of word.
+/// * `max` - Maximal number of word.
+/// * `separator` - Separator to seperate 2 words.
+/// 
 /// # Examples
 ///
 /// ```no_run
@@ -35,7 +41,7 @@ pub fn words(args: &HashMap<String, Value>) -> Result<Value> {
 
     let min = match min_value.as_u64() {
         Some(min) => min as usize,
-        None => 0,
+        None => 1,
     };
 
     let max_value = match args.get("max") {

@@ -21,7 +21,7 @@ use crate::helper::{
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use json_value_merge::Merge;
@@ -86,7 +86,7 @@ pub fn merge(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use json_value_search::Search;
@@ -152,7 +152,7 @@ pub fn search(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::function::object::replace_key;

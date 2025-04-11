@@ -62,11 +62,11 @@ fn document_read_benchmark(c: &mut Criterion) {
 
 fn faker_benchmark(c: &mut Criterion) {
     let fakers = vec![
-        ("words", "{{{{ fake_words() }}}}"),
-        ("sentences", "{{{{ fake_sentences() }}}}"),
-        ("paragraphs", "{{{{ fake_paragraphs() }}}}"),
-        ("phone_number", "{{{{ fake_phone_number() }}}}"),
-        ("password", "{{{{ fake_password() }}}}"),
+        ("words", "{{ fake_words() }}"),
+        ("sentences", "{{ fake_sentences() }}"),
+        ("paragraphs", "{{ fake_paragraphs() }}"),
+        ("phone_number", "{{ fake_phone_number() }}"),
+        ("password", "{{ fake_password() }}"),
     ];
 
     for (action_name, action_pattern) in fakers {

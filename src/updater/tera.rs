@@ -13,6 +13,7 @@ use json_value_resolve::Resolve;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::error::Error as StdError;
+use std::io::{Error, ErrorKind};
 use std::sync::{Arc, OnceLock};
 use std::{fmt, io};
 use tera::Tera as TeraClient;
@@ -46,9 +47,23 @@ impl Updater for Tera {
         let mut context_value = Value::default();
         context_value.merge_in(format!("/{}", super::INPUT_FIELD_KEY).as_str(), object)?;
         context_value.merge_in(format!("/{}", super::CONTEXT_FIELD_KEY).as_str(), context)?;
-        context_value.merge(mapping);
 
-        let mut tera_context = tera::Context::from_value(context_value).unwrap();
+        if mapping.is_object() {}
+        match mapping {
+            Value::Object(_) => context_value.merge(mapping),
+            Value::Null => (),
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "The mapping value must be an object",
+                ))
+            }
+        }
+
+        let mut tera_context = match context_value {
+            Value::Null => tera::Context::new(),
+            _ => tera::Context::from_value(context_value).unwrap(),
+        };
 
         let mut output = Value::default();
         for action in actions {
@@ -209,5 +224,69 @@ impl Tera {
         *guard = Some(engine.clone());
 
         engine
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
+
+    #[apply(test!)]
+    async fn test_create_input() {
+        let input = Value::Null;
+        let context = Value::Null;
+        let mapping = Value::Null;
+        let actions = &vec![Action {
+            field: "input_field".to_string(),
+            pattern: Some("input_value".to_string()),
+            action_type: ActionType::Merge,
+        }];
+
+        let tera = Tera::default();
+        let result = tera.update(&input, &context, &mapping, &actions).await;
+
+        assert!(result.is_ok());
+        assert_eq!(json!({"input_field": "input_value"}), result.unwrap());
+    }
+    #[apply(test!)]
+    async fn test_update_input() {
+        let input = json!(10);
+        let context = Value::Null;
+        let mapping = Value::Null;
+        let actions = &vec![Action {
+            field: "input_field".to_string(),
+            pattern: Some("{{ input * 10 }}".to_string()),
+            action_type: ActionType::Merge,
+        }];
+
+        let tera = Tera::default();
+        let result = tera.update(&input, &context, &mapping, &actions).await;
+
+        assert!(result.is_ok());
+        assert_eq!(json!({"input_field": 100}), result.unwrap());
+    }
+    #[apply(test!)]
+    async fn test_update_with_mapping_failing() {
+        let input = Value::Null;
+        let context = Value::Null;
+        let mapping = Value::String("".to_string());
+        let actions = &vec![Action {
+            field: "field".to_string(),
+            pattern: Some("value".to_string()),
+            action_type: ActionType::Merge,
+        }];
+
+        let tera = Tera::default();
+        let result = tera.update(&input, &context, &mapping, &actions).await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap().to_string(),
+            "The mapping value must be an object"
+        );
     }
 }
