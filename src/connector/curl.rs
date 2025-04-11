@@ -860,7 +860,7 @@ impl Connector for Curl {
             ));
         }
 
-        let url = Url::parse(format!("{}{}", self.endpoint, path).as_str())
+        let url = Url::parse(&format!("{}{}", self.endpoint, path))
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut request_builder = client.request(self.method, &url);
