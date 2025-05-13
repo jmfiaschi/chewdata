@@ -78,7 +78,6 @@ impl Cursor {
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::{PaginatorType, cursor::Cursor};
-    /// use surf::http::Method;
     /// use smol::prelude::*;
     /// use std::io;
     ///
@@ -89,7 +88,7 @@ impl Cursor {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Get;
+    ///     connector.method = "GET".into();
     ///     connector.path = "/uuid?next={{ paginator.next }}".to_string();
     ///
     ///     let paginator = Cursor {
@@ -109,7 +108,6 @@ impl Cursor {
     #[instrument(name = "cursor::paginate")]
     pub async fn paginate(&self, connector: &Curl) -> Result<ConnectorStream> {
         let connector = connector.clone();
-        let mut has_next = true;
         let limit = self.limit;
         let entry_path = self.entry_path.clone();
         let mut next_token_opt = self.next_token.clone();
@@ -118,6 +116,8 @@ impl Cursor {
         document.set_entry_path(entry_path.clone());
 
         let stream = Box::pin(stream! {
+            let mut has_next = true;
+            
             while has_next {
                 let mut new_connector = connector.clone();
                 new_connector.set_document(document.clone())?;
@@ -173,7 +173,6 @@ mod tests {
     use crate::connector::Connector;
     use crate::document::json::Json;
     use smol::stream::StreamExt;
-    use http_types::Method;
     use macro_rules_attribute::apply;
     use smol_macros::test;
 
@@ -182,7 +181,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/uuid?next={{ paginator.next }}".to_string();
         connector.set_document(Box::new(document)).unwrap();
 

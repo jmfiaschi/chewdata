@@ -35,10 +35,8 @@
 //!  ]
 //!  ```
 use serde::{Deserialize, Serialize};
-use std::io::{Error, ErrorKind, Result};
-use surf::http::Url;
-
-use crate::connector::{curl::Curl, Connector};
+use std::io::Result;
+use crate::connector::curl::Curl;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Header {
@@ -66,7 +64,6 @@ impl Header {
     /// ```no_run
     /// use chewdata::connector::curl::Curl;
     /// use chewdata::connector::counter::curl::header::Header;
-    /// use surf::http::Method;
     /// use smol::prelude::*;
     /// use std::io;
     ///
@@ -77,7 +74,7 @@ impl Header {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Get;
+    ///     connector.method = "GET".into();
     ///     connector.path = "/get".to_string();
     ///
     ///     let mut counter = Header::default();
@@ -90,48 +87,29 @@ impl Header {
     #[instrument(name = "header::count")]
     pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
         let mut connector = connector.clone();
-        let client = connector.client().await?;
 
-        if let Some(path) = self.path.clone() {
-            connector.path = path;
+        if let Some(ref path) = self.path {
+            connector.path = path.clone();
         }
 
-        let url = Url::parse(format!("{}{}", connector.endpoint, connector.path()).as_str())
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        let headers = connector.head().await?;
 
-        let res = client
-            .head(url)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-
-        if !res.status().is_success() {
-            warn!(
-                status = res.status().to_string().as_str(),
-                "Can't retrieve the number of elements from the resource with the method HEAD"
-            );
-
-            return Ok(None);
-        }
-
-        let header_value = res
-            .header(self.name.as_str())
-            .map(|value| value.as_str())
-            .unwrap_or("0");
-
-        if header_value == "0" {
-            return Ok(None);
-        }
-
-        Ok(match header_value.to_string().parse::<usize>() {
-            Ok(count) => {
-                trace!(size = count, "Count with success");
-                Some(count)
+        for (key, value) in headers {
+            if self.name.eq_ignore_ascii_case(&key) {
+                return Ok(match String::from_utf8_lossy(&value).parse::<usize>() {
+                    Ok(count) => {
+                        trace!(size = count, "Count with success");
+                        Some(count)
+                    }
+                    Err(_) => {
+                        trace!("Can't count");
+                        None
+                    }
+                });
             }
-            Err(_) => {
-                trace!("Can't count");
-                None
-            }
-        })
+        }
+
+        Ok(None)
     }
 }
 
@@ -140,26 +118,25 @@ mod tests {
     use super::*;
     use macro_rules_attribute::apply;
     use smol_macros::test;
-    use http_types::Method;
 
     #[apply(test!)]
     async fn count_return_value() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".to_string();
         connector.path = "/get".to_string();
         let mut counter = Header::default();
         counter.name = "Content-Length".to_string();
         assert!(
             Some(0) < counter.count(&connector).await.unwrap(),
-            "Counter count() must return a value upper than 0."
+            "Counter must return a value upper than 0."
         );
     }
     #[apply(test!)]
     async fn count_not_return_value() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".to_string();
         connector.path = "/get".to_string();
         let mut counter = Header::default();
         counter.name = "not_found".to_string();

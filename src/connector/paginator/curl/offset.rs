@@ -67,7 +67,6 @@ impl Offset {
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::offset::Offset;
-    /// use surf::http::Method;
     /// use smol::prelude::*;
     /// use std::io;
     ///
@@ -78,7 +77,7 @@ impl Offset {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Get;
+    ///     connector.method = "GET".into();
     ///     connector.path = "/get".to_string();
     ///    
     ///     let paginator = Offset {
@@ -97,12 +96,13 @@ impl Offset {
     #[instrument(name = "offset::paginate")]
     pub async fn paginate(&self, connector: &Curl) -> Result<ConnectorStream> {
         let connector = connector.clone();
-        let mut has_next = true;
         let limit = self.limit;
         let mut skip = self.skip;
         let count_opt = self.count;
 
         let stream = Box::pin(stream! {
+            let mut has_next = true;
+
             while has_next {
                 let mut new_connector = connector.clone();
                 let mut new_parameters = connector.parameters.clone();
@@ -139,7 +139,7 @@ impl Offset {
 
                 skip += limit;
 
-                trace!(connector = format!("{:?}", new_connector).as_str(), "Yield a new connector");
+                trace!(connector = format!("{:?}", new_connector), "Yield a new connector");
                 yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
             trace!("Stop yielding new connector");
@@ -156,7 +156,6 @@ mod tests {
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
     use smol::stream::StreamExt;
-    use http_types::Method;
     use macro_rules_attribute::apply;
     use smol_macros::test;
 
@@ -170,7 +169,7 @@ mod tests {
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -202,7 +201,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/get".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -221,7 +220,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -247,7 +246,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
