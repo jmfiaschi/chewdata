@@ -17,7 +17,6 @@
 //! | parameters    | -     | Parameters used in the `path` that can be override.       | `null`        | Object or Array of objects                                             |
 //! | paginator_type | paginator | Paginator parameters.                                | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
 //! | counter_type  | count / counter | Use to find the total of elements in the resource.  | `null` | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
-//! | cache_mode    | cache | Enable the backend cache management and define the cache strategy. See the details here <https://github.com/06chaynes/http-cache/blob/main/http-cache/src/lib.rs#L265-L295> |    `null`    | `default` / `no_store` / `reload` / `no_cache` / `force_cache` / `if_cached` / `ignore_rules` |
 //! | redirection_limit    | - | Limit of redirection |    `5`    | Integer |
 //! | version    | - | HTTP version|    `1`    | Integer |
 //!
@@ -47,7 +46,6 @@
 //!                 "limit": 100,
 //!                 "skip": 0
 //!             },
-//!             "cache_mode": "default",
 //!             "version": "1"
 //!         }
 //!     }
@@ -69,12 +67,11 @@ use bytes::Bytes;
 use futures::AsyncRead as AsyncReadIo;
 use futures::AsyncWrite as AsyncWriteIo;
 use futures::{AsyncWriteExt, Stream};
-use http::{request::Builder, StatusCode, Version};
+use http::{
+    header, request::Builder, HeaderName, HeaderValue, Method, Request, StatusCode, Version,
+};
 use http_body_util::{BodyExt, Full};
-use hyper::body::Incoming;
 use hyper::client::conn::http1::SendRequest as SendRequestHttp1;
-use hyper::header::{self, HeaderName, HeaderValue};
-use hyper::{Method, Request, Response};
 use json_value_merge::Merge;
 use json_value_remove::Remove;
 use serde::{Deserialize, Serialize};
@@ -84,10 +81,7 @@ use smol_hyper::rt::FuturesIo;
 use smol_timeout::TimeoutExt;
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::OnceLock;
 use std::task::{Context, Poll};
-use std::time;
 use std::time::Duration;
 use std::{
     fmt,
@@ -129,8 +123,6 @@ pub struct Curl {
     #[serde(alias = "counter")]
     #[serde(alias = "count")]
     pub counter_type: Option<CounterType>,
-    #[serde(alias = "cache")]
-    pub cache_mode: Option<String>,
     pub redirection_limit: usize,
     pub version: usize,
 }
@@ -153,7 +145,6 @@ impl fmt::Debug for Curl {
             .field("parameters", &self.parameters.display_only_for_debugging())
             .field("paginator_type", &self.paginator_type)
             .field("counter_type", &self.counter_type)
-            .field("cache_mode", &self.cache_mode)
             .field("redirection_limit", &self.redirection_limit)
             .field("version", &self.version)
             .finish()
@@ -176,7 +167,6 @@ impl Default for Curl {
             parameters: Value::Null,
             paginator_type: PaginatorType::default(),
             counter_type: None,
-            cache_mode: None,
             redirection_limit: 5,
             version: 1,
         }
@@ -298,7 +288,7 @@ impl Curl {
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut request_builder = Request::builder().uri(&url).method(
-            Method::from_bytes(self.method.as_bytes())
+            Method::from_bytes(self.method.to_uppercase().as_bytes())
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
         );
 
@@ -383,32 +373,6 @@ impl Curl {
         }
 
         Ok(request_builder)
-
-        // if let Some(cache_mode) = &self.cache_mode {
-        //     let cache_path = std::env::temp_dir().join("http-cacache");
-        //     trace!(
-        //         cache_dir = format!("{:?}", cache_path).as_str(),
-        //         "Enabling the cache..."
-        //     );
-
-        //     client = client.with(Cache(HttpCache {
-        //         mode: match cache_mode.to_lowercase().as_str() {
-        //             "no_store" | "nostore" => CacheMode::NoStore,
-        //             "force_cache" | "forcecache" => CacheMode::ForceCache,
-        //             "ignore_rules" | "ignorerules" => CacheMode::IgnoreRules,
-        //             "no_cache" | "nocache" => CacheMode::NoCache,
-        //             "only_if_cached" | "onlyifcached" | "if_cached" => CacheMode::OnlyIfCached,
-        //             "reload" => CacheMode::Reload,
-        //             _ => CacheMode::Default,
-        //         },
-        //         manager: CACacheManager { path: cache_path },
-        //         options: HttpCacheOptions::default(),
-        //     }));
-        // }
-        //Ok(sender
-        //    .send_request(req)
-        //    .await
-        //    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?)
     }
     /// See [`Connector::fetch`] for more details.
     ///

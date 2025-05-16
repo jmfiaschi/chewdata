@@ -96,53 +96,57 @@ bench:
 minio:
     @echo "Run Minio server."
     @echo "Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY}"
-    docker compose up -d minio nginx
+    podman-compose up -d nginx
 
 minio_install:
     @echo "Configure Minio server."
-    docker compose run --rm mc alias set s3 http://nginx:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
-    docker compose run --rm mc mb -p s3/my-bucket
-    docker compose run --rm mc cp -r /root/data s3/my-bucket
+    podman-compose run --rm mc alias set s3 http://nginx:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
+    podman-compose run --rm mc mb -p s3/my-bucket
+    podman-compose run --rm mc cp -r /root/data s3/my-bucket
 
 # Start httpbin APIs in local.
 httpbin:
     @echo "Run httpbin server."
     @echo "Host: http://localhost:8080 "
-    docker compose up -d httpbin
+    podman-compose up -d httpbin
 
 # Start mongo server in local.
 mongo:
     @echo "Run mongo server."
-    docker compose up -d mongo-admin mongo
+    podman-compose up -d mongo
+
+mongo-admin:
+    @echo "Run mongo admin server."
+    podman-compose up -d mongo-admin
 
 # Start psql server in local.
 psql:
     @echo "Run psql server."
-    docker compose up -d psql
+    podman-compose up -d psql
 
 # Start db admin in local.
 adminer:
     @echo "Run admin db"
     @echo "Host: http://localhost:8081 "
-    docker compose up -d adminer
+    podman-compose up -d adminer
 
 # Start keycloak server in local.
 keycloak:
     @echo "Run keycloak"
     @echo "Host: http://localhost:8083 "
-    docker compose up -d keycloak-ready
+    podman-compose up -d keycloak-ready
 
 # Start APM server in local.
 apm:
     @echo "Run monitoring"
     @echo "Host: http://localhost:16686 "
-    docker compose up -d monitoring
+    podman-compose up -d monitoring
 
 # Start rabbitmq server in local.
 rabbitmq:
     @echo "Run rabbitmq"
     @echo "Host: http://localhost:15672 "
-    docker compose up -d rabbitmq
+    podman-compose up -d rabbitmq
     @echo "Init rabbitmq"
     curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/exchanges/%2f/users.event -d "{\"type\":\"direct\",\"auto_delete\":false,\"durable\":true,\"internal\":false,\"arguments\":{}}"
     curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/queues/%2f/users.events -d "{\"auto_delete\":false,\"durable\":true,\"arguments\":{}}"
@@ -152,11 +156,11 @@ semantic-release:
     npx semantic-release
 
 # Start all servers
-start: debug minio minio_install httpbin mongo adminer keycloak
+start: debug minio minio_install httpbin mongo keycloak
 
 # Stop all servers
 stop:
-    docker compose down
+    podman-compose down
 
 # Clean the project and stop servers
 clean: stop
@@ -166,5 +170,5 @@ clean: stop
 version:
     grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml | head -1
 
-docker_build:
-    docker build -t chewdata .
+podman_build:
+    podman build -t chewdata .
