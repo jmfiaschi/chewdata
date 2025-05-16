@@ -33,12 +33,12 @@ use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use super::Authenticator;
 use async_trait::async_trait;
 use base64::Engine;
+use http::header;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
-use surf::http::headers;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -108,7 +108,7 @@ impl Authenticator for Basic {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let username = "my_username";
@@ -134,7 +134,7 @@ impl Authenticator for Basic {
             .encode(format!("{}:{}", self.username, self.password));
 
         Ok((
-            headers::AUTHORIZATION.as_str().as_bytes().to_vec(),
+            header::AUTHORIZATION.as_str().as_bytes().to_vec(),
             format!("Basic {}", basic).as_bytes().to_vec(),
         ))
     }

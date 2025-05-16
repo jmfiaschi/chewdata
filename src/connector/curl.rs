@@ -19,6 +19,7 @@
 //! | counter_type  | count / counter | Use to find the total of elements in the resource.  | `null` | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
 //! | cache_mode    | cache | Enable the backend cache management and define the cache strategy. See the details here <https://github.com/06chaynes/http-cache/blob/main/http-cache/src/lib.rs#L265-L295> |    `null`    | `default` / `no_store` / `reload` / `no_cache` / `force_cache` / `if_cached` / `ignore_rules` |
 //! | redirection_limit    | - | Limit of redirection |    `5`    | Integer |
+//! | version    | - | HTTP version|    `1`    | Integer |
 //!
 //! ### Examples
 //!
@@ -46,7 +47,8 @@
 //!                 "limit": 100,
 //!                 "skip": 0
 //!             },
-//!             "cache_mode": "default"
+//!             "cache_mode": "default",
+//!             "version": "1"
 //!         }
 //!     }
 //! ]
@@ -60,37 +62,37 @@ use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataResult, DataSet, DataStream, Metadata};
+use async_native_tls::TlsStream;
 use async_stream::stream;
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::AsyncRead as AsyncReadIo;
+use futures::AsyncWrite as AsyncWriteIo;
 use futures::{AsyncWriteExt, Stream};
-use http::StatusCode;
-use hyper::client::conn::http1::SendRequest;
-use hyper::header::{self, HeaderName, HeaderValue};
+use http::{request::Builder, StatusCode, Version};
+use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
+use hyper::client::conn::http1::SendRequest as SendRequestHttp1;
+use hyper::header::{self, HeaderName, HeaderValue};
 use hyper::{Method, Request, Response};
 use json_value_merge::Merge;
 use json_value_remove::Remove;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use smol::{io, net::TcpStream};
 use smol_hyper::rt::FuturesIo;
+use smol_timeout::TimeoutExt;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
+use std::task::{Context, Poll};
 use std::time;
 use std::time::Duration;
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
-use smol::{io, net::TcpStream};
-use async_native_tls::TlsStream;
-use std::task::{Context, Poll};
-use http_body_util::{BodyExt, Full};
-use futures::AsyncRead as AsyncReadIo;
-use futures::AsyncWrite as AsyncWriteIo;
-
 
 const REDIRECT_CODES: &[StatusCode] = &[
     StatusCode::MOVED_PERMANENTLY,
@@ -99,6 +101,8 @@ const REDIRECT_CODES: &[StatusCode] = &[
     StatusCode::TEMPORARY_REDIRECT,
     StatusCode::PERMANENT_REDIRECT,
 ];
+
+const DEFAULT_TIMEOUT: u64 = 5;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -128,6 +132,7 @@ pub struct Curl {
     #[serde(alias = "cache")]
     pub cache_mode: Option<String>,
     pub redirection_limit: usize,
+    pub version: usize,
 }
 
 impl fmt::Debug for Curl {
@@ -150,6 +155,7 @@ impl fmt::Debug for Curl {
             .field("counter_type", &self.counter_type)
             .field("cache_mode", &self.cache_mode)
             .field("redirection_limit", &self.redirection_limit)
+            .field("version", &self.version)
             .finish()
     }
 }
@@ -164,7 +170,7 @@ impl Default for Curl {
             path: "".into(),
             method: "GET".into(),
             headers: Box::<HashMap<String, String>>::default(),
-            timeout: Some(5),
+            timeout: Some(DEFAULT_TIMEOUT),
             keepalive: true,
             tcp_nodelay: false,
             parameters: Value::Null,
@@ -172,6 +178,7 @@ impl Default for Curl {
             counter_type: None,
             cache_mode: None,
             redirection_limit: 5,
+            version: 1,
         }
     }
 }
@@ -226,8 +233,10 @@ impl AsyncWriteIo for SmolStream {
 }
 
 impl Curl {
-    async fn http1(&mut self) -> std::io::Result<SendRequest<Pin<Box<Full<Bytes>>>>> {
-        let uri = self.endpoint.parse::<hyper::Uri>()
+    async fn http1(&mut self) -> std::io::Result<SendRequestHttp1<Pin<Box<Full<Bytes>>>>> {
+        let uri = self
+            .endpoint
+            .parse::<hyper::Uri>()
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
         let host = uri.host().unwrap_or("0.0.0.0");
 
@@ -236,7 +245,9 @@ impl Curl {
                 Some("http") => {
                     let stream = {
                         let port = uri.port_u16().unwrap_or(80);
-                        TcpStream::connect((host, port)).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                        TcpStream::connect((host, port))
+                            .await
+                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                     };
                     SmolStream::Plain(stream)
                 }
@@ -244,100 +255,135 @@ impl Curl {
                     // In case of HTTPS, establish a secure TLS connection first.
                     let stream = {
                         let port = uri.port_u16().unwrap_or(443);
-                        TcpStream::connect((host, port)).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                        TcpStream::connect((host, port))
+                            .await
+                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                     };
-                    let stream = async_native_tls::connect(host, stream).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+                    let stream = async_native_tls::connect(host, stream)
+                        .await
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
                     SmolStream::Tls(stream)
                 }
                 _ => return Err(Error::new(ErrorKind::InvalidData, "unsupported scheme")),
             }
-        })).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        smol::spawn(async move {
-            if let Err(e) = conn.await {
-                println!("Connection failed: {:?}", e);
+        }))
+        .await
+        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        smol::spawn(
+            async move {
+                if let Err(e) = conn.await {
+                    println!("Connection failed: {:?}", e);
+                }
             }
-        })
+            .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT))),
+        )
         .detach();
 
         Ok(sender)
     }
-    /// Create a new client for the connector.
-    async fn send_request(
-        &mut self,
-        req: Request<Pin<Box<Full<Bytes>>>>
-    ) -> std::io::Result<Response<Incoming>> {
-        let (mut sender, conn) = hyper::client::conn::http1::handshake(FuturesIo::new({
-            let host = req.uri().host().unwrap();
-            match req.uri().scheme_str() {
-                Some("http") => {
-                    let stream = {
-                        let port = req.uri().port_u16().unwrap_or(80);
-                        TcpStream::connect((host, port)).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-                    };
-                    SmolStream::Plain(stream)
-                }
-                Some("https") => {
-                    // In case of HTTPS, establish a secure TLS connection first.
-                    let stream = {
-                        let port = req.uri().port_u16().unwrap_or(443);
-                        TcpStream::connect((host, port)).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-                    };
-                    let stream = async_native_tls::connect(host, stream).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-                    SmolStream::Tls(stream)
-                }
-                _ => return Err(Error::new(ErrorKind::InvalidData, "unsupported scheme")),
-            }
-        })).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+    /// Get a new request builder base on what has been setup in the configuration.
+    async fn request_builder(&mut self) -> std::io::Result<Builder> {
+        let path = self.path();
 
-        smol::spawn(async move {
-            if let Err(e) = conn.await {
-                println!("Connection failed: {:?}", e);
-            }
-        })
-        .detach();
-    
-        // let mut config = surf::Config::new()
-        //     .set_base_url(
-        //         Url::parse(self.endpoint.as_str())
-        //             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-        //     )
-        //     .set_timeout(self.timeout.map(Duration::from_secs))
-        //     .set_http_keep_alive(self.keepalive)
-        //     .set_tcp_no_delay(self.tcp_nodelay);
+        if path.has_mustache() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
+        }
 
-        // if !self.metadata().content_type().is_empty() {
-        //     config = config
-        //         .add_header(
-        //             HeaderName::from_bytes(headers::CONTENT_TYPE.to_string().into_bytes())
-        //                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-        //             HeaderValue::from_bytes(self.metadata().content_type().into_bytes())
-        //                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-        //         )
-        //         .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        // }
+        let url = format!("{}{}", self.endpoint, path)
+            .parse::<hyper::Uri>()
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        // if !self.headers.is_empty() {
-        //     for (key, value) in self.headers.iter() {
-        //         config = config
-        //             .add_header(
-        //                 HeaderName::from_bytes(key.clone().into_bytes())
-        //                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-        //                 HeaderValue::from_bytes(value.clone().into_bytes())
-        //                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-        //             )
-        //             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-        //     }
-        // }
+        let mut request_builder = Request::builder().uri(&url).method(
+            Method::from_bytes(self.method.as_bytes())
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+        );
 
-        // let mut client: Client = config
-        //     .try_into()
-        //     .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+        request_builder = match self.version {
+            1 => Ok(request_builder
+                .header(
+                    header::HOST,
+                    format!(
+                        "{}:{}",
+                        url.host().unwrap_or("localhost"),
+                        url.port_u16().unwrap_or(80)
+                    ),
+                )
+                .version(Version::HTTP_11)),
+            2 => Ok(request_builder
+                .header(
+                    ":authority",
+                    format!(
+                        "{}:{}",
+                        url.host().unwrap_or("localhost"),
+                        url.port_u16().unwrap_or(80)
+                    ),
+                )
+                .version(Version::HTTP_2)),
+            3 => Ok(request_builder
+                .header(
+                    ":authority",
+                    format!(
+                        "{}:{}",
+                        url.host().unwrap_or("localhost"),
+                        url.port_u16().unwrap_or(80)
+                    ),
+                )
+                .version(Version::HTTP_3)),
+            _ => Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This http version '{}' is not managed", self.version),
+            )),
+        }?;
 
-        // client = client.with(Logger::new());
+        // Force the content type
+        request_builder =
+            request_builder.header(header::CONTENT_TYPE, self.metadata().content_type());
 
-        // if let Some(authenticator_type) = self.authenticator_type.clone() {
-        //     client = client.with(Authenticator::new(authenticator_type));
-        // }
+        if !self.metadata().content_type().is_empty() {
+            request_builder = request_builder.header(
+                header::CONTENT_TYPE,
+                HeaderValue::from_str(&self.metadata().content_type())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            );
+        }
+
+        // Force the headers
+        for (key, value) in self.headers.iter() {
+            let header_name = key.parse::<HeaderName>().map_err(|e| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("Invalid header name '{}': {}", key, e),
+                )
+            })?;
+
+            let header_value = HeaderValue::from_str(value).map_err(|e| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("Invalid header value '{}': {}", value, e),
+                )
+            })?;
+
+            request_builder = request_builder.header(header_name, header_value);
+        }
+
+        if let Some(authenticator_type) = self.authenticator_type.clone() {
+            let authenticator = authenticator_type.authenticator();
+
+            let (auth_name, auth_value) = authenticator.authenticate().await?;
+            request_builder = request_builder.header(
+                HeaderName::from_bytes(&auth_name)
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                HeaderValue::from_bytes(&auth_value)
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            );
+        }
+
+        Ok(request_builder)
+
         // if let Some(cache_mode) = &self.cache_mode {
         //     let cache_path = std::env::temp_dir().join("http-cacache");
         //     trace!(
@@ -359,7 +405,10 @@ impl Curl {
         //         options: HttpCacheOptions::default(),
         //     }));
         // }
-        Ok(sender.send_request(req).await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?)
+        //Ok(sender
+        //    .send_request(req)
+        //    .await
+        //    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?)
     }
     /// See [`Connector::fetch`] for more details.
     ///
@@ -368,20 +417,19 @@ impl Curl {
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::document::json::Json;
-    /// use surf::http::Method;
     /// use smol::stream::StreamExt;
     /// use std::io;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Get;
+    ///     connector.method = "Get".into();
     ///     connector.path = "/json".to_string();
     ///     connector.set_document(document);
     ///
@@ -396,33 +444,8 @@ impl Curl {
     /// ```
     #[instrument(name = "curl::head")]
     pub async fn head(&mut self) -> std::io::Result<Vec<(String, Vec<u8>)>> {
-        let path = self.path();
-
-        if path.has_mustache() {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                format!("This path '{}' is not fully resolved", path),
-            ));
-        }
-
-        let url = format!("{}{}", self.endpoint, path).parse::<hyper::Uri>()
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let mut request_builder = Request::builder().uri(&url).method(Method::from_bytes(self.method.as_bytes()).map_err(|e| Error::new(ErrorKind::InvalidData, e))?);
-
-        // Force the content type
-        request_builder = request_builder.header(header::CONTENT_TYPE, self.metadata().content_type());
-        
-        // Force the headers
-        for (key, value) in self.headers.iter() {
-            let header_name = key.parse::<HeaderName>()
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("Invalid header name '{}': {}", key, e)))?;
-
-            let header_value = HeaderValue::from_str(value)
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("Invalid header value '{}': {}", value, e)))?;
-
-            request_builder = request_builder.header(header_name, header_value);
-        }
+        let mut request_builder = self.request_builder().await?;
+        let mut client = self.http1().await?;
 
         let mut request = match self.method.to_uppercase().as_str() {
             "POST" | "PUT" | "PATCH" => {
@@ -448,30 +471,35 @@ impl Curl {
                     }
                 }
 
-                request_builder = request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
+                request_builder =
+                    request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
 
-                let boxed_body= Box::pin(Full::new(Bytes::from(buffer.clone())));
+                let boxed_body = Box::pin(Full::new(Bytes::from(buffer.clone())));
                 request_builder.body(boxed_body)
             }
             _ => {
                 let boxed_body = Box::pin(Full::new(Bytes::new()));
                 request_builder.body(boxed_body)
-            },
-        }.map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            }
+        }
+        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut headers = Vec::default();
         let mut redirect_count: u8 = 0;
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = self.send_request(request.clone()).await?;
+            let res = client
+                .send_request(request.clone())
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
             if REDIRECT_CODES.contains(&res.status()) {
                 if let Some(location) = &res.headers().get("location") {
                     match location.to_str().unwrap().parse::<hyper::Uri>() {
                         Ok(valid_url) => {
                             *request.uri_mut() = valid_url;
-                        },
-                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e))
+                        }
+                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e)),
                     };
                     redirect_count += 1;
                     continue;
@@ -489,9 +517,11 @@ impl Curl {
                 ));
             }
 
-            headers = res.headers().iter().map(|(key, value)| {
-                (key.to_string().clone(), value.as_bytes().to_vec())
-            }).collect();
+            headers = res
+                .headers()
+                .iter()
+                .map(|(key, value)| (key.to_string().clone(), value.as_bytes().to_vec()))
+                .collect();
 
             break;
         }
@@ -506,7 +536,7 @@ impl Curl {
             ));
         }
 
-        info!(url = url.to_string(), "Fetch data with success");
+        info!(url = self.path(), "Fetch data with success");
 
         Ok(headers)
     }
@@ -623,7 +653,6 @@ impl Connector for Curl {
     ///
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
-    /// use surf::http::Method;
     /// use serde_json::Value;
     ///
     /// let mut connector = Curl::default();
@@ -658,7 +687,7 @@ impl Connector for Curl {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
@@ -699,20 +728,19 @@ impl Connector for Curl {
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::document::json::Json;
-    /// use surf::http::Method;
     /// use smol::stream::StreamExt;
     /// use std::io;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Get;
+    ///     connector.method = "Get".into();
     ///     connector.path = "/json".to_string();
     ///     connector.set_document(document);
     ///
@@ -727,33 +755,8 @@ impl Connector for Curl {
     /// ```
     #[instrument(name = "curl::fetch")]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
-        let path = self.path();
-
-        if path.has_mustache() {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                format!("This path '{}' is not fully resolved", path),
-            ));
-        }
-
-        let url = format!("{}{}", self.endpoint, path).parse::<hyper::Uri>()
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let mut request_builder = Request::builder().uri(&url).method(Method::from_bytes(self.method.as_bytes()).map_err(|e| Error::new(ErrorKind::InvalidData, e))?);
-
-        // Force the content type
-        request_builder = request_builder.header(header::CONTENT_TYPE, self.metadata().content_type());
-        
-        // Force the headers
-        for (key, value) in self.headers.iter() {
-            let header_name = key.parse::<HeaderName>()
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("Invalid header name '{}': {}", key, e)))?;
-
-            let header_value = HeaderValue::from_str(value)
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("Invalid header value '{}': {}", value, e)))?;
-
-            request_builder = request_builder.header(header_name, header_value);
-        }
+        let mut request_builder = self.request_builder().await?;
+        let mut client = self.http1().await?;
 
         let mut request = match self.method.to_uppercase().as_str() {
             "POST" => {
@@ -779,30 +782,33 @@ impl Connector for Curl {
                     }
                 }
 
-                request_builder = request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
+                request_builder = request_builder.header(header::CONTENT_LENGTH, buffer.len());
 
-                let boxed_body= Box::pin(Full::new(Bytes::from(buffer.clone())));
-                request_builder.body(boxed_body)
+                request_builder.body(Box::pin(Full::new(buffer.into())))
             }
             _ => {
                 let boxed_body = Box::pin(Full::new(Bytes::new()));
                 request_builder.body(boxed_body)
-            },
-        }.map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            }
+        }
+        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut data = Vec::default();
         let mut redirect_count: u8 = 0;
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = self.send_request(request.clone()).await?;
+            let res = client
+                .send_request(request.clone())
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
             if REDIRECT_CODES.contains(&res.status()) {
                 if let Some(location) = res.headers().get("location") {
                     match location.to_str().unwrap().parse::<hyper::Uri>() {
                         Ok(valid_url) => {
                             *request.uri_mut() = valid_url;
-                        },
-                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e))
+                        }
+                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e)),
                     };
                     redirect_count += 1;
                     continue;
@@ -820,7 +826,12 @@ impl Connector for Curl {
                 ));
             }
 
-            data = res.collect().await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?.to_bytes().to_vec();
+            data = res
+                .collect()
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                .to_bytes()
+                .to_vec();
 
             break;
         }
@@ -835,10 +846,10 @@ impl Connector for Curl {
             ));
         }
 
-        info!(url = url.to_string(), "Fetch data with success");
+        info!(path = self.path(), "Fetch data with success");
 
         let document = self.document()?;
-        
+
         if !document.has_data(&data)? {
             return Ok(None);
         }
@@ -859,7 +870,6 @@ impl Connector for Curl {
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
-    /// use surf::http::Method;
     /// use smol::prelude::*;
     /// use json_value_search::Search;
     /// use serde_json::Value;
@@ -867,14 +877,14 @@ impl Connector for Curl {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Post;
+    ///     connector.method = "Post".into();
     ///     connector.path = "/post".to_string();
     ///     connector.set_document(document);
     ///
@@ -893,39 +903,14 @@ impl Connector for Curl {
     /// ```
     #[instrument(skip(dataset), name = "curl::send")]
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
-        let path = self.path();
-
-        if path.has_mustache() {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                format!("This path '{}' is not fully resolved", path),
-            ));
-        }
-
-        let url = format!("{}{}", self.endpoint, path).parse::<hyper::Uri>()
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let mut request_builder = Request::builder().uri(&url).method(Method::from_bytes(self.method.as_bytes()).map_err(|e| Error::new(ErrorKind::InvalidData, e))?);
-
-        // Force the content type
-        request_builder = request_builder.header(header::CONTENT_TYPE, self.metadata().content_type());
-        
-        // Force the headers
-        for (key, value) in self.headers.iter() {
-            let header_name = key.parse::<HeaderName>()
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("Invalid header name '{}': {}", key, e)))?;
-
-            let header_value = HeaderValue::from_str(value)
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("Invalid header value '{}': {}", value, e)))?;
-
-            request_builder = request_builder.header(header_name, header_value);
-        }
+        let mut request_builder = self.request_builder().await?;
+        let mut client = self.http1().await?;
 
         let mut request = match self.method.to_uppercase().as_str() {
             "POST" | "PUT" | "PATCH" => {
                 let mut buffer = Vec::default();
                 let mut document = self.document()?.clone_box();
-                
+
                 document.set_entry_path(String::default());
                 buffer.write_all(&document.header(&dataset)?).await?;
                 buffer.write_all(&document.write(&dataset)?).await?;
@@ -942,30 +927,35 @@ impl Connector for Curl {
                     }
                 }
 
-                request_builder = request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
+                request_builder =
+                    request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
 
-                let boxed_body= Box::pin(Full::new(Bytes::from(buffer.clone())));
+                let boxed_body = Box::pin(Full::new(Bytes::from(buffer.clone())));
                 request_builder.body(boxed_body)
             }
             _ => {
                 let boxed_body = Box::pin(Full::new(Bytes::new()));
                 request_builder.body(boxed_body)
-            },
-        }.map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            }
+        }
+        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut data = Vec::default();
         let mut redirect_count: u8 = 0;
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = self.send_request(request.clone()).await?;
+            let res = client
+                .send_request(request.clone())
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
             if REDIRECT_CODES.contains(&res.status()) {
                 if let Some(location) = res.headers().get("location") {
                     match location.to_str().unwrap().parse::<hyper::Uri>() {
                         Ok(valid_url) => {
                             *request.uri_mut() = valid_url;
-                        },
-                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e))
+                        }
+                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e)),
                     };
                     redirect_count += 1;
                     continue;
@@ -983,7 +973,12 @@ impl Connector for Curl {
                 ));
             }
 
-            data = res.collect().await.map_err(|e| Error::new(ErrorKind::InvalidData, e))?.to_bytes().to_vec();
+            data = res
+                .collect()
+                .await
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                .to_bytes()
+                .to_vec();
 
             break;
         }
@@ -998,7 +993,7 @@ impl Connector for Curl {
             ));
         }
 
-        info!(url = url.to_string(), "Fetch data with success");
+        info!(path = self.path(), "Fetch data with success");
 
         let document = self.document()?;
         if !document.has_data(&data)? {
@@ -1023,7 +1018,7 @@ impl Connector for Curl {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
@@ -1037,33 +1032,10 @@ impl Connector for Curl {
     /// ```
     #[instrument(name = "curl::erase")]
     async fn erase(&mut self) -> Result<()> {
-        let path = self.path();
+        let mut request_builder = self.request_builder().await?;
+        let mut client = self.http1().await?;
 
-        if path.has_mustache() {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                format!("This path '{}' is not fully resolved", path),
-            ));
-        }
-
-        let url = format!("{}{}", self.endpoint, path).parse::<hyper::Uri>()
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let mut request_builder = Request::builder().uri(&url).method(hyper::Method::DELETE);
-
-        // Force the content type
-        request_builder = request_builder.header(header::CONTENT_TYPE, self.metadata().content_type());
-        
-        // Force the headers
-        for (key, value) in self.headers.iter() {
-            let header_name = key.parse::<HeaderName>()
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("Invalid header name '{}': {}", key, e)))?;
-
-            let header_value = HeaderValue::from_str(value)
-                .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("Invalid header value '{}': {}", value, e)))?;
-
-            request_builder = request_builder.header(header_name, header_value);
-        }
+        request_builder = request_builder.method(hyper::Method::DELETE);
 
         let mut request = request_builder
             .body(Box::pin(Full::new(Bytes::new())))
@@ -1072,15 +1044,18 @@ impl Connector for Curl {
         let mut redirect_count: u8 = 0;
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = self.send_request(request.clone()).await?;
+            let res = client
+                .send_request(request.clone())
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
             if REDIRECT_CODES.contains(&res.status()) {
                 if let Some(location) = res.headers().get("location") {
                     match location.to_str().unwrap().parse::<hyper::Uri>() {
                         Ok(valid_url) => {
                             *request.uri_mut() = valid_url;
-                        },
-                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e))
+                        }
+                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e)),
                     };
                     redirect_count += 1;
                     continue;
@@ -1111,7 +1086,7 @@ impl Connector for Curl {
             ));
         }
 
-        info!(url = url.to_string(), "Erase data with success");
+        info!(path = self.path(), "Erase data with success");
         Ok(())
     }
     /// See [`Connector::paginate`] for more details.
@@ -1208,8 +1183,8 @@ mod tests {
     use crate::connector::authenticator::{basic::Basic, bearer::Bearer, AuthenticatorType};
     use crate::connector::counter::curl::CounterType;
     use crate::document::json::Json;
-    use smol::stream::StreamExt;
     use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
     use smol_macros::test;
 
     #[test]

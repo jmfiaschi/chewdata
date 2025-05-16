@@ -33,12 +33,12 @@ use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use super::Authenticator;
 use async_trait::async_trait;
 use base64::Engine;
+use http::header;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
-use surf::http::headers;
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -115,7 +115,7 @@ impl Authenticator for Bearer {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let token = "my_token";
@@ -143,7 +143,7 @@ impl Authenticator for Bearer {
         }
 
         Ok((
-            headers::AUTHORIZATION.to_string().into_bytes(),
+            header::AUTHORIZATION.to_string().into_bytes(),
             format!("Bearer {}", token).into_bytes(),
         ))
     }

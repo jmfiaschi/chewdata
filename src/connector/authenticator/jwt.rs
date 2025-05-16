@@ -55,9 +55,9 @@
 use super::Authenticator;
 use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{connector::ConnectorType, document::jsonl::Jsonl};
-use std::sync::Arc;
 use async_lock::Mutex;
 use async_trait::async_trait;
+use http::header;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -65,12 +65,12 @@ use smol::stream::StreamExt;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
-use surf::http::headers;
 
 static TOKENS: OnceLock<Arc<Mutex<HashMap<String, String>>>> = OnceLock::new();
 
@@ -148,7 +148,6 @@ impl Jwt {
     ///
     /// ```no_run
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
-    /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use chewdata::Metadata;
     /// use serde_json::Value;
@@ -157,7 +156,7 @@ impl Jwt {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///    let mut connector = Curl::default();
@@ -322,7 +321,6 @@ impl Authenticator for Jwt {
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
-    /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt, Authenticator};
     /// use smol::prelude::*;
     /// use std::io;
@@ -330,7 +328,7 @@ impl Authenticator for Jwt {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
@@ -403,14 +401,14 @@ impl Authenticator for Jwt {
             Some(token_value) => {
                 let bearer = token_value;
                 (
-                    headers::AUTHORIZATION.to_string().into_bytes(),
+                    header::AUTHORIZATION.to_string().into_bytes(),
                     format!("Bearer {}", bearer).into_bytes(),
                 )
             }
             None => {
                 warn!("No JWT found for the authentication");
                 (
-                    headers::AUTHORIZATION.to_string().into_bytes(),
+                    header::AUTHORIZATION.to_string().into_bytes(),
                     "Bearer".to_string().into_bytes(),
                 )
             }
@@ -421,12 +419,12 @@ impl Authenticator for Jwt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use macro_rules_attribute::apply;
-    use smol_macros::test;
     use crate::connector::curl::Curl;
     use crate::connector::Connector;
     use crate::document::json::Json;
     use crate::Metadata;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
     #[apply(test!)]
     async fn refresh_with_jwt_builder() {
