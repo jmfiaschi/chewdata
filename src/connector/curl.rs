@@ -67,10 +67,13 @@ use bytes::Bytes;
 use futures::AsyncRead as AsyncReadIo;
 use futures::AsyncWrite as AsyncWriteIo;
 use futures::{AsyncWriteExt, Stream};
+use http::HeaderMap;
 use http::{
-    header, request::Builder, HeaderName, HeaderValue, Method, Request, StatusCode, Version,
+    header, request::Builder, HeaderName, HeaderValue, Method, Request, Response, StatusCode,
+    Version,
 };
 use http_body_util::{BodyExt, Full};
+use http_cache_semantics::{BeforeRequest, CachePolicy};
 use hyper::client::conn::http1::SendRequest as SendRequestHttp1;
 use json_value_merge::Merge;
 use json_value_remove::Remove;
@@ -82,7 +85,7 @@ use smol_timeout::TimeoutExt;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
@@ -97,6 +100,16 @@ const REDIRECT_CODES: &[StatusCode] = &[
 ];
 
 const DEFAULT_TIMEOUT: u64 = 5;
+
+const DEFAULT_CACHE_DIR: &str = "cache/http";
+
+#[derive(Serialize, Deserialize)]
+struct CachedResponse {
+    status: u16,
+    req_headers: HashMap<String, String>,
+    resp_headers: HashMap<String, String>,
+    body: Vec<u8>,
+}
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -511,6 +524,95 @@ impl Curl {
         parameters_without_context.remove("/paginator")?;
         Ok(parameters_without_context)
     }
+    /// Get the data from the cache.
+    async fn retrieve_data_from_cache(
+        &self,
+        req: &Request<Pin<Box<http_body_util::Full<bytes::Bytes>>>>,
+    ) -> Result<Option<Vec<u8>>> {
+        let url = format!("{}{}", self.endpoint, self.path());
+
+        let data =
+            match cacache::read(std::env::temp_dir().join(self::DEFAULT_CACHE_DIR), &url).await {
+                Ok(data) => data,
+                Err(_) => return Ok(None),
+            };
+
+        let cached: CachedResponse = serde_json::from_slice(&data)?;
+
+        let method = Method::from_bytes(self.method.to_uppercase().as_bytes())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        let mut cache_req_builder = Request::builder().method(method).uri(&url);
+
+        for (k, v) in cached.req_headers.iter() {
+            cache_req_builder = cache_req_builder.header(k, v);
+        }
+
+        let cache_req = cache_req_builder
+            .body(())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        let mut cache_resp_builder = Response::builder().status(cached.status);
+
+        for (k, v) in cached.resp_headers.iter() {
+            cache_resp_builder = cache_resp_builder.header(k, v);
+        }
+
+        let cache_resp = cache_resp_builder
+            .body(())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        let policy = CachePolicy::new(&cache_req, &cache_resp);
+
+        match policy.before_request(req, SystemTime::now()) {
+            BeforeRequest::Fresh(_resp) => {
+                trace!(url, "🔁 Data retrieved from cache");
+                Ok(Some(cached.body))
+            }
+            BeforeRequest::Stale { .. } => {
+                trace!(url, "🔁 Data from cache need to be refreshed");
+                Ok(None)
+            }
+        }
+    }
+    async fn store_data(
+        &self,
+        status: &u16,
+        request_headers: &HeaderMap,
+        response_headers: &HeaderMap,
+        body: &Vec<u8>,
+    ) -> Result<()> {
+        let url = format!("{}{}", self.endpoint, self.path());
+
+        let req_headers = request_headers
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+            .collect();
+
+        let res_headers = response_headers
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+            .collect();
+
+        let cached = CachedResponse {
+            status: status.clone(),
+            body: body.clone(),
+            req_headers: req_headers,
+            resp_headers: res_headers,
+        };
+
+        let json = serde_json::to_vec(&cached)?;
+
+        cacache::write(
+            std::env::temp_dir().join(self::DEFAULT_CACHE_DIR),
+            &url,
+            json,
+        )
+        .await
+        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -757,6 +859,17 @@ impl Connector for Curl {
         }
         .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
+        if let Ok(Some(data)) = self.retrieve_data_from_cache(&request).await {
+            let document = self.document()?;
+            let dataset = document.read(&data)?;
+
+            return Ok(Some(Box::pin(stream! {
+                for data in dataset {
+                    yield data;
+                }
+            })));
+        }
+
         let mut data = Vec::default();
         let mut redirect_count: u8 = 0;
 
@@ -790,12 +903,18 @@ impl Connector for Curl {
                 ));
             }
 
+            let status = res.status().as_u16();
+            let response_headers = res.headers().clone();
+
             data = res
                 .collect()
                 .await
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
                 .to_bytes()
                 .to_vec();
+
+            self.store_data(&status, &request.headers(), &response_headers, &data)
+                .await?;
 
             break;
         }
