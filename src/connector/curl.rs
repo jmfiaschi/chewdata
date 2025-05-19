@@ -19,6 +19,7 @@
 //! | counter_type  | count / counter | Use to find the total of elements in the resource.  | `null` | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
 //! | redirection_limit    | - | Limit of redirection |    `5`    | Integer |
 //! | version    | - | HTTP version|    `1`    | Integer |
+//! | is_cached  | cache | Enable the cache management. |    `false`    | `true` / `false` |
 //!
 //! ### Examples
 //!
@@ -42,6 +43,7 @@
 //!             "parameters": [
 //!                 { "cache": false }
 //!             ],
+//!            "is_cached": false,
 //!             "paginator": {
 //!                 "limit": 100,
 //!                 "skip": 0
@@ -103,14 +105,6 @@ const DEFAULT_TIMEOUT: u64 = 5;
 
 const DEFAULT_CACHE_DIR: &str = "cache/http";
 
-#[derive(Serialize, Deserialize)]
-struct CachedResponse {
-    status: u16,
-    req_headers: HashMap<String, String>,
-    resp_headers: HashMap<String, String>,
-    body: Vec<u8>,
-}
-
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Curl {
@@ -138,6 +132,9 @@ pub struct Curl {
     pub counter_type: Option<CounterType>,
     pub redirection_limit: usize,
     pub version: usize,
+    #[serde(alias = "cache")]
+    #[serde(alias = "cache_enabled")]
+    pub is_cached: bool,
 }
 
 impl fmt::Debug for Curl {
@@ -160,6 +157,7 @@ impl fmt::Debug for Curl {
             .field("counter_type", &self.counter_type)
             .field("redirection_limit", &self.redirection_limit)
             .field("version", &self.version)
+            .field("is_cached", &self.is_cached)
             .finish()
     }
 }
@@ -182,6 +180,7 @@ impl Default for Curl {
             counter_type: None,
             redirection_limit: 5,
             version: 1,
+            is_cached: false,
         }
     }
 }
@@ -387,40 +386,8 @@ impl Curl {
 
         Ok(request_builder)
     }
-    /// See [`Connector::fetch`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use chewdata::connector::{curl::Curl, Connector};
-    /// use chewdata::document::json::Json;
-    /// use smol::stream::StreamExt;
-    /// use std::io;
-    ///
-    /// use macro_rules_attribute::apply;
-    /// use smol_macros::main;
-    ///
-    /// #[apply(main!)]
-    /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
-    ///
-    ///     let mut connector = Curl::default();
-    ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = "Get".into();
-    ///     connector.path = "/json".to_string();
-    ///     connector.set_document(document);
-    ///
-    ///     let datastream = connector.fetch().await.unwrap().unwrap();
-    ///     assert!(
-    ///         0 < datastream.count().await,
-    ///         "The inner connector should have a size upper than zero."
-    ///     );
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[instrument(name = "curl::head")]
-    pub async fn head(&mut self) -> std::io::Result<Vec<(String, Vec<u8>)>> {
+    /// Retrieve headers from the remote resource.
+    pub async fn headers(&mut self) -> std::io::Result<Vec<(String, Vec<u8>)>> {
         let mut request_builder = self.request_builder().await?;
         let mut client = self.http1().await?;
 
@@ -460,6 +427,17 @@ impl Curl {
             }
         }
         .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if self.is_cached {
+            if let Ok(Some(cache_entry)) = CachedEntry::get(&request).await {
+                return Ok(cache_entry
+                    .resp_headers
+                    .iter()
+                    .map(|(key, value)| (key.to_string(), value.as_bytes().to_vec()))
+                    .collect::<Vec<(String, Vec<u8>)>>()
+                    .into());
+            }
+        }
 
         let mut headers = Vec::default();
         let mut redirect_count: u8 = 0;
@@ -523,95 +501,6 @@ impl Curl {
         parameters_without_context.remove("/steps")?;
         parameters_without_context.remove("/paginator")?;
         Ok(parameters_without_context)
-    }
-    /// Get the data from the cache.
-    async fn retrieve_data_from_cache(
-        &self,
-        req: &Request<Pin<Box<http_body_util::Full<bytes::Bytes>>>>,
-    ) -> Result<Option<Vec<u8>>> {
-        let url = format!("{}{}", self.endpoint, self.path());
-
-        let data =
-            match cacache::read(std::env::temp_dir().join(self::DEFAULT_CACHE_DIR), &url).await {
-                Ok(data) => data,
-                Err(_) => return Ok(None),
-            };
-
-        let cached: CachedResponse = serde_json::from_slice(&data)?;
-
-        let method = Method::from_bytes(self.method.to_uppercase().as_bytes())
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let mut cache_req_builder = Request::builder().method(method).uri(&url);
-
-        for (k, v) in cached.req_headers.iter() {
-            cache_req_builder = cache_req_builder.header(k, v);
-        }
-
-        let cache_req = cache_req_builder
-            .body(())
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let mut cache_resp_builder = Response::builder().status(cached.status);
-
-        for (k, v) in cached.resp_headers.iter() {
-            cache_resp_builder = cache_resp_builder.header(k, v);
-        }
-
-        let cache_resp = cache_resp_builder
-            .body(())
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let policy = CachePolicy::new(&cache_req, &cache_resp);
-
-        match policy.before_request(req, SystemTime::now()) {
-            BeforeRequest::Fresh(_resp) => {
-                trace!(url, "🔁 Data retrieved from cache");
-                Ok(Some(cached.body))
-            }
-            BeforeRequest::Stale { .. } => {
-                trace!(url, "🔁 Data from cache need to be refreshed");
-                Ok(None)
-            }
-        }
-    }
-    async fn store_data(
-        &self,
-        status: &u16,
-        request_headers: &HeaderMap,
-        response_headers: &HeaderMap,
-        body: &Vec<u8>,
-    ) -> Result<()> {
-        let url = format!("{}{}", self.endpoint, self.path());
-
-        let req_headers = request_headers
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
-            .collect();
-
-        let res_headers = response_headers
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
-            .collect();
-
-        let cached = CachedResponse {
-            status: status.clone(),
-            body: body.clone(),
-            req_headers: req_headers,
-            resp_headers: res_headers,
-        };
-
-        let json = serde_json::to_vec(&cached)?;
-
-        cacache::write(
-            std::env::temp_dir().join(self::DEFAULT_CACHE_DIR),
-            &url,
-            json,
-        )
-        .await
-        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        Ok(())
     }
 }
 
@@ -859,15 +748,17 @@ impl Connector for Curl {
         }
         .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        if let Ok(Some(data)) = self.retrieve_data_from_cache(&request).await {
-            let document = self.document()?;
-            let dataset = document.read(&data)?;
+        if self.is_cached {
+            if let Ok(Some(cache_entry)) = CachedEntry::get(&request).await {
+                let document = self.document()?;
+                let dataset = document.read(&cache_entry.data)?;
 
-            return Ok(Some(Box::pin(stream! {
-                for data in dataset {
-                    yield data;
-                }
-            })));
+                return Ok(Some(Box::pin(stream! {
+                    for data in dataset {
+                        yield data;
+                    }
+                })));
+            }
         }
 
         let mut data = Vec::default();
@@ -904,7 +795,15 @@ impl Connector for Curl {
             }
 
             let status = res.status().as_u16();
+            let request_headers = request.headers();
             let response_headers = res.headers().clone();
+
+            let headers_to_map = |headers: &HeaderMap| {
+                headers
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().to_string()))
+                    .collect()
+            };
 
             data = res
                 .collect()
@@ -913,8 +812,16 @@ impl Connector for Curl {
                 .to_bytes()
                 .to_vec();
 
-            self.store_data(&status, &request.headers(), &response_headers, &data)
+            if self.is_cached {
+                CachedEntry::new(
+                    status,
+                    headers_to_map(&request_headers),
+                    headers_to_map(&response_headers),
+                    data.clone(),
+                )
+                .save(&request.uri().to_string())
                 .await?;
+            }
 
             break;
         }
@@ -1169,6 +1076,10 @@ impl Connector for Curl {
             ));
         }
 
+        if self.is_cached {
+            CachedEntry::remove(&request.uri().to_string()).await?;
+        }
+
         info!(path = self.path(), "Erase data with success");
         Ok(())
     }
@@ -1180,83 +1091,102 @@ impl Connector for Curl {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Logger {
-    _priv: (),
+#[derive(Serialize, Deserialize)]
+struct CachedEntry {
+    status: u16,
+    req_headers: HashMap<String, String>,
+    resp_headers: HashMap<String, String>,
+    data: Vec<u8>,
 }
 
-impl Logger {
-    pub fn new() -> Self {
-        Logger { _priv: () }
+impl CachedEntry {
+    fn new(
+        status: u16,
+        req_headers: HashMap<String, String>,
+        resp_headers: HashMap<String, String>,
+        data: Vec<u8>,
+    ) -> Self {
+        Self {
+            status,
+            req_headers,
+            resp_headers,
+            data,
+        }
+    }
+    /// Save the entry in the cache.
+    async fn save(&self, uri: &str) -> Result<()> {
+        let json = serde_json::to_vec(&self)?;
+
+        cacache::write(
+            std::env::temp_dir().join(self::DEFAULT_CACHE_DIR),
+            &uri,
+            json,
+        )
+        .await
+        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        Ok(())
+    }
+    /// Get the entry from the cache.
+    async fn get(
+        request: &Request<Pin<Box<http_body_util::Full<bytes::Bytes>>>>,
+    ) -> Result<Option<Self>> {
+        let uri = request.uri().to_string();
+        let data =
+            match cacache::read(std::env::temp_dir().join(self::DEFAULT_CACHE_DIR), &uri).await {
+                Ok(data) => data,
+                Err(e) => {
+                    warn!(uri, "Failed to read from cache: {}", e);
+                    return Ok(None);
+                }
+            };
+
+        let cached: Self = serde_json::from_slice(&data)?;
+
+        let method = request.method().clone();
+
+        let mut cache_req_builder = Request::builder().method(method).uri(&uri);
+
+        for (k, v) in cached.req_headers.iter() {
+            cache_req_builder = cache_req_builder.header(k, v);
+        }
+
+        let cache_req = cache_req_builder
+            .body(())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        let mut cache_resp_builder = Response::builder().status(cached.status);
+
+        for (k, v) in cached.resp_headers.iter() {
+            cache_resp_builder = cache_resp_builder.header(k, v);
+        }
+
+        let cache_resp = cache_resp_builder
+            .body(())
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        let policy = CachePolicy::new(&cache_req, &cache_resp);
+
+        match policy.before_request(request, SystemTime::now()) {
+            BeforeRequest::Fresh(_) => {
+                trace!(uri, "🔁 Data retrieved from cache");
+                Ok(Some(cached))
+            }
+            BeforeRequest::Stale { .. } => {
+                trace!(uri, "♻️ Cached data is stale");
+                Ok(None)
+            }
+        }
+    }
+    /// Remove the entry from the cache.
+    async fn remove(uri: &str) -> Result<()> {
+        cacache::remove(std::env::temp_dir().join(self::DEFAULT_CACHE_DIR), &uri)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+        Ok(())
     }
 }
-
-// #[async_trait::async_trait]
-// impl Middleware for Logger {
-//     async fn handle(
-//         &self,
-//         req: Request,
-//         client: Client,
-//         next: Next<'_>,
-//     ) -> std::result::Result<Response, http_types::Error> {
-//         let start_time = time::Instant::now();
-//         let uri = format!("{}", req.url());
-//         let method = format!("{}", req.method());
-//         let id = COUNTER.fetch_add(1, Ordering::Relaxed);
-
-//         trace!(id, uri, method, "sending request");
-
-//         let res = next.run(req, client).await?;
-//         let status = res.status();
-//         let elapsed = start_time.elapsed();
-
-//         trace!(
-//             id,
-//             uri,
-//             method,
-//             elapsed = &format!("{:?}", elapsed),
-//             status = status.to_string().as_str(),
-//             "request completed"
-//         );
-
-//         Ok(res)
-//     }
-// }
-
-// #[derive(Debug)]
-// pub struct Authenticator {
-//     authenticator_type: Box<AuthenticatorType>,
-// }
-
-// impl Authenticator {
-//     pub fn new(authenticator_type: Box<AuthenticatorType>) -> Self {
-//         Authenticator { authenticator_type }
-//     }
-// }
-
-// #[async_trait::async_trait]
-// impl Middleware for Authenticator {
-//     async fn handle(
-//         &self,
-//         req: Request,
-//         client: Client,
-//         next: Next<'_>,
-//     ) -> std::result::Result<Response, http_types::Error> {
-//         let authenticator = self.authenticator_type.authenticator();
-
-//         let (auth_name, auth_value) = authenticator.authenticate().await?;
-//         let mut req = req.clone();
-//         req.set_header(
-//             HeaderName::from_bytes(auth_name).map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-//             HeaderValue::from_bytes(auth_value)
-//                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-//         );
-
-//         let res = next.run(req, client).await?;
-
-//         Ok(res)
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

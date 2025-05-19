@@ -34,9 +34,9 @@
 //!      }
 //!  ]
 //!  ```
+use crate::connector::curl::Curl;
 use serde::{Deserialize, Serialize};
 use std::io::Result;
-use crate::connector::curl::Curl;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Header {
@@ -69,7 +69,7 @@ impl Header {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
@@ -92,7 +92,7 @@ impl Header {
             connector.path = path.clone();
         }
 
-        let headers = connector.head().await?;
+        let headers = connector.headers().await?;
 
         for (key, value) in headers {
             if self.name.eq_ignore_ascii_case(&key) {
