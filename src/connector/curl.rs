@@ -295,60 +295,45 @@ impl Curl {
             ));
         }
 
-        let url = format!("{}{}", self.endpoint, path)
+        let uri = format!("{}{}", self.endpoint, path)
             .parse::<hyper::Uri>()
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut request_builder = Request::builder().uri(&url).method(
+        let mut request_builder = Request::builder().uri(&uri).method(
             Method::from_bytes(self.method.to_uppercase().as_bytes())
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
         );
 
+        let host = format!(
+            "{}:{}",
+            uri.host().unwrap_or("localhost"),
+            uri.port_u16().unwrap_or(80)
+        );
+
         request_builder = match self.version {
-            1 => Ok(request_builder
-                .header(
-                    header::HOST,
-                    format!(
-                        "{}:{}",
-                        url.host().unwrap_or("localhost"),
-                        url.port_u16().unwrap_or(80)
-                    ),
-                )
-                .version(Version::HTTP_11)),
-            2 => Ok(request_builder
-                .header(
-                    ":authority",
-                    format!(
-                        "{}:{}",
-                        url.host().unwrap_or("localhost"),
-                        url.port_u16().unwrap_or(80)
-                    ),
-                )
-                .version(Version::HTTP_2)),
-            3 => Ok(request_builder
-                .header(
-                    ":authority",
-                    format!(
-                        "{}:{}",
-                        url.host().unwrap_or("localhost"),
-                        url.port_u16().unwrap_or(80)
-                    ),
-                )
-                .version(Version::HTTP_3)),
-            _ => Err(Error::new(
-                ErrorKind::InvalidInput,
-                format!("This http version '{}' is not managed", self.version),
-            )),
-        }?;
+            1 => request_builder
+                .header(header::HOST, host)
+                .version(Version::HTTP_11),
+            2 => request_builder
+                .header(":authority", host)
+                .version(Version::HTTP_2),
+            3 => request_builder
+                .header(":authority", host)
+                .version(Version::HTTP_3),
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("This http version '{}' is not managed", self.version),
+                ))
+            }
+        };
 
         // Force the content type
-        request_builder =
-            request_builder.header(header::CONTENT_TYPE, self.metadata().content_type());
-
-        if !self.metadata().content_type().is_empty() {
+        let content_type = self.metadata().content_type();
+        if !content_type.is_empty() {
             request_builder = request_builder.header(
                 header::CONTENT_TYPE,
-                HeaderValue::from_str(&self.metadata().content_type())
+                HeaderValue::from_str(&content_type)
                     .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
             );
         }
@@ -391,7 +376,7 @@ impl Curl {
         let mut request_builder = self.request_builder().await?;
         let mut client = self.http1().await?;
 
-        let mut request = match self.method.to_uppercase().as_str() {
+        let body = match self.method.to_uppercase().as_str() {
             "POST" | "PUT" | "PATCH" => {
                 let mut buffer = Vec::default();
                 let mut parameters_without_context = self.parameters_without_context()?;
@@ -400,33 +385,32 @@ impl Curl {
                 let dataset = vec![DataResult::Ok(parameters_without_context)];
                 let mut document = self.document()?.clone_box();
                 document.set_entry_path(String::default());
+
                 buffer.write_all(&document.header(&dataset)?).await?;
                 buffer.write_all(&document.write(&dataset)?).await?;
                 buffer.write_all(&document.footer(&dataset)?).await?;
 
-                if let Some(mime_subtype) = &document.metadata().mime_subtype {
-                    if mime_subtype == "x-www-form-urlencoded" {
-                        if buffer.starts_with(b"\"") {
-                            buffer = buffer.drain(1..).collect();
-                        }
-                        if buffer.ends_with(b"\"") {
-                            buffer.pop();
-                        }
+                // Specific clean for x-www-form-urlencoded
+                if document.metadata().mime_subtype.as_deref() == Some("x-www-form-urlencoded") {
+                    if buffer.starts_with(b"\"") {
+                        buffer.drain(0..1);
+                    }
+                    if buffer.ends_with(b"\"") {
+                        buffer.pop();
                     }
                 }
 
                 request_builder =
                     request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
 
-                let boxed_body = Box::pin(Full::new(Bytes::from(buffer.clone())));
-                request_builder.body(boxed_body)
+                Full::new(Bytes::from(buffer))
             }
-            _ => {
-                let boxed_body = Box::pin(Full::new(Bytes::new()));
-                request_builder.body(boxed_body)
-            }
-        }
-        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            _ => Full::new(Bytes::new()),
+        };
+
+        let mut request = request_builder
+            .body(Box::pin(body))
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         if self.is_cached {
             if let Ok(Some(cache_entry)) = CachedEntry::get(&request).await {
@@ -434,8 +418,7 @@ impl Curl {
                     .resp_headers
                     .iter()
                     .map(|(key, value)| (key.to_string(), value.as_bytes().to_vec()))
-                    .collect::<Vec<(String, Vec<u8>)>>()
-                    .into());
+                    .collect());
             }
         }
 
@@ -491,7 +474,7 @@ impl Curl {
             ));
         }
 
-        info!(url = self.path(), "Fetch data with success");
+        info!(url = self.path(), "✅ Fetch headers with success");
 
         Ok(headers)
     }
@@ -713,7 +696,7 @@ impl Connector for Curl {
         let mut request_builder = self.request_builder().await?;
         let mut client = self.http1().await?;
 
-        let mut request = match self.method.to_uppercase().as_str() {
+        let body = match self.method.to_uppercase().as_str() {
             "POST" => {
                 let mut buffer = Vec::default();
                 let mut parameters_without_context = self.parameters_without_context()?;
@@ -726,29 +709,30 @@ impl Connector for Curl {
                 buffer.write_all(&document.write(&dataset)?).await?;
                 buffer.write_all(&document.footer(&dataset)?).await?;
 
-                if let Some(mime_subtype) = &document.metadata().mime_subtype {
-                    if mime_subtype == "x-www-form-urlencoded" {
-                        if buffer.starts_with(b"\"") {
-                            buffer = buffer.drain(1..).collect();
-                        }
-                        if buffer.ends_with(b"\"") {
-                            buffer.pop();
-                        }
+                // Specific clean for x-www-form-urlencoded
+                if document.metadata().mime_subtype.as_deref() == Some("x-www-form-urlencoded") {
+                    if buffer.starts_with(b"\"") {
+                        buffer.drain(0..1);
+                    }
+                    if buffer.ends_with(b"\"") {
+                        buffer.pop();
                     }
                 }
 
                 request_builder = request_builder.header(header::CONTENT_LENGTH, buffer.len());
 
-                request_builder.body(Box::pin(Full::new(buffer.into())))
+                Full::new(Bytes::from(buffer))
             }
-            _ => {
-                let boxed_body = Box::pin(Full::new(Bytes::new()));
-                request_builder.body(boxed_body)
-            }
-        }
-        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            _ => Full::new(Bytes::new()),
+        };
+
+        let mut request = request_builder
+            .body(Box::pin(body))
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         if self.is_cached {
+            info!(path = self.path(), "✅ Fetch data from cache with success");
+
             if let Ok(Some(cache_entry)) = CachedEntry::get(&request).await {
                 let document = self.document()?;
                 let dataset = document.read(&cache_entry.data)?;
@@ -836,7 +820,7 @@ impl Connector for Curl {
             ));
         }
 
-        info!(path = self.path(), "Fetch data with success");
+        info!(path = self.path(), "✅ Fetch data with success");
 
         let document = self.document()?;
 
@@ -896,7 +880,7 @@ impl Connector for Curl {
         let mut request_builder = self.request_builder().await?;
         let mut client = self.http1().await?;
 
-        let mut request = match self.method.to_uppercase().as_str() {
+        let body = match self.method.to_uppercase().as_str() {
             "POST" | "PUT" | "PATCH" => {
                 let mut buffer = Vec::default();
                 let mut document = self.document()?.clone_box();
@@ -906,29 +890,27 @@ impl Connector for Curl {
                 buffer.write_all(&document.write(&dataset)?).await?;
                 buffer.write_all(&document.footer(&dataset)?).await?;
 
-                if let Some(mime_subtype) = &document.metadata().mime_subtype {
-                    if mime_subtype == "x-www-form-urlencoded" {
-                        if buffer.starts_with(b"\"") {
-                            buffer = buffer.drain(1..).collect();
-                        }
-                        if buffer.ends_with(b"\"") {
-                            buffer.pop();
-                        }
+                // Specific clean for x-www-form-urlencoded
+                if document.metadata().mime_subtype.as_deref() == Some("x-www-form-urlencoded") {
+                    if buffer.starts_with(b"\"") {
+                        buffer.drain(0..1);
+                    }
+                    if buffer.ends_with(b"\"") {
+                        buffer.pop();
                     }
                 }
 
                 request_builder =
                     request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
 
-                let boxed_body = Box::pin(Full::new(Bytes::from(buffer.clone())));
-                request_builder.body(boxed_body)
+                Full::new(Bytes::from(buffer.clone()))
             }
-            _ => {
-                let boxed_body = Box::pin(Full::new(Bytes::new()));
-                request_builder.body(boxed_body)
-            }
-        }
-        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            _ => Full::new(Bytes::new()),
+        };
+
+        let mut request = request_builder
+            .body(Box::pin(body))
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut data = Vec::default();
         let mut redirect_count: u8 = 0;
@@ -983,7 +965,7 @@ impl Connector for Curl {
             ));
         }
 
-        info!(path = self.path(), "Fetch data with success");
+        info!(path = self.path(), "✅ Send data with success");
 
         let document = self.document()?;
         if !document.has_data(&data)? {
@@ -1080,7 +1062,7 @@ impl Connector for Curl {
             CachedEntry::remove(&request.uri().to_string()).await?;
         }
 
-        info!(path = self.path(), "Erase data with success");
+        info!(path = self.path(), "✅ Erase data with success");
         Ok(())
     }
     /// See [`Connector::paginate`] for more details.
@@ -1136,7 +1118,7 @@ impl CachedEntry {
             match cacache::read(std::env::temp_dir().join(self::DEFAULT_CACHE_DIR), &uri).await {
                 Ok(data) => data,
                 Err(e) => {
-                    warn!(uri, "Failed to read from cache: {}", e);
+                    trace!(uri, "{}", e);
                     return Ok(None);
                 }
             };
