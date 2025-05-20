@@ -12,8 +12,6 @@
 //! | method        | -     | The http method to use.                                   | `get`         | [HTTP methods](https://developer.mozilla.org/fr/docs/Web/HTTP/Methods) |
 //! | headers       | -     | The http headers to override.                             | `null`        | List of key/value                                                      |
 //! | timeout       | -     | Time in secound before to abort the call.                 | `5`           | Unsigned number                                                        |
-//! | keepalive     | -     | Enable the TCP keepalive.                                 | `true`        | `true` / `false`                                                       |
-//! | tcp_nodelay   | -     | Enable the TCP nodelay.                                   | `false`       | `true` / `false`                                                       |
 //! | parameters    | -     | Parameters used in the `path` that can be override.       | `null`        | Object or Array of objects                                             |
 //! | paginator_type | paginator | Paginator parameters.                                | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
 //! | counter_type  | count / counter | Use to find the total of elements in the resource.  | `null` | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
@@ -121,8 +119,6 @@ pub struct Curl {
     pub method: String,
     pub headers: Box<HashMap<String, String>>,
     pub timeout: Option<u64>,
-    pub keepalive: bool,
-    pub tcp_nodelay: bool,
     #[serde(alias = "params")]
     pub parameters: Value,
     #[serde(alias = "paginator")]
@@ -149,8 +145,6 @@ impl fmt::Debug for Curl {
             // Can contain sensitive data
             .field("headers", &self.headers.display_only_for_debugging())
             .field("timeout", &self.timeout)
-            .field("keepalive", &self.keepalive)
-            .field("tcp_nodelay", &self.tcp_nodelay)
             // Can contain sensitive data
             .field("parameters", &self.parameters.display_only_for_debugging())
             .field("paginator_type", &self.paginator_type)
@@ -173,8 +167,6 @@ impl Default for Curl {
             method: "GET".into(),
             headers: Box::<HashMap<String, String>>::default(),
             timeout: Some(DEFAULT_TIMEOUT),
-            keepalive: true,
-            tcp_nodelay: false,
             parameters: Value::Null,
             paginator_type: PaginatorType::default(),
             counter_type: None,
