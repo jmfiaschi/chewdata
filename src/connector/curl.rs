@@ -1256,6 +1256,20 @@ mod tests {
         );
     }
     #[apply(test!)]
+    async fn fetch_head() {
+        let document = Json::default();
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = "HEAD".into();
+        connector.path = "/json".to_string();
+        connector.set_document(Box::new(document)).unwrap();
+
+        assert!(
+            connector.fetch().await.unwrap().is_none(),
+            "The inner connector should have a size upper than zero."
+        );
+    }
+    #[apply(test!)]
     async fn fetch_with_basic() {
         let document = Json::default();
         let mut connector = Curl::default();

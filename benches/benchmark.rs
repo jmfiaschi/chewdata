@@ -1,3 +1,4 @@
+use chewdata::connector::curl::Curl;
 use chewdata::connector::in_memory::InMemory;
 use chewdata::connector::{Connector, ConnectorClone};
 #[cfg(feature = "csv")]
@@ -92,5 +93,32 @@ fn faker_benchmark(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, document_read_benchmark, faker_benchmark);
+fn curl_http1_benchmark(c: &mut Criterion) {
+    let curls = vec![("/get", "GET"), ("/get", "HEAD")];
+
+    let document = Json::default();
+
+    for (path, method) in curls {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = path.to_string();
+        connector.method = method.to_string();
+        connector.is_cached = false;
+        connector.set_document(Box::new(document.clone())).unwrap();
+
+        c.bench_function(&format!("curl/{}/", method), move |b| {
+            b.to_async(FuturesExecutor).iter(|| async {
+                let mut connector: Box<dyn Connector> = connector.clone_box();
+                let _result = connector.fetch().await.unwrap();
+            });
+        });
+    }
+}
+
+criterion_group!(
+    benches,
+    document_read_benchmark,
+    faker_benchmark,
+    curl_http1_benchmark
+);
 criterion_main!(benches);
