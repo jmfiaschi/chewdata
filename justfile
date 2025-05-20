@@ -89,7 +89,7 @@ coverage_it: start
     cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
 
 # Benchmark the project.
-bench:
+bench: httpbin
     cargo criterion --benches --output-format bencher --plotting-backend disabled --features "xml csv parquet toml bucket curl mongodb psql"
 
 # Start minio in local.
