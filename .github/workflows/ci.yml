@@ -55,7 +55,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: benchmark
-      - uses: gacts/install-podman@v1
+      - uses: webgtx/setup-podman-compose@v1
       - run: just setup
       - run: just bench | tee output.txt
       - name: Store benchmark result
@@ -105,7 +105,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build
-      - uses: gacts/install-podman@v1
+      - uses: webgtx/setup-podman-compose@v1
       - run: just unit-tests
   integration-tests:
     needs: [build, lint]
@@ -124,7 +124,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build
-      - uses: gacts/install-podman@v1
+      - uses: webgtx/setup-podman-compose@v1
       - run: just integration-tests
   semantic-release:
     needs: [benchmark, integration-tests, unit-tests, release]
