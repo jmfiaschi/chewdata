@@ -267,7 +267,7 @@ impl Curl {
         smol::spawn(
             async move {
                 if let Err(e) = conn.await {
-                    println!("Connection failed: {:?}", e);
+                    warn!(error = e.to_string(), "Connection failed");
                 }
             }
             .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT))),
@@ -1376,26 +1376,17 @@ mod tests {
         );
     }
     // httpbin return 500 code error.
-    // #[apply(test!)]
-    // async fn test_redirection_with_erase() {
-    //     let mut connector = Curl::default();
-    //     connector.endpoint = "http://localhost:8080".to_string();
-    //     connector.path = "/redirect/1".to_string();
-    //     connector.redirection_limit = 1;
-    //
-    //     let result = connector.erase().await;
-    //     assert!(
-    //         result.is_ok(),
-    //         "The inner connector shouldn't raise an error."
-    //     );
-    //
-    //     connector.path = "/redirect/2".to_string();
-    //     connector.redirection_limit = 1;
-    //
-    //     let result = connector.erase().await;
-    //     assert!(
-    //         result.is_err(),
-    //         "The inner connector should raise an error."
-    //     );
-    // }
+    #[apply(test!)]
+    async fn test_redirection_with_erase() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = "/redirect-to?url=/delete".to_string();
+        connector.redirection_limit = 1;
+
+        let result = connector.erase().await;
+        assert!(
+            result.is_ok(),
+            "The inner connector shouldn't raise an error."
+        );
+    }
 }

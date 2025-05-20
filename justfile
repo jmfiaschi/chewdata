@@ -89,26 +89,26 @@ coverage_it: start
     cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
 
 # Benchmark the project.
-bench: httpbin
+bench: http-mock
     cargo criterion --benches --output-format bencher --plotting-backend disabled --features "xml csv parquet toml bucket curl mongodb psql"
 
 # Start minio in local.
 minio:
     @echo "Run Minio server."
     @echo "Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY}"
-    podman-compose up -d nginx
+    podman-compose up -d minio
 
 minio_install:
     @echo "Configure Minio server."
-    podman-compose run --rm mc alias set s3 http://nginx:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
+    podman-compose run --rm mc alias set s3 http://minio:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
     podman-compose run --rm mc mb -p s3/my-bucket
     podman-compose run --rm mc cp -r /root/data s3/my-bucket
 
-# Start httpbin APIs in local.
-httpbin:
-    @echo "Run httpbin server."
+# Start mockhttp APIs in local.
+http-mock:
+    @echo "Run http mock server."
     @echo "Host: http://localhost:8080 "
-    podman-compose up -d httpbin
+    podman-compose up -d http-mock
 
 # Start mongo server in local.
 mongo:
@@ -156,7 +156,7 @@ semantic-release:
     npx semantic-release
 
 # Start all servers
-start: debug minio minio_install httpbin mongo keycloak
+start: stop debug minio_install http-mock mongo keycloak
 
 # Stop all servers
 stop:
