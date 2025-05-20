@@ -95,14 +95,14 @@ If you need to change the log level of the command, you need to define it during
 
 ```bash
 cargo install chewdata --no-default-features --features "tracing/release_max_level_info"
-echo '{"field1":"value1"}' | RUST_LOG=trace chewdata '[{"type":"reader","document":{"type":"json"},"connector":{"type":"io"}},{"type":"writer","document":{"type":"json"},"connector":{"type":"io"}}]'
+echo '{"field1":"value1"}' | RUST_LOG=trace chewdata '[{"type":"reader","document":{"type":"json"},"connector":{"type":"cli"}},{"type":"writer","document":{"type":"json"},"connector":{"type":"cli"}}]'
 ```
 
 If you want to filter logs, you can use the directive syntax from [tracing_subscriber](https://tracing.rs/tracing_subscriber/filter/struct.envfilter).
 
 ```bash
 cargo install chewdata --no-default-features --features "tracing/release_max_level_trace"
-echo '{"field1":"value1"}' | RUST_LOG=chewdata=trace chewdata '[{"type":"reader","document":{"type":"json"},"connector":{"type":"io"}},{"type":"writer","document":{"type":"json"},"connector":{"type":"io"}}]'
+echo '{"field1":"value1"}' | RUST_LOG=chewdata=trace chewdata '[{"type":"reader","document":{"type":"json"},"connector":{"type":"cli"}},{"type":"writer","document":{"type":"json"},"connector":{"type":"cli"}}]'
 ```
 
 ### Run
@@ -184,7 +184,7 @@ $ cat ./data/multi_lines.csv | chewdata '[{"type":"reader","document":{"type":"c
 Another example, With file configuration in argument
 
 ```Bash
-$ echo '[{"type":"reader","connector":{"type":"io"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
+$ echo '[{"type":"reader","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
 $ cat ./data/multi_lines.csv | cargo run -- --file my_etl.conf.json
 [{...}]
 ```
@@ -192,7 +192,7 @@ $ cat ./data/multi_lines.csv | cargo run -- --file my_etl.conf.json
 or
 
 ```Bash
-$ echo '[{"type":"reader","connector":{"type":"io"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
+$ echo '[{"type":"reader","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
 $ cat ./data/multi_lines.csv | make run file=my_etl.conf.json
 [{...}]
 ```
@@ -200,7 +200,7 @@ $ cat ./data/multi_lines.csv | make run file=my_etl.conf.json
 or
 
 ```Bash
-$ echo '[{"type":"reader","connector":{"type":"io"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
+$ echo '[{"type":"reader","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
 $ cat ./data/multi_lines.csv | chewdata --file my_etl.conf.json
 [{...}]
 ```

@@ -41,13 +41,13 @@
 //!         "referentials": {
 //!             "ref_a": {
 //!                 "connector": {
-//!                     "type": "io"
+//!                     "type": "cli"
 //!                 }
 //!             }
 //!         },
 //!         "name": "transform_a",
 //!         "connector": {
-//!             "type": "io"
+//!             "type": "cli"
 //!         },
 //!         "document": {
 //!             "type": "json"

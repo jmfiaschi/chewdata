@@ -29,7 +29,7 @@
 //!         "type": "reader",
 //!         "name": "read_a",
 //!         "connector": {
-//!             "type": "io"
+//!             "type": "cli"
 //!         },
 //!         "document": {
 //!             "type": "json"

@@ -1,10 +1,10 @@
-//! Read and write data through standard input and output.
+//! Read and write data through CLI.
 //!
 //! ### Configuration
 //!
 //! | key      | alias        | Description                                  | Default Value | Possible Values       |
 //! | -------- | ------------ | -------------------------------------------- | ------------- | --------------------- |
-//! | type     | -            | Required in order to use this connector      | `io`          | `io`                  |
+//! | type     | -            | Required in order to use this connector      | `cli`          | `cli`                  |
 //! | metadata | meta         | Override metadata information                | `null`        | [`crate::Metadata`] |
 //! | eoi      | end_of_input | Last charater that stops the reading in stdin | ``            | string                |
 //!
@@ -15,7 +15,7 @@
 //!     {
 //!         "type": "reader",
 //!         "connector":{
-//!             "type": "io",
+//!             "type": "cli",
 //!             "eoi": "",
 //!             "metadata": {
 //!                 ...
@@ -28,20 +28,20 @@ use super::Connector;
 use crate::connector::paginator::once::Once;
 use crate::document::Document;
 use crate::{DataSet, DataStream, Metadata};
-use std::io::{stdin, stdout};
-use smol::Unblock;
-use smol::io::BufReader;
-use smol::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::io::BufReader;
+use smol::prelude::*;
+use smol::Unblock;
+use std::io::{stdin, stdout};
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 #[serde(default, deny_unknown_fields)]
-pub struct Io {
+pub struct Cli {
     #[serde(skip)]
     document: Option<Box<dyn Document>>,
     #[serde(rename = "metadata")]
@@ -57,7 +57,7 @@ fn default_eof() -> String {
 }
 
 #[async_trait]
-impl Connector for Io {
+impl Connector for Cli {
     /// See [`Connector::set_document`] for more details.
     fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
         self.document = Some(document.clone());
@@ -101,7 +101,7 @@ impl Connector for Io {
         let document = self.document()?;
         let mut reader = BufReader::new(Unblock::new(stdin()));
         let mut buffer = String::default();
-    
+
         trace!("Retreive lines");
         let mut line = String::default();
 
@@ -175,7 +175,7 @@ mod tests {
     #[apply(test!)]
     async fn paginate() {
         let document = Json::default();
-        let mut connector = Io::default();
+        let mut connector = Cli::default();
         connector.set_document(Box::new(document)).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();

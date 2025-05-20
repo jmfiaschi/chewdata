@@ -30,7 +30,7 @@
 //!         "type": "writer",
 //!         "name": "write_a",
 //!         "connector": {
-//!             "type": "io"
+//!             "type": "cli"
 //!         },
 //!         "document": {
 //!             "type": "json"

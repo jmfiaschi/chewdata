@@ -25,7 +25,7 @@ async fn main() -> io::Result<()> {
     [{
         "type": "r",
         "conn":{
-            "type": "io"
+            "type": "cli"
         }
     },
     {
