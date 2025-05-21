@@ -3,8 +3,8 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use async_std::{sync::Mutex, task};
-use futures::StreamExt;
+use async_lock::Mutex;
+use smol::stream::StreamExt;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::io;
@@ -55,8 +55,10 @@ impl Referential {
     /// use serde_json::Value;
     /// use chewdata::DataResult;
     /// use chewdata::Context;
-    ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let referential_1 = Reader {
     ///         connector_type: ConnectorType::InMemory(InMemory::new(r#"[{"column1":"value1"}]"#)),
@@ -103,7 +105,7 @@ impl Referential {
             task_referential.set_receiver(receiver_input.clone());
             task_referential.set_sender(sender_output.clone());
 
-            task::spawn(async move { task_referential.exec().await }).await?;
+            smol::spawn(async move { task_referential.exec().await }).await?;
             sender_output.close();
 
             let values = receive(&receiver_output)
@@ -125,14 +127,15 @@ impl Referential {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use crate::{
         connector::{in_memory::InMemory, ConnectorType},
         DataResult,
     };
 
-    use super::*;
-
-    #[async_std::test]
+    #[apply(test!)]
     async fn test_to_value() {
         let referential_1 = Reader {
             connector_type: ConnectorType::InMemory(InMemory::new(

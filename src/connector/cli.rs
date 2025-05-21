@@ -1,10 +1,10 @@
-//! Read and write data through standard input and output.
+//! Read and write data through CLI.
 //!
 //! ### Configuration
 //!
 //! | key      | alias        | Description                                  | Default Value | Possible Values       |
 //! | -------- | ------------ | -------------------------------------------- | ------------- | --------------------- |
-//! | type     | -            | Required in order to use this connector      | `io`          | `io`                  |
+//! | type     | -            | Required in order to use this connector      | `cli`          | `cli`                  |
 //! | metadata | meta         | Override metadata information                | `null`        | [`crate::Metadata`] |
 //! | eoi      | end_of_input | Last charater that stops the reading in stdin | ``            | string                |
 //!
@@ -15,7 +15,7 @@
 //!     {
 //!         "type": "reader",
 //!         "connector":{
-//!             "type": "io",
+//!             "type": "cli",
 //!             "eoi": "",
 //!             "metadata": {
 //!                 ...
@@ -28,19 +28,20 @@ use super::Connector;
 use crate::connector::paginator::once::Once;
 use crate::document::Document;
 use crate::{DataSet, DataStream, Metadata};
-use async_std::io::BufReader;
-use async_std::io::{stdin, stdout};
-use async_std::prelude::*;
 use async_stream::stream;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::io::BufReader;
+use smol::prelude::*;
+use smol::Unblock;
+use std::io::{stdin, stdout};
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 #[serde(default, deny_unknown_fields)]
-pub struct Io {
+pub struct Cli {
     #[serde(skip)]
     document: Option<Box<dyn Document>>,
     #[serde(rename = "metadata")]
@@ -56,7 +57,7 @@ fn default_eof() -> String {
 }
 
 #[async_trait]
-impl Connector for Io {
+impl Connector for Cli {
     /// See [`Connector::set_document`] for more details.
     fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
         self.document = Some(document.clone());
@@ -97,27 +98,28 @@ impl Connector for Io {
     /// See [`Connector::fetch`] for more details.
     #[instrument(name = "io::fetch")]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
-        let stdin = BufReader::new(stdin());
         let document = self.document()?;
+        let mut reader = BufReader::new(Unblock::new(stdin()));
+        let mut buffer = String::default();
 
         trace!("Retreive lines");
-        let mut lines = stdin.lines();
-        let mut buf = String::default();
+        let mut line = String::default();
 
         trace!("Read lines");
-        while let Some(line) = lines.next().await {
-            let current_line: String = line?;
-            if current_line.eq(self.eoi.as_str()) {
+        loop {
+            reader.read_line(&mut line).await?;
+            if line.eq(self.eoi.as_str()) {
                 break;
             };
-            buf = format!("{}{}\n", buf, current_line);
+            buffer = format!("{}{}\n", buffer, line);
         }
-        trace!("Save lines into the buffer");
-        if !document.has_data(buf.as_bytes())? {
+
+        trace!("Lines saved into the buffer");
+        if !document.has_data(buffer.as_bytes())? {
             return Ok(None);
         }
 
-        let dataset = document.read(&buf.into_bytes())?;
+        let dataset = document.read(&buffer.into_bytes())?;
 
         info!("Fetch data with success");
 
@@ -132,16 +134,17 @@ impl Connector for Io {
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut buffer = Vec::default();
         let document = self.document()?;
+        let mut stdout = Unblock::new(stdout());
 
         buffer.append(&mut document.header(dataset)?);
         buffer.append(&mut document.write(dataset)?);
         buffer.append(&mut document.footer(dataset)?);
 
         trace!("Write data into stdout");
-        stdout().write_all(&buffer).await?;
+        stdout.write_all(&buffer).await?;
         // Force to send data
         trace!("Flush data into stdout");
-        stdout().flush().await?;
+        stdout.flush().await?;
 
         info!("Send data with success");
         Ok(None)
@@ -166,12 +169,13 @@ mod tests {
     use crate::document::json::Json;
 
     use super::*;
-    use async_std::prelude::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let document = Json::default();
-        let mut connector = Io::default();
+        let mut connector = Cli::default();
         connector.set_document(Box::new(document)).unwrap();
 
         let mut paging = connector.paginate().await.unwrap();

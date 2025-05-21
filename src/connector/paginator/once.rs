@@ -10,16 +10,19 @@ impl Once {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use chewdata::connector::io::Io;
+    /// ```
+    /// use chewdata::connector::cli::Cli;
     /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     /// use chewdata::connector::paginator::once::Once;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    ///
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
-    ///     let connector = Io::default();
+    ///     let connector = Cli::default();
     ///     let paginator = Once{};
     ///
     ///     let mut paging = paginator.paginate(&connector).await?;

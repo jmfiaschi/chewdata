@@ -52,9 +52,9 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
-use async_std::prelude::*;
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
+use smol::prelude::*;
+use std::sync::Arc;
+use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use aws_config::meta::credentials::CredentialsProviderChain;
@@ -364,7 +364,10 @@ impl Connector for Bucket {
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
@@ -424,10 +427,13 @@ impl Connector for Bucket {
     /// use chewdata::connector::{bucket::Bucket, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
-    /// use futures::StreamExt;
+    /// use smol::stream::StreamExt;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///     let mut connector = Bucket::default();
@@ -502,10 +508,13 @@ impl Connector for Bucket {
     /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
     /// use serde_json::{from_str, Value};
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
@@ -806,10 +815,13 @@ impl BucketPaginator {
     /// ```no_run
     /// use chewdata::connector::bucket::{Bucket, BucketPaginator};
     /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
     ///     connector.endpoint = Some("http://localhost:9000".to_string());
@@ -849,7 +861,9 @@ mod tests {
     use super::*;
     use crate::document::json::Json;
     use crate::DataResult;
-    use futures::StreamExt;
+    use smol::stream::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
     #[test]
     fn is_variable() {
@@ -884,7 +898,7 @@ mod tests {
         connector.set_parameters(params);
         assert_eq!("/dir/filename_value.ext", connector.path());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn len() {
         let mut connector = Bucket::default();
         connector.bucket = "my-bucket".to_string();
@@ -899,7 +913,7 @@ mod tests {
         connector.path = "data/not-found-file".to_string();
         assert_eq!(0, connector.len().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn is_empty() {
         let mut connector = Bucket::default();
         connector.bucket = "my-bucket".to_string();
@@ -908,7 +922,7 @@ mod tests {
         connector.path = "data/not_found.json".to_string();
         assert_eq!(true, connector.is_empty().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch() {
         let document = Json::default();
         let mut connector = Bucket::default();
@@ -922,7 +936,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn send() {
         let document = Json::default();
 
@@ -950,7 +964,7 @@ mod tests {
         assert_eq!(expected_result1, datastream.next().await.unwrap());
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginator_paginate() {
         let document = Json::default();
         let mut connector = Bucket::default();
@@ -969,7 +983,7 @@ mod tests {
             "Can't paginate more than one time."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginator_paginate_with_wildcard() {
         let document = Json::default();
         let mut connector = Bucket::default();
@@ -988,7 +1002,7 @@ mod tests {
             "Can't get the second reader."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginator_paginate_with_wildcard_limit_skip() {
         let document = Json::default();
         let mut connector = Bucket::default();

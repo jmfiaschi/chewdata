@@ -25,7 +25,7 @@ use super::Connector;
 use crate::connector::paginator::once::Once;
 use crate::document::Document;
 use crate::{DataSet, DataStream, Metadata};
-use async_std::sync::Mutex;
+use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
@@ -144,7 +144,10 @@ impl Connector for InMemory {
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0.");
@@ -181,12 +184,15 @@ impl Connector for InMemory {
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::jsonl::Jsonl;
-    /// use async_std::io::{Read, Write};
-    /// use async_std::prelude::*;
-    /// use futures::StreamExt;
+    /// use smol::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+    /// use smol::prelude::*;
+    /// use smol::stream::StreamExt;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Jsonl::default());
     ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
@@ -228,10 +234,13 @@ impl Connector for InMemory {
     /// use chewdata::connector::Connector;
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::DataResult;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Jsonl::default());
     ///
@@ -303,10 +312,13 @@ impl Connector for InMemory {
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::jsonl::Jsonl;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Jsonl::default());
     ///
@@ -344,9 +356,11 @@ mod tests {
     use crate::document::json::Json;
     use crate::document::jsonl::Jsonl;
     use crate::DataResult;
-    use futures::StreamExt;
+    use smol::stream::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn len() {
         let connector = InMemory::new(r#"[{"column1":"value1"}]"#);
         assert!(
@@ -354,14 +368,14 @@ mod tests {
             "The length of the document is not greather than 0."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn is_empty() {
         let connector = InMemory::new("");
         assert_eq!(true, connector.is_empty().await.unwrap());
         let connector = InMemory::new("My text");
         assert_eq!(false, connector.is_empty().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn fetch() {
         let document = Jsonl::default();
         let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
@@ -372,7 +386,7 @@ mod tests {
             "The inner connector should have a size upper than zero."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn send() {
         let document = Jsonl::default();
 
@@ -397,7 +411,7 @@ mod tests {
         assert_eq!(expected_result1, datastream.next().await.unwrap());
         assert_eq!(expected_result2, datastream.next().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn erase() {
         let document = Jsonl::default();
         let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
@@ -406,7 +420,7 @@ mod tests {
         let datastream = connector.fetch().await.unwrap();
         assert!(datastream.is_none(), "The datastream must be empty");
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let mut connector = InMemory::default();
         let document = Json::default();

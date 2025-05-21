@@ -185,7 +185,7 @@ fn it_should_read_data_get_api_with_basic() {
         serde_json::from_str(&json_result).expect("Parse json result failed.");
 
     assert_eq!(
-        r#"[{"authenticated":true,"user":"my-username"}]"#,
+        r#"[{"authorized":true,"user":"my-username"}]"#,
         object_result.to_string()
     );
 }

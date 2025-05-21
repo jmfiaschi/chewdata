@@ -7,7 +7,10 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{self, Layer};
 
-#[async_std::main]
+use macro_rules_attribute::apply;
+use smol_macros::main;
+
+#[apply(main!)]
 async fn main() -> io::Result<()> {
     let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());

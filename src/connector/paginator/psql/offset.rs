@@ -65,10 +65,13 @@ impl Offset {
     /// ```no_run
     /// use chewdata::connector::{psql::Psql, Connector};
     /// use chewdata::connector::paginator::psql::offset::Offset;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
@@ -124,12 +127,13 @@ impl Offset {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
+    use smol::stream::StreamExt;
     use crate::document::json::Json;
 
-    use super::*;
-    use futures::StreamExt;
-
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let mut connector = Psql::default();
         connector.endpoint = "psql://admin:admin@localhost:27017".into();
@@ -152,7 +156,7 @@ mod tests {
             "Can't get the second reader."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_with_skip_and_limit() {
         let document = Json::default();
 

@@ -1,11 +1,13 @@
-use env_applier::EnvApply;
 use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{self, Layer};
 
-#[async_std::main]
+use macro_rules_attribute::apply;
+use smol_macros::main;
+
+#[apply(main!)]
 async fn main() -> io::Result<()> {
     let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
@@ -22,24 +24,15 @@ async fn main() -> io::Result<()> {
     let config = r#"
     [{
         "type": "r",
-        "connector": {
-            "type": "local",
-            "path": "./data/multi_lines.json"
-        }
-    },{
-        "type": "r",
-        "connector": {
-            "type": "curl",
-            "endpoint": "{{ CURL_ENDPOINT }}",
-            "path": "/cache/60",
-            "method": "get",
-            "cache":"default"
+        "conn":{
+            "type": "cli"
         }
     },
     {
-        "type": "w"
+        "type": "write",
+        "dataset_size": 1
     }]
     "#;
 
-    chewdata::exec(serde_json::from_str(config.apply().as_str())?, None, None).await
+    chewdata::exec(serde_json::from_str(config)?, None, None).await
 }

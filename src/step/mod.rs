@@ -10,7 +10,7 @@ pub mod writer;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{Context, DataResult};
 use async_channel::{Receiver, Sender};
-use async_std::stream;
+use smol::stream;
 use async_stream::stream;
 use async_trait::async_trait;
 use eraser::Eraser;

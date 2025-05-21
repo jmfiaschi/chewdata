@@ -55,22 +55,22 @@
 use super::Authenticator;
 use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{connector::ConnectorType, document::jsonl::Jsonl};
-use async_std::prelude::StreamExt;
-use async_std::sync::Arc;
-use async_std::sync::Mutex;
+use async_lock::Mutex;
 use async_trait::async_trait;
+use http::header;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::stream::StreamExt;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
-use surf::http::headers;
 
 static TOKENS: OnceLock<Arc<Mutex<HashMap<String, String>>>> = OnceLock::new();
 
@@ -148,19 +148,21 @@ impl Jwt {
     ///
     /// ```no_run
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
-    /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use chewdata::Metadata;
     /// use serde_json::Value;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    ///
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///    let mut connector = Curl::default();
     ///    connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///    connector.path = "/tokens".to_string();
-    ///    connector.method = Method::Post;
+    ///    connector.method = "POST".into();
     ///    connector.parameters = serde_json::from_str(
     ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///    )?;
@@ -319,20 +321,22 @@ impl Authenticator for Jwt {
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
-    /// use surf::http::Method;
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt, Authenticator};
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
-    /// use futures::StreamExt;
+    /// use smol::stream::StreamExt;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    ///
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     connector.path = "/tokens".to_string();
-    ///     connector.method = Method::Post;
+    ///     connector.method = "POST".into();
     ///     connector.parameters = serde_json::from_str(
     ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///     ).unwrap();
@@ -351,7 +355,7 @@ impl Authenticator for Jwt {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
-    ///     connector.method = Method::Get;
+    ///     connector.method = "GET".into();
     ///     connector.path = "/bearer".to_string();
     ///     connector.set_document(document);
     ///
@@ -397,14 +401,14 @@ impl Authenticator for Jwt {
             Some(token_value) => {
                 let bearer = token_value;
                 (
-                    headers::AUTHORIZATION.to_string().into_bytes(),
+                    header::AUTHORIZATION.to_string().into_bytes(),
                     format!("Bearer {}", bearer).into_bytes(),
                 )
             }
             None => {
                 warn!("No JWT found for the authentication");
                 (
-                    headers::AUTHORIZATION.to_string().into_bytes(),
+                    header::AUTHORIZATION.to_string().into_bytes(),
                     "Bearer".to_string().into_bytes(),
                 )
             }
@@ -419,14 +423,15 @@ mod tests {
     use crate::connector::Connector;
     use crate::document::json::Json;
     use crate::Metadata;
-    use http_types::Method;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn refresh_with_jwt_builder() {
         let mut connector = Curl::default();
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         connector.path = "/tokens".to_string();
-        connector.method = Method::Post;
+        connector.method = "POST".to_string();
         connector.parameters = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
@@ -444,13 +449,13 @@ mod tests {
             Err(e) => assert!(false, "The token can't be refreshed: '{}'", e),
         };
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn refresh_with_keycloak() {
         let mut connector = Curl::default();
         connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
-        connector.method = Method::Post;
+        connector.method = "POST".to_string();
         connector.timeout = Some(60);
         connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
@@ -467,12 +472,12 @@ mod tests {
             Err(e) => assert!(false, "The token can't be refreshed: '{}'", e),
         };
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn authenticate_jwt_builder() {
         let mut connector = Curl::default();
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         connector.path = "/tokens".to_string();
-        connector.method = Method::Post;
+        connector.method = "POST".to_string();
         connector.parameters = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
@@ -490,7 +495,7 @@ mod tests {
         assert_eq!(auth_name, b"authorization");
         assert_eq!(auth_value, b"Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJHaXZlbk5hbWUiOiJKb2hubnkiLCJpYXQiOjE1OTk0NjI3NTUsImV4cCI6MzMxNTY0MTYwNzd9.AqlRN2x6T0bE1pJJZ0WPQrmLiK37iT89zlLBiRG5Zu0");
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn authenticate_with_keycloak() {
         let mut jwk_document = Json::default();
         jwk_document.entry_path = Some("/keys".to_string());
@@ -499,7 +504,7 @@ mod tests {
         jwk_connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         jwk_connector.path = "/certs".to_string();
-        jwk_connector.method = Method::Get;
+        jwk_connector.method = "GET".to_string();
         jwk_connector.timeout = Some(60);
         jwk_connector.set_document(Box::new(jwk_document)).unwrap();
 
@@ -511,7 +516,7 @@ mod tests {
         connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
-        connector.method = Method::Post;
+        connector.method = "POST".to_string();
         connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
         let mut auth = Jwt::default();

@@ -30,11 +30,14 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v1
+      - uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build
-      - run: make setup
-      - run: make build
+      - run: just setup
+      - run: just build
   benchmark:
     runs-on: ubuntu-latest
     steps:
@@ -46,11 +49,15 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v1
+      - uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: benchmark
-      - run: make setup
-      - run: make bench | tee output.txt
+      - uses: webgtx/setup-podman-compose@v1
+      - run: just setup
+      - run: just bench | tee output.txt
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
@@ -73,11 +80,14 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v1
+      - uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: release
-      - run: make setup
-      - run: make release
+      - run: just setup
+      - run: just release
   unit-tests:
     needs: [build, lint]
     runs-on: ubuntu-latest
@@ -89,10 +99,14 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v1
+      - uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build
-      - run: make unit-tests
+      - uses: webgtx/setup-podman-compose@v1
+      - run: just unit-tests
   integration-tests:
     needs: [build, lint]
     runs-on: ubuntu-latest
@@ -104,10 +118,14 @@ jobs:
           override: true
       - run: cp .env.ci .env
       - uses: falti/dotenv-action@v1
+      - uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build
-      - run: make integration-tests
+      - uses: webgtx/setup-podman-compose@v1
+      - run: just integration-tests
   semantic-release:
     needs: [benchmark, integration-tests, unit-tests, release]
     runs-on: ubuntu-latest
@@ -140,6 +158,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: release
@@ -148,7 +169,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       - run: cp .env.ci .env
-      - run: CHEWDATA_TAG=$(make version) && echo "CHEWDATA_TAG=$CHEWDATA_TAG" >> $GITHUB_ENV
+      - run: CHEWDATA_TAG=$(just version) && echo "CHEWDATA_TAG=$CHEWDATA_TAG" >> $GITHUB_ENV
       - uses: docker/setup-buildx-action@v2
       - uses: docker/build-push-action@v3
         with:

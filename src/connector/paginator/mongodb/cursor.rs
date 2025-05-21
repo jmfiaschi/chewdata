@@ -33,8 +33,9 @@ use crate::{
     connector::{mongodb::Mongodb, Connector},
     ConnectorStream,
 };
+use async_compat::{Compat, CompatExt};
 use async_stream::stream;
-use futures::StreamExt;
+use smol::stream::StreamExt;
 use mongodb::{
     bson::{doc, Document},
     Client,
@@ -65,11 +66,13 @@ impl Cursor {
     ///
     /// ```no_run
     /// use chewdata::connector::{mongodb::Mongodb, Connector};
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use chewdata::connector::paginator::mongodb::cursor::Cursor;
     /// use std::io;
-    ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -101,20 +104,24 @@ impl Cursor {
         let mut options = (*connector.find_options.clone()).unwrap_or_default();
         options.skip = Some(skip as u64);
 
-        let filter: Option<Document> = match connector.filter(&parameters) {
+        let filter: Document = match connector.filter(&parameters) {
             Some(filter) => serde_json::from_str(filter.to_string().as_str())?,
-            None => None,
+            None => Document::new(),
         };
 
         let client = Client::with_uri_str(&hostname)
+            .compat()
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
         let db = client.database(&database);
         let collection = db.collection::<Document>(&collection);
-        let cursor = collection
-            .find(filter, Some(options))
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        let cursor = Compat::new(async {
+            collection
+                .find(filter)
+                .with_options(Some(options))
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))
+        }).await?;
         let cursor_size = cursor.count().await;
 
         Ok(Box::pin(stream! {
@@ -140,8 +147,10 @@ impl Cursor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -161,7 +170,7 @@ mod tests {
         let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_some());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_to_end() {
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();

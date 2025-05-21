@@ -30,7 +30,7 @@
 //!         "type": "writer",
 //!         "name": "write_a",
 //!         "connector": {
-//!             "type": "io"
+//!             "type": "cli"
 //!         },
 //!         "document": {
 //!             "type": "json"
@@ -59,7 +59,7 @@ use crate::step::{DataResult, Step};
 use crate::Context;
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
-use futures::StreamExt;
+use smol::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::io;
 use uuid::Uuid;
@@ -315,14 +315,15 @@ impl Step for Writer {
 
 #[cfg(test)]
 mod tests {
-    use crate::connector::in_memory::InMemory;
-
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use serde_json::Value;
     use std::io::{Error, ErrorKind};
     use std::thread;
+    use crate::connector::in_memory::InMemory;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_different_data_result_type() {
         let mut step = Writer::default();
         let (sender_input, receiver_input) = async_channel::unbounded();
@@ -342,7 +343,7 @@ mod tests {
 
         assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_same_data_result_type() {
         let mut step = Writer::default();
         let (sender_input, receiver_input) = async_channel::unbounded();

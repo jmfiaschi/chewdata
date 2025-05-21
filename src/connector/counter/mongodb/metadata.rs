@@ -30,11 +30,12 @@
 //!      }
 //!  ]
 //!  ```
+use async_compat::{Compat, CompatExt};
 use mongodb::{bson::Document, Client};
 use serde::{Deserialize, Serialize};
 
 use crate::connector::mongodb::Mongodb;
-use std::io::{Error, ErrorKind, Result};
+use std::io::{Error, Result};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Metadata {}
@@ -46,11 +47,13 @@ impl Metadata {
     ///
     /// ```no_run
     /// use chewdata::connector::mongodb::Mongodb;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     /// use chewdata::connector::counter::mongodb::metadata::Metadata;
-    ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -65,18 +68,22 @@ impl Metadata {
     /// ```
     #[instrument(name = "metadata::count")]
     pub async fn count(&self, connector: &Mongodb) -> Result<usize> {
-        let client = match Client::with_uri_str(&connector.endpoint).await {
-            Ok(client) => client,
-            Err(e) => return Err(Error::new(ErrorKind::Interrupted, e)),
-        };
+        let client = Client::with_uri_str(&connector.endpoint)
+            .compat()
+            .await
+            .map_err(|e| Error::new(std::io::ErrorKind::Interrupted, e))?;
+
         let db = client.database(&connector.database);
         let collection = db.collection::<Document>(&connector.collection);
-        let count = collection
-            .estimated_document_count(None)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
-        trace!(count = count, "Count with success");
+        let count = Compat::new(async {
+            collection
+            .estimated_document_count()
+            .await
+            .map_err(|e| Error::new(std::io::ErrorKind::Interrupted, e))
+        }).await?;
+
+        trace!(count = count, "Count successful");
 
         Ok(count as usize)
     }
@@ -85,8 +92,10 @@ impl Metadata {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn count() {
         let mut connector = Mongodb::default();
         connector.endpoint = "mongodb://admin:admin@localhost:27017".into();

@@ -68,10 +68,13 @@ impl Offset {
     /// ```no_run
     /// use chewdata::connector::{mongodb::Mongodb, Connector};
     /// use chewdata::connector::paginator::mongodb::offset::Offset;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
@@ -125,13 +128,13 @@ impl Offset {
 
 #[cfg(test)]
 mod tests {
-    use futures::StreamExt;
-
+    use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
+    use smol::stream::StreamExt;
     use crate::document::json::Json;
 
-    use super::*;
-
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let document = Json::default();
 

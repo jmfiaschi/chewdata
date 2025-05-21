@@ -49,11 +49,14 @@ impl Wildcard {
     /// ```no_run
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     /// use chewdata::connector::paginator::local::wildcard::Wildcard;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Local::default();
     ///     connector.path = "./data/one_line.*".to_string();
@@ -87,12 +90,14 @@ impl Wildcard {
 
 #[cfg(test)]
 mod tests {
-    use futures::StreamExt;
+    use smol::stream::StreamExt;
 
     use super::*;
     use crate::{connector::local::Local, document::json::Json};
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let document = Json::default();
         let mut connector = Local::default();

@@ -21,10 +21,9 @@ pub mod updater;
 
 use self::step::StepType;
 use async_channel::{Receiver, Sender};
-use async_std::task;
+use futures::StreamExt;
 use connector::Connector;
 use futures::stream::{self, Stream};
-use futures::StreamExt;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -70,7 +69,7 @@ pub async fn exec(
     }
 
     let results: Vec<Result<_>> = stream::iter(steps)
-        .map(|step| task::spawn(async move { step.exec().await }))
+        .map(|step| smol::spawn(async move { step.exec().await }))
         .buffer_unordered(usize::MAX)
         .collect()
         .await;

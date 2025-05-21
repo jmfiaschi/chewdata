@@ -34,7 +34,7 @@
 //! ```
 use crate::connector::Connector;
 use crate::{connector::curl::Curl, ConnectorStream};
-use async_std::stream::StreamExt;
+use smol::stream::StreamExt;
 use async_stream::stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -67,15 +67,17 @@ impl Offset {
     /// ```no_run
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::offset::Offset;
-    /// use surf::http::Method;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Get;
+    ///     connector.method = "GET".into();
     ///     connector.path = "/get".to_string();
     ///    
     ///     let paginator = Offset {
@@ -94,12 +96,13 @@ impl Offset {
     #[instrument(name = "offset::paginate")]
     pub async fn paginate(&self, connector: &Curl) -> Result<ConnectorStream> {
         let connector = connector.clone();
-        let mut has_next = true;
         let limit = self.limit;
         let mut skip = self.skip;
         let count_opt = self.count;
 
         let stream = Box::pin(stream! {
+            let mut has_next = true;
+
             while has_next {
                 let mut new_connector = connector.clone();
                 let mut new_parameters = connector.parameters.clone();
@@ -136,7 +139,7 @@ impl Offset {
 
                 skip += limit;
 
-                trace!(connector = format!("{:?}", new_connector).as_str(), "Yield a new connector");
+                trace!(connector = format!("{:?}", new_connector), "Yield a new connector");
                 yield Ok(Box::new(new_connector) as Box<dyn Connector>);
             }
             trace!("Stop yielding new connector");
@@ -152,20 +155,21 @@ mod tests {
     use crate::document::json::Json;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
-    use futures::StreamExt;
-    use http_types::Method;
+    use smol::stream::StreamExt;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
     use super::*;
 
     #[cfg(feature = "xml")]
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate() {
         let mut document = Xml::default();
         document.entry_path = "/html/body/*/a".to_string();
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -192,12 +196,12 @@ mod tests {
             "The content of this two files is not different."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_one_time() {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/get".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -211,12 +215,12 @@ mod tests {
         let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_none());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_tree_times_and_parallize() {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -237,12 +241,12 @@ mod tests {
         let connector = paging.next().await.transpose().unwrap();
         assert!(connector.is_none());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn paginate_until_reach_the_end() {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Get;
+        connector.method = "GET".into();
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 

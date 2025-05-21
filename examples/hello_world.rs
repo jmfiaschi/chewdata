@@ -1,6 +1,9 @@
 use std::io;
 
-#[async_std::main]
+use macro_rules_attribute::apply;
+use smol_macros::main;
+
+#[apply(main!)]
 async fn main() -> io::Result<()> {
     let config = r#"
     [{

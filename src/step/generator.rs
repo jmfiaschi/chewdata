@@ -76,7 +76,7 @@ use crate::Context;
 use crate::DataResult;
 use async_channel::{Receiver, Sender};
 use async_trait::async_trait;
-use futures::StreamExt;
+use smol::stream::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
 use std::io;
@@ -181,11 +181,13 @@ impl Step for Generator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use serde_json::Value;
     use std::io::{Error, ErrorKind};
     use std::thread;
 
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_different_data_result_type() {
         let mut step = Generator::default();
         let (sender_input, receiver_input) = async_channel::unbounded();
@@ -205,7 +207,7 @@ mod tests {
 
         assert_eq!(expected_context, receiver_output.recv().await.unwrap());
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn exec_with_same_data_result_type() {
         let mut step = Generator::default();
         let (sender_input, receiver_input) = async_channel::unbounded();

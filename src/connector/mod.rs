@@ -4,11 +4,11 @@ pub mod authenticator;
 pub mod bucket;
 #[cfg(feature = "bucket")]
 pub mod bucket_select;
+pub mod cli;
 pub mod counter;
 #[cfg(feature = "curl")]
 pub mod curl;
 pub mod in_memory;
-pub mod io;
 pub mod local;
 #[cfg(feature = "mongodb")]
 pub mod mongodb;
@@ -20,10 +20,10 @@ pub mod psql;
 use self::bucket::Bucket;
 #[cfg(feature = "bucket")]
 use self::bucket_select::BucketSelect;
+use self::cli::Cli;
 #[cfg(feature = "curl")]
 use self::curl::Curl;
 use self::in_memory::InMemory;
-use self::io::Io;
 use self::local::Local;
 #[cfg(feature = "mongodb")]
 use self::mongodb::Mongodb;
@@ -47,8 +47,8 @@ pub enum ConnectorType {
     #[serde(rename = "in_memory")]
     #[serde(alias = "mem")]
     InMemory(InMemory),
-    #[serde(rename = "io")]
-    Io(Io),
+    #[serde(rename = "cli")]
+    Cli(Cli),
     #[serde(rename = "local")]
     Local(Local),
     #[cfg(feature = "bucket")]
@@ -73,7 +73,7 @@ pub enum ConnectorType {
 
 impl Default for ConnectorType {
     fn default() -> Self {
-        ConnectorType::Io(Io::default())
+        ConnectorType::Cli(Cli::default())
     }
 }
 
@@ -81,7 +81,7 @@ impl ConnectorType {
     pub fn boxed_inner(self) -> Box<dyn Connector> {
         match self {
             ConnectorType::InMemory(connector) => Box::new(connector),
-            ConnectorType::Io(connector) => Box::new(connector),
+            ConnectorType::Cli(connector) => Box::new(connector),
             ConnectorType::Local(connector) => Box::new(connector),
             #[cfg(feature = "curl")]
             ConnectorType::Curl(connector) => Box::new(connector),
@@ -101,7 +101,7 @@ impl ConnectorType {
     pub fn inner(&self) -> &dyn Connector {
         match self {
             ConnectorType::InMemory(connector) => connector,
-            ConnectorType::Io(connector) => connector,
+            ConnectorType::Cli(connector) => connector,
             ConnectorType::Local(connector) => connector,
             #[cfg(feature = "curl")]
             ConnectorType::Curl(connector) => connector,

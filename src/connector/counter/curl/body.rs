@@ -43,7 +43,7 @@
 //! }
 //! ```
 use crate::connector::{curl::Curl, Connector};
-use async_std::stream::StreamExt;
+use smol::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Result;
@@ -75,16 +75,18 @@ impl Body {
     /// use chewdata::connector::curl::Curl;
     /// use chewdata::connector::counter::curl::body::Body;
     /// use chewdata::document::json::Json;
-    /// use surf::http::Method;
-    /// use async_std::prelude::*;
+    /// use smol::prelude::*;
     /// use std::io;
     /// use crate::chewdata::document::Document;
     ///
-    /// #[async_std::main]
+    /// use macro_rules_attribute::apply;
+    /// use smol_macros::main;
+    /// 
+    /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = Method::Post;
+    ///     connector.method = "POST".into();
     ///     connector.path = "/anything?count=10".to_string();
     ///     connector.metadata = Json::default().metadata();
     ///
@@ -97,14 +99,13 @@ impl Body {
     /// ```
     #[instrument(name = "body::count")]
     pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
+        let mut connector = connector.clone();
         let mut document = connector.document()?.clone();
         document.set_entry_path(self.entry_path.clone());
+        connector.set_document(document)?;
 
-        let mut connector = connector.clone();
-        connector.set_document(document.clone())?;
-
-        if let Some(path) = self.path.clone() {
-            connector.path = path;
+        if let Some(ref path) = self.path {
+            connector.path = path.clone();
         }
 
         let mut dataset = match connector.fetch().await? {
@@ -115,22 +116,11 @@ impl Body {
             }
         };
 
-        let data_opt = dataset.next().await;
-
-        let value = match data_opt {
-            Some(data) => data.to_value(),
-            None => Value::Null,
-        };
+        let value = dataset.next().await.map_or(Value::Null, |data| data.to_value());
 
         let count_opt = match value {
-            Value::Number(_) => value.as_u64().map(|number| number as usize),
-            Value::String(_) => match value.as_str() {
-                Some(value) => match value.parse::<usize>() {
-                    Ok(number) => Some(number),
-                    Err(_) => None,
-                },
-                None => None,
-            },
+            Value::Number(n) => n.as_u64().map(|number| number as usize),
+            Value::String(s) => s.parse::<usize>().ok(),
             _ => None,
         };
 
@@ -141,19 +131,18 @@ impl Body {
 
 #[cfg(test)]
 mod tests {
-    use http_types::Method;
-
+    use super::*;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
     use crate::document::json::Json;
 
-    use super::*;
-
-    #[async_std::test]
+    #[apply(test!)]
     async fn count_return_value() {
         let document = Json::default();
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Post;
+        connector.method = "POST".to_string();
         connector.path = "/anything?count=10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -164,13 +153,13 @@ mod tests {
             "Counter count() must return a value upper than 0."
         );
     }
-    #[async_std::test]
+    #[apply(test!)]
     async fn count_not_return_value() {
         let document = Json::default();
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = Method::Post;
+        connector.method = "POST".to_string();
         connector.path = "/anything?count=10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
