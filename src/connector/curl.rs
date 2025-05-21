@@ -418,10 +418,28 @@ impl Curl {
         let mut redirect_count: u8 = 0;
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = client
-                .send_request(request.clone())
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            let res = loop {
+                // Retry when :
+                //  * server close the connection.
+                match client.try_send_request(request.clone()).await {
+                    Ok(res) => break Ok(res),
+                    Err(mut e) => {
+                        let req_back = e.take_message();
+                        let original_error = e.into_error();
+                        match req_back {
+                            Some(req_back) if original_error.is_canceled() => {
+                                request = req_back;
+                                warn!(
+                                    url = request.uri().to_string(),
+                                    "Retrying the request after server closed the connection"
+                                );
+                                continue;
+                            }
+                            _ => break Err(Error::new(ErrorKind::Interrupted, original_error)),
+                        }
+                    }
+                }
+            }?;
 
             if REDIRECT_CODES.contains(&res.status()) {
                 if let Some(location) = &res.headers().get("location") {
@@ -741,10 +759,28 @@ impl Connector for Curl {
         let mut redirect_count: u8 = 0;
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = client
-                .send_request(request.clone())
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            let res = loop {
+                // Retry when :
+                //  * server close the connection.
+                match client.try_send_request(request.clone()).await {
+                    Ok(res) => break Ok(res),
+                    Err(mut e) => {
+                        let req_back = e.take_message();
+                        let original_error = e.into_error();
+                        match req_back {
+                            Some(req_back) if original_error.is_canceled() => {
+                                request = req_back;
+                                warn!(
+                                    url = request.uri().to_string(),
+                                    "Retrying the request after server closed the connection"
+                                );
+                                continue;
+                            }
+                            _ => break Err(Error::new(ErrorKind::Interrupted, original_error)),
+                        }
+                    }
+                }
+            }?;
 
             if REDIRECT_CODES.contains(&res.status()) {
                 if let Some(location) = res.headers().get("location") {
@@ -908,10 +944,28 @@ impl Connector for Curl {
         let mut redirect_count: u8 = 0;
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = client
-                .send_request(request.clone())
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            let res = loop {
+                // Retry when :
+                //  * server close the connection.
+                match client.try_send_request(request.clone()).await {
+                    Ok(res) => break Ok(res),
+                    Err(mut e) => {
+                        let req_back = e.take_message();
+                        let original_error = e.into_error();
+                        match req_back {
+                            Some(req_back) if original_error.is_canceled() => {
+                                request = req_back;
+                                warn!(
+                                    url = request.uri().to_string(),
+                                    "Retrying the request after server closed the connection"
+                                );
+                                continue;
+                            }
+                            _ => break Err(Error::new(ErrorKind::Interrupted, original_error)),
+                        }
+                    }
+                }
+            }?;
 
             if REDIRECT_CODES.contains(&res.status()) {
                 if let Some(location) = res.headers().get("location") {
@@ -1008,10 +1062,28 @@ impl Connector for Curl {
         let mut redirect_count: u8 = 0;
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = client
-                .send_request(request.clone())
-                .await
-                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+            let res = loop {
+                // Retry when :
+                //  * server close the connection.
+                match client.try_send_request(request.clone()).await {
+                    Ok(res) => break Ok(res),
+                    Err(mut e) => {
+                        let req_back = e.take_message();
+                        let original_error = e.into_error();
+                        match req_back {
+                            Some(req_back) if original_error.is_canceled() => {
+                                request = req_back;
+                                warn!(
+                                    url = request.uri().to_string(),
+                                    "Retrying the request after server closed the connection"
+                                );
+                                continue;
+                            }
+                            _ => break Err(Error::new(ErrorKind::Interrupted, original_error)),
+                        }
+                    }
+                }
+            }?;
 
             if REDIRECT_CODES.contains(&res.status()) {
                 if let Some(location) = res.headers().get("location") {
@@ -1375,7 +1447,6 @@ mod tests {
             "The inner connector should raise an error."
         );
     }
-    // httpbin return 500 code error.
     #[apply(test!)]
     async fn test_redirection_with_erase() {
         let mut connector = Curl::default();
