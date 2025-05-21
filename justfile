@@ -90,7 +90,7 @@ coverage_it:
 
 # Benchmark the project.
 bench: stop http-mock
-    cargo criterion --benches --output-format bencher --plotting-backend disabled --features "xml csv parquet toml bucket curl mongodb psql"
+    cargo criterion --benches --output-format bencher --plotting-backend disabled --features "xml csv parquet toml bucket curl mongodb psql" 2>&1
 
 # Start minio in local.
 minio:
