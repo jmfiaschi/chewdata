@@ -1,3 +1,38 @@
+# [2.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.12.0...v2.13.0-beta.1) (2025-05-21)
+
+
+### Bug Fixes
+
+* **curl:** add authentication ([5edee05](https://github.com/jmfiaschi/chewdata/commit/5edee05c4f60834442be33273f6cff5b3e1870e1))
+* **just:** add start command ([f9335ec](https://github.com/jmfiaschi/chewdata/commit/f9335eca80384f5a68602c373ed9310c4a9177d4))
+* **surf:** h1-client-rustls feature has issue "invalid HTTP version" ([3962020](https://github.com/jmfiaschi/chewdata/commit/3962020cbe8f07665025906d15bd95202449cb00))
+* **updater:** control method input ([080f2b7](https://github.com/jmfiaschi/chewdata/commit/080f2b7f34a7a672344ad206020cca36c6d923f7))
+
+
+### Features
+
+* **bench:** update ([c47e54e](https://github.com/jmfiaschi/chewdata/commit/c47e54e72c3bb676206febf6a402d50943251e08))
+* **bench:** update ([5770f18](https://github.com/jmfiaschi/chewdata/commit/5770f183a75a0af1b9927f9785e8393abe5927ea))
+* **cicd:** add podman install ([c3d20e3](https://github.com/jmfiaschi/chewdata/commit/c3d20e36364c96f33ffdb00f816eebd76b82daf1))
+* **ci:** use webgtx/setup-podman-compose@v1 ([ee9e23c](https://github.com/jmfiaschi/chewdata/commit/ee9e23c6f240905722b146c841a526e6bed39306))
+* **curl:** add curl in bench ([9ed2e19](https://github.com/jmfiaschi/chewdata/commit/9ed2e19bbf86fd8ed959a97049dee6132239f1cd))
+* **curl:** add http cache with less configuration ([41aa71e](https://github.com/jmfiaschi/chewdata/commit/41aa71e62dc571f040dce32cdd036816779e83ac))
+* **curl:** add http cache with less configuration ([f40f8df](https://github.com/jmfiaschi/chewdata/commit/f40f8dfbe5b045e72767d284ae5c3a229ebaf75d))
+* **curl:** add http cache with less configuration ([f5d222d](https://github.com/jmfiaschi/chewdata/commit/f5d222d9097bcea53dc23080bb36236a2067527f))
+* **curl:** improve curl ([1332d58](https://github.com/jmfiaschi/chewdata/commit/1332d5818802ba615491527164bd55db6dabd957))
+* **curl:** manage http call retry when server close the connection ([1f4c5a0](https://github.com/jmfiaschi/chewdata/commit/1f4c5a09705d20a2323b88b9dfa3bee13c9dd5c9))
+* **curl:** remove useless parameters ([c0e5afc](https://github.com/jmfiaschi/chewdata/commit/c0e5afc7ef1505658565dd6c104acbfcca68877c))
+* **project:** add healthcheck to stabalize the E2E tests ([20d1063](https://github.com/jmfiaschi/chewdata/commit/20d10639c0908df8f93586c8d7a3380b6c2a69bf))
+* **project:** replace async_std by smol ([a1e9f8d](https://github.com/jmfiaschi/chewdata/commit/a1e9f8dfaaed2118a091ced4eac3fec2a080acd6))
+* **project:** replace IO by CLI ([5b46de1](https://github.com/jmfiaschi/chewdata/commit/5b46de1d8aab3bea4775b1c0924c663aee652ed5))
+* **project:** replace IO by CLI ([64619d3](https://github.com/jmfiaschi/chewdata/commit/64619d31e19237fdbb5983d79b79c145bb06dd2f))
+* **project:** replace makefile by justfile ([c7139dc](https://github.com/jmfiaschi/chewdata/commit/c7139dc6edf4c78705a3fe7d3d183f0eb3bf50fb))
+
+
+### Reverts
+
+* **surf:** h1-client-rustls ([07aae12](https://github.com/jmfiaschi/chewdata/commit/07aae128309b8e3d786be43f51d9c547e6c4684c))
+
 # [2.12.0](https://github.com/jmfiaschi/chewdata/compare/v2.11.0...v2.12.0) (2024-12-16)
 
 
