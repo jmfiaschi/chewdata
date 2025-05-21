@@ -1,3 +1,25 @@
+# [3.0.0](https://github.com/jmfiaschi/chewdata/compare/v2.12.0...v3.0.0) (2025-05-21)
+
+
+### Features
+
+* **cargo:** update lib ([17577ba](https://github.com/jmfiaschi/chewdata/commit/17577ba189d22d6368b0f0d486700314cbebacba))
+* **project:** remplace async_std by smol and surf by hyper ([#61](https://github.com/jmfiaschi/chewdata/issues/61)) ([2b729e4](https://github.com/jmfiaschi/chewdata/commit/2b729e423f3de7b1039fcbc5a9f300a1767ddf1c))
+
+
+### BREAKING CHANGES
+
+* **project:** remote surf cache and find better solution with http-cache and hyper
+* feat(curl): add curl in bench
+* feat(cicd): add podman install
+* feat(project): replace IO by CLI
+* feat(curl):use go-httpbin instead of httpbin
+* feat(curl): manage http call retry when server close the connection
+
+* chore(release): 2.13.0-beta.1 [skip ci]
+
+# [2.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.12.0...v2.13.0-beta.1) (2025-05-21)
+
 # [2.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.12.0...v2.13.0-beta.1) (2025-05-21)
 
 
