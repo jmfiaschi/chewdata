@@ -1325,7 +1325,8 @@ mod tests {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = "HEAD".into();
-        connector.path = "/json".to_string();
+        connector.path = "/get".to_string();
+        connector.is_cached = false;
         connector.set_document(Box::new(document)).unwrap();
 
         assert!(

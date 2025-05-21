@@ -1,6 +1,6 @@
 use chewdata::connector::curl::Curl;
 use chewdata::connector::in_memory::InMemory;
-use chewdata::connector::{Connector, ConnectorClone};
+use chewdata::connector::Connector;
 #[cfg(feature = "csv")]
 use chewdata::document::csv::Csv;
 use chewdata::document::json::Json;
@@ -18,7 +18,7 @@ use criterion::async_executor::FuturesExecutor;
 use criterion::{criterion_group, criterion_main, Criterion};
 use futures::stream::StreamExt;
 use serde_json::Value;
-use std::{fs::OpenOptions, io::Read};
+use std::io::Read;
 
 fn document_read_benchmark(c: &mut Criterion) {
     let readers: Vec<(&str, &str, Box<dyn Document>)> = vec![
@@ -40,22 +40,24 @@ fn document_read_benchmark(c: &mut Criterion) {
     ];
 
     for (format, file, document) in readers {
-        let mut buf = Vec::default();
-        OpenOptions::new()
-            .read(true)
-            .open(file)
+        // Load the file into memory once
+        let mut buf = Vec::new();
+        std::fs::File::open(file)
             .unwrap()
             .read_to_end(&mut buf)
             .unwrap();
 
-        let mut connector: InMemory = buf.into();
-        connector.set_document(document).unwrap();
+        // Keep the original buf immutable and clone it each time
+        let document = document.clone_box(); // if trait supports it
 
-        c.bench_function(format!("read_{}/", format).as_str(), move |b| {
+        c.bench_function(format!("read_{}", format).as_str(), move |b| {
+            let buf = buf.clone();
             b.to_async(FuturesExecutor).iter(|| async {
-                let mut connector: Box<dyn Connector> = connector.clone_box();
+                let mut connector: InMemory = buf.clone().into();
+                connector.set_document(document.clone_box()).unwrap();
+
                 let mut dataset = connector.fetch().await.unwrap().unwrap();
-                while let Some(_) = dataset.next().await {}
+                while dataset.next().await.is_some() {}
             });
         });
     }
@@ -71,21 +73,21 @@ fn faker_benchmark(c: &mut Criterion) {
     ];
 
     for (action_name, action_pattern) in fakers {
-        let updater = UpdaterType::default().updater_inner();
+        let action = Action {
+            field: action_name.to_string(),
+            pattern: Some(action_pattern.to_string()),
+            action_type: ActionType::Merge,
+        };
 
-        c.bench_function(format!("{}/", action_name).as_str(), move |b| {
+        let updater = UpdaterType::default().updater_inner();
+        let actions = vec![action];
+        let input_value = Value::default();
+
+        c.bench_function(format!("faker/{}", action_name).as_str(), move |b| {
             b.to_async(FuturesExecutor).iter(|| async {
+                // Appel minimal dans chaque itération
                 updater
-                    .update(
-                        &Value::default(),
-                        &Value::default(),
-                        &Value::default(),
-                        &vec![Action {
-                            field: action_name.to_string(),
-                            pattern: Some(action_pattern.to_string()),
-                            action_type: ActionType::Merge,
-                        }],
-                    )
+                    .update(&input_value, &input_value, &input_value, &actions)
                     .await
                     .unwrap();
             });
@@ -94,31 +96,51 @@ fn faker_benchmark(c: &mut Criterion) {
 }
 
 fn curl_http1_benchmark(c: &mut Criterion) {
-    let curls = vec![("/get", "GET"), ("/get", "HEAD")];
-
-    let document = Json::default();
+    let curls: Vec<(&'static str, &'static str)> = vec![("/get", "GET"), ("/get", "HEAD")];
 
     for (path, method) in curls {
-        let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
-        connector.path = path.to_string();
-        connector.method = method.to_string();
-        connector.is_cached = false;
-        connector.set_document(Box::new(document.clone())).unwrap();
+        let endpoint = "http://localhost:8080".to_string();
+        let path = path.to_string();
+        let method = method.to_string();
+        let document = Json::default();
 
         c.bench_function(&format!("curl/{}/", method), move |b| {
             b.to_async(FuturesExecutor).iter(|| async {
-                let mut connector: Box<dyn Connector> = connector.clone_box();
-                let _result = connector.fetch().await.unwrap();
+                let mut connector = Curl::default();
+                connector.endpoint = endpoint.clone();
+                connector.path = path.clone();
+                connector.method = method.clone();
+                connector.is_cached = false;
+                connector.set_document(Box::new(document.clone())).unwrap();
+
+                let _ = connector.fetch().await.unwrap();
             });
         });
     }
 }
 
-criterion_group!(
-    benches,
-    document_read_benchmark,
-    faker_benchmark,
-    curl_http1_benchmark
-);
-criterion_main!(benches);
+fn criterion_http_config() -> Criterion {
+    Criterion::default()
+        .sample_size(10)
+        .measurement_time(std::time::Duration::from_secs(1))
+}
+
+criterion_group! {
+    name = reader;
+    config = Criterion::default();
+    targets = document_read_benchmark
+}
+
+criterion_group! {
+    name = updater;
+    config = Criterion::default();
+    targets = faker_benchmark
+}
+
+criterion_group! {
+    name = http;
+    config = criterion_http_config();
+    targets = curl_http1_benchmark
+}
+
+criterion_main!(reader, http, updater);
