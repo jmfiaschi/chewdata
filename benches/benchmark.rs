@@ -1,3 +1,4 @@
+#[cfg(feature = "curl")]
 use chewdata::connector::curl::Curl;
 use chewdata::connector::in_memory::InMemory;
 use chewdata::connector::Connector;
@@ -15,7 +16,7 @@ use chewdata::document::yaml::Yaml;
 use chewdata::document::Document;
 use chewdata::updater::{Action, ActionType, UpdaterType};
 use criterion::async_executor::FuturesExecutor;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, Criterion};
 use futures::stream::StreamExt;
 use serde_json::Value;
 use std::io::Read;
@@ -95,6 +96,7 @@ fn faker_benchmark(c: &mut Criterion) {
     }
 }
 
+#[cfg(feature = "curl")]
 fn curl_http1_benchmark(c: &mut Criterion) {
     let curls: Vec<(&'static str, &'static str)> = vec![("/get", "GET"), ("/get", "HEAD")];
 
@@ -119,6 +121,7 @@ fn curl_http1_benchmark(c: &mut Criterion) {
     }
 }
 
+#[cfg(feature = "curl")]
 fn criterion_http_config() -> Criterion {
     Criterion::default()
         .sample_size(10)
@@ -137,10 +140,26 @@ criterion_group! {
     targets = faker_benchmark
 }
 
+#[cfg(feature = "curl")]
 criterion_group! {
     name = http;
     config = criterion_http_config();
     targets = curl_http1_benchmark
 }
 
-criterion_main!(reader, http, updater);
+fn main() {
+    {
+        reader();
+    }
+    {
+        updater();
+    }
+    {
+        #[cfg(feature = "curl")]
+        http();
+    }
+
+    crate::Criterion::default()
+        .configure_from_args()
+        .final_summary();
+}

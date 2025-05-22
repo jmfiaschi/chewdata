@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "3.0.0"
+version = "3.0.1-beta.1"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2021"
 description = "Extract Transform and Load data"
@@ -73,8 +73,8 @@ aws-config = { version = "1.6.3", optional = true }
 aws-sdk-s3 = { version = "1.86", default-features = false, optional = true, features = ["sigv4a","rustls","rt-tokio","behavior-version-latest"] }
 byteorder = { version = "1.5", default-features = false, optional = true, features = ["std"] }
 jsonwebtoken = { version = "9.3.1", default-features = false, features = ["use_pem"], optional = true }
-hyper = { version = "1.6", default-features = false, optional = true }
-smol-hyper = { version = "0.1", optional = true}
+hyper = { version = "1.6.0", default-features = false, optional = true, features = ["http1","client"] }
+smol-hyper = { version = "0.1", optional = true }
 http-body-util = {version = "0.1.3", optional = true}
 http-cache-semantics = { version = "2.1", default-features = false, optional = true }
 cacache = { version = "13.1", default-features = false, features = ["async-std"], optional = true }
@@ -95,8 +95,8 @@ csv = ["dep:csv"]
 toml = ["dep:toml"]
 parquet = ["dep:parquet","dep:byteorder","dep:arrow-json","dep:bytes","dep:arrow-integration-test"]
 bucket = ["dep:aws-sdk-s3","dep:aws-config","dep:async-compat"]
-curl = ["dep:hyper","dep:smol-hyper","dep:jsonwebtoken","dep:http-body-util","dep:async-native-tls","dep:http","dep:http-cache-semantics","dep:cacache"]
-mongodb = ["dep:mongodb"]
+curl = ["dep:bytes","dep:hyper","dep:smol-hyper","dep:jsonwebtoken","dep:http-body-util","dep:async-native-tls","dep:http","dep:http-cache-semantics","dep:cacache"]
+mongodb = ["dep:mongodb","dep:async-compat"]
 psql = ["sqlx","sqlx/postgres"]
 apm = ["dep:opentelemetry","dep:opentelemetry-jaeger"]
 ordered = ["serde_json/preserve_order"]
