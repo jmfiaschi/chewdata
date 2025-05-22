@@ -2,81 +2,17 @@
   "branches": [
     "+([0-9])?(.{+([0-9]),x}).x",
     "main",
+    "next",
+    "next-major",
     {
       "name": "beta",
-      "prerelease": true,
-      "plugins": [
-        "@semantic-release/commit-analyzer",
-        "@semantic-release/release-notes-generator",
-        [
-          "@semantic-release/exec",
-          {
-            "prepareCmd": "cargo set-version ${nextRelease.version} && cargo package --no-verify --allow-dirty",
-            "publishCmd": "cargo publish --no-verify --allow-dirty"
-          }
-        ],
-        [
-          "@semantic-release/git",
-          {
-            "assets": [
-              "Cargo.toml"
-            ],
-            "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-          }
-        ],
-        "@semantic-release/github"
-      ]
+      "prerelease": true
     },
     {
       "name": "alpha",
-      "prerelease": true,
-      "plugins": [
-        "@semantic-release/commit-analyzer",
-        "@semantic-release/release-notes-generator",
-        [
-          "@semantic-release/exec",
-          {
-            "prepareCmd": "cargo set-version ${nextRelease.version} && cargo package --no-verify --allow-dirty",
-            "publishCmd": "cargo publish --no-verify --allow-dirty"
-          }
-        ],
-        [
-          "@semantic-release/git",
-          {
-            "assets": [
-              "Cargo.toml"
-            ],
-            "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-          }
-        ],
-        "@semantic-release/github"
-      ]
+      "prerelease": true
     },
-    {
-      "name": "+(fix|feat|docs|chore|perf|test)/**",
-      "prerelease": true,
-      "plugins": [
-        "@semantic-release/commit-analyzer",
-        "@semantic-release/release-notes-generator",
-        [
-          "@semantic-release/exec",
-          {
-            "prepareCmd": "cargo set-version ${nextRelease.version} && cargo package --no-verify --allow-dirty",
-            "publishCmd": "cargo publish --no-verify --allow-dirty"
-          }
-        ],
-        [
-          "@semantic-release/git",
-          {
-            "assets": [
-              "Cargo.toml"
-            ],
-            "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-          }
-        ],
-        "@semantic-release/github"
-      ]
-    }
+    "+(fix|feat|docs|chore|perf|test)/**"
   ],
   "plugins": [
     "@semantic-release/commit-analyzer",
