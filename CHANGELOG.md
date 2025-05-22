@@ -1,3 +1,10 @@
+## [3.0.2-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.1...v3.0.2-beta.1) (2025-05-22)
+
+
+### Bug Fixes
+
+* **coverage:** start services ([db0d9a2](https://github.com/jmfiaschi/chewdata/commit/db0d9a2cf6687d4cd6e141447634f5bdce0255e6))
+
 ## [3.0.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.0...v3.0.1) (2025-05-22)
 
 
