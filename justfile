@@ -16,6 +16,33 @@ setup:
 build:
     cargo build --lib --bins --tests --benches --features "xml csv parquet toml bucket curl mongodb psql"
 
+build-feature-csv:
+    cargo build --lib --bins --tests --benches --features "csv"
+
+build-feature-xml:
+    cargo build --lib --bins --tests --benches --features "xml"
+
+build-feature-parquet:
+    cargo build --lib --bins --tests --benches --features "parquet"
+
+build-feature-toml:
+    cargo build --lib --bins --tests --benches --features "toml"
+
+build-feature-bucket:
+    cargo build --lib --bins --tests --benches --features "bucket"
+
+build-feature-curl:
+    cargo build --lib --bins --tests --benches --features "curl"
+
+build-feature-psql:
+    cargo build --lib --bins --tests --benches --features "psql"
+
+build-feature-mongodb:
+    cargo build --lib --bins --tests --benches --features "mongodb"
+
+build-feature-apm:
+    cargo build --lib --bins --tests --benches --features "apm"
+
 # Run the project with 'json_config' data in argument
 run-with-json json_config: debug
     cargo run '{{json_config}}'

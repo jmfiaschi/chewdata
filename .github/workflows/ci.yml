@@ -20,8 +20,32 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
-  build:
+  build-matrix:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant:
+          - name: build
+            command: just build
+          - name: build-feature-csv
+            command: just build-feature-csv
+          - name: build-feature-xml
+            command: just build-feature-xml
+          - name: build-feature-parquet
+            command: just build-feature-parquet
+          - name: build-feature-toml
+            command: just build-feature-toml
+          - name: build-feature-bucket
+            command: just build-feature-bucket
+          - name: build-feature-curl
+            command: just build-feature-curl
+          - name: build-feature-psql
+            command: just build-feature-psql
+          - name: build-feature-mongodb
+            command: just build-feature-mongodb
+          - name: build-feature-apm
+            command: just build-feature-apm
+    name: ${{ matrix.variant.name }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
@@ -35,9 +59,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: build
+          shared-key: ${{ matrix.variant.name }}
       - run: just setup
-      - run: just build
+      - run: ${{ matrix.variant.command }}
   benchmark:
     runs-on: ubuntu-latest
     steps:
@@ -89,7 +113,7 @@ jobs:
       - run: just setup
       - run: just release
   unit-tests:
-    needs: [build, lint]
+    needs: [build-matrix, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -108,7 +132,7 @@ jobs:
       - uses: webgtx/setup-podman-compose@v1
       - run: just unit-tests
   integration-tests:
-    needs: [build, lint]
+    needs: [build-matrix, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
