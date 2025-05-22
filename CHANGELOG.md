@@ -1,3 +1,10 @@
+## [3.0.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.0...v3.0.1-beta.1) (2025-05-22)
+
+
+### Bug Fixes
+
+* **project:** individual feature not built ([c0a4a9a](https://github.com/jmfiaschi/chewdata/commit/c0a4a9a3a0cee428e039304537869a340cc1ce78))
+
 # [3.0.0](https://github.com/jmfiaschi/chewdata/compare/v2.12.0...v3.0.0) (2025-05-21)
 
 
