@@ -104,7 +104,7 @@ integration-tests: start test_docs test_integration
 lint:
     cargo clippy --all-features
 
-coverage:
+coverage: start
     cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
 
 coverage_ut:
@@ -116,7 +116,7 @@ coverage_it:
     cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
 
 # Benchmark the project.
-bench: stop http-mock
+bench: http-mock
     cargo criterion --benches --output-format bencher --plotting-backend disabled --features "xml csv parquet toml bucket curl mongodb psql" 2>&1
 
 # Start minio in local.

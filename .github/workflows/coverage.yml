@@ -24,6 +24,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: cov
+      - uses: webgtx/setup-podman-compose@v1
       - run: just setup
       - run: just coverage
       - uses: codecov/codecov-action@v1
