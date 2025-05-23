@@ -26,7 +26,7 @@ async fn main() -> io::Result<()> {
         "type": "reader",
         "connector":{
             "type": "local",
-            "path": "./data/multi_lines.{{ metadata.mime_subtype }}"
+            "path": "./data/multi_lines.jsonl"
         },
         "document" :{
             "type":"jsonl"
