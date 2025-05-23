@@ -30,7 +30,7 @@ async fn main() -> io::Result<()> {
     },
     {
         "type": "write",
-        "dataset_size": 1
+        "batch": 1
     }]
     "#;
 

@@ -42,6 +42,7 @@ async-task = "4.7"
 async-trait = { version = "0.1.88", default-features = false }
 async-stream = { version = "0.3", default-features = false }
 async-channel = { version = "2.3", default-features = false }
+async-process = { version = "2.3.0", default-features = false }
 mime = { version = "0.3", default-features = false }
 base64 = { version = "0.22", default-features = false, features = ["std"] }
 regex = { version = "1.11" }
