@@ -48,15 +48,16 @@ impl Updater for Tera {
         context_value.merge_in(format!("/{}", super::INPUT_FIELD_KEY).as_str(), object)?;
         context_value.merge_in(format!("/{}", super::CONTEXT_FIELD_KEY).as_str(), context)?;
 
-        if mapping.is_object() {}
-        match mapping {
-            Value::Object(_) => context_value.merge(mapping),
-            Value::Null => (),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidInput,
-                    "The mapping value must be an object",
-                ))
+        if mapping.is_object() {
+            match mapping {
+                Value::Object(_) => context_value.merge(mapping),
+                Value::Null => (),
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "The mapping value must be an object",
+                    ))
+                }
             }
         }
 
@@ -107,14 +108,22 @@ impl Updater for Tera {
                         }?;
 
                     trace!(
-                        value = render_result.display_only_for_debugging(),
+                        result = render_result.display_only_for_debugging(),
+                        field = action.field.as_str(),
+                        pattern = pattern,
+                        context = tera_context.display_only_for_debugging(),
+                        output = output.display_only_for_debugging(),
                         "Field value before resolved it"
                     );
 
                     field_new_value = Value::resolve(render_result);
 
                     trace!(
-                        value = field_new_value.display_only_for_debugging(),
+                        result = field_new_value.display_only_for_debugging(),
+                        field = action.field.as_str(),
+                        pattern = pattern,
+                        context = tera_context.display_only_for_debugging(),
+                        output = output.display_only_for_debugging(),
                         "Field value after resolved it"
                     );
                 }
@@ -126,7 +135,9 @@ impl Updater for Tera {
             trace!(
                 output = output.display_only_for_debugging(),
                 jpointer = json_pointer.to_string().as_str(),
-                data = field_new_value.display_only_for_debugging(),
+                result = field_new_value.display_only_for_debugging(),
+                context = tera_context.display_only_for_debugging(),
+                output = output.display_only_for_debugging(),
                 "{:?} the new field",
                 action.action_type
             );

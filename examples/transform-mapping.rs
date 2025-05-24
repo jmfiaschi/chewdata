@@ -1,4 +1,6 @@
 use env_applier::EnvApply;
+use json_value_merge::Merge;
+use json_value_search::Search;
 use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -7,6 +9,11 @@ use tracing_subscriber::{self, Layer};
 
 use macro_rules_attribute::apply;
 use smol_macros::main;
+
+#[cfg(not(feature = "curl"))]
+compile_error!(
+    "the curl feature is required for this example. Please enable it in your Cargo.toml file. cargo example EXAMPLE_NAME --features curl"
+);
 
 #[apply(main!)]
 async fn main() -> io::Result<()> {
@@ -97,11 +104,56 @@ async fn main() -> io::Result<()> {
     }]
     "#;
 
+    // Test example with validation rules
+    let (sender_output, receiver_output) = async_channel::unbounded();
     chewdata::exec(
         deser_hjson::from_str(config.apply().as_str())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         None,
-        None,
+        Some(sender_output),
     )
-    .await
+    .await?;
+
+    let mut result = serde_json::json!([]);
+    while let Ok(output) = receiver_output.recv().await {
+        result.merge(&output.input().to_value());
+    }
+
+    assert!(
+        3 == result
+            .clone()
+            .search("/*/headers/params")
+            .unwrap()
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .len(),
+        "There should be 3 params in the result from the remote mapping."
+    );
+
+    assert!(
+        1080000
+            == result
+                .search("/*/my_new_field")
+                .unwrap()
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .into_iter()
+                .map(|v| v.as_i64().unwrap())
+                .sum::<i64>(),
+        "The sum of the my_new_fields should be 1080000."
+    );
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::main;
+
+    #[test]
+    fn test_validation() {
+        main().unwrap();
+    }
 }

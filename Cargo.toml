@@ -18,6 +18,7 @@ path = "benches/benchmark.rs"
 
 [dependencies]
 # Logs
+anyhow = { version = "1.0", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
 tracing-subscriber = { version = "0.3", default-features = false, features= ["std", "fmt", "env-filter","tracing-log","json","ansi"] }
 tracing-appender = { version = "0.2", default-features = false }

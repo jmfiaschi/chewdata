@@ -63,6 +63,7 @@ async fn main() -> io::Result<()> {
     ]
     "#;
 
+    // Test example with validation rules
     let (sender_output, receiver_output) = async_channel::unbounded();
     chewdata::exec(
         serde_json::from_str(config.apply().as_str())?,
@@ -91,7 +92,7 @@ async fn main() -> io::Result<()> {
 }
 
 #[cfg(test)]
-mod validator {
+mod tests {
     use crate::main;
 
     #[test]

@@ -161,7 +161,11 @@ impl Step for Transformer {
         let receiver_stream = self.receive().await;
 
         trace!("Warm up static referential before using it in the concurrent execution.");
-        Referential::new(&self.referentials).to_value(&Context::new(String::default(), DataResult::Ok(Value::default()))).await?;
+        let referentials = self.referentials.clone().into_iter().filter(|(_name,referential)| {
+            !referential.connector_type.inner().is_variable()
+        }).collect();
+        
+        Referential::new(&referentials).to_value(&Context::new(String::default(), DataResult::Ok(Value::default()))).await?;
 
         // Transform in concurrence with parallelism.
         let results: Vec<_> = receiver_stream.map(|context_received| {
