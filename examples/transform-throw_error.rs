@@ -57,13 +57,14 @@ async fn main() -> io::Result<()> {
 
     assert!(
         1 == result
-            .search("/*/_error")
-            .unwrap()
-            .unwrap()
+            .clone()
+            .search("/*/_error")?
+            .unwrap_or_default()
             .as_array()
-            .unwrap()
+            .unwrap_or(&vec![])
             .len(),
-        "There should be 1 errors in the result"
+        "There should be 1 '_errors' in the result.\n{}",
+        result
     );
 
     Ok(())

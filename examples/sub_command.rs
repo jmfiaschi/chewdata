@@ -26,9 +26,25 @@ async fn main() -> io::Result<()> {
     child_stdin.write_all(data_to_transform).await.unwrap();
     drop(child_stdin);
 
-    let mut data = String::default();
+    let mut result = String::default();
     let mut child_stdout = child.stdout.take().unwrap();
-    child_stdout.read_to_string(&mut data).await.unwrap();
-    println!("Data transformed:\n{}", data);
+    child_stdout.read_to_string(&mut result).await.unwrap();
+
+    assert!(
+        result == "[{\"column1\":\"value1\",\"column2\":\"value2\"}]\n",
+        "Expected transformed data to match, but got: {}",
+        result
+    );
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::main;
+
+    #[test]
+    fn test_validation() {
+        main().unwrap();
+    }
 }

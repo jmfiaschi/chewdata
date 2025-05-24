@@ -79,13 +79,14 @@ async fn main() -> io::Result<()> {
 
     assert!(
         3 == result
-            .search("/*/_error")
-            .unwrap()
-            .unwrap()
+            .clone()
+            .search("/*/_error")?
+            .unwrap_or_default()
             .as_array()
-            .unwrap()
+            .unwrap_or(&vec![])
             .len(),
-        "There should be 3 errors in the result"
+        "There should be 3 '_errors' in the result.\n{}",
+        result
     );
 
     Ok(())

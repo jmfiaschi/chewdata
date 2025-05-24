@@ -122,27 +122,28 @@ async fn main() -> io::Result<()> {
     assert!(
         3 == result
             .clone()
-            .search("/*/headers/params")
-            .unwrap()
-            .unwrap()
+            .search("/*/headers/params")?
+            .unwrap_or_default()
             .as_array()
-            .unwrap()
+            .unwrap_or(&vec![])
             .len(),
-        "There should be 3 params in the result from the remote mapping."
+        "There should be 3 params in the result from the remote mapping.\n{}",
+        result
     );
 
     assert!(
         1080000
             == result
-                .search("/*/my_new_field")
-                .unwrap()
-                .unwrap()
+                .clone()
+                .search("/*/my_new_field")?
+                .unwrap_or_default()
                 .as_array()
-                .unwrap()
+                .unwrap_or(&vec![])
                 .into_iter()
                 .map(|v| v.as_i64().unwrap())
                 .sum::<i64>(),
-        "The sum of the my_new_fields should be 1080000."
+        "The sum of the 'my_new_fields' should be 1080000.\n{}",
+        result
     );
 
     Ok(())
