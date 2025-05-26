@@ -352,7 +352,7 @@ mod tests {
     use crate::main;
 
     #[test]
-    fn test_validation() {
+    fn test_example() {
         main().unwrap();
     }
 }

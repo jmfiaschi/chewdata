@@ -31,7 +31,7 @@ async fn main() -> io::Result<()> {
     child_stdout.read_to_string(&mut result).await.unwrap();
 
     assert!(
-        result == "[{\"column1\":\"value1\",\"column2\":\"value2\"}]\n",
+        result == "{\"column1\":\"value1\",\"column2\":\"value2\"}",
         "Expected transformed data to match, but got: {}",
         result
     );
@@ -44,7 +44,7 @@ mod tests {
     use crate::main;
 
     #[test]
-    fn test_validation() {
+    fn test_example() {
         main().unwrap();
     }
 }
