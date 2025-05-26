@@ -77,7 +77,7 @@ use http_body_util::{BodyExt, Full};
 use http_cache_semantics::{BeforeRequest, CachePolicy};
 use hyper::client::conn::http1::SendRequest as SendRequestHttp1;
 use json_value_merge::Merge;
-use json_value_remove::Remove;
+use json_value_search::Search;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use smol::{io, net::TcpStream};
@@ -464,14 +464,17 @@ impl Curl {
             }
 
             if !res.status().is_success() {
-                return Err(Error::new(
-                    ErrorKind::Interrupted,
-                    format!(
-                        "The http call on '{}' failed with status code '{}'",
-                        path,
-                        res.status(),
-                    ),
-                ));
+                let error_message = format!(
+                    "The http call on '{}' failed with status code '{}'",
+                    path,
+                    res.status()
+                );
+
+                warn!(
+                    request = format!("{:?}", request).display_only_for_debugging(),
+                    error_message
+                );
+                return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
             headers = res
@@ -499,10 +502,10 @@ impl Curl {
     }
     /// Return parameter's values without context.
     fn parameters_without_context(&self) -> Result<Value> {
-        let mut parameters_without_context = self.parameters.clone();
-        parameters_without_context.remove("/steps")?;
-        parameters_without_context.remove("/paginator")?;
-        Ok(parameters_without_context)
+        Ok(match self.parameters.clone().search("/input")? {
+            Some(input) => input,
+            None => Value::default(),
+        })
     }
 }
 
@@ -812,14 +815,17 @@ impl Connector for Curl {
             }
 
             if !res.status().is_success() {
-                return Err(Error::new(
-                    ErrorKind::Interrupted,
-                    format!(
-                        "The http call on '{}' failed with status code '{}'",
-                        path,
-                        res.status(),
-                    ),
-                ));
+                let error_message = format!(
+                    "The http call on '{}' failed with status code '{}'",
+                    path,
+                    res.status()
+                );
+
+                warn!(
+                    request = format!("{:?}", request).display_only_for_debugging(),
+                    error_message
+                );
+                return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
             let status = res.status().as_u16();
@@ -1004,14 +1010,17 @@ impl Connector for Curl {
             }
 
             if !res.status().is_success() {
-                return Err(Error::new(
-                    ErrorKind::Interrupted,
-                    format!(
-                        "The http call on '{}' failed with status code '{}'",
-                        request.uri().path_and_query().unwrap().as_str(),
-                        res.status(),
-                    ),
-                ));
+                let error_message = format!(
+                    "The http call on '{}' failed with status code '{}'",
+                    path,
+                    res.status()
+                );
+
+                warn!(
+                    request = format!("{:?}", request).display_only_for_debugging(),
+                    error_message
+                );
+                return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
             data = res
@@ -1129,14 +1138,17 @@ impl Connector for Curl {
             }
 
             if !res.status().is_success() {
-                return Err(Error::new(
-                    ErrorKind::Interrupted,
-                    format!(
-                        "The http call on '{}' failed with status code '{}'",
-                        request.uri().path_and_query().unwrap().as_str(),
-                        res.status()
-                    ),
-                ));
+                let error_message = format!(
+                    "The http call on '{}' failed with status code '{}'",
+                    path,
+                    res.status()
+                );
+
+                warn!(
+                    request = format!("{:?}", request).display_only_for_debugging(),
+                    error_message
+                );
+                return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
             break;

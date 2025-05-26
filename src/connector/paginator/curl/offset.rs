@@ -34,11 +34,11 @@
 //! ```
 use crate::connector::Connector;
 use crate::{connector::curl::Curl, ConnectorStream};
-use smol::stream::StreamExt;
 use async_stream::stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::stream::StreamExt;
 use std::io::Result;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -72,7 +72,7 @@ impl Offset {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
@@ -155,8 +155,8 @@ mod tests {
     use crate::document::json::Json;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
-    use smol::stream::StreamExt;
     use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
     use smol_macros::test;
 
     use super::*;
