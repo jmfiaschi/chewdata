@@ -48,16 +48,14 @@ impl Updater for Tera {
         context_value.merge_in(format!("/{}", super::INPUT_FIELD_KEY).as_str(), object)?;
         context_value.merge_in(format!("/{}", super::CONTEXT_FIELD_KEY).as_str(), context)?;
 
-        if mapping.is_object() {
-            match mapping {
-                Value::Object(_) => context_value.merge(mapping),
-                Value::Null => (),
-                _ => {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "The mapping value must be an object",
-                    ))
-                }
+        match mapping {
+            Value::Object(_) => context_value.merge(mapping),
+            Value::Null => (),
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "The mapping value must be an object",
+                ))
             }
         }
 

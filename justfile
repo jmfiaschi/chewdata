@@ -63,7 +63,7 @@ example name:
 release:
     cargo build --release --lib --bins
 
-test: start unit-tests integration-tests
+test: start unit-tests integration-tests example-tests
 
 test_docs:
     cargo test --doc --features "xml csv parquet toml bucket curl mongodb psql"
