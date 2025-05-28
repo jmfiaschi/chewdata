@@ -1,3 +1,23 @@
+# [3.1.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.2...v3.1.0-beta.1) (2025-05-28)
+
+
+### Bug Fixes
+
+* **cli:** clean line before to read_line ([20461a6](https://github.com/jmfiaschi/chewdata/commit/20461a67ded29dc6e2393a2fef8044c4bdaaa7b8))
+* **curl:** add error context and help for debug ([c7d3fc4](https://github.com/jmfiaschi/chewdata/commit/c7d3fc4a1e41313a12e254ea8924aa70cb897f9f))
+* **example:** add psql test ([ab11b78](https://github.com/jmfiaschi/chewdata/commit/ab11b7840a9163c0fa3dff8798e02df22a59fa59))
+* **example:** add tests ([bde77f7](https://github.com/jmfiaschi/chewdata/commit/bde77f7aa361522146566c4070204dc7744f6634))
+* **example:** improve rabbitmq example with API ([0f56427](https://github.com/jmfiaschi/chewdata/commit/0f56427d4b6bf4c1909c66241658cd250d4a0ac0))
+* **example:** sub_command test ([41f14fd](https://github.com/jmfiaschi/chewdata/commit/41f14fda6ed49485b7a2ac833e8945238aa6a39d))
+* **project:** test examples ([fe0088f](https://github.com/jmfiaschi/chewdata/commit/fe0088f5e7d4f8de546055f51dba5c2fdf16cb25))
+* **project:** tests ([afc85bf](https://github.com/jmfiaschi/chewdata/commit/afc85bfb41f36fa5ffce649acb96940edcae3cee))
+
+
+### Features
+
+* **example:** add document example tests ([7c4e8f5](https://github.com/jmfiaschi/chewdata/commit/7c4e8f5c013c6a701116a4d7c526ee7d602d453d))
+* **example:** add examples tests ([b58ce81](https://github.com/jmfiaschi/chewdata/commit/b58ce81097773a0c8aaeb140e26de369f7b07a55))
+
 ## [3.0.2](https://github.com/jmfiaschi/chewdata/compare/v3.0.1...v3.0.2) (2025-05-22)
 
 
