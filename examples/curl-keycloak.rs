@@ -1,4 +1,7 @@
 use env_applier::EnvApply;
+use json_value_merge::Merge;
+use json_value_search::Search;
+use std::env;
 use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -23,6 +26,47 @@ async fn main() -> io::Result<()> {
     tracing_subscriber::registry().with(layers).init();
 
     let config = r#"
+    [
+    {
+        "type": "r",
+        "connector": {
+            "type": "curl",
+            "endpoint": "{{ KEYCLOAK_ENDPOINT }}",
+            "path": "/realms/test/protocol/openid-connect/certs",
+            "method": "get",
+        }
+    },
+    {
+        "type":"t",
+        "actions":[{
+            "field": "/",
+            "pattern": "{{ input.keys | filter(attribute='use', value='sig') | first | json_encode() }}"
+        }]
+    }
+    {
+        "type": "w"
+    }]
+    "#;
+
+    // Test example with validation rules
+    let (sender_output, receiver_output) = async_channel::unbounded();
+    chewdata::exec(
+        deser_hjson::from_str(config.apply().as_str())
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        None,
+        Some(sender_output),
+    )
+    .await?;
+
+    let mut jwk = serde_json::Value::default();
+    while let Ok(output) = receiver_output.recv().await {
+        jwk = output.input().to_value();
+        break;
+    }
+
+    env::set_var("JWK", jwk.to_string());
+
+    let config = r#"
     [{
         "type": "r",
         "connector":{
@@ -41,25 +85,13 @@ async fn main() -> io::Result<()> {
                 "type": "jwt",
                 "refresh": {
                     "type": "curl",
-                    "endpoint": "http://localhost:8083/auth/realms/test/protocol/openid-connect",
+                    "endpoint": "{{ KEYCLOAK_ENDPOINT }}/realms/test/protocol/openid-connect",
                     "path": "/token",
                     "method": "post",
                     "parameters": "client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password",
                 },
                 "algorithm":"RS256",
-                "jwk": {
-                    "kid": "jPc8FWeTOrgybc2_xBrShjNYUE5kiKTvpwSlNrNGUFA",
-                    "kty": "RSA",
-                    "alg": "RS256",
-                    "use": "sig",
-                    "n": "kVdSs7RwLWFbfMShEoKn5gT_aemVCf6r9aaseowgAwOpKYMlhSpLNXchm6Lgt1qedpcgMD0ih2d3jBr-jGtHSnMB_uOpFHVyI9hIysYveyojet7LREIzjuJr3-qHmsPJ6_vasWrSr7AwxQWoCiHdtrPCzm9qtlnvwgpKdmbJX8SN8FiNgHrkLDwNFCFZB470vxc-4QBgBi0vpqx7hqWr9B5snmiGzrU1Humq351Wk_svGKLEyJM6IkqRzle3F47gynPGeb_lx835xKaJ57kbag-_KHI4G1zzmMnTXpVeRsr9T4scc6777WS2NEp8VHWavCa0VWXwJYBbzogWGSQXww",
-                    "e": "AQAB",
-                    "x5c": [
-                        "MIIClzCCAX8CBgGFVWxmmDANBgkqhkiG9w0BAQsFADAPMQ0wCwYDVQQDDAR0ZXN0MB4XDTIyMTIyNzIxMDkwNVoXDTMyMTIyNzIxMTA0NVowDzENMAsGA1UEAwwEdGVzdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJFXUrO0cC1hW3zEoRKCp+YE/2nplQn+q/WmrHqMIAMDqSmDJYUqSzV3IZui4LdannaXIDA9Iodnd4wa/oxrR0pzAf7jqRR1ciPYSMrGL3sqI3rey0RCM47ia9/qh5rDyev72rFq0q+wMMUFqAoh3bazws5varZZ78IKSnZmyV/EjfBYjYB65Cw8DRQhWQeO9L8XPuEAYAYtL6ase4alq/QebJ5ohs61NR7pqt+dVpP7LxiixMiTOiJKkc5XtxeO4Mpzxnm/5cfN+cSmiee5G2oPvyhyOBtc85jJ016VXkbK/U+LHHOu++1ktjRKfFR1mrwmtFVl8CWAW86IFhkkF8MCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAMDWjsewPWX9YNb9YgmbyAtjmBZij+FJPvy8JZO057STKYcSwyQihYHz1mkItMIqyf+hq4oi+OlINCeki9ZbSoBZP4rUqhruEdz50AKqJt5c6KgxRJTBRwMnm4hPwiqlERFICmNdAyCiL67B5m9CaFsjM5dRc11WVxkXXB6qM0Lpw3M8nmnV0QbFvmUI29JMQ9KmsQG77eZGIuL+PrYLY6+1KqilnbnHth0kkKWq4qijCIqfMhibE/l6PZpgOZsoEjf+ocyoOxd55svfx4DQslncpVc5yRjqLUMMgMbC26cW9CghGBxbR9+PtjURvLO97EvDDsHcU5VmnWUEmlV7cxw=="
-                    ],
-                    "x5t": "jM3m3RKAFgRaa0iyqkxv4K5xhqE",
-                    "x5t#S256": "-WBOVu1q7fKqKz5j7JNaoYCZUal2AlZRqC49GS4lyXQ"
-                },
+                "jwk": {{ JWK }},
                 "signing": "rsa_components",
                 "document": {
                     "metadata": {
@@ -75,5 +107,41 @@ async fn main() -> io::Result<()> {
     }]
     "#;
 
-    chewdata::exec(serde_json::from_str(config.apply().as_str())?, None, None).await
+    // Test example with validation rules
+    let (sender_output, receiver_output) = async_channel::unbounded();
+    chewdata::exec(
+        deser_hjson::from_str(config.apply().as_str())
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        None,
+        Some(sender_output),
+    )
+    .await?;
+
+    let mut result = serde_json::json!([]);
+    while let Ok(output) = receiver_output.recv().await {
+        result.merge(&output.input().to_value());
+    }
+
+    let expected = serde_json::json!([true]);
+
+    assert_eq!(
+        expected,
+        result
+            .clone()
+            .search("/*/authenticated")?
+            .unwrap_or_default(),
+        "The result not match the expected value"
+    );
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::main;
+
+    #[test]
+    fn test_example() {
+        main().unwrap();
+    }
 }

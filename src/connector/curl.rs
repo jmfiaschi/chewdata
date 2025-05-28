@@ -504,7 +504,7 @@ impl Curl {
     fn parameters_without_context(&self) -> Result<Value> {
         Ok(match self.parameters.clone().search("/input")? {
             Some(input) => input,
-            None => Value::default(),
+            None => self.parameters.clone(),
         })
     }
 }

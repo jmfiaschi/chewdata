@@ -1,5 +1,7 @@
 use chewdata::Context;
 use chewdata::DataResult;
+use json_value_merge::Merge;
+use json_value_search::Search;
 use std::io;
 use std::thread;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
@@ -58,9 +60,28 @@ async fn main() -> io::Result<()> {
     let config = serde_json::from_str(config.to_string().as_str())?;
     chewdata::exec(config, Some(receiver_input), Some(sender_output)).await?;
 
-    while let Ok(context) = receiver_output.recv().await {
-        println!("{}", context.input().to_value().to_string());
+    let mut result = serde_json::json!([]);
+    while let Ok(output) = receiver_output.recv().await {
+        result.merge(&output.input().to_value());
     }
 
+    let expected = serde_json::json!(["value_1", "value_2"]);
+
+    assert_eq!(
+        expected,
+        result.clone().search("/*/field_2")?.unwrap_or_default(),
+        "The result not match the expected value"
+    );
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::main;
+
+    #[test]
+    fn test_example() {
+        main().unwrap();
+    }
 }

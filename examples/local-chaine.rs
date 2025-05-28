@@ -1,4 +1,5 @@
 use env_applier::EnvApply;
+use std::fs::File;
 use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -38,5 +39,44 @@ async fn main() -> io::Result<()> {
         "Check the files `./data/out/cascade_file1.json` and `./data/out/cascade_file2.json`"
     );
 
+    // Test example with asserts
+    chewdata::exec(
+        deser_hjson::from_str(config)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        None,
+        None,
+    )
+    .await?;
+
+    let file1: Result<File, io::Error> = File::open("./data/out/cascade_file1.json");
+    assert!(file1.is_ok(), "Le fichier cascade_file1 exist");
+
+    let file2 = File::open("./data/out/cascade_file2.json");
+    assert!(file2.is_ok(), "Le fichier cascade_file2 exist");
+
+    let metadata1 = File::open("./data/out/cascade_file1.json")
+        .unwrap()
+        .metadata()?;
+
+    let metadata2 = File::open("./data/out/cascade_file1.json")
+        .unwrap()
+        .metadata()?;
+
+    let size1 = metadata1.len();
+    let size2 = metadata2.len();
+
+    assert!(0 < size1, "The file should not be empty");
+    assert!(0 < size2, "The file should not be empty");
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::main;
+
+    #[test]
+    fn test_example() {
+        main().unwrap();
+    }
 }
