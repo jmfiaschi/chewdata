@@ -46,7 +46,7 @@ async fn main() -> io::Result<()> {
     }]
     "#;
 
-    // Test example with validation rules
+    // Test example with asserts
     let (sender_output, receiver_output) = async_channel::unbounded();
     chewdata::exec(serde_json::from_str(config)?, None, Some(sender_output)).await?;
 
@@ -55,16 +55,16 @@ async fn main() -> io::Result<()> {
         result.merge(&output.input().to_value());
     }
 
-    assert!(
-        1 == result
+    assert_eq!(
+        1,
+        result
             .clone()
             .search("/*/_error")?
             .unwrap_or_default()
             .as_array()
             .unwrap_or(&vec![])
             .len(),
-        "There should be 1 '_errors' in the result.\n{}",
-        result
+        "The result not match the expected value"
     );
 
     Ok(())

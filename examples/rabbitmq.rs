@@ -136,7 +136,7 @@ async fn publish() -> io::Result<()> {
             "actions": [
                 {
                     "field":"routing_key",
-                    "pattern": "user.created"
+                    "pattern": "user.create"
                 }
             ]
         },
@@ -201,7 +201,7 @@ async fn publish() -> io::Result<()> {
             },
             {
                 "field":"routing_key",
-                "pattern": "user.created"
+                "pattern": "user.create"
             }
         ]
     },

@@ -30,10 +30,9 @@ async fn main() -> io::Result<()> {
     let mut child_stdout = child.stdout.take().unwrap();
     child_stdout.read_to_string(&mut result).await.unwrap();
 
-    assert!(
-        result == "{\"column1\":\"value1\",\"column2\":\"value2\"}",
-        "Expected transformed data to match, but got: {}",
-        result
+    assert_eq!(
+        result, "{\"column1\":\"value1\",\"column2\":\"value2\"}",
+        "The result not match the expected value"
     );
 
     Ok(())

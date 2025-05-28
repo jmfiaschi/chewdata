@@ -1,4 +1,4 @@
-use env_applier::EnvApply;
+use std::fs;
 use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -22,7 +22,6 @@ async fn main() -> io::Result<()> {
 
     tracing_subscriber::registry().with(layers).init();
 
-    // init the erase_test file
     let config = r#"
     [
         {"type":"r","conn":{"type":"mem","data":"[{\"id\":1},{\"id\":2},{\"id\":3}]"}, "name": "file_ids"},
@@ -50,5 +49,31 @@ async fn main() -> io::Result<()> {
     ]
     "#;
 
-    chewdata::exec(serde_json::from_str(config.apply().as_str())?, None, None).await
+    // Test example with asserts
+    chewdata::exec(
+        deser_hjson::from_str(config)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        None,
+        None,
+    )
+    .await?;
+
+    let result = fs::read_to_string("./data/out/erase_test_1.json");
+
+    assert!(
+        result.is_ok(),
+        "File doesn't exist in the path data out folder."
+    );
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::main;
+
+    #[test]
+    fn test_example() {
+        main().unwrap();
+    }
 }

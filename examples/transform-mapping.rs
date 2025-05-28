@@ -104,7 +104,7 @@ async fn main() -> io::Result<()> {
     }]
     "#;
 
-    // Test example with validation rules
+    // Test example with asserts
     let (sender_output, receiver_output) = async_channel::unbounded();
     chewdata::exec(
         deser_hjson::from_str(config.apply().as_str())
@@ -119,31 +119,30 @@ async fn main() -> io::Result<()> {
         result.merge(&output.input().to_value());
     }
 
-    assert!(
-        3 == result
+    assert_eq!(
+        3,
+        result
             .clone()
             .search("/*/headers/params")?
             .unwrap_or_default()
             .as_array()
             .unwrap_or(&vec![])
             .len(),
-        "There should be 3 params in the result from the remote mapping.\n{}",
-        result
+        "The result not match the expected value"
     );
 
-    assert!(
-        1080000
-            == result
-                .clone()
-                .search("/*/my_new_field")?
-                .unwrap_or_default()
-                .as_array()
-                .unwrap_or(&vec![])
-                .into_iter()
-                .map(|v| v.as_i64().unwrap())
-                .sum::<i64>(),
-        "The sum of the 'my_new_fields' should be 1080000.\n{}",
+    assert_eq!(
+        1080000,
         result
+            .clone()
+            .search("/*/my_new_field")?
+            .unwrap_or_default()
+            .as_array()
+            .unwrap_or(&vec![])
+            .into_iter()
+            .map(|v| v.as_i64().unwrap())
+            .sum::<i64>(),
+        "The result not match the expected value"
     );
 
     Ok(())

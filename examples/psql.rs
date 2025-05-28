@@ -24,15 +24,11 @@ async fn main() -> io::Result<()> {
 
     tracing_subscriber::registry().with(layers).init();
 
-    {
-        self::insert().await?;
-        tracing::info!("Check the collection: http://localhost:8082/?pgsql=psql&username=admin&db=postgres&ns=examples");
-    }
+    self::insert().await?;
+    tracing::info!("Check the collection: http://localhost:8082/?pgsql=psql&username=admin&db=postgres&ns=examples");
 
-    {
-        tracing::info!("Select 2 lines but return one.");
-        self::select().await?;
-    }
+    tracing::info!("Select 2 lines but return one.");
+    self::select().await?;
 
     Ok(())
 }
@@ -143,15 +139,10 @@ async fn select() -> io::Result<()> {
 
     let expected = serde_json::json!([20]);
 
-    assert!(
-        expected == result.clone().search("/*/number")?.unwrap_or_default(),
-        "There should be one result with an array containing '20' in the result.\n{:?}",
-        result
-            .clone()
-            .search("/*/number")?
-            .unwrap_or_default()
-            .as_array()
-            .unwrap_or(&vec![])
+    assert_eq!(
+        expected,
+        result.clone().search("/*/number")?.unwrap_or_default(),
+        "The result not match the expected value"
     );
 
     Ok(())

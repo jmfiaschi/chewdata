@@ -177,16 +177,12 @@ rabbitmq:
     @echo "Run rabbitmq"
     @echo "Host: http://localhost:15672 "
     podman-compose up -d rabbitmq
-    @echo "Init rabbitmq"
-    curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/exchanges/%2f/users.event -d "{\"type\":\"direct\",\"auto_delete\":false,\"durable\":true,\"internal\":false,\"arguments\":{}}"
-    curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X PUT ${RABBITMQ_ENDPOINT}/api/queues/%2f/users.events -d "{\"auto_delete\":false,\"durable\":true,\"arguments\":{}}"
-    curl -i -u ${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD} -H "content-type:application/json" -X POST ${RABBITMQ_ENDPOINT}/api/bindings/%2f/e/users.event/q/users.events -d "{\"routing_key\":\"\",\"arguments\":{}}"
 
 semantic-release:
     npx semantic-release
 
 # Start all servers
-start: stop debug minio_install http-mock mongo keycloak
+start: stop debug minio_install http-mock mongo keycloak rabbitmq
 
 # Stop all servers
 stop:

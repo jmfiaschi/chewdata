@@ -1,4 +1,4 @@
-use env_applier::EnvApply;
+use std::fs::File;
 use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -25,13 +25,6 @@ async fn main() -> io::Result<()> {
     // init the erase_test file
     let config = r#"
     [
-        { 
-            "type": "e",
-            "connector":{
-                "type": "local",
-                "path": "./data/out/erase_test.*"
-            }
-        },
         {
             "type": "reader",
             "connector":{
@@ -45,9 +38,44 @@ async fn main() -> io::Result<()> {
                 "type": "local",
                 "path": "./data/out/erase_test.{{ metadata.mime_subtype }}"
             }
+        },{ 
+            "type": "e",
+            "connector":{
+                "type": "local",
+                "path": "./data/out/erase_test.json"
+            }
         }
     ]
     "#;
 
-    chewdata::exec(serde_json::from_str(config.apply().as_str())?, None, None).await
+    // Test example with asserts
+    chewdata::exec(
+        deser_hjson::from_str(config)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        None,
+        None,
+    )
+    .await?;
+
+    let file = File::open("./data/out/erase_test.json");
+
+    assert!(file.is_ok(), "Le fichier exist");
+
+    let metadata = file.unwrap().metadata()?;
+
+    let size = metadata.len();
+
+    assert_eq!(0, size, "The file should be empty");
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::main;
+
+    #[test]
+    fn test_example() {
+        main().unwrap();
+    }
 }
