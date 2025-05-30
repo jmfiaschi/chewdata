@@ -150,6 +150,25 @@ jobs:
           shared-key: build
       - uses: webgtx/setup-podman-compose@v1
       - run: just integration-tests
+  example-tests:
+    needs: [build-matrix, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v1
+      - uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build
+      - uses: webgtx/setup-podman-compose@v1
+      - run: just example-tests
   semantic-release:
     needs: [benchmark, integration-tests, unit-tests, release]
     runs-on: ubuntu-latest

@@ -1,3 +1,5 @@
+use json_value_merge::Merge;
+use json_value_search::Search;
 use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -44,5 +46,36 @@ async fn main() -> io::Result<()> {
     }]
     "#;
 
-    chewdata::exec(serde_json::from_str(config)?, None, None).await
+    // Test example with asserts
+    let (sender_output, receiver_output) = async_channel::unbounded();
+    chewdata::exec(serde_json::from_str(config)?, None, Some(sender_output)).await?;
+
+    let mut result = serde_json::json!([]);
+    while let Ok(output) = receiver_output.recv().await {
+        result.merge(&output.input().to_value());
+    }
+
+    assert_eq!(
+        1,
+        result
+            .clone()
+            .search("/*/_error")?
+            .unwrap_or_default()
+            .as_array()
+            .unwrap_or(&vec![])
+            .len(),
+        "The result not match the expected value"
+    );
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::main;
+
+    #[test]
+    fn test_example() {
+        main().unwrap();
+    }
 }

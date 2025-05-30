@@ -4,9 +4,9 @@ use std::{
 };
 
 use async_lock::Mutex;
-use smol::stream::StreamExt;
 use serde::Deserialize;
 use serde_json::{Map, Value};
+use smol::stream::StreamExt;
 use std::io;
 
 use crate::Context;
@@ -57,7 +57,7 @@ impl Referential {
     /// use chewdata::Context;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let referential_1 = Reader {
@@ -128,12 +128,12 @@ impl Referential {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use macro_rules_attribute::apply;
-    use smol_macros::test;
     use crate::{
         connector::{in_memory::InMemory, ConnectorType},
         DataResult,
     };
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
     #[apply(test!)]
     async fn test_to_value() {

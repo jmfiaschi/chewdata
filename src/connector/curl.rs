@@ -60,6 +60,7 @@ use crate::document::Document;
 use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataResult, DataSet, DataStream, Metadata};
+use anyhow::Context as AnyContext;
 use async_native_tls::TlsStream;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -76,7 +77,7 @@ use http_body_util::{BodyExt, Full};
 use http_cache_semantics::{BeforeRequest, CachePolicy};
 use hyper::client::conn::http1::SendRequest as SendRequestHttp1;
 use json_value_merge::Merge;
-use json_value_remove::Remove;
+use json_value_search::Search;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use smol::{io, net::TcpStream};
@@ -289,6 +290,7 @@ impl Curl {
 
         let uri = format!("{}{}", self.endpoint, path)
             .parse::<hyper::Uri>()
+            .with_context(|| format!("failed to parse URI: {}{}", self.endpoint, path))
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let mut request_builder = Request::builder().uri(&uri).method(
@@ -367,6 +369,7 @@ impl Curl {
     pub async fn headers(&mut self) -> std::io::Result<Vec<(String, Vec<u8>)>> {
         let mut request_builder = self.request_builder().await?;
         let mut client = self.http1().await?;
+        let path = self.path();
 
         let body = match self.method.to_uppercase().as_str() {
             "POST" | "PUT" | "PATCH" => {
@@ -421,6 +424,12 @@ impl Curl {
             let res = loop {
                 // Retry when :
                 //  * server close the connection.
+                trace!(
+                    request = format!("{:?}", request.display_only_for_debugging()),
+                    path,
+                    "Try to Sending request"
+                );
+
                 match client.try_send_request(request.clone()).await {
                     Ok(res) => break Ok(res),
                     Err(mut e) => {
@@ -430,8 +439,8 @@ impl Curl {
                             Some(req_back) if original_error.is_canceled() => {
                                 request = req_back;
                                 warn!(
-                                    url = request.uri().to_string(),
-                                    "Retrying the request after server closed the connection"
+                                    request = format!("{:?}", request).display_only_for_debugging(),
+                                    path, "Retrying the request after server closed the connection"
                                 );
                                 continue;
                             }
@@ -455,14 +464,17 @@ impl Curl {
             }
 
             if !res.status().is_success() {
-                return Err(Error::new(
-                    ErrorKind::Interrupted,
-                    format!(
-                        "The http call on '{}' failed with status code '{}'",
-                        request.uri().path_and_query().unwrap().as_str(),
-                        res.status(),
-                    ),
-                ));
+                let error_message = format!(
+                    "The http call on '{}' failed with status code '{}'",
+                    path,
+                    res.status()
+                );
+
+                warn!(
+                    request = format!("{:?}", request).display_only_for_debugging(),
+                    error_message
+                );
+                return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
             headers = res
@@ -484,16 +496,16 @@ impl Curl {
             ));
         }
 
-        info!(url = self.path(), "✅ Fetch headers with success");
+        info!(path, "✅ Fetch headers with success");
 
         Ok(headers)
     }
     /// Return parameter's values without context.
     fn parameters_without_context(&self) -> Result<Value> {
-        let mut parameters_without_context = self.parameters.clone();
-        parameters_without_context.remove("/steps")?;
-        parameters_without_context.remove("/paginator")?;
-        Ok(parameters_without_context)
+        Ok(match self.parameters.clone().search("/input")? {
+            Some(input) => input,
+            None => self.parameters.clone(),
+        })
     }
 }
 
@@ -705,6 +717,7 @@ impl Connector for Curl {
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let mut request_builder = self.request_builder().await?;
         let mut client = self.http1().await?;
+        let path = self.path();
 
         let body = match self.method.to_uppercase().as_str() {
             "POST" => {
@@ -741,7 +754,7 @@ impl Connector for Curl {
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         if self.is_cached {
-            info!(path = self.path(), "✅ Fetch data from cache with success");
+            info!(path, "✅ Fetch data from cache with success");
 
             if let Ok(Some(cache_entry)) = CachedEntry::get(&request).await {
                 let document = self.document()?;
@@ -762,6 +775,12 @@ impl Connector for Curl {
             let res = loop {
                 // Retry when :
                 //  * server close the connection.
+                trace!(
+                    request = format!("{:?}", request.display_only_for_debugging()),
+                    path,
+                    "Try to Sending request"
+                );
+
                 match client.try_send_request(request.clone()).await {
                     Ok(res) => break Ok(res),
                     Err(mut e) => {
@@ -771,8 +790,8 @@ impl Connector for Curl {
                             Some(req_back) if original_error.is_canceled() => {
                                 request = req_back;
                                 warn!(
-                                    url = request.uri().to_string(),
-                                    "Retrying the request after server closed the connection"
+                                    request = format!("{:?}", request).display_only_for_debugging(),
+                                    path, "Retrying the request after server closed the connection"
                                 );
                                 continue;
                             }
@@ -796,14 +815,17 @@ impl Connector for Curl {
             }
 
             if !res.status().is_success() {
-                return Err(Error::new(
-                    ErrorKind::Interrupted,
-                    format!(
-                        "The http call on '{}' failed with status code '{}'",
-                        request.uri().path_and_query().unwrap().as_str(),
-                        res.status(),
-                    ),
-                ));
+                let error_message = format!(
+                    "The http call on '{}' failed with status code '{}'",
+                    path,
+                    res.status()
+                );
+
+                warn!(
+                    request = format!("{:?}", request).display_only_for_debugging(),
+                    error_message
+                );
+                return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
             let status = res.status().as_u16();
@@ -848,7 +870,7 @@ impl Connector for Curl {
             ));
         }
 
-        info!(path = self.path(), "✅ Fetch data with success");
+        info!(path, "✅ Fetch data with success");
 
         let document = self.document()?;
 
@@ -907,6 +929,7 @@ impl Connector for Curl {
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut request_builder = self.request_builder().await?;
         let mut client = self.http1().await?;
+        let path = self.path();
 
         let body = match self.method.to_uppercase().as_str() {
             "POST" | "PUT" | "PATCH" => {
@@ -947,6 +970,12 @@ impl Connector for Curl {
             let res = loop {
                 // Retry when :
                 //  * server close the connection.
+                trace!(
+                    request = format!("{:?}", request.display_only_for_debugging()),
+                    path,
+                    "Try to Sending request"
+                );
+
                 match client.try_send_request(request.clone()).await {
                     Ok(res) => break Ok(res),
                     Err(mut e) => {
@@ -956,8 +985,8 @@ impl Connector for Curl {
                             Some(req_back) if original_error.is_canceled() => {
                                 request = req_back;
                                 warn!(
-                                    url = request.uri().to_string(),
-                                    "Retrying the request after server closed the connection"
+                                    request = format!("{:?}", request.display_only_for_debugging()),
+                                    path, "Retrying the request after server closed the connection"
                                 );
                                 continue;
                             }
@@ -981,14 +1010,17 @@ impl Connector for Curl {
             }
 
             if !res.status().is_success() {
-                return Err(Error::new(
-                    ErrorKind::Interrupted,
-                    format!(
-                        "The http call on '{}' failed with status code '{}'",
-                        request.uri().path_and_query().unwrap().as_str(),
-                        res.status(),
-                    ),
-                ));
+                let error_message = format!(
+                    "The http call on '{}' failed with status code '{}'",
+                    path,
+                    res.status()
+                );
+
+                warn!(
+                    request = format!("{:?}", request).display_only_for_debugging(),
+                    error_message
+                );
+                return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
             data = res
@@ -1011,7 +1043,7 @@ impl Connector for Curl {
             ));
         }
 
-        info!(path = self.path(), "✅ Send data with success");
+        info!(path, "✅ Send data with success");
 
         let document = self.document()?;
         if !document.has_data(&data)? {
@@ -1052,6 +1084,7 @@ impl Connector for Curl {
     async fn erase(&mut self) -> Result<()> {
         let mut request_builder = self.request_builder().await?;
         let mut client = self.http1().await?;
+        let path = self.path();
 
         request_builder = request_builder.method(hyper::Method::DELETE);
 
@@ -1065,6 +1098,12 @@ impl Connector for Curl {
             let res = loop {
                 // Retry when :
                 //  * server close the connection.
+                trace!(
+                    request = format!("{:?}", request.display_only_for_debugging()),
+                    path,
+                    "Try to Sending request"
+                );
+
                 match client.try_send_request(request.clone()).await {
                     Ok(res) => break Ok(res),
                     Err(mut e) => {
@@ -1074,8 +1113,8 @@ impl Connector for Curl {
                             Some(req_back) if original_error.is_canceled() => {
                                 request = req_back;
                                 warn!(
-                                    url = request.uri().to_string(),
-                                    "Retrying the request after server closed the connection"
+                                    request = format!("{:?}", request.display_only_for_debugging()),
+                                    path, "Retrying the request after server closed the connection"
                                 );
                                 continue;
                             }
@@ -1099,14 +1138,17 @@ impl Connector for Curl {
             }
 
             if !res.status().is_success() {
-                return Err(Error::new(
-                    ErrorKind::Interrupted,
-                    format!(
-                        "The http call on '{}' failed with status code '{}'",
-                        request.uri().path_and_query().unwrap().as_str(),
-                        res.status()
-                    ),
-                ));
+                let error_message = format!(
+                    "The http call on '{}' failed with status code '{}'",
+                    path,
+                    res.status()
+                );
+
+                warn!(
+                    request = format!("{:?}", request).display_only_for_debugging(),
+                    error_message
+                );
+                return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
             break;
@@ -1126,7 +1168,7 @@ impl Connector for Curl {
             CachedEntry::remove(&request.uri().to_string()).await?;
         }
 
-        info!(path = self.path(), "✅ Erase data with success");
+        info!(path, "✅ Erase data with success");
         Ok(())
     }
     /// See [`Connector::paginate`] for more details.

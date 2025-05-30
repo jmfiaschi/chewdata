@@ -107,11 +107,18 @@ impl Connector for Cli {
 
         trace!("Read lines");
         loop {
-            reader.read_line(&mut line).await?;
-            if line.eq(self.eoi.as_str()) {
+            let bytes_read = reader.read_line(&mut line).await?;
+            if bytes_read == 0 {
+                // EOF reached, exit loop
                 break;
-            };
-            buffer = format!("{}{}\n", buffer, line);
+            }
+
+            if line.trim_end() == self.eoi {
+                break;
+            }
+
+            buffer.push_str(&line);
+            line.clear();
         }
 
         trace!("Lines saved into the buffer");

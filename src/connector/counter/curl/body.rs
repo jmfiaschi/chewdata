@@ -7,6 +7,7 @@
 //! | type       | -     | Required in order to use this counter.                                                      | `body`        | `body`          |
 //! | entry_path | -     | The entry path for capturing the value in the response's body.                                         | `/count`      | String          |
 //! | path       | -     | The URL path to retrieve the total number of records. If `null`, it takes the connector path  by default. | `null`        | String          |
+//! | method     | -     | HTTP Method to apply (HEAD | POST | GET | etc...) | `null`        | String          |
 //!
 //! ### Example
 //!
@@ -28,7 +29,8 @@
 //!             "counter": {
 //!                 "type": "body",
 //!                 "entry_path": "/count",
-//!                 "path": "/count"
+//!                 "path": "/count",
+//!                 "method": "get"
 //!             }
 //!         }
 //!     }
@@ -43,15 +45,16 @@
 //! }
 //! ```
 use crate::connector::{curl::Curl, Connector};
-use smol::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::stream::StreamExt;
 use std::io::Result;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Body {
     pub entry_path: String,
     pub path: Option<String>,
+    pub method: Option<String>,
 }
 
 impl Default for Body {
@@ -59,13 +62,18 @@ impl Default for Body {
         Body {
             entry_path: "/count".to_string(),
             path: None,
+            method: None,
         }
     }
 }
 
 impl Body {
-    pub fn new(entry_path: String, path: Option<String>) -> Self {
-        Body { entry_path, path }
+    pub fn new(entry_path: String, path: Option<String>, method: Option<String>) -> Self {
+        Body {
+            entry_path,
+            path,
+            method,
+        }
     }
     /// To retrieve the number of items from the response's body and return `None` if the counter is unable to count.
     ///
@@ -81,7 +89,7 @@ impl Body {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
@@ -108,6 +116,10 @@ impl Body {
             connector.path = path.clone();
         }
 
+        if let Some(ref method) = self.method {
+            connector.method = method.clone();
+        }
+
         let mut dataset = match connector.fetch().await? {
             Some(dataset) => dataset,
             None => {
@@ -116,7 +128,10 @@ impl Body {
             }
         };
 
-        let value = dataset.next().await.map_or(Value::Null, |data| data.to_value());
+        let value = dataset
+            .next()
+            .await
+            .map_or(Value::Null, |data| data.to_value());
 
         let count_opt = match value {
             Value::Number(n) => n.as_u64().map(|number| number as usize),
@@ -124,7 +139,8 @@ impl Body {
             _ => None,
         };
 
-        trace!(count = count_opt, "Count with success");
+        info!(count = count_opt, "✅ Count with success");
+
         Ok(count_opt)
     }
 }
@@ -132,9 +148,9 @@ impl Body {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::document::json::Json;
     use macro_rules_attribute::apply;
     use smol_macros::test;
-    use crate::document::json::Json;
 
     #[apply(test!)]
     async fn count_return_value() {

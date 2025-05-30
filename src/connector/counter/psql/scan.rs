@@ -52,7 +52,7 @@ impl Scan {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
@@ -85,9 +85,9 @@ impl Scan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::connector::psql::Psql;
     use macro_rules_attribute::apply;
     use smol_macros::test;
-    use crate::connector::psql::Psql;
 
     #[apply(test!)]
     async fn count() {
