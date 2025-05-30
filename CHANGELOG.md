@@ -1,3 +1,10 @@
+# [3.1.0](https://github.com/jmfiaschi/chewdata/compare/v3.0.2...v3.1.0) (2025-05-30)
+
+
+### Features
+
+* **examples:** add test in examples to stabalize futur update ([#64](https://github.com/jmfiaschi/chewdata/issues/64)) ([fe5c00f](https://github.com/jmfiaschi/chewdata/commit/fe5c00fed08030e47ffe4141b49ef41434dfdfb7))
+
 # [3.1.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.2...v3.1.0-beta.1) (2025-05-28)
 
 
