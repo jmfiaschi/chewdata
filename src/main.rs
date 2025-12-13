@@ -6,7 +6,9 @@ extern crate version;
 use chewdata::step::StepType;
 use clap::{Arg, Command};
 use env_applier::EnvApply;
+use macro_rules_attribute::apply;
 use serde::Deserialize;
+use smol_macros::main;
 use std::env;
 use std::fs::File;
 use std::io;
@@ -16,8 +18,6 @@ use tracing::*;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
-use macro_rules_attribute::apply;
-use smol_macros::main;
 
 const ARG_JSON: &str = "json";
 const ARG_FILE: &str = "file";
@@ -77,14 +77,14 @@ async fn main() -> Result<()> {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        deser_hjson::from_str(buf.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME)).as_str())
+                        deser_hjson::from_str(buf.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME)).apply().as_str())
                             .map_err(|e| Error::new(ErrorKind::InvalidInput, e))
                     },
                     "yaml"|"yml" => {
                         let mut file = File::open(file_path)?;
                         let mut buf = String::default();
                         file.read_to_string(&mut buf)?;
-                        let config = buf.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME));
+                        let config = buf.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME)).apply();
                         let documents = serde_yaml::Deserializer::from_str(config.as_str());
                         let mut steps = Vec::<StepType>::default();
 
@@ -106,7 +106,7 @@ async fn main() -> Result<()> {
             ))
         }
         (Some(json), _) => {
-            deser_hjson::from_str(json.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME)).as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
+            deser_hjson::from_str(json.apply_with_prefix(&str::to_uppercase(chewdata::PROJECT_NAME)).apply().as_str()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))
         }
         _ => serde_json::from_str(DEFAULT_PROCESSORS)
             .map_err(|e| Error::new(ErrorKind::InvalidInput, e)),
