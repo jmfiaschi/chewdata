@@ -298,11 +298,10 @@ impl Curl {
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
         );
 
-        let host = format!(
-            "{}:{}",
-            uri.host().unwrap_or("localhost"),
-            uri.port_u16().unwrap_or(80)
-        );
+        let host = match uri.port_u16() {
+            Some(port) => format!("{}:{}", uri.host().unwrap_or("localhost"), port),
+            None => uri.host().unwrap_or("localhost").to_string(),
+        };
 
         request_builder = match self.version {
             1 => request_builder
