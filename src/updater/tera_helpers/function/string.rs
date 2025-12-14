@@ -1,9 +1,16 @@
 use base64::Engine;
 use regex::Regex;
 use serde_json::value::Value;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc, sync::OnceLock, sync::RwLock};
 use tera::*;
 use uuid::Uuid;
+
+type SharedEnv = Arc<RwLock<HashMap<String, String>>>;
+static SHARED_ENV: OnceLock<SharedEnv> = OnceLock::new();
+
+fn shared_env() -> &'static SharedEnv {
+    SHARED_ENV.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
+}
 
 /// Return a generated v4 uuid string.
 ///
@@ -146,37 +153,63 @@ pub fn base64_decode(args: &HashMap<String, Value>) -> Result<Value> {
 /// use chewdata::updater::tera_helpers::function::string::env;
 ///
 /// let mut args = HashMap::new();
-/// args.insert("name".to_string(), Value::String("MY_KEY".to_string()));
+/// args.insert("name".to_string(), Value::String("MY_KEY_WITH_PREFIX".to_string()));
 ///
-/// std::env::set_var("CHEWDATA_MY_KEY", "my_var");
+/// std::env::set_var("CHEWDATA_MY_KEY_WITH_PREFIX", "my_var");
+///
+/// let value = env(&args).unwrap();
+/// assert_eq!("my_var", value.as_str().unwrap());
+///
+/// let mut args = HashMap::new();
+/// args.insert("name".to_string(), Value::String("MY_KEY_WITHOUT_PREFIX".to_string()));
+///
+/// std::env::set_var("MY_KEY_WITHOUT_PREFIX", "my_var");
 ///
 /// let value = env(&args).unwrap();
 /// assert_eq!("my_var", value.as_str().unwrap());
 /// ```
 pub fn env(args: &HashMap<String, Value>) -> Result<Value> {
+    // Use share environment map instead of system environment variables to avoid side effects with multi threading
+    let shared_env = shared_env().clone();
+
     // Extracting and validating the 'name' argument
     let name: String = args
         .get("name")
         .ok_or_else(|| Error::msg("Function `env` didn't receive a `name` argument"))
         .and_then(|val| Ok(try_get_value!("env", "name", String, val)))?;
 
-    // Avoiding to override the system environment variable
-    let var_env_key = format!("{}_{}", str::to_uppercase(crate::PROJECT_NAME), name);
+    let prefixed_key = format!("{}_{}", crate::PROJECT_NAME.to_uppercase(), name);
 
-    // Try to get the environment variable value
-    match std::env::var(var_env_key).ok() {
-        Some(res) => Ok(Value::String(res)),
-        None => {
-            // If the environment variable is not found, check for a 'default' value in the arguments
-            match args.get("default") {
-                Some(default) => Ok(default.clone()),
-                None => Err(Error::msg(format!(
-                    "Environment variable `{}` not found",
-                    &name
-                ))),
-            }
+    // First check in the shared environment map
+    {
+        let env = shared_env.read().unwrap();
+
+        if let Some(value) = env.get(&prefixed_key) {
+            return Ok(Value::String(value.clone()));
+        }
+
+        if let Some(value) = env.get(&name) {
+            return Ok(Value::String(value.clone()));
         }
     }
+
+    // Then check in the system environment variables
+    let value = std::env::var(&prefixed_key)
+        .or_else(|_| std::env::var(&name))
+        .map(|var| {
+            // Store in the shared environment map to avoid multiple system calls
+            let mut env = shared_env.write().unwrap();
+            env.insert(prefixed_key.clone(), var.clone());
+
+            Value::String(var)
+        })
+        .or_else(|_| {
+            args.get("default")
+                .cloned()
+                .ok_or_else(|| Error::msg(format!("Environment variable `{}` not found", name)))
+        })?;
+
+    Ok(value)
 }
 
 /// Set an environment variable.
@@ -198,12 +231,12 @@ pub fn env(args: &HashMap<String, Value>) -> Result<Value> {
 /// args.insert("name".to_string(), Value::String("MY_KEY".to_string()));
 ///
 /// let value = set_env(&args).unwrap();
-///
-/// assert_eq!("my_var", value.as_str().unwrap());
-/// let value = std::env::var("CHEWDATA_MY_KEY").unwrap();
 /// assert_eq!("my_var", value);
 /// ```
 pub fn set_env(args: &HashMap<String, Value>) -> Result<Value> {
+    // Use share environment map instead of system environment variables to avoid side effects with multi threading
+    let shared_env = shared_env().clone();
+
     // Extracting and validating the 'value' argument
     let value_string: String = args
         .get("value")
@@ -217,9 +250,10 @@ pub fn set_env(args: &HashMap<String, Value>) -> Result<Value> {
         .and_then(|val| Ok(try_get_value!("env", "name", String, val)))?;
 
     // Avoiding to override the system environment variable
-    let var_env_key = format!("{}_{}", str::to_uppercase(crate::PROJECT_NAME), name);
+    let prefixed_key = format!("{}_{}", str::to_uppercase(crate::PROJECT_NAME), name);
 
-    std::env::set_var(var_env_key, &value_string);
+    let mut env = shared_env.write().unwrap();
+    env.insert(prefixed_key, value_string.clone());
 
     Ok(Value::String(value_string))
 }
@@ -439,12 +473,8 @@ mod tests {
         // Test case 1: Environment variable exists
         let mut args = HashMap::new();
         args.insert("name".to_string(), Value::String("MY_ENV_VAR2".to_string()));
-
-        // Mock environment variable for testing
-        std::env::set_var(
-            format!("{}_MY_ENV_VAR2", str::to_uppercase(crate::PROJECT_NAME)),
-            "TestValue",
-        );
+        args.insert("value".to_string(), Value::String("TestValue".to_string()));
+        set_env(&args).unwrap();
 
         let result = env(&args).unwrap();
         assert_eq!(result, Value::String("TestValue".to_string()));
