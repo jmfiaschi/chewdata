@@ -22,6 +22,7 @@ async fn main() -> io::Result<()> {
 
     tracing_subscriber::registry().with(layers).init();
 
+    // Retrieve 20 projects from GitLab API and extract specific fields.
     let config = r#"
     [{
         "type": "r",
@@ -29,16 +30,23 @@ async fn main() -> io::Result<()> {
             "type": "curl",
             "endpoint": "https://gitlab.com",
             "path": "/api/v4/projects",
-            "method": "get",
-            "paginator": {
-                "type": "offset",
-                "limit": 1,
-                "skip": 1
-            }
+            "method": "get"
         }
     },
+    {        
+        "type": "t",
+        "actions": [
+            {
+                "pattern": "{{ input | extract(attributes=[\"id\", \"name$\", \"path\", \"description\",\"count$\"]) | json_encode() }}"
+            }
+        ]
+    },
     {
-        "type": "w"
+        "type": "w",
+        "doc": {
+            "type": "jsonl",
+            "is_pretty": true
+        }
     }]
     "#;
 
