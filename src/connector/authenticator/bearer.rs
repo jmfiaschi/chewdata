@@ -6,7 +6,7 @@
 //! | ---------- | ----- | ----------------------------------------------------------------------- | ------------- | ------------------------ |
 //! | type       | -     | Required in order to use this authentication                            | `bearer`      | `bearer`                 |
 //! | token      | -     | The bearer token                                                        | `null`        | String                   |
-//! | is_base64  | -     | Specify if the bearer token is encoded in base64                        | `false`       | `false` / `true`         |
+//! | is_base64  | -     | Specify if the bearer token is encoded in base64                        | `true`       | `false` / `true`         |
 //!
 //! ### Examples
 //!
@@ -76,7 +76,7 @@ impl Default for Bearer {
     fn default() -> Self {
         Bearer {
             token: "".to_owned(),
-            is_base64: false,
+            is_base64: true,
         }
     }
 }
