@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765702224109,
+  "lastUpdate": 1765754369121,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -17355,6 +17355,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1242805,
             "range": "± 4851",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "a265aa15ebe3c40488b61acbfb57d7a73df7dab8",
+          "message": "feat(curl): update hyper dependency to version 1.8.1 and refactor request handling",
+          "timestamp": "2025-12-15T00:00:50+01:00",
+          "tree_id": "fb469432a044f5bdad6ba16f7d7652787f6686b7",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/a265aa15ebe3c40488b61acbfb57d7a73df7dab8"
+        },
+        "date": 1765754367878,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4758,
+            "range": "± 33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4689,
+            "range": "± 22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 515710,
+            "range": "± 3421",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 23812,
+            "range": "± 319",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 9446,
+            "range": "± 59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 13538,
+            "range": "± 85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 132551,
+            "range": "± 956",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 152490,
+            "range": "± 1174",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 151942,
+            "range": "± 1528",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 151963,
+            "range": "± 1613",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 151895,
+            "range": "± 2509",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 152265,
+            "range": "± 2151",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1394604,
+            "range": "± 6310",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1383773,
+            "range": "± 5146",
             "unit": "ns/iter"
           }
         ]
