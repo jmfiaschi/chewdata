@@ -1,3 +1,13 @@
+# [3.2.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.1.1-beta.1...v3.2.0-beta.1) (2025-12-14)
+
+
+### Features
+
+* **bearer:** set is_base64 to true by default ([d505e87](https://github.com/jmfiaschi/chewdata/commit/d505e87b1e0198c6d3df422bba2676e811760dd5))
+* **curl:** update hyper dependency to version 1.8.1 and refactor request handling ([a265aa1](https://github.com/jmfiaschi/chewdata/commit/a265aa15ebe3c40488b61acbfb57d7a73df7dab8))
+* **example:** add gitlab ([0bf8600](https://github.com/jmfiaschi/chewdata/commit/0bf8600fb8f4ffe911d1b0852a50fff79904cf10))
+* **example:** gitlab with extract in the transformation ([f7fc970](https://github.com/jmfiaschi/chewdata/commit/f7fc970ff8967bc240e6f4fb8961413ed98c98a3))
+
 ## [3.1.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.1.0...v3.1.1-beta.1) (2025-12-14)
 
 
