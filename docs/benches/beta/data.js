@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1748468683007,
+  "lastUpdate": 1765702224109,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -17247,6 +17247,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1011191,
             "range": "± 5068",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "753db793af0ceba01d885e32d2f331f169820a22",
+          "message": "fix(env): use share env map to store vars and secure multi-threading",
+          "timestamp": "2025-12-14T09:32:01+01:00",
+          "tree_id": "aa00232dffb808aec510b99fd427e888dcb99c74",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/753db793af0ceba01d885e32d2f331f169820a22"
+        },
+        "date": 1765702222872,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4945,
+            "range": "± 162",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4783,
+            "range": "± 30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 509968,
+            "range": "± 6302",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 22935,
+            "range": "± 453",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 9315,
+            "range": "± 112",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 13229,
+            "range": "± 76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 132128,
+            "range": "± 1440",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 151326,
+            "range": "± 1664",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 150821,
+            "range": "± 3959",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 150959,
+            "range": "± 1720",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 150553,
+            "range": "± 2452",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 150947,
+            "range": "± 1103",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1256339,
+            "range": "± 5539",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1242805,
+            "range": "± 4851",
             "unit": "ns/iter"
           }
         ]
