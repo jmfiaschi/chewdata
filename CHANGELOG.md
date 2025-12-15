@@ -1,3 +1,15 @@
+# [3.3.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.2.0...v3.3.0-beta.1) (2025-12-15)
+
+
+### Bug Fixes
+
+* **ci:** update docker job dependencies to require semantic-release ([49420ac](https://github.com/jmfiaschi/chewdata/commit/49420ac71a016f757fa7372ad5e216ad7a3d80fc))
+
+
+### Features
+
+* **Cargo.toml:** add logging features for release profiles ([e2d0901](https://github.com/jmfiaschi/chewdata/commit/e2d0901405e08733442681d011ea7d0a7fcb9507))
+
 # [3.2.0](https://github.com/jmfiaschi/chewdata/compare/v3.1.0...v3.2.0) (2025-12-15)
 
 
