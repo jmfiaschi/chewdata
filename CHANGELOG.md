@@ -1,3 +1,15 @@
+# [3.2.0](https://github.com/jmfiaschi/chewdata/compare/v3.1.0...v3.2.0) (2025-12-15)
+
+
+### Bug Fixes
+
+* **curl:** bearer + header host + compatibility set_env with multi threading ([#65](https://github.com/jmfiaschi/chewdata/issues/65)) ([d3af728](https://github.com/jmfiaschi/chewdata/commit/d3af72839d13782fa643d107f4db3fcd6847fd52))
+
+
+### Features
+
+* **readme:** docs & force cicd ([a4b1025](https://github.com/jmfiaschi/chewdata/commit/a4b10259cf2838d17787cca818f16f1f22ad7c52))
+
 # [3.2.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.1.1-beta.1...v3.2.0-beta.1) (2025-12-14)
 
 
