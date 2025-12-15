@@ -197,7 +197,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
   docker:
-    needs: [benchmark, integration-tests, unit-tests, release]
+    needs: [semantic-release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
