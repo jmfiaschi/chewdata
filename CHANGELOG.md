@@ -1,3 +1,22 @@
+# [3.2.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.1.1-beta.1...v3.2.0-beta.1) (2025-12-14)
+
+
+### Features
+
+* **bearer:** set is_base64 to true by default ([d505e87](https://github.com/jmfiaschi/chewdata/commit/d505e87b1e0198c6d3df422bba2676e811760dd5))
+* **curl:** update hyper dependency to version 1.8.1 and refactor request handling ([a265aa1](https://github.com/jmfiaschi/chewdata/commit/a265aa15ebe3c40488b61acbfb57d7a73df7dab8))
+* **example:** add gitlab ([0bf8600](https://github.com/jmfiaschi/chewdata/commit/0bf8600fb8f4ffe911d1b0852a50fff79904cf10))
+* **example:** gitlab with extract in the transformation ([f7fc970](https://github.com/jmfiaschi/chewdata/commit/f7fc970ff8967bc240e6f4fb8961413ed98c98a3))
+
+## [3.1.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.1.0...v3.1.1-beta.1) (2025-12-14)
+
+
+### Bug Fixes
+
+* **curl:** apply port on header host only if specify in the url ([0e58ac4](https://github.com/jmfiaschi/chewdata/commit/0e58ac4931122791e561e95483eff703a7b123f5))
+* **env:** add fallback on var env without prefix CHEWDATA_ ([4937744](https://github.com/jmfiaschi/chewdata/commit/4937744780942ddb75545c5fe4a9eec979f4c0d3))
+* **env:** use share env map to store vars and secure multi-threading ([753db79](https://github.com/jmfiaschi/chewdata/commit/753db793af0ceba01d885e32d2f331f169820a22))
+
 # [3.1.0](https://github.com/jmfiaschi/chewdata/compare/v3.0.2...v3.1.0) (2025-05-30)
 
 

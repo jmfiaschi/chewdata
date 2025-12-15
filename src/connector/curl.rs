@@ -298,11 +298,10 @@ impl Curl {
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
         );
 
-        let host = format!(
-            "{}:{}",
-            uri.host().unwrap_or("localhost"),
-            uri.port_u16().unwrap_or(80)
-        );
+        let host = match uri.port_u16() {
+            Some(port) => format!("{}:{}", uri.host().unwrap_or("localhost"), port),
+            None => uri.host().unwrap_or("localhost").to_string(),
+        };
 
         request_builder = match self.version {
             1 => request_builder
@@ -368,19 +367,53 @@ impl Curl {
     /// Retrieve headers from the remote resource.
     pub async fn headers(&mut self) -> std::io::Result<Vec<(String, Vec<u8>)>> {
         let mut request_builder = self.request_builder().await?;
-        let mut client = self.http1().await?;
         let path = self.path();
 
-        let body = match self.method.to_uppercase().as_str() {
+        let mut parameters_without_context = self.parameters_without_context()?;
+        parameters_without_context.replace_mustache(self.parameters.clone());
+        let dataset = vec![DataResult::Ok(parameters_without_context)];
+
+        let (body, body_size) = self.get_request_body(&dataset).await?;
+
+        request_builder = request_builder.header(header::CONTENT_LENGTH, body_size.to_string());
+
+        let request = request_builder
+            .body(Box::pin(body))
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if self.is_cached {
+            if let Ok(Some(cache_entry)) = CachedEntry::get(&request).await {
+                return Ok(cache_entry
+                    .resp_headers
+                    .iter()
+                    .map(|(key, value)| (key.to_string(), value.as_bytes().to_vec()))
+                    .collect());
+            }
+        }
+
+        let (_, final_response) = self.try_send_request_with_redirect(request).await?;
+
+        info!(path, "✅ Fetch headers with success");
+
+        Ok(final_response
+            .headers()
+            .iter()
+            .map(|(key, value)| (key.to_string().clone(), value.as_bytes().to_vec()))
+            .collect())
+    }
+    /// Return parameter's values without context.
+    fn parameters_without_context(&self) -> Result<Value> {
+        Ok(match self.parameters.clone().search("/input")? {
+            Some(input) => input,
+            None => self.parameters.clone(),
+        })
+    }
+    async fn get_request_body(&self, dataset: &Vec<DataResult>) -> Result<(Full<Bytes>, usize)> {
+        match self.method.to_uppercase().as_str() {
             "POST" | "PUT" | "PATCH" => {
                 let mut buffer = Vec::default();
-                let mut parameters_without_context = self.parameters_without_context()?;
-                parameters_without_context.replace_mustache(self.parameters.clone());
-
-                let dataset = vec![DataResult::Ok(parameters_without_context)];
                 let mut document = self.document()?.clone_box();
                 document.set_entry_path(String::default());
-
                 buffer.write_all(&document.header(&dataset)?).await?;
                 buffer.write_all(&document.write(&dataset)?).await?;
                 buffer.write_all(&document.footer(&dataset)?).await?;
@@ -395,33 +428,27 @@ impl Curl {
                     }
                 }
 
-                request_builder =
-                    request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
+                let buffer_len = buffer.len();
 
-                Full::new(Bytes::from(buffer))
+                Ok((Full::new(Bytes::from(buffer)), buffer_len))
             }
-            _ => Full::new(Bytes::new()),
-        };
-
-        let mut request = request_builder
-            .body(Box::pin(body))
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        if self.is_cached {
-            if let Ok(Some(cache_entry)) = CachedEntry::get(&request).await {
-                return Ok(cache_entry
-                    .resp_headers
-                    .iter()
-                    .map(|(key, value)| (key.to_string(), value.as_bytes().to_vec()))
-                    .collect());
-            }
+            _ => Ok((Full::new(Bytes::new()), 0)),
         }
-
-        let mut headers = Vec::default();
+    }
+    async fn try_send_request_with_redirect(
+        &mut self,
+        request: hyper::Request<Pin<Box<Full<Bytes>>>>,
+    ) -> std::io::Result<(
+        hyper::Request<Pin<Box<Full<Bytes>>>>,
+        hyper::Response<hyper::body::Incoming>,
+    )> {
+        let mut client = self.http1().await?;
         let mut redirect_count: u8 = 0;
+        let mut request = request;
+        let path = self.path();
 
         while redirect_count <= self.redirection_limit as u8 {
-            let res = loop {
+            let response = loop {
                 // Retry when :
                 //  * server close the connection.
                 trace!(
@@ -450,8 +477,8 @@ impl Curl {
                 }
             }?;
 
-            if REDIRECT_CODES.contains(&res.status()) {
-                if let Some(location) = &res.headers().get("location") {
+            if REDIRECT_CODES.contains(&response.status()) {
+                if let Some(location) = response.headers().get("location") {
                     match location.to_str().unwrap().parse::<hyper::Uri>() {
                         Ok(valid_url) => {
                             *request.uri_mut() = valid_url;
@@ -463,49 +490,38 @@ impl Curl {
                 }
             }
 
-            if !res.status().is_success() {
+            if !response.status().is_success() {
                 let error_message = format!(
                     "The http call on '{}' failed with status code '{}'",
-                    path,
-                    res.status()
+                    request.uri().path(),
+                    response.status()
                 );
+
+                let payload = response
+                    .collect()
+                    .await
+                    .unwrap_or_default()
+                    .to_bytes()
+                    .to_vec();
 
                 warn!(
                     request = format!("{:?}", request).display_only_for_debugging(),
-                    error_message
+                    response_payload = format!("{}", String::from_utf8_lossy(&payload)),
+                    error_message,
                 );
                 return Err(Error::new(ErrorKind::Interrupted, error_message));
             }
 
-            headers = res
-                .headers()
-                .iter()
-                .map(|(key, value)| (key.to_string().clone(), value.as_bytes().to_vec()))
-                .collect();
-
-            break;
+            return Ok((request, response));
         }
 
-        if redirect_count > self.redirection_limit as u8 {
-            return Err(Error::new(
-                ErrorKind::Interrupted,
-                format!(
-                    "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
-                    self.redirection_limit
-                ),
-            ));
-        }
-
-        info!(path, "✅ Fetch headers with success");
-
-        Ok(headers)
-    }
-    /// Return parameter's values without context.
-    fn parameters_without_context(&self) -> Result<Value> {
-        Ok(match self.parameters.clone().search("/input")? {
-            Some(input) => input,
-            None => self.parameters.clone(),
-        })
+        return Err(Error::new(
+            ErrorKind::Interrupted,
+            format!(
+                "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
+                self.redirection_limit
+            ),
+        ));
     }
 }
 
@@ -716,40 +732,17 @@ impl Connector for Curl {
     #[instrument(name = "curl::fetch")]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let mut request_builder = self.request_builder().await?;
-        let mut client = self.http1().await?;
         let path = self.path();
 
-        let body = match self.method.to_uppercase().as_str() {
-            "POST" => {
-                let mut buffer = Vec::default();
-                let mut parameters_without_context = self.parameters_without_context()?;
-                parameters_without_context.replace_mustache(self.parameters.clone());
+        let mut parameters_without_context = self.parameters_without_context()?;
+        parameters_without_context.replace_mustache(self.parameters.clone());
+        let dataset = vec![DataResult::Ok(parameters_without_context)];
 
-                let dataset = vec![DataResult::Ok(parameters_without_context)];
-                let mut document = self.document()?.clone_box();
-                document.set_entry_path(String::default());
-                buffer.write_all(&document.header(&dataset)?).await?;
-                buffer.write_all(&document.write(&dataset)?).await?;
-                buffer.write_all(&document.footer(&dataset)?).await?;
+        let (body, body_size) = self.get_request_body(&dataset).await?;
 
-                // Specific clean for x-www-form-urlencoded
-                if document.metadata().mime_subtype.as_deref() == Some("x-www-form-urlencoded") {
-                    if buffer.starts_with(b"\"") {
-                        buffer.drain(0..1);
-                    }
-                    if buffer.ends_with(b"\"") {
-                        buffer.pop();
-                    }
-                }
+        request_builder = request_builder.header(header::CONTENT_LENGTH, body_size.to_string());
 
-                request_builder = request_builder.header(header::CONTENT_LENGTH, buffer.len());
-
-                Full::new(Bytes::from(buffer))
-            }
-            _ => Full::new(Bytes::new()),
-        };
-
-        let mut request = request_builder
+        let request = request_builder
             .body(Box::pin(body))
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
@@ -768,106 +761,34 @@ impl Connector for Curl {
             }
         }
 
-        let mut data = Vec::default();
-        let mut redirect_count: u8 = 0;
+        let (final_request, final_response) = self.try_send_request_with_redirect(request).await?;
+        let status = final_response.status().as_u16();
+        let request_headers = final_request.headers();
+        let response_headers = final_response.headers().clone();
 
-        while redirect_count <= self.redirection_limit as u8 {
-            let res = loop {
-                // Retry when :
-                //  * server close the connection.
-                trace!(
-                    request = format!("{:?}", request.display_only_for_debugging()),
-                    path,
-                    "Try to Sending request"
-                );
-
-                match client.try_send_request(request.clone()).await {
-                    Ok(res) => break Ok(res),
-                    Err(mut e) => {
-                        let req_back = e.take_message();
-                        let original_error = e.into_error();
-                        match req_back {
-                            Some(req_back) if original_error.is_canceled() => {
-                                request = req_back;
-                                warn!(
-                                    request = format!("{:?}", request).display_only_for_debugging(),
-                                    path, "Retrying the request after server closed the connection"
-                                );
-                                continue;
-                            }
-                            _ => break Err(Error::new(ErrorKind::Interrupted, original_error)),
-                        }
-                    }
-                }
-            }?;
-
-            if REDIRECT_CODES.contains(&res.status()) {
-                if let Some(location) = res.headers().get("location") {
-                    match location.to_str().unwrap().parse::<hyper::Uri>() {
-                        Ok(valid_url) => {
-                            *request.uri_mut() = valid_url;
-                        }
-                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e)),
-                    };
-                    redirect_count += 1;
-                    continue;
-                }
-            }
-
-            if !res.status().is_success() {
-                let error_message = format!(
-                    "The http call on '{}' failed with status code '{}'",
-                    path,
-                    res.status()
-                );
-
-                warn!(
-                    request = format!("{:?}", request).display_only_for_debugging(),
-                    error_message
-                );
-                return Err(Error::new(ErrorKind::Interrupted, error_message));
-            }
-
-            let status = res.status().as_u16();
-            let request_headers = request.headers();
-            let response_headers = res.headers().clone();
-
-            let headers_to_map = |headers: &HeaderMap| {
-                headers
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().to_string()))
-                    .collect()
-            };
-
-            data = res
+        let headers_to_map = |headers: &HeaderMap| {
+            headers
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().to_string()))
                 .collect()
-                .await
-                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-                .to_bytes()
-                .to_vec();
+        };
 
-            if self.is_cached {
-                CachedEntry::new(
-                    status,
-                    headers_to_map(&request_headers),
-                    headers_to_map(&response_headers),
-                    data.clone(),
-                )
-                .save(&request.uri().to_string())
-                .await?;
-            }
+        let data = final_response
+            .collect()
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+            .to_bytes()
+            .to_vec();
 
-            break;
-        }
-
-        if redirect_count > self.redirection_limit as u8 {
-            return Err(Error::new(
-                ErrorKind::Interrupted,
-                format!(
-                    "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
-                    self.redirection_limit
-                ),
-            ));
+        if self.is_cached {
+            CachedEntry::new(
+                status,
+                headers_to_map(&request_headers),
+                headers_to_map(&response_headers),
+                data.clone(),
+            )
+            .save(&final_request.uri().to_string())
+            .await?;
         }
 
         info!(path, "✅ Fetch data with success");
@@ -928,120 +849,23 @@ impl Connector for Curl {
     #[instrument(skip(dataset), name = "curl::send")]
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut request_builder = self.request_builder().await?;
-        let mut client = self.http1().await?;
         let path = self.path();
 
-        let body = match self.method.to_uppercase().as_str() {
-            "POST" | "PUT" | "PATCH" => {
-                let mut buffer = Vec::default();
-                let mut document = self.document()?.clone_box();
+        let (body, body_size) = self.get_request_body(&dataset).await?;
 
-                document.set_entry_path(String::default());
-                buffer.write_all(&document.header(&dataset)?).await?;
-                buffer.write_all(&document.write(&dataset)?).await?;
-                buffer.write_all(&document.footer(&dataset)?).await?;
+        request_builder = request_builder.header(header::CONTENT_LENGTH, body_size.to_string());
 
-                // Specific clean for x-www-form-urlencoded
-                if document.metadata().mime_subtype.as_deref() == Some("x-www-form-urlencoded") {
-                    if buffer.starts_with(b"\"") {
-                        buffer.drain(0..1);
-                    }
-                    if buffer.ends_with(b"\"") {
-                        buffer.pop();
-                    }
-                }
-
-                request_builder =
-                    request_builder.header(header::CONTENT_LENGTH, buffer.len().to_string());
-
-                Full::new(Bytes::from(buffer.clone()))
-            }
-            _ => Full::new(Bytes::new()),
-        };
-
-        let mut request = request_builder
+        let request = request_builder
             .body(Box::pin(body))
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut data = Vec::default();
-        let mut redirect_count: u8 = 0;
-
-        while redirect_count <= self.redirection_limit as u8 {
-            let res = loop {
-                // Retry when :
-                //  * server close the connection.
-                trace!(
-                    request = format!("{:?}", request.display_only_for_debugging()),
-                    path,
-                    "Try to Sending request"
-                );
-
-                match client.try_send_request(request.clone()).await {
-                    Ok(res) => break Ok(res),
-                    Err(mut e) => {
-                        let req_back = e.take_message();
-                        let original_error = e.into_error();
-                        match req_back {
-                            Some(req_back) if original_error.is_canceled() => {
-                                request = req_back;
-                                warn!(
-                                    request = format!("{:?}", request.display_only_for_debugging()),
-                                    path, "Retrying the request after server closed the connection"
-                                );
-                                continue;
-                            }
-                            _ => break Err(Error::new(ErrorKind::Interrupted, original_error)),
-                        }
-                    }
-                }
-            }?;
-
-            if REDIRECT_CODES.contains(&res.status()) {
-                if let Some(location) = res.headers().get("location") {
-                    match location.to_str().unwrap().parse::<hyper::Uri>() {
-                        Ok(valid_url) => {
-                            *request.uri_mut() = valid_url;
-                        }
-                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e)),
-                    };
-                    redirect_count += 1;
-                    continue;
-                }
-            }
-
-            if !res.status().is_success() {
-                let error_message = format!(
-                    "The http call on '{}' failed with status code '{}'",
-                    path,
-                    res.status()
-                );
-
-                warn!(
-                    request = format!("{:?}", request).display_only_for_debugging(),
-                    error_message
-                );
-                return Err(Error::new(ErrorKind::Interrupted, error_message));
-            }
-
-            data = res
-                .collect()
-                .await
-                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-                .to_bytes()
-                .to_vec();
-
-            break;
-        }
-
-        if redirect_count > self.redirection_limit as u8 {
-            return Err(Error::new(
-                ErrorKind::Interrupted,
-                format!(
-                    "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
-                    self.redirection_limit
-                ),
-            ));
-        }
+        let (_, final_response) = self.try_send_request_with_redirect(request).await?;
+        let data = final_response
+            .collect()
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+            .to_bytes()
+            .to_vec();
 
         info!(path, "✅ Send data with success");
 
@@ -1083,89 +907,18 @@ impl Connector for Curl {
     #[instrument(name = "curl::erase")]
     async fn erase(&mut self) -> Result<()> {
         let mut request_builder = self.request_builder().await?;
-        let mut client = self.http1().await?;
         let path = self.path();
 
         request_builder = request_builder.method(hyper::Method::DELETE);
 
-        let mut request = request_builder
+        let request = request_builder
             .body(Box::pin(Full::new(Bytes::new())))
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let mut redirect_count: u8 = 0;
-
-        while redirect_count <= self.redirection_limit as u8 {
-            let res = loop {
-                // Retry when :
-                //  * server close the connection.
-                trace!(
-                    request = format!("{:?}", request.display_only_for_debugging()),
-                    path,
-                    "Try to Sending request"
-                );
-
-                match client.try_send_request(request.clone()).await {
-                    Ok(res) => break Ok(res),
-                    Err(mut e) => {
-                        let req_back = e.take_message();
-                        let original_error = e.into_error();
-                        match req_back {
-                            Some(req_back) if original_error.is_canceled() => {
-                                request = req_back;
-                                warn!(
-                                    request = format!("{:?}", request.display_only_for_debugging()),
-                                    path, "Retrying the request after server closed the connection"
-                                );
-                                continue;
-                            }
-                            _ => break Err(Error::new(ErrorKind::Interrupted, original_error)),
-                        }
-                    }
-                }
-            }?;
-
-            if REDIRECT_CODES.contains(&res.status()) {
-                if let Some(location) = res.headers().get("location") {
-                    match location.to_str().unwrap().parse::<hyper::Uri>() {
-                        Ok(valid_url) => {
-                            *request.uri_mut() = valid_url;
-                        }
-                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e)),
-                    };
-                    redirect_count += 1;
-                    continue;
-                }
-            }
-
-            if !res.status().is_success() {
-                let error_message = format!(
-                    "The http call on '{}' failed with status code '{}'",
-                    path,
-                    res.status()
-                );
-
-                warn!(
-                    request = format!("{:?}", request).display_only_for_debugging(),
-                    error_message
-                );
-                return Err(Error::new(ErrorKind::Interrupted, error_message));
-            }
-
-            break;
-        }
-
-        if redirect_count > self.redirection_limit as u8 {
-            return Err(Error::new(
-                ErrorKind::Interrupted,
-                format!(
-                    "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
-                    self.redirection_limit
-                ),
-            ));
-        }
+        let (final_request, _) = self.try_send_request_with_redirect(request).await?;
 
         if self.is_cached {
-            CachedEntry::remove(&request.uri().to_string()).await?;
+            CachedEntry::remove(&final_request.uri().to_string()).await?;
         }
 
         info!(path, "✅ Erase data with success");

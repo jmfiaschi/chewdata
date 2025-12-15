@@ -192,7 +192,7 @@ fn it_should_read_data_get_api_with_basic() {
 #[cfg(feature = "curl")]
 #[test]
 fn it_should_read_data_get_api_with_bearer() {
-    let config = r#"[{"type":"r","connector":{"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/bearer","authenticator":{"type": "bearer","token":"{{ CURL_BEARER_TOKEN }}"}}},{"type":"w"}]"#;
+    let config = r#"[{"type":"r","connector":{"type":"curl","method":"GET","endpoint":"{{ CURL_ENDPOINT }}","path":"/bearer","authenticator":{"type": "bearer","token":"{{ CURL_BEARER_TOKEN }}","is_base64":false}}},{"type":"w"}]"#;
     let output = Command::new(debug_dir().join(APP_NAME))
         .args(&[config])
         .env("CHEWDATA_CURL_ENDPOINT", env::var("CURL_ENDPOINT").unwrap())
