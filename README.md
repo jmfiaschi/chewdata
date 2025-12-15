@@ -52,9 +52,8 @@ git clone https://github.com/jmfiaschi/chewdata.git chewdata
 cd chewdata
 cp .env.dev .env
 vim .env // Edit the .env file
-make build
-make unit-tests
-make integration-tests
+just build
+just test
 ```
 
 If all the test pass, the project is ready. read the Makefile in order to see, what kind of shortcut you can use.
@@ -147,7 +146,7 @@ $ cat ./data/multi_lines.json | cargo run
 or
 
 ```Bash
-$ cat ./data/multi_lines.json | make run
+$ cat ./data/multi_lines.json | just run
 [{...}]
 ```
 
@@ -170,7 +169,7 @@ $ cat ./data/multi_lines.csv | cargo run '[{"type":"reader","document":{"type":"
 or
 
 ```Bash
-$ cat ./data/multi_lines.csv | make run json='[{\"type\":\"reader\",\"document\":{\"type\":\"csv\"}},{\"type\":\"writer\"}]'
+$ cat ./data/multi_lines.csv | just run json='[{\"type\":\"reader\",\"document\":{\"type\":\"csv\"}},{\"type\":\"writer\"}]'
 [{...}] // Will transform the csv data into json format
 ```
 
@@ -193,7 +192,7 @@ or
 
 ```Bash
 $ echo '[{"type":"reader","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
-$ cat ./data/multi_lines.csv | make run file=my_etl.conf.json
+$ cat ./data/multi_lines.csv | just run file=my_etl.conf.json
 [{...}]
 ```
 
@@ -287,7 +286,7 @@ Folow the [Semantic release Specification](https://semantic-release.gitbook.io/s
 After code modifications, please run all tests.
 
 ```Bash
-make test
+just test
 ```
 
 ## Useful links
