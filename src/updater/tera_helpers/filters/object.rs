@@ -37,3 +37,17 @@ pub fn extract(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     new_args.insert("from".to_string(), value.clone());
     updater::tera_helpers::function::object::extract(&new_args)
 }
+
+/// See [`updater::tera_helpers::function::object::values`] for more details.
+pub fn values(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
+    let mut new_args = args.clone();
+    new_args.insert("value".to_string(), value.clone());
+    updater::tera_helpers::function::object::values(&new_args)
+}
+
+/// See [`updater::tera_helpers::function::object::keys`] for more details.
+pub fn keys(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
+    let mut new_args = args.clone();
+    new_args.insert("value".to_string(), value.clone());
+    updater::tera_helpers::function::object::keys(&new_args)
+}

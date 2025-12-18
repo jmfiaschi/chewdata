@@ -410,6 +410,46 @@ pub fn extract(args: &HashMap<String, Value>) -> Result<Value> {
         })
 }
 
+// Returns all values of an array.
+pub fn values(args: &HashMap<String, Value>) -> Result<Value> {
+    // Extracting and validating the 'value' argument
+    let value = args
+        .get("value")
+        .ok_or_else(|| Error::msg("Function `values` didn't receive a `value` argument"))
+        .and_then(|val| Ok(try_get_value!("values", "value", Value, val)))?
+        .clone();
+
+    match value {
+        Value::Array(arr) => Ok(to_value(arr.clone()).unwrap()),
+        Value::Object(obj) => {
+            let values: Vec<Value> = obj.values().cloned().collect();
+            Ok(to_value(values).unwrap())
+        }
+        _ => Ok(value.clone()),
+    }
+}
+
+// Returns all keys of an array.
+pub fn keys(args: &HashMap<String, Value>) -> Result<Value> {
+    let value = args
+        .get("value")
+        .ok_or_else(|| Error::msg("Function `keys` didn't receive a `value` argument"))
+        .and_then(|val| Ok(try_get_value!("keys", "value", Value, val)))?
+        .clone();
+
+    match value {
+        Value::Array(arr) => {
+            let keys: Vec<Value> = (0..arr.len()).map(|i| Value::Number(i.into())).collect();
+            Ok(to_value(keys).unwrap())
+        }
+        Value::Object(obj) => {
+            let keys: Vec<Value> = obj.keys().map(|k| Value::String(k.to_string())).collect();
+            Ok(to_value(keys).unwrap())
+        }
+        _ => Ok(Value::Null),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -663,6 +703,112 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Value>(r#"{"field1_1":{"field1_2":"value1_1"}}"#).unwrap(),
             result.unwrap()
+        );
+    }
+    #[test]
+    fn test_values_from_array() {
+        let arr = to_value(vec![
+            serde_json::json!({"a": 1}),
+            serde_json::json!({"b": 2}),
+            serde_json::json!({"c": 3}),
+        ])
+        .unwrap();
+
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), arr.clone());
+
+        let values_result = values(&args).unwrap();
+        let keys_result = keys(&args).unwrap();
+        assert_eq!(values_result, arr);
+        assert_eq!(keys_result, to_value(vec![0, 1, 2]).unwrap());
+    }
+    #[test]
+    fn test_keys_from_array() {
+        let arr = to_value(vec![
+            serde_json::json!({"a": 1}),
+            serde_json::json!({"b": 2}),
+            serde_json::json!({"c": 3}),
+        ])
+        .unwrap();
+
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), arr.clone());
+
+        let values_result = values(&args).unwrap();
+        let keys_result = keys(&args).unwrap();
+        assert_eq!(values_result, arr);
+        assert_eq!(keys_result, to_value(vec![0, 1, 2]).unwrap());
+    }
+    #[test]
+    fn test_keys_from_object() {
+        let obj = serde_json::from_str::<Value>(r#"{"a":1,"b":2,"c":3}"#).unwrap();
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), obj.clone());
+        let values_result = values(&args).unwrap();
+        let keys_result = keys(&args).unwrap();
+        assert_eq!(
+            values_result,
+            to_value(vec![
+                serde_json::json!(1),
+                serde_json::json!(2),
+                serde_json::json!(3)
+            ])
+            .unwrap()
+        );
+        assert_eq!(
+            keys_result,
+            to_value(vec![
+                serde_json::json!("a"),
+                serde_json::json!("b"),
+                serde_json::json!("c")
+            ])
+            .unwrap()
+        );
+    }
+    #[test]
+    fn test_keys_from_other_type() {
+        let val = serde_json::from_str::<Value>(r#""a string""#).unwrap();
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), val.clone());
+        let values_result = values(&args).unwrap();
+        let keys_result = keys(&args).unwrap();
+        assert_eq!(values_result, val);
+        assert_eq!(keys_result, Value::Null);
+    }
+    #[test]
+    fn test_values_from_other_type() {
+        let val = serde_json::from_str::<Value>(r#""a string""#).unwrap();
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), val.clone());
+        let values_result = values(&args).unwrap();
+        let keys_result = keys(&args).unwrap();
+        assert_eq!(values_result, val);
+        assert_eq!(keys_result, Value::Null);
+    }
+    #[test]
+    fn test_values_from_object() {
+        let obj = serde_json::from_str::<Value>(r#"{"a":1,"b":2,"c":3}"#).unwrap();
+        let mut args = HashMap::new();
+        args.insert("from".to_string(), obj.clone());
+        let values_result = values(&args).unwrap();
+        let keys_result = keys(&args).unwrap();
+        assert_eq!(
+            values_result,
+            to_value(vec![
+                serde_json::json!(1),
+                serde_json::json!(2),
+                serde_json::json!(3)
+            ])
+            .unwrap()
+        );
+        assert_eq!(
+            keys_result,
+            to_value(vec![
+                serde_json::json!("a"),
+                serde_json::json!("b"),
+                serde_json::json!("c")
+            ])
+            .unwrap()
         );
     }
 }

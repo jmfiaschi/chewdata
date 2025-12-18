@@ -192,6 +192,11 @@ impl Tera {
         engine.register_filter("find", filters::string::find);
         engine.register_function("extract", function::object::extract);
         engine.register_filter("extract", filters::object::extract);
+        engine.register_filter("values", filters::object::values);
+        engine.register_function("values", function::object::values);
+        engine.register_filter("keys", filters::object::keys);
+        engine.register_function("keys", function::object::keys);
+
         // faker
         engine.register_function("fake_words", function::faker::words);
         engine.register_function("fake_sentences", function::faker::sentences);
