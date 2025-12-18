@@ -970,3 +970,17 @@ mod tests {
         assert_eq!(keys_result, json!(["a", "b", "c"]));
     }
 }
+
+/// See [`updater::tera_helpers::function::object::values`] for more details.
+pub fn values(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
+    let mut new_args = args.clone();
+    new_args.insert("value".to_string(), value.clone());
+    updater::tera_helpers::function::object::values(&new_args)
+}
+
+/// See [`updater::tera_helpers::function::object::keys`] for more details.
+pub fn keys(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
+    let mut new_args = args.clone();
+    new_args.insert("value".to_string(), value.clone());
+    updater::tera_helpers::function::object::keys(&new_args)
+}
