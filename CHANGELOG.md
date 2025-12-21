@@ -1,3 +1,16 @@
+# [3.3.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2025-12-21)
+
+
+### Bug Fixes
+
+* **keycloak:** rollback stabalize setup ([5615410](https://github.com/jmfiaschi/chewdata/commit/56154109ed613abb0239306cbc9099bb1f8eebc6))
+* **keycloak:** stabalize setup ([d3521b9](https://github.com/jmfiaschi/chewdata/commit/d3521b983bf95f36f74f2dfe747eeff95e750ddd))
+
+
+### Features
+
+* **updater:** remove find/base64_encode/base64_decode from functions ([abf4bd4](https://github.com/jmfiaschi/chewdata/commit/abf4bd4f4c83b13e22f696e119da0fda4e723138))
+
 # [3.3.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.1...v3.3.0-beta.2) (2025-12-21)
 
 
