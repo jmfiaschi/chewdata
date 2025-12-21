@@ -190,12 +190,9 @@ impl Tera {
         engine.register_function("get_env", function::string::env);
         engine.register_function("find", function::string::find);
         engine.register_filter("find", filters::string::find);
-        engine.register_function("extract", function::object::extract);
         engine.register_filter("extract", filters::object::extract);
         engine.register_filter("values", filters::object::values);
-        engine.register_function("values", function::object::values);
         engine.register_filter("keys", filters::object::keys);
-        engine.register_function("keys", function::object::keys);
         engine.register_filter("update", filters::object::update);
         engine.register_filter("map", filters::object::map);
 

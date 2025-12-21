@@ -201,7 +201,7 @@ fn it_should_apply_complex_transformation() {
         ),
         (
             "object_merged_in",
-            "{{ output.object1 | merge(with=output.object2, in='/other') | json_encode() }}",
+            "{{ output.object1 | merge(with=output.object2, attribute='/other') | json_encode() }}",
             r#"{"field1":"value1","other":{"field2":"value2"}}"#,
         ),
     ];

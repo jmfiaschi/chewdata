@@ -1,6 +1,8 @@
 use crate::helper::json_pointer::JsonPointer;
-use crate::updater::{self, tera::Tera};
+use crate::helper::value::{Extract, MergeAndReplace};
+use crate::updater::tera::Tera;
 use json_value_merge::Merge;
+use json_value_resolve::Resolve;
 use json_value_search::Search;
 use regex::Regex;
 use serde_json::value::Value;
@@ -108,39 +110,261 @@ pub fn search(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     Ok(new_value)
 }
 
-/// See [`updater::tera_helpers::function::object::replace_key`] for more details.
+/// Replace object key name by another.
+///
+/// # Arguments
+///
+/// * `from` - The key to replace. Can be a regular expression.
+/// * `to` - The new key.
+/// * `level` - The depth level to apply the replacement.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use chewdata::updater::tera_helpers::filters::object::replace_key;
+/// use serde_json::json;
+///
+/// let value: Value = json!({"field_1":"value_1","field_2":"value_1"});
+/// let mut args = HashMap::new();
+/// args.insert("from".to_string(), Value::String("^(field_1)$".to_string()));
+/// args.insert("to".to_string(), Value::String("@$1".to_string()));
+///
+/// let result = replace_key(&value, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(
+///     serde_json::from_str::<Value>(r#"{"@field_1":"value_1","field_2":"value_1"}"#).unwrap(),
+///     result.unwrap()
+/// );
+/// ```
 pub fn replace_key(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let mut new_args = args.clone();
-    new_args.insert("target".to_string(), value.clone());
-    updater::tera_helpers::function::object::replace_key(&new_args)
+    // Extracting and validating the 'from' argument
+    let from = args
+        .get("from")
+        .ok_or_else(|| Error::msg("Function `replace_key` didn't receive a `from` argument"))
+        .and_then(|val| Ok(try_get_value!("replace_key", "from", String, val)))?;
+
+    // Extracting and validating the 'to' argument
+    let to = args
+        .get("to")
+        .ok_or_else(|| Error::msg("Function `replace_key` didn't receive a `to` argument"))
+        .and_then(|val| Ok(try_get_value!("replace_key", "to", String, val)))?;
+
+    // Extracting and validating the 'to' argument
+    let level = match args.get("level") {
+        Some(level) => try_get_value!("replace_value", "level", usize, level),
+        None => 0,
+    };
+
+    let mut new_value = value.clone();
+
+    replace_key_recursively(&mut new_value, &from, &to, level, 0)?;
+
+    Ok(new_value)
 }
 
-/// See [`updater::tera_helpers::function::object::replace_value`] for more details.
+fn replace_key_recursively(
+    target: &mut Value,
+    from: &str,
+    to: &str,
+    level: usize,
+    current_level: usize,
+) -> Result<()> {
+    if level > 0 && level <= current_level {
+        return Ok(());
+    }
+
+    let re = Regex::new(from).map_err(Error::msg)?;
+    match target {
+        Value::Object(map) => {
+            let new_array: Map<String, Value> = map
+                .iter()
+                .map(|(key, value)| {
+                    let new_key = re.replace(key, to).to_string();
+
+                    let mut cloned_value = value.clone();
+                    replace_key_recursively(&mut cloned_value, from, to, level, current_level + 1)?;
+
+                    Ok((new_key, cloned_value))
+                })
+                .collect::<Result<_>>()?;
+
+            *map = new_array;
+        }
+        Value::Array(array) => {
+            for value in array {
+                replace_key_recursively(value, from, to, level, current_level + 1)?;
+            }
+        }
+        _ => (),
+    };
+
+    Ok(())
+}
+
+/// Replace object value by another.
+///
+/// # Arguments
+///
+/// * `from` - The value to replace. Can be a regular expression.
+/// * `to` - The new value.
+/// * `level` - The depth level to apply the replacement.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use chewdata::updater::tera_helpers::filters::object::replace_value;
+/// use serde_json::json;
+///
+/// let value = json!({"field_1":"value_1","field_2":"value_1"});
+///
+/// let mut args = HashMap::new();
+/// args.insert("from".to_string(), json!("^(value_1)$"));
+/// args.insert("to".to_string(), json!("@$1"));
+///
+/// let result = replace_value(&value, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(
+///     serde_json::from_str::<Value>(r#"{"field_1":"@value_1","field_2":"@value_1"}"#).unwrap(),
+///     result.unwrap()
+/// );
+/// ```
 pub fn replace_value(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let mut new_args = args.clone();
-    new_args.insert("target".to_string(), value.clone());
-    updater::tera_helpers::function::object::replace_value(&new_args)
+    // Extracting and validating the 'from' argument
+    let from = args
+        .get("from")
+        .ok_or_else(|| Error::msg("Function `replace_value` didn't receive a `from` argument"))
+        .and_then(|val| Ok(try_get_value!("replace_value", "from", String, val)))?;
+
+    // Extracting and validating the 'to' argument
+    let to = args
+        .get("to")
+        .ok_or_else(|| Error::msg("Function `replace_value` didn't receive a `to` argument"))
+        .and_then(|val| Ok(try_get_value!("replace_value", "to", String, val)))?;
+
+    let level = match args.get("level") {
+        Some(level) => try_get_value!("replace_value", "level", usize, level),
+        None => 0,
+    };
+
+    let mut new_value = value.clone();
+
+    replace_value_recursively(&mut new_value, &from, &to, level, 0)?;
+
+    Ok(new_value)
 }
 
-/// See [`updater::tera_helpers::function::object::extract`] for more details.
+fn replace_value_recursively(
+    target: &mut Value,
+    from: &str,
+    to: &str,
+    level: usize,
+    current_level: usize,
+) -> Result<()> {
+    if level > 0 && level <= current_level {
+        return Ok(());
+    }
+
+    let re = Regex::new(from).map_err(Error::msg)?;
+
+    match target {
+        Value::Object(map) => {
+            for (_, value) in map {
+                replace_value_recursively(value, from, to, level, current_level + 1)?;
+            }
+        }
+        Value::Array(array) => {
+            for value in array {
+                replace_value_recursively(value, from, to, level, current_level + 1)?;
+            }
+        }
+        Value::Bool(bool_val) => {
+            let result = re.replace(&bool_val.to_string(), to).to_string();
+            *target = Value::resolve(result);
+        }
+        Value::Null => {
+            let result = re.replace("null", to).to_string();
+            *target = Value::resolve(result);
+        }
+        Value::Number(number) => {
+            let result = re.replace(&number.to_string(), to).to_string();
+            *target = Value::resolve(result);
+        }
+        Value::String(string) => {
+            let result = re.replace(string, to).to_string();
+            *target = Value::resolve(result);
+        }
+    }
+
+    Ok(())
+}
+
+/// Extract from a list of object, the attributes with the values. Keep the object structure.
+///
+/// # Arguments
+///
+/// * `from` - The list of objects or an object.
+/// * `attributes` - The list of attribute to extract. Accept regular expression in the attribute names.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use chewdata::updater::tera_helpers::filters::object::extract;
+/// use serde_json::json;
+///
+/// let from = json!([{"field1_1":{"field1_2":"value1_1"}},{"field2_1":{"field2_2":"value2_1"}}]);
+/// let mut args = HashMap::new();
+/// args.insert("attributes".to_string(), json!(["field1_1.field1_2"]));
+///
+/// let result = extract(&from, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(
+///     json!([{"field1_1":{"field1_2":"value1_1"}}]),
+///     result.unwrap()
+/// );
+/// ```
 pub fn extract(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let mut new_args = args.clone();
-    new_args.insert("from".to_string(), value.clone());
-    updater::tera_helpers::function::object::extract(&new_args)
-}
+    let extract_attributes = |value: &Value, attributes: &Vec<String>| -> Result<Value> {
+        let mut new_value = Value::default();
+        for attribute in attributes {
+            let attribute_json_pointer = attribute.to_json_pointer();
+            let value_extracted = value.extract(&attribute_json_pointer)?;
 
-/// See [`updater::tera_helpers::function::object::values`] for more details.
-pub fn values(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let mut new_args = args.clone();
-    new_args.insert("value".to_string(), value.clone());
-    updater::tera_helpers::function::object::values(&new_args)
-}
+            if let Value::Null = value_extracted {
+                continue;
+            }
 
-/// See [`updater::tera_helpers::function::object::keys`] for more details.
-pub fn keys(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let mut new_args = args.clone();
-    new_args.insert("value".to_string(), value.clone());
-    updater::tera_helpers::function::object::keys(&new_args)
+            new_value.merge_replace(&value_extracted);
+        }
+        Ok(new_value)
+    };
+
+    // Extracting and validating the 'attributes' argument
+    let attributes = args
+        .get("attributes")
+        .ok_or_else(|| Error::msg("Function `extract` didn't receive an `attributes` argument"))
+        .and_then(|val| Ok(try_get_value!("extract", "attributes", Vec<String>, val)))?;
+
+    match value {
+        Value::Array(vec) => {
+            let mut result = Vec::default();
+            for value in vec {
+                let new_value = extract_attributes(value, &attributes)?;
+
+                if new_value != Value::default() {
+                    result.append(&mut vec![new_value]);
+                }
+            }
+            Ok(Value::Array(result))
+        }
+        Value::Object(_) => extract_attributes(value, &attributes),
+        _ => Ok(Value::Null),
+    }
 }
 
 /// Update values of an object or array by applying a Tera filter to a specified attribute.
@@ -151,8 +375,9 @@ pub fn keys(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///     - "attribute": The attribute (in dot notation) to update.
 /// # Returns
 /// A Result containing the updated serde_json::Value or an error if the operation fails.
+///
 /// # Example
-/// ```
+/// ```no_run
 /// use serde_json::json;
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera::Tera;
@@ -300,6 +525,33 @@ pub fn map(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     Ok(found_value)
 }
 
+// Returns all values of an array.
+pub fn values(value: &Value, _args: &HashMap<String, Value>) -> Result<Value> {
+    match value {
+        Value::Array(arr) => Ok(to_value(arr.clone()).unwrap()),
+        Value::Object(obj) => {
+            let values: Vec<Value> = obj.values().cloned().collect();
+            Ok(to_value(values).unwrap())
+        }
+        _ => Ok(value.clone()),
+    }
+}
+
+// Returns all keys of an array.
+pub fn keys(value: &Value, _args: &HashMap<String, Value>) -> Result<Value> {
+    match value {
+        Value::Array(arr) => {
+            let keys: Vec<Value> = (0..arr.len()).map(|i| Value::Number(i.into())).collect();
+            Ok(to_value(keys).unwrap())
+        }
+        Value::Object(obj) => {
+            let keys: Vec<Value> = obj.keys().map(|k| Value::String(k.to_string())).collect();
+            Ok(to_value(keys).unwrap())
+        }
+        _ => Ok(Value::Null),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,7 +574,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_array_of_scalar() {
+    fn merge_array_of_scalar() {
         let from = json!(["a"]);
         let with = json!(["b"]);
         let args = args(&[("with", with)]);
@@ -363,11 +615,9 @@ mod tests {
 
     #[test]
     fn merge_objects_with_attribute() {
-        let mut from = Value::default();
-        from.merge_in("/field", &json!("value")).unwrap();
+        let from = json!({"field":"value"});
         let with = json!("other value");
-
-        let args = args(&[("with", with), ("attribute", json!("other value"))]);
+        let args = args(&[("with", with), ("attribute", json!("other_field"))]);
         let result = merge(&from, &args).unwrap();
 
         assert_eq!(
@@ -441,6 +691,93 @@ mod tests {
                 attribute
             );
         }
+    }
+
+    #[test]
+    fn replace_key_with_object() {
+        let value = json!({"field_1":"value_1","field_2":"value_1"});
+        let args = args(&[("from", json!("^(field_1)$")), ("to", json!("@$1"))]);
+
+        let result = replace_key(&value, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            json!({"@field_1":"value_1","field_2":"value_1"}),
+            result.unwrap()
+        );
+    }
+    #[test]
+    fn replace_key_with_array() {
+        let value = json!([{"field_1":"value_1","field_2":"value_1"}]);
+        let args = args(&[("from", json!("^(field_1)$")), ("to", json!("@$1"))]);
+
+        let result = replace_key(&value, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            json!([{"@field_1":"value_1","field_2":"value_1"}]),
+            result.unwrap()
+        );
+    }
+
+    #[test]
+    fn replace_value_with_object() {
+        let value = json!({"field_1":"value_1","field_2":"value_1"});
+        let args = args(&[("from", json!("^(value_1)$")), ("to", json!("@$1"))]);
+
+        let result = replace_value(&value, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            json!({"field_1":"@value_1","field_2":"@value_1"}),
+            result.unwrap()
+        );
+    }
+    #[test]
+    fn replace_value_with_array() {
+        let value = json!([{"field_1":"value_1","field_2":"value_1"}]);
+        let args = args(&[("from", json!("^(value_1)$")), ("to", json!("@$1"))]);
+
+        let result = replace_value(&value, &args);
+
+        assert!(result.is_ok());
+        assert_eq!(
+            json!([{"field_1":"@value_1","field_2":"@value_1"}]),
+            result.unwrap()
+        );
+    }
+
+    #[test]
+    fn extract_on_array() {
+        let from =
+            json!([{"field1_1":{"field1_2":"value1_1"}},{"field2_1":{"field2_2":"value2_1"}}]);
+
+        let args_1 = args(&[("attributes", json!(["field1_1.field1_2"]))]);
+
+        let result = extract(&from, &args_1);
+        assert!(result.is_ok());
+        assert_eq!(
+            json!([{"field1_1":{"field1_2":"value1_1"}}]),
+            result.unwrap()
+        );
+
+        // Extract two attributes.
+        let args_2 = args(&[(
+            "attributes",
+            json!(["field1_1.field1_2", "field2_1.field2_2"]),
+        )]);
+
+        let result = extract(&from, &args_2);
+        assert!(result.is_ok());
+        assert_eq!(from, result.unwrap());
+    }
+    #[test]
+    fn extract_on_object() {
+        let from = json!({"field1_1":{"field1_2":"value1_1"},"field2_1":{"field2_2":"value2_1"}});
+
+        // Extract one attribute.
+        let args = args(&[("attributes", json!(["field1_1.field1_2"]))]);
+
+        let result = extract(&from, &args);
+        assert!(result.is_ok());
+        assert_eq!(json!({"field1_1":{"field1_2":"value1_1"}}), result.unwrap());
     }
 
     // ---------- Update Object Tests ----------
@@ -599,5 +936,35 @@ mod tests {
         let args = args(&[("attribute", json!("name"))]);
         let result = map(&users, &args).unwrap();
         assert_eq!(result, json!(["alice", "bob"]));
+    }
+
+    #[test]
+    fn keys_values_from_array() {
+        let value = json!([
+            {"a": 1},
+            {"b": 2},
+            {"c": 3},
+        ]);
+
+        let values_result = values(&value, &HashMap::new()).unwrap();
+        let keys_result = keys(&value, &HashMap::new()).unwrap();
+        assert_eq!(values_result, value);
+        assert_eq!(keys_result, to_value(vec![0, 1, 2]).unwrap());
+    }
+    #[test]
+    fn keys_values_from_other_type() {
+        let value = json!("a string");
+        let values_result = values(&value, &HashMap::new()).unwrap();
+        let keys_result = keys(&value, &HashMap::new()).unwrap();
+        assert_eq!(values_result, value);
+        assert_eq!(keys_result, Value::Null);
+    }
+    #[test]
+    fn keys_values_from_object() {
+        let value = json!({"a":1,"b":2,"c":3});
+        let values_result = values(&value, &HashMap::new()).unwrap();
+        let keys_result = keys(&value, &HashMap::new()).unwrap();
+        assert_eq!(values_result, json!([1, 2, 3]));
+        assert_eq!(keys_result, json!(["a", "b", "c"]));
     }
 }
