@@ -1,23 +1,111 @@
 use crate::helper::json_pointer::JsonPointer;
 use crate::updater::{self, tera::Tera};
+use json_value_merge::Merge;
 use json_value_search::Search;
 use regex::Regex;
 use serde_json::value::Value;
 use std::collections::HashMap;
 use tera::*;
 
-/// See [`updater::tera_helpers::function::object::merge`] for more details.
+/// Merge two objects together.
+///
+/// # Arguments
+///
+/// * `with` - Object to merge with the value in input.
+/// * `attribute` - (optional) Where to merge the object defined by the 'with' argument.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use serde_json::json;
+/// use chewdata::updater::tera_helpers::filters::object::merge;
+///
+/// let from = json!(["a"]);
+/// let with = json!(["b"]);
+/// let mut args = HashMap::new();
+/// args.insert("with".to_string(), with);
+///
+/// let result = merge(&from, &args).unwrap();
+/// assert_eq!(result, json!(["a", "b"]));
+/// ```
+///
+/// ```no_run
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use serde_json::json;
+/// use chewdata::updater::tera_helpers::filters::object::merge;
+///
+/// let from = json!({"a":"b"});
+/// let with = json!({"c":"d"});
+/// let mut args = HashMap::new();
+/// args.insert("with".to_string(), with);
+/// args.insert("attribute".to_string(), json!("e"));
+///
+/// let result = merge(&from, &args).unwrap();
+/// assert_eq!(result, json!({"a":"b","e":{"c":"d"}}));
+/// ```
 pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let mut new_args = args.clone();
-    new_args.insert("from".to_string(), value.clone());
-    updater::tera_helpers::function::object::merge(&new_args)
+    let with = args
+        .get("with")
+        .ok_or_else(|| Error::msg("Function `merge` didn't receive a `with` argument"))
+        .and_then(|val| Ok(try_get_value!("merge", "with", Value, val)))?;
+
+    let attribute = args.get("attribute").and_then(|v| v.as_str());
+
+    let mut new_value = value.clone();
+
+    match attribute {
+        Some(attribute) => {
+            let json_pointer = attribute.to_string().to_json_pointer();
+            new_value.merge_in(&json_pointer, &with)?;
+        }
+        None => {
+            new_value.merge(&with);
+        }
+    };
+
+    Ok(new_value)
 }
 
-/// See [`updater::tera_helpers::function::object::search`] for more details.
+/// Search an element of an object.
+///
+/// # Arguments
+///
+/// * `attribute` - Attribute to search and return.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::collections::HashMap;
+/// use serde_json::value::Value;
+/// use json_value_search::Search;
+/// use json_value_merge::Merge;
+/// use serde_json::json;
+/// use chewdata::updater::tera_helpers::filters::object::search;
+///
+/// let from = json!({"field_1":{"field_2": "value"}});
+/// let mut args = HashMap::new();
+/// args.insert("attribute".to_string(), json!("/field_1"));
+///
+/// let result = search(&from, &args);
+/// assert!(result.is_ok());
+/// assert_eq!(serde_json::from_str::<Value>(r#"{"field_2":"value"}"#).unwrap(), result.unwrap());
+/// ```
 pub fn search(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
-    let mut new_args = args.clone();
-    new_args.insert("from".to_string(), value.clone());
-    updater::tera_helpers::function::object::search(&new_args)
+    // Extracting and validating the 'path' argument
+    let path = args
+        .get("attribute")
+        .ok_or_else(|| Error::msg("Function `search` didn't receive an `attribute` argument"))
+        .and_then(|val| Ok(try_get_value!("search", "attribute", String, val)))?;
+
+    let new_value = match value.clone().search(path.as_str())? {
+        Some(value) => value,
+        None => Value::Null,
+    };
+
+    Ok(new_value)
 }
 
 /// See [`updater::tera_helpers::function::object::replace_key`] for more details.
@@ -72,11 +160,13 @@ pub fn keys(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// let tera = Tera::default();
 /// futures::executor::block_on(async { tera.engine().await });
+///
 /// let mut args = HashMap::new();
 /// args.insert("fn".to_string(), json!("filter"));
 /// args.insert("filter_attribute".to_string(), json!("code"));
 /// args.insert("filter_value".to_string(), json!("admin"));
 /// args.insert("attribute".to_string(), json!("roles"));
+///
 /// let value = json!({"name": "  Alice  ", "age": 30, "roles": [{"name": " Admin ","code": "admin"}, {"name": " Other ","code": "other"}]});
 /// let updated_value = update(&value, &args).unwrap();
 /// assert_eq!(updated_value, json!({"name": "  Alice  ", "age": 30, "roles": [{"name": " Admin ","code": "admin"}]}));
@@ -94,7 +184,7 @@ pub fn update(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     let attribute = args
         .get("attribute")
         .and_then(|v| v.as_str())
-        .ok_or("map requires 'attribute'")?
+        .ok_or("update requires 'attribute'")?
         .to_string();
 
     let json_pointer = attribute.to_json_pointer();
@@ -229,6 +319,128 @@ mod tests {
             .iter()
             .map(|(k, v)| (k.to_string(), v.clone()))
             .collect()
+    }
+
+    #[test]
+    fn test_merge_array_of_scalar() {
+        let from = json!(["a"]);
+        let with = json!(["b"]);
+        let args = args(&[("with", with)]);
+
+        let result = merge(&from, &args).unwrap();
+        assert_eq!(result, json!(["a", "b"]));
+    }
+
+    #[test]
+    fn merge_array_of_object() {
+        let from = json!([{"field1": "value1"}]);
+        let with = json!([{"field2": "value2"}]);
+        let args = args(&[("with", with)]);
+
+        let result = merge(&from, &args).unwrap();
+        assert_eq!(result, json!([{"field1": "value1"}, {"field2": "value2"}]));
+    }
+
+    #[test]
+    fn merge_objects_flat() {
+        let mut from = Value::default();
+        from.merge_in("/field", &json!("value")).unwrap();
+        let mut with = Value::default();
+        with.merge_in("/other_field", &json!("other value"))
+            .unwrap();
+        let args = args(&[("with", with)]);
+
+        let result = merge(&from, &args).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "field": "value",
+                "other_field": "other value"
+            })
+        );
+    }
+
+    #[test]
+    fn merge_objects_with_attribute() {
+        let mut from = Value::default();
+        from.merge_in("/field", &json!("value")).unwrap();
+        let with = json!("other value");
+
+        let args = args(&[("with", with), ("attribute", json!("other value"))]);
+        let result = merge(&from, &args).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "field": "value",
+                "other_field": "other value"
+            })
+        );
+    }
+
+    #[test]
+    fn merge_empty_arrays() {
+        let from = json!([]);
+        let with = json!([]);
+        let args = args(&[("with", with)]);
+
+        let result = merge(&from, &args).unwrap();
+        assert_eq!(result, json!([]));
+    }
+
+    #[test]
+    fn merge_scalar_overwrites() {
+        let from = json!("old");
+        let with = json!("new");
+        let args = args(&[("with", with)]);
+
+        let result = merge(&from, &args).unwrap();
+        assert_eq!(result, json!("new"));
+    }
+
+    #[test]
+    fn merge_nested_objects() {
+        let mut from = Value::default();
+        from.merge_in("/a/b", &json!("x")).unwrap();
+        let mut with = Value::default();
+        with.merge_in("/a/c", &json!("y")).unwrap();
+        let args = args(&[("with", with)]);
+
+        let result = merge(&from, &args).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "a": {
+                    "b": "x",
+                    "c": "y"
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn search_various_paths() {
+        // Setup a nested object
+        let value = json!({"field_1":{"field_2": "value"}});
+
+        // Table of test cases: (search path, expected result)
+        let cases = vec![
+            ("/field_1", json!({ "field_2": "value" })),
+            ("/field_1/field_2", json!("value")),
+            ("/field_1/not_found", Value::Null),
+        ];
+
+        for (attribute, expected) in cases {
+            let args = args(&[("attribute", attribute.into())]);
+            let result = search(&value, &args).unwrap();
+            assert_eq!(
+                result, expected,
+                "Failed to search attribute: {}",
+                attribute
+            );
+        }
     }
 
     // ---------- Update Object Tests ----------
