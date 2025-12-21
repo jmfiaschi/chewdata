@@ -180,15 +180,12 @@ impl Tera {
         engine.register_filter("replace_key", filters::object::replace_key);
         engine.register_filter("replace_value", filters::object::replace_value);
         engine.register_function("uuid_v4", function::string::uuid_v4);
-        engine.register_function("base64_encode", function::string::base64_encode);
         engine.register_filter("base64_encode", filters::string::base64_encode);
-        engine.register_function("base64_decode", function::string::base64_decode);
         engine.register_filter("base64_decode", filters::string::base64_decode);
         engine.register_filter("search", filters::object::search);
         engine.register_filter("env", filters::string::set_env);
         engine.register_function("env", function::string::env);
         engine.register_function("get_env", function::string::env);
-        engine.register_function("find", function::string::find);
         engine.register_filter("find", filters::string::find);
         engine.register_filter("extract", filters::object::extract);
         engine.register_filter("values", filters::object::values);

@@ -1,16 +1,9 @@
-use base64::Engine;
-use regex::Regex;
 use serde_json::value::Value;
-use std::{collections::HashMap, sync::Arc, sync::OnceLock, sync::RwLock};
+use std::collections::HashMap;
 use tera::*;
 use uuid::Uuid;
 
-type SharedEnv = Arc<RwLock<HashMap<String, String>>>;
-static SHARED_ENV: OnceLock<SharedEnv> = OnceLock::new();
-
-fn shared_env() -> &'static SharedEnv {
-    SHARED_ENV.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
-}
+use crate::updater::tera_helpers::filters::string::get_shared_environment_variables;
 
 /// Return a generated v4 uuid string.
 ///
@@ -48,96 +41,6 @@ pub fn uuid_v4(args: &HashMap<String, Value>) -> Result<Value> {
     Ok(Value::String(uuid_string))
 }
 
-/// Returns encoded base64 string.
-///
-/// # Arguments
-///
-/// * `value` - A string slice to encode.
-/// * `config` - Possible configuration: `standard_no_pad` | `url_safe` | `url_safe_no_pad` | `standard`
-///
-/// # Examples
-///
-/// ```no_run
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::string::base64_encode;
-///
-/// let mut args = HashMap::new();
-/// args.insert("value".to_string(), Value::String("my_test".to_string()));
-/// let value = base64_encode(&args).unwrap();
-/// assert_eq!("bXlfdGVzdA==", value.as_str().unwrap());
-/// ```
-pub fn base64_encode(args: &HashMap<String, Value>) -> Result<Value> {
-    // Extracting and validating the 'value' argument
-    let decode_string: String = args
-        .get("value")
-        .ok_or_else(|| Error::msg("Function `base64_encode` didn't receive a `value` argument"))
-        .and_then(|val| Ok(try_get_value!("base64_encode", "value", String, val)))?;
-
-    // Extracting and validating the 'config' argument
-    let config = args
-        .get("config")
-        .map(|config| Ok(try_get_value!("base64_encode", "config", String, config)))
-        .unwrap_or_else(|| Ok(String::from("standard")))?;
-
-    // Encoding the string based on the specified config or using the standard config
-    let encode_string = match config.to_uppercase().as_str() {
-        "STANDARD_NO_PAD" => base64::engine::general_purpose::STANDARD_NO_PAD.encode(decode_string),
-        "URL_SAFE" => base64::engine::general_purpose::URL_SAFE.encode(decode_string),
-        "URL_SAFE_NO_PAD" => base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(decode_string),
-        _ => base64::engine::general_purpose::STANDARD.encode(decode_string),
-    };
-
-    Ok(Value::String(encode_string))
-}
-
-/// Returns a decoded base64 string.
-///
-/// # Arguments
-///
-/// * `value` - A base64 string slice to decode.
-/// * `config` - Possible configuration: `standard_no_pad` | `url_safe` | `url_safe_no_pad` | `standard`
-///
-/// # Examples
-///
-/// ```no_run
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::string::base64_decode;
-///
-/// let mut args = HashMap::new();
-/// args.insert("value".to_string(), Value::String("bXlfdGVzdA==".to_string()));
-/// let value = base64_decode(&args).unwrap();
-/// assert_eq!("my_test", value.as_str().unwrap());
-/// ```
-pub fn base64_decode(args: &HashMap<String, Value>) -> Result<Value> {
-    // Extracting and validating the 'value' argument
-    let encode_string: String = args
-        .get("value")
-        .ok_or_else(|| Error::msg("Function `base64_decode` didn't receive a `value` argument"))
-        .and_then(|val| Ok(try_get_value!("base64_decode", "value", String, val)))?;
-
-    // Extracting and validating the 'config' argument
-    let config = args
-        .get("config")
-        .map(|config| Ok(try_get_value!("base64_decode", "config", String, config)))
-        .unwrap_or_else(|| Ok(String::from("strandard")))?;
-
-    // Decoding the base64 string based on the specified config or using the standard config
-    let decode_string = match config.to_uppercase().as_str() {
-        "STANDARD_NO_PAD" => base64::engine::general_purpose::STANDARD_NO_PAD.decode(encode_string),
-        "URL_SAFE" => base64::engine::general_purpose::URL_SAFE.decode(encode_string),
-        "URL_SAFE_NO_PAD" => base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(encode_string),
-        _ => base64::engine::general_purpose::STANDARD.decode(encode_string),
-    }
-    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))
-    .and_then(|res| {
-        String::from_utf8(res).map_err(|e| std::io::Error::new(std::io::ErrorKind::Unsupported, e))
-    })?;
-
-    Ok(Value::String(decode_string))
-}
-
 /// Returns the environment variable.
 ///
 /// # Arguments
@@ -170,7 +73,7 @@ pub fn base64_decode(args: &HashMap<String, Value>) -> Result<Value> {
 /// ```
 pub fn env(args: &HashMap<String, Value>) -> Result<Value> {
     // Use share environment map instead of system environment variables to avoid side effects with multi threading
-    let shared_env = shared_env().clone();
+    let shared_env = get_shared_environment_variables().clone();
 
     // Extracting and validating the 'name' argument
     let name: String = args
@@ -212,140 +115,47 @@ pub fn env(args: &HashMap<String, Value>) -> Result<Value> {
     Ok(value)
 }
 
-/// Set an environment variable.
-///
-/// Arguments:
-///
-/// * `name` - A string slice that contain the environment variable name.
-/// * `value` - A string slice that contain the default environment variable value.
-///
-/// # Examples
-///
-/// ```no_run
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::string::set_env;
-///
-/// let mut args = HashMap::new();
-/// args.insert("value".to_string(), Value::String("my_var".to_string()));
-/// args.insert("name".to_string(), Value::String("MY_KEY".to_string()));
-///
-/// let value = set_env(&args).unwrap();
-/// assert_eq!("my_var", value);
-/// ```
-pub fn set_env(args: &HashMap<String, Value>) -> Result<Value> {
-    // Use share environment map instead of system environment variables to avoid side effects with multi threading
-    let shared_env = shared_env().clone();
-
-    // Extracting and validating the 'value' argument
-    let value_string: String = args
-        .get("value")
-        .ok_or_else(|| Error::msg("Function `set_env` didn't receive a `value` argument"))
-        .and_then(|val| Ok(try_get_value!("env", "value", String, val)))?;
-
-    // Extracting and validating the 'name' argument
-    let name: String = args
-        .get("name")
-        .ok_or_else(|| Error::msg("Function `set_env` didn't receive a `name` argument"))
-        .and_then(|val| Ok(try_get_value!("env", "name", String, val)))?;
-
-    // Avoiding to override the system environment variable
-    let prefixed_key = format!("{}_{}", str::to_uppercase(crate::PROJECT_NAME), name);
-
-    let mut env = shared_env.write().unwrap();
-    env.insert(prefixed_key, value_string.clone());
-
-    Ok(Value::String(value_string))
-}
-
-/// Returns a list of string found. See [https://docs.rs/regex/latest/regex/struct.Regex.html#method.find_iter](find_iter).
-///
-/// Arguments:
-///
-/// * `pattern` - regex expression to identify what you want to find from a string.
-/// * `value` - Value to analyse.
-///
-/// # Examples
-///
-/// ```no_run
-/// use std::collections::HashMap;
-/// use serde_json::value::Value;
-/// use chewdata::updater::tera_helpers::function::string::find;
-///
-/// let mut args = HashMap::new();
-/// args.insert("value".to_string(), Value::String("Hello, world!".to_string()));
-/// args.insert("pattern".to_string(), Value::String(r"\w+".to_string()));
-///
-/// let result = find(&args).unwrap();
-/// assert_eq!(
-///     result,
-///     Value::Array(vec![
-///         Value::String("Hello".to_string()),
-///         Value::String("world".to_string())
-///     ])
-/// );
-/// ```
-pub fn find(args: &HashMap<String, Value>) -> Result<Value> {
-    // Extracting and validating the 'value' argument
-    let value_string: String = args
-        .get("value")
-        .ok_or_else(|| Error::msg("Function `find` didn't receive a `value` argument"))
-        .and_then(|val| Ok(try_get_value!("find", "value", String, val)))?;
-
-    // Extracting and validating the 'pattern' argument
-    let pattern = args
-        .get("pattern")
-        .ok_or_else(|| Error::msg("Function `find` didn't receive a `pattern` argument"))
-        .and_then(|pattern| Ok(try_get_value!("find", "pattern", String, pattern)))?;
-
-    // Creating a regex from the pattern
-    let re = Regex::new(&pattern).map_err(Error::msg)?;
-
-    // Collecting matching substrings into a Vec<Value>
-    let vec = re
-        .find_iter(&value_string)
-        .map(|s| Value::String(s.as_str().to_string()))
-        .collect();
-
-    Ok(Value::Array(vec))
-}
-
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
+    use crate::updater::tera_helpers::filters::string::set_env;
+
     use super::*;
+
+    // ---------- Helpers ----------
+    fn args(pairs: &[(&str, serde_json::Value)]) -> HashMap<String, serde_json::Value> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
+    }
 
     #[test]
     fn test_uuid_v4() {
         // Test case 1: Default format (simple)
-        let args = HashMap::new();
-        let result = uuid_v4(&args).unwrap();
+        let result = uuid_v4(&HashMap::new()).unwrap();
         let uuid = Uuid::parse_str(&result.as_str().unwrap()).unwrap();
         assert_eq!(uuid.get_variant(), uuid::Variant::RFC4122);
         assert_eq!(uuid.get_version(), Some(uuid::Version::Random));
 
         // Test case 2: Hyphenated format
-        let mut args = HashMap::new();
-        args.insert(
-            "format".to_string(),
-            Value::String("hyphenated".to_string()),
-        );
-        let result = uuid_v4(&args).unwrap();
+        let arguments = args(&[("format", json!("hyphenated"))]);
+        let result = uuid_v4(&arguments).unwrap();
         let uuid = Uuid::parse_str(&result.as_str().unwrap()).unwrap();
         assert_eq!(uuid.get_variant(), uuid::Variant::RFC4122);
         assert_eq!(uuid.get_version(), Some(uuid::Version::Random));
 
         // Test case 3: URN format
-        let mut args = HashMap::new();
-        args.insert("format".to_string(), Value::String("urn".to_string()));
-        let result = uuid_v4(&args).unwrap();
+        let arguments = args(&[("format", json!("urn"))]);
+        let result = uuid_v4(&arguments).unwrap();
         let uuid = Uuid::parse_str(&result.as_str().unwrap()).unwrap();
         assert_eq!(uuid.get_variant(), uuid::Variant::RFC4122);
         assert_eq!(uuid.get_version(), Some(uuid::Version::Random));
 
         // Test case 4: Two generate uuid are not the same
-        let args = HashMap::new();
-        let first_result = uuid_v4(&args);
-        let second_result = uuid_v4(&args);
+        let first_result = uuid_v4(&HashMap::new());
+        let second_result = uuid_v4(&HashMap::new());
         assert!(first_result.is_ok());
         assert!(second_result.is_ok());
         let first_value = first_result.unwrap();
@@ -353,201 +163,29 @@ mod tests {
         assert_ne!(first_value, second_value);
     }
     #[test]
-    fn test_base64_encode() {
-        // Test case 1: Default encoding (standard)
-        let mut args = HashMap::new();
-        args.insert(
-            "value".to_string(),
-            Value::String("Hello, world!".to_string()),
-        );
-
-        let result = base64_encode(&args).unwrap();
-        assert_eq!(
-            result,
-            Value::String(base64::engine::general_purpose::STANDARD.encode("Hello, world!"))
-        );
-
-        // Test case 2: url_safe encoding
-        let mut args = HashMap::new();
-        args.insert(
-            "value".to_string(),
-            Value::String("Hello, world!".to_string()),
-        );
-        args.insert("config".to_string(), Value::String("url_safe".to_string()));
-
-        let result = base64_encode(&args).unwrap();
-        assert_eq!(
-            result,
-            Value::String(base64::engine::general_purpose::URL_SAFE.encode("Hello, world!"))
-        );
-
-        // Test case 3: Custom encoding (standard_no_pad)
-        let mut args = HashMap::new();
-        args.insert(
-            "value".to_string(),
-            Value::String("Hello, world!".to_string()),
-        );
-        args.insert(
-            "config".to_string(),
-            Value::String("standard_no_pad".to_string()),
-        );
-
-        let result = base64_encode(&args).unwrap();
-        assert_eq!(
-            result,
-            Value::String(base64::engine::general_purpose::STANDARD_NO_PAD.encode("Hello, world!"))
-        );
-    }
-    #[test]
-    fn test_base64_decode() {
-        // Test case 1: Default decoding (STANDARD)
-        let mut args = HashMap::new();
-        args.insert(
-            "value".to_string(),
-            Value::String(base64::engine::general_purpose::STANDARD.encode("Hello, world!")),
-        );
-
-        let result = base64_decode(&args).unwrap();
-        assert_eq!(result, Value::String("Hello, world!".to_string()));
-
-        // Test case 2: URL_SAFE decoding
-        let mut args = HashMap::new();
-        args.insert(
-            "value".to_string(),
-            Value::String(base64::engine::general_purpose::URL_SAFE.encode("Hello, world!")),
-        );
-        args.insert("config".to_string(), Value::String("URL_SAFE".to_string()));
-
-        let result = base64_decode(&args).unwrap();
-        assert_eq!(result, Value::String("Hello, world!".to_string()));
-
-        // Test case 3: Custom decoding (STANDARD_NO_PAD)
-        let mut args = HashMap::new();
-        args.insert(
-            "value".to_string(),
-            Value::String(base64::engine::general_purpose::STANDARD_NO_PAD.encode("Hello, world!")),
-        );
-        args.insert(
-            "config".to_string(),
-            Value::String("STANDARD_NO_PAD".to_string()),
-        );
-
-        let result = base64_decode(&args).unwrap();
-        assert_eq!(result, Value::String("Hello, world!".to_string()));
-    }
-    #[test]
-    fn test_set_env() {
-        let value = Value::String("new_value".to_string());
-
-        // Test case 1: Valid name and value
-        let mut args = HashMap::new();
-        args.insert("value".to_string(), Value::String("new_value".to_string()));
-        args.insert("name".to_string(), Value::String("MY_ENV_VAR1".to_string()));
-
-        let result = set_env(&args).unwrap();
-        assert_eq!(result, value);
-
-        // Test case 2: Missing name argument
-        let mut args = HashMap::new();
-        args.insert("value".to_string(), Value::String("new_value".to_string()));
-
-        let result = set_env(&args);
-        assert!(result.is_err());
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            "Function `set_env` didn't receive a `name` argument"
-        );
-
-        // Test case 3: Missing value argument
-        let args = HashMap::new();
-
-        let result = set_env(&args);
-        assert!(result.is_err());
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            "Function `set_env` didn't receive a `value` argument"
-        );
-    }
-    #[test]
     fn test_env() {
         // Test case 1: Environment variable exists
-        let mut args = HashMap::new();
-        args.insert("name".to_string(), Value::String("MY_ENV_VAR2".to_string()));
-        args.insert("value".to_string(), Value::String("TestValue".to_string()));
-        set_env(&args).unwrap();
-
-        let result = env(&args).unwrap();
+        let value = json!("TestValue");
+        let arguments = args(&[("name", json!("MY_ENV_VAR2"))]);
+        set_env(&value, &arguments).unwrap();
+        let result = env(&arguments).unwrap();
         assert_eq!(result, Value::String("TestValue".to_string()));
 
         // Test case 2: Environment variable does not exist, but default value is provided
-        let mut args = HashMap::new();
-        args.insert(
-            "name".to_string(),
-            Value::String("NON_EXISTING_ENV_VAR".to_string()),
-        );
-        args.insert(
-            "default".to_string(),
-            Value::String("DefaultValue".to_string()),
-        );
-
-        let result = env(&args).unwrap();
-        assert_eq!(result, Value::String("DefaultValue".to_string()));
+        let arguments = args(&[
+            ("name", json!("NON_EXISTING_ENV_VAR")),
+            ("default", json!("DefaultValue")),
+        ]);
+        let result = env(&arguments).unwrap();
+        assert_eq!(result, json!("DefaultValue"));
 
         // Test case 3: Environment variable does not exist, and no default value is provided
-        let mut args = HashMap::new();
-        args.insert(
-            "name".to_string(),
-            Value::String("NON_EXISTING_ENV_VAR".to_string()),
-        );
-
-        let result = env(&args);
+        let arguments = args(&[("name", json!("NON_EXISTING_ENV_VAR"))]);
+        let result = env(&arguments);
         assert!(result.is_err());
         assert_eq!(
             result.err().unwrap().to_string(),
             "Environment variable `NON_EXISTING_ENV_VAR` not found"
-        );
-    }
-    #[test]
-    fn test_find() {
-        // Test case 1: Valid pattern and value
-        let mut args = HashMap::new();
-        args.insert(
-            "value".to_string(),
-            Value::String("Hello, world!".to_string()),
-        );
-        args.insert("pattern".to_string(), Value::String(r"\w+".to_string()));
-
-        let result = find(&args).unwrap();
-        assert_eq!(
-            result,
-            Value::Array(vec![
-                Value::String("Hello".to_string()),
-                Value::String("world".to_string())
-            ])
-        );
-
-        // Test case 2: Missing pattern argument
-        let mut args = HashMap::new();
-        args.insert(
-            "value".to_string(),
-            Value::String("Hello, world!".to_string()),
-        );
-
-        let result = find(&args);
-        assert!(result.is_err());
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            "Function `find` didn't receive a `pattern` argument"
-        );
-
-        // Test case 3: Missing value argument
-        let args = HashMap::new();
-
-        let result = find(&args);
-        assert!(result.is_err());
-        assert_eq!(
-            result.err().unwrap().to_string(),
-            "Function `find` didn't receive a `value` argument"
         );
     }
 }

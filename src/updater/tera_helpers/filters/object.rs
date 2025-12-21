@@ -403,7 +403,9 @@ pub fn update(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         .ok_or("map requires 'fn'")?;
 
     if fn_name == "update" {
-        return Err(Error::msg("update function cannot be used in update"));
+        return Err(Error::msg(
+            "`fn=update` cannot be used with this filter to avoid recurcive calls",
+        ));
     }
 
     let attribute = args
