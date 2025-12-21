@@ -1,3 +1,13 @@
+# [3.3.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.1...v3.3.0-beta.2) (2025-12-21)
+
+
+### Features
+
+* **tera:** add function/filter keys & values for an object ([604cab8](https://github.com/jmfiaschi/chewdata/commit/604cab84b81ca537c512267fac5c31f64bcfc29e))
+* **updater:** add update/map filters ([0cbd673](https://github.com/jmfiaschi/chewdata/commit/0cbd673d78f5d788a00862e15b04335c83961efd))
+* **updater:** migrate extract/values/keys from functions to filters ([d47ee9b](https://github.com/jmfiaschi/chewdata/commit/d47ee9b2ec02beb442ba1eba0a0444cadd74e59d))
+* **updater:** migrate search/merge into filters ([e214c7f](https://github.com/jmfiaschi/chewdata/commit/e214c7fd24e8810c180a91cfc5b3bd5257d33a47))
+
 # [3.3.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.2.0...v3.3.0-beta.1) (2025-12-15)
 
 
