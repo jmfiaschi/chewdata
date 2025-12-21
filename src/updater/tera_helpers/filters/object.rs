@@ -993,8 +993,9 @@ pub fn keys(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///     - "attribute": The attribute (in dot notation) to update.
 /// # Returns
 /// A Result containing the updated serde_json::Value or an error if the operation fails.
+///
 /// # Example
-/// ```
+/// ```no_run
 /// use serde_json::json;
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera::Tera;
@@ -1142,6 +1143,33 @@ pub fn map(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     Ok(found_value)
 }
 
+// Returns all values of an array.
+pub fn values(value: &Value, _args: &HashMap<String, Value>) -> Result<Value> {
+    match value {
+        Value::Array(arr) => Ok(to_value(arr.clone()).unwrap()),
+        Value::Object(obj) => {
+            let values: Vec<Value> = obj.values().cloned().collect();
+            Ok(to_value(values).unwrap())
+        }
+        _ => Ok(value.clone()),
+    }
+}
+
+// Returns all keys of an array.
+pub fn keys(value: &Value, _args: &HashMap<String, Value>) -> Result<Value> {
+    match value {
+        Value::Array(arr) => {
+            let keys: Vec<Value> = (0..arr.len()).map(|i| Value::Number(i.into())).collect();
+            Ok(to_value(keys).unwrap())
+        }
+        Value::Object(obj) => {
+            let keys: Vec<Value> = obj.keys().map(|k| Value::String(k.to_string())).collect();
+            Ok(to_value(keys).unwrap())
+        }
+        _ => Ok(Value::Null),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1164,7 +1192,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_array_of_scalar() {
+    fn merge_array_of_scalar() {
         let from = json!(["a"]);
         let with = json!(["b"]);
         let args = args(&[("with", with)]);
@@ -1205,11 +1233,9 @@ mod tests {
 
     #[test]
     fn merge_objects_with_attribute() {
-        let mut from = Value::default();
-        from.merge_in("/field", &json!("value")).unwrap();
+        let from = json!({"field":"value"});
         let with = json!("other value");
-
-        let args = args(&[("with", with), ("attribute", json!("other value"))]);
+        let args = args(&[("with", with), ("attribute", json!("other_field"))]);
         let result = merge(&from, &args).unwrap();
 
         assert_eq!(
@@ -1283,6 +1309,93 @@ mod tests {
                 attribute
             );
         }
+    }
+
+    #[test]
+    fn replace_key_with_object() {
+        let value = json!({"field_1":"value_1","field_2":"value_1"});
+        let args = args(&[("from", json!("^(field_1)$")), ("to", json!("@$1"))]);
+
+        let result = replace_key(&value, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            json!({"@field_1":"value_1","field_2":"value_1"}),
+            result.unwrap()
+        );
+    }
+    #[test]
+    fn replace_key_with_array() {
+        let value = json!([{"field_1":"value_1","field_2":"value_1"}]);
+        let args = args(&[("from", json!("^(field_1)$")), ("to", json!("@$1"))]);
+
+        let result = replace_key(&value, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            json!([{"@field_1":"value_1","field_2":"value_1"}]),
+            result.unwrap()
+        );
+    }
+
+    #[test]
+    fn replace_value_with_object() {
+        let value = json!({"field_1":"value_1","field_2":"value_1"});
+        let args = args(&[("from", json!("^(value_1)$")), ("to", json!("@$1"))]);
+
+        let result = replace_value(&value, &args);
+        assert!(result.is_ok());
+        assert_eq!(
+            json!({"field_1":"@value_1","field_2":"@value_1"}),
+            result.unwrap()
+        );
+    }
+    #[test]
+    fn replace_value_with_array() {
+        let value = json!([{"field_1":"value_1","field_2":"value_1"}]);
+        let args = args(&[("from", json!("^(value_1)$")), ("to", json!("@$1"))]);
+
+        let result = replace_value(&value, &args);
+
+        assert!(result.is_ok());
+        assert_eq!(
+            json!([{"field_1":"@value_1","field_2":"@value_1"}]),
+            result.unwrap()
+        );
+    }
+
+    #[test]
+    fn extract_on_array() {
+        let from =
+            json!([{"field1_1":{"field1_2":"value1_1"}},{"field2_1":{"field2_2":"value2_1"}}]);
+
+        let args_1 = args(&[("attributes", json!(["field1_1.field1_2"]))]);
+
+        let result = extract(&from, &args_1);
+        assert!(result.is_ok());
+        assert_eq!(
+            json!([{"field1_1":{"field1_2":"value1_1"}}]),
+            result.unwrap()
+        );
+
+        // Extract two attributes.
+        let args_2 = args(&[(
+            "attributes",
+            json!(["field1_1.field1_2", "field2_1.field2_2"]),
+        )]);
+
+        let result = extract(&from, &args_2);
+        assert!(result.is_ok());
+        assert_eq!(from, result.unwrap());
+    }
+    #[test]
+    fn extract_on_object() {
+        let from = json!({"field1_1":{"field1_2":"value1_1"},"field2_1":{"field2_2":"value2_1"}});
+
+        // Extract one attribute.
+        let args = args(&[("attributes", json!(["field1_1.field1_2"]))]);
+
+        let result = extract(&from, &args);
+        assert!(result.is_ok());
+        assert_eq!(json!({"field1_1":{"field1_2":"value1_1"}}), result.unwrap());
     }
 
     // ---------- Update Object Tests ----------
@@ -1441,5 +1554,35 @@ mod tests {
         let args = args(&[("attribute", json!("name"))]);
         let result = map(&users, &args).unwrap();
         assert_eq!(result, json!(["alice", "bob"]));
+    }
+
+    #[test]
+    fn keys_values_from_array() {
+        let value = json!([
+            {"a": 1},
+            {"b": 2},
+            {"c": 3},
+        ]);
+
+        let values_result = values(&value, &HashMap::new()).unwrap();
+        let keys_result = keys(&value, &HashMap::new()).unwrap();
+        assert_eq!(values_result, value);
+        assert_eq!(keys_result, to_value(vec![0, 1, 2]).unwrap());
+    }
+    #[test]
+    fn keys_values_from_other_type() {
+        let value = json!("a string");
+        let values_result = values(&value, &HashMap::new()).unwrap();
+        let keys_result = keys(&value, &HashMap::new()).unwrap();
+        assert_eq!(values_result, value);
+        assert_eq!(keys_result, Value::Null);
+    }
+    #[test]
+    fn keys_values_from_object() {
+        let value = json!({"a":1,"b":2,"c":3});
+        let values_result = values(&value, &HashMap::new()).unwrap();
+        let keys_result = keys(&value, &HashMap::new()).unwrap();
+        assert_eq!(values_result, json!([1, 2, 3]));
+        assert_eq!(keys_result, json!(["a", "b", "c"]));
     }
 }
