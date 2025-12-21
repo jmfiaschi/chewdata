@@ -164,7 +164,7 @@ impl Updater for Tera {
 }
 
 impl Tera {
-    async fn engine(&self) -> tera::Tera {
+    pub async fn engine(&self) -> tera::Tera {
         let arc = ENGINE.get_or_init(|| Arc::new(Mutex::new(None)));
 
         if let Some(engine) = arc.lock().await.clone() {
@@ -196,6 +196,8 @@ impl Tera {
         engine.register_function("values", function::object::values);
         engine.register_filter("keys", filters::object::keys);
         engine.register_function("keys", function::object::keys);
+        engine.register_filter("update", filters::object::update);
+        engine.register_filter("map", filters::object::map);
 
         // faker
         engine.register_function("fake_words", function::faker::words);

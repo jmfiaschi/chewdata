@@ -1,4 +1,4 @@
-mod tera;
+pub mod tera;
 pub mod tera_helpers;
 
 use self::tera::Tera;
