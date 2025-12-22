@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "3.2.0"
+version = "3.3.0-beta.3"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2021"
 description = "Extract Transform and Load data"
@@ -92,6 +92,7 @@ criterion = { version = "0.6.0", default-features = false, features = ["default"
 serde_json =  { version = "1.0", default-features = false, features= ["std"] }
 
 [features]
+default = ['log-release']
 xml = ["dep:quick-xml"]
 csv = ["dep:csv"]
 toml = ["dep:toml"]
@@ -102,9 +103,11 @@ mongodb = ["dep:mongodb","dep:async-compat"]
 psql = ["sqlx","sqlx/postgres"]
 apm = ["dep:opentelemetry","dep:opentelemetry-jaeger"]
 ordered = ["serde_json/preserve_order"]
-default = [
-    'tracing/max_level_trace',
-    'tracing/release_max_level_info',
+log-release = [
+    "tracing/release_max_level_info",
+]
+log-release-trace = [
+    "tracing/release_max_level_trace",
 ]
 
 [profile.release]

@@ -1,3 +1,38 @@
+# [3.3.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2025-12-21)
+
+
+### Bug Fixes
+
+* **keycloak:** rollback stabalize setup ([5615410](https://github.com/jmfiaschi/chewdata/commit/56154109ed613abb0239306cbc9099bb1f8eebc6))
+* **keycloak:** stabalize setup ([d3521b9](https://github.com/jmfiaschi/chewdata/commit/d3521b983bf95f36f74f2dfe747eeff95e750ddd))
+
+
+### Features
+
+* **updater:** remove find/base64_encode/base64_decode from functions ([abf4bd4](https://github.com/jmfiaschi/chewdata/commit/abf4bd4f4c83b13e22f696e119da0fda4e723138))
+
+# [3.3.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.1...v3.3.0-beta.2) (2025-12-21)
+
+
+### Features
+
+* **tera:** add function/filter keys & values for an object ([604cab8](https://github.com/jmfiaschi/chewdata/commit/604cab84b81ca537c512267fac5c31f64bcfc29e))
+* **updater:** add update/map filters ([0cbd673](https://github.com/jmfiaschi/chewdata/commit/0cbd673d78f5d788a00862e15b04335c83961efd))
+* **updater:** migrate extract/values/keys from functions to filters ([d47ee9b](https://github.com/jmfiaschi/chewdata/commit/d47ee9b2ec02beb442ba1eba0a0444cadd74e59d))
+* **updater:** migrate search/merge into filters ([e214c7f](https://github.com/jmfiaschi/chewdata/commit/e214c7fd24e8810c180a91cfc5b3bd5257d33a47))
+
+# [3.3.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.2.0...v3.3.0-beta.1) (2025-12-15)
+
+
+### Bug Fixes
+
+* **ci:** update docker job dependencies to require semantic-release ([49420ac](https://github.com/jmfiaschi/chewdata/commit/49420ac71a016f757fa7372ad5e216ad7a3d80fc))
+
+
+### Features
+
+* **Cargo.toml:** add logging features for release profiles ([e2d0901](https://github.com/jmfiaschi/chewdata/commit/e2d0901405e08733442681d011ea7d0a7fcb9507))
+
 # [3.2.0](https://github.com/jmfiaschi/chewdata/compare/v3.1.0...v3.2.0) (2025-12-15)
 
 

@@ -16,7 +16,7 @@
 //!
 //! | key             | alias   | Description                                                                                                       | Default Value | Possible Values                                 |
 //! | --------------- | ------- | ----------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------- |
-//! | type            | -       | Required in order to use transformer step                                                                         | `transformer` | `transformer` / `transform` / `t`               |
+//! | type            | -       | Required in order to use transformer step                                                                         | `validator`   | `validator` / `validate` / `v`                  |
 //! | updater         | u       | Updater type used as a template engine for transformation                                                         | `tera`        | `tera`                                          |
 //! | referentials    | refs    | List of [`crate::step::Reader`] indexed by their name. A referential can be use to map object during the validation | `null`        | `{"alias_a": READER,"alias_b": READER, etc...}` |
 //! | name            | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                |
@@ -54,15 +54,15 @@
 //!         "concurrency_limit": 1,
 //!         "rules": {
 //!             "number_rule": {
-//!                 "pattern": "{% if input.number == 10  %} true {% else %} false {% endif %}",
+//!                 "pattern": "{%- if input.number == 10  -%} true {%- else -%} false {%- endif -%}",
 //!                 "message": "The number field value must be equal to 10"
 //!             },
 //!             "text_rule": {
-//!                 "pattern": "{% if input.text is matching('.*hello world.*') %} true {% else %} false {% endif %}",
-//!                 "message": "The text field value doesn't contain 'Hello World'"
+//!                 "pattern": "{%- if input.text is matching('.*hello world.*') -%} true {%- else -%} false {%- endif -%}",
+//!                 "message": "The text field value doesn't contain 'Hello World'";
 //!             },
 //!             "code_rule": {
-//!                 "pattern": "{% if mapping_ref | filter(attribute='mapping_code', value=input.code) | length > 0 %} true {% else %} false {% endif %}",
+//!                 "pattern": "{%- if mapping_ref | filter(attribute='mapping_code', value=input.code) | length > 0 -%} true {%- else -%} false {%- endif -%}",
 //!                 "message": "The code field value doesn't match with the referential dataset"
 //!             }
 //!         },
