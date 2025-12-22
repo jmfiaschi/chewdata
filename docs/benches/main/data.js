@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765789088484,
+  "lastUpdate": 1766392812834,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -4133,6 +4133,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1394482,
             "range": "± 8212",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3f4525a95b143e81f1d8c3c36a360fae8469040d",
+          "message": "feat(updater): add filter updage/map/keys/values for an object. Migrate some function into filters. (#66)\n\n* feat(Cargo.toml): add logging features for release profiles\n* fix(ci): update docker job dependencies to require semantic-release\n* docs(validator): update default type and improve pattern syntax in rules\n* feat(tera): add function/filter keys & values for an object\n* feat(updater): add update/map filters\n* feat(updater): migrate search/merge into filters\n* feat(updater): migrate extract/values/keys from functions to filters\n* feat(updater): remove find/base64_encode/base64_decode from functions",
+          "timestamp": "2025-12-22T09:22:27+01:00",
+          "tree_id": "455d756bffb9043fb8f5810280014fd09466d5b4",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/3f4525a95b143e81f1d8c3c36a360fae8469040d"
+        },
+        "date": 1766392811628,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4681,
+            "range": "± 24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4608,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 506771,
+            "range": "± 2691",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 23387,
+            "range": "± 80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 9139,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 13204,
+            "range": "± 58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 132137,
+            "range": "± 6602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 151287,
+            "range": "± 1185",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 150330,
+            "range": "± 634",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 150439,
+            "range": "± 1310",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 150838,
+            "range": "± 1454",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 150740,
+            "range": "± 1017",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1377860,
+            "range": "± 6173",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1369813,
+            "range": "± 4370",
             "unit": "ns/iter"
           }
         ]
