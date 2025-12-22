@@ -1,3 +1,10 @@
+# [3.3.0](https://github.com/jmfiaschi/chewdata/compare/v3.2.0...v3.3.0) (2025-12-22)
+
+
+### Features
+
+* **updater:** add filter updage/map/keys/values for an object. Migrate some function into filters. ([#66](https://github.com/jmfiaschi/chewdata/issues/66)) ([3f4525a](https://github.com/jmfiaschi/chewdata/commit/3f4525a95b143e81f1d8c3c36a360fae8469040d))
+
 # [3.3.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2025-12-21)
 
 
