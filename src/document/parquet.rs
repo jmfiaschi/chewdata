@@ -158,13 +158,13 @@ impl Default for ParquetOptions {
         ParquetOptions {
             created_by: Some("chewdata".to_string()),
             encoding: Some(EncodingType::Plain),
-            compression: Some(CompressionType::Gzip),
+            compression: None,
             compression_level: None,
             has_statistics: None,
-            has_dictionary: Some(false),
-            max_row_group_size: None,
+            has_dictionary: None,
+            max_row_group_size: Some(128 * 1024 * 1024),
             dictionary_page_size_limit: None,
-            data_page_size_limit: None,
+            data_page_size_limit: Some(1 * 1024 * 1024),
             version: Some(2),
         }
     }
@@ -295,7 +295,6 @@ impl Document for Parquet {
             .build_decoder()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        // 🔥 Stream JSON → Arrow instead of collecting
         for chunk in dataset.chunks(self.batch_size) {
             let values: Vec<Value> = chunk.iter().map(|d| d.to_value()).collect();
 
