@@ -27,7 +27,7 @@ opentelemetry = { version = "0.21", default-features = false, features= ["trace"
 opentelemetry-jaeger = { version = "0.20", default-features = false, features= ["rt-async-std"], optional = true}
 glob = { version = "0.3.3", default-features = false }
 env_applier = { version = "1.1.2", default-features = false }
-serde_json = { version = "1.0.147", default-features = false, features= ["std"] }
+serde_json = { version = "1.0.148", default-features = false, features= ["std"] }
 json_value_merge = { version = "2.0.1", default-features = false }
 json_value_remove = { version = "1.1.0", default-features = false }
 json_value_resolve =  { version = "1.1.0", default-features = false }
@@ -89,7 +89,6 @@ macro_rules_attribute = "0.2.2"
 
 [dev-dependencies]
 criterion = { version = "0.8.1", default-features = false, features = ["default", "csv_output","html_reports","async_futures","async_smol"] }
-serde_json =  { version = "1.0.147", default-features = false, features= ["std"] }
 
 [features]
 default = ['log-release']
