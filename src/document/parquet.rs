@@ -1,60 +1,119 @@
-//! Read and Write in Parquet format.
-//! this class read the resource with good performence but the writing will take time. It is not possible to parallize the writing with multi threads.
+//! Read and write data in **Parquet** format.
 //!
-//! ### Configuration
+//! This document handler provides **high-performance reading** of Parquet files.
+//! However, **writing is slower by design** and **cannot be parallelized**
+//! due to the sequential nature of the Parquet writer.
 //!
-//! | key        | alias | Description                                                                         | Default Value  | Possible Values                                                                                                    |
-//! | ---------- | ----- | ----------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------ |
-//! | type       | -     | Required in order to use this document.                                             | `parquet`      | `parquet`                                                                                                          |
-//! | metadata   | meta  | Metadata describe the resource.                                                     | `null`         | [`crate::Metadata`]                                                                                                |
-//! | entry_path | -     | Use this field if you want to target a specific field in the object.                | `/root/*/item` | String in [json pointer format](https://datatracker.ietf.org/doc/html/rfc6901)                                     |
-//! | schema     | -     | Schema that override the default schema found on the first entry found.             | `null`         | `"fields":[{"name": "my_field", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false},...]` |
-//! | batch_size | -     | Number of items per page.                                                           | `1000`         | unsigned number                                                                                                    |
-//! | options    | -     | Parquet options.                                                                    | `null`         | [`crate::document::parquet::ParquetOptions`]                                                                        |
+//! ---
 //!
-//! examples:
+//! ## Configuration
+//!
+//! | Key        | Alias | Description                                                                 | Default Value   | Possible Values                                                                                                      |
+//! |------------|-------|-----------------------------------------------------------------------------|-----------------|----------------------------------------------------------------------------------------------------------------------|
+//! | `type`     | —     | Required to enable this document type.                                      | `parquet`       | `parquet`                                                                                                            |
+//! | `metadata` | `meta`| Metadata describing the resource.                                           | `null`          | [`crate::Metadata`]                                                                                                  |
+//! | `entry_path` | —   | Targets a specific field in the input object.                               | `/root/*/item`  | JSON Pointer string ([RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901))                                       |
+//! | `schema`   | —     | Overrides the schema inferred from the first entry.                          | `null`          | JSON schema definition (https://github.com/apache/arrow-rs/blob/main/arrow-schema/src/schema.rs)                                                                                               |
+//! | `batch_size` | —   | Number of records per page written to Parquet.                              | `1000`          | Unsigned integer                                                                                                      |
+//! | `options`  | —     | Advanced Parquet writer options.                                            | `null`          | [`crate::document::parquet::ParquetOptions`]                                                                          |
+//!
+//! ---
+//!
+//! ## Example
 //!
 //! ```json
 //! [
-//!     {
-//!         "type": "read"
-//!     },
-//!     {
-//!         "type": "write",
-//!         "document":{
-//!             "type":"parquet"
-//!         }
+//!   {
+//!     "type": "read"
+//!   },
+//!   {
+//!     "type": "write",
+//!     "document": {
+//!       "type": "parquet",
+//!       "schema":{
+//!          "fields":[
+//!                {
+//!                    "name": "number",
+//!                    "nullable": false,
+//!                    "type": {
+//!                        "name": "int",
+//!                        "bitWidth": 8,
+//!                        "isSigned": false
+//!                    }
+//!                },
+//!                {
+//!                    "name": "string",
+//!                    "nullable": false,
+//!                    "type": {
+//!                        "name": "utf8"
+//!                    }
+//!                },
+//!                {
+//!                    "name": "boolean",
+//!                    "nullable": false,
+//!                    "type": {
+//!                        "name": "bool"
+//!                    }
+//!                },
+//!                {
+//!                    "name": "date",
+//!                    "nullable": false,
+//!                    "type": {
+//!                        "name": "date",
+//!                        "unit": "DAY"
+//!                    }
+//!                }
+//!            ]
+//!        }
 //!     }
+//!   }
 //! ]
 //! ```
 //!
-//! input:
+//! ---
+//!
+//! ## Input
 //!
 //! ```json
 //! [
-//!     {"field1":"value1"},
-//!     ...
+//!   { "field1": "value1" },
+//!   ...
 //! ]
 //! ```
 //!
-//! output:
+//! ---
 //!
-//! You need to use a `parquet-tools` in order to analyse the file.
+//! ## Output
 //!
-//! #### ParquetOption
+//! The output is a Parquet file.
+//! Use tools such as **`parquet-tools`** to inspect or analyze the generated file.
 //!
-//! | key                  | alias | Description                            | Default Value | Possible Values                                                                                                                                                       |
-//! | -------------------- | ----- | -------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-//! | version              | -     | Parquet version.                       | `2`           | `1` / `2`                                                                                                                                                             |
-//! | data_page_size_limit | -     | Page size limit.                       | `null`        | unsigned number                                                                                                                                                       |
-//! | max_row_group_size   | -     | Max row group size.                    | `null`        | unsigned number                                                                                                                                                       |
-//! | created_by           | -     | App/User that the create the resource. | `chewdata`    | String                                                                                                                                                                |
-//! | encoding             | -     | Resource encoding.                     | `PLAIN`       | `PLAIN` / `PLAIN_DICTIONARY` / `RLE` / `DELTA_BINARY_PACKED` / `DELTA_LENGTH_BYTE_ARRAY` / `DELTA_BYTE_ARRAY` / `RLE_DICTIONARY` / `BYTE_STREAM_SPLIT` |
-//! | compression          | -     | Resource compression.                  | `GZIP`        | `GZIP` / `UNCOMPRESSED` / `SNAPPY` / `LZO` / `BROTLI` / `LZ4` / `LZ4_RAW` / `ZSTD`                                                                                    |
-//! | compression level    | -     | Level of the compression. The value depend on the type of the compression | `null`        | 0..11                                                                                                                              |
-//! | has_dictionary       | -     | Use a dictionary.                      | `null`        | `true` / `false`                                                                                                                                                      |
-//! | has_statistics       | -     | Use statistics.                        | `null`        | `true` / `false`                                                                                                                                                      |
+//! ---
 //!
+//! ## Parquet Options
+//!
+//! | Key                    | Alias | Description                                                                 | Default Value | Possible Values                                                                                                               |
+//! |------------------------|-------|-----------------------------------------------------------------------------|---------------|-------------------------------------------------------------------------------------------------------------------------------|
+//! | `version`              | —     | Parquet file format version.                                                | `2`           | `1`, `2`                                                                                                                      |
+//! | `data_page_size_limit` | —     | Maximum size of a data page (bytes).                                        | `null`        | Unsigned integer                                                                                                              |
+//! | `max_row_group_size`   | —     | Maximum number of rows per row group.                                       | `null`        | Unsigned integer                                                                                                              |
+//! | `created_by`           | —     | Application or user that created the file.                                 | `chewdata`    | String                                                                                                                        |
+//! | `encoding`             | —     | Encoding used for column data.                                              | `PLAIN`       | `PLAIN`, `PLAIN_DICTIONARY`, `RLE`, `DELTA_BINARY_PACKED`, `DELTA_LENGTH_BYTE_ARRAY`, `DELTA_BYTE_ARRAY`, `RLE_DICTIONARY`, `BYTE_STREAM_SPLIT` |
+//! | `compression`          | —     | Compression algorithm.                                                      | `GZIP`        | `GZIP`, `UNCOMPRESSED`, `SNAPPY`, `LZO`, `BROTLI`, `LZ4`, `LZ4_RAW`, `ZSTD`                                                     |
+//! | `compression_level`    | —     | Compression level (depends on algorithm).                                   | `null`        | `0..11`                                                                                                                       |
+//! | `has_dictionary`       | —     | Enables dictionary encoding.                                                | `null`        | `true`, `false`                                                                                                               |
+//! | `has_statistics`       | —     | Enables column statistics.                                                  | `null`        | `true`, `false`                                                                                                               |
+//!
+//! ---
+//!
+//! ## Performance Notes
+//!
+//! - **Reading** is optimized for speed and low memory usage.
+//! - **Writing** is sequential and cannot be parallelized.
+//! - Increasing `batch_size` may improve throughput at the cost of memory usage.
+//! - Compression and encoding choices can significantly impact write performance.
+//!
+
 use crate::document::Document;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::DataResult;
