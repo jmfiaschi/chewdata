@@ -24,7 +24,11 @@
 //! ```json
 //! [
 //!   {
-//!     "type": "read"
+//!     "type": "read",
+//!     "connector":{
+//!         "type": "local",
+//!         "path": "./data/multi_lines.json"
+//!     }
 //!   },
 //!   {
 //!     "type": "write",
@@ -70,23 +74,10 @@
 //! ]
 //! ```
 //!
-//! ---
-//!
-//! ## Input
-//!
-//! ```json
-//! [
-//!   { "field1": "value1" },
-//!   ...
-//! ]
-//! ```
-//!
-//! ---
-//!
 //! ## Output
 //!
 //! The output is a Parquet file.
-//! Use tools such as **`parquet-tools`** to inspect or analyze the generated file.
+//! Use tools such as [parquet-tools](https://github.com/hangxie/parquet-tools) to inspect or analyze the generated file.
 //!
 //! ---
 //!

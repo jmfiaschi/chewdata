@@ -38,7 +38,37 @@ async fn main() -> io::Result<()> {
                 "type": "parquet",
                 "schema": {
                     "fields":[
-                        {"name": "number", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false}
+                        {
+                            "name": "number",
+                            "nullable": false,
+                            "type": {
+                                "name": "int",
+                                "bitWidth": 8,
+                                "isSigned": false
+                            }
+                        },
+                        {
+                            "name": "string",
+                            "nullable": false,
+                            "type": {
+                                "name": "utf8"
+                            }
+                        },
+                        {
+                            "name": "boolean",
+                            "nullable": false,
+                            "type": {
+                                "name": "bool"
+                            }
+                        },
+                        {
+                            "name": "date",
+                            "nullable": false,
+                            "type": {
+                                "name": "date",
+                                "unit": "DAY"
+                            }
+                        }
                     ]
                 }
             },
