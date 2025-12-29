@@ -157,25 +157,25 @@ psql:
 # Start db admin in local.
 adminer:
     @echo "Run admin db"
-    @echo "Host: http://localhost:8081 "
+    @echo "Host: http://localhost:8081"
     podman-compose up -d adminer
 
 # Start keycloak server in local.
 keycloak:
     @echo "Run keycloak"
-    @echo "Host: http://localhost:8083 "
+    @echo "Host: http://localhost:8083"
     podman-compose up -d keycloak-ready
 
 # Start APM server in local.
 apm:
     @echo "Run monitoring"
-    @echo "Host: http://localhost:16686 "
+    @echo "Host: http://localhost:16686"
     podman-compose up -d monitoring
 
 # Start rabbitmq server in local.
 rabbitmq:
     @echo "Run rabbitmq"
-    @echo "Host: http://localhost:15672 "
+    @echo "Host: http://localhost:15672"
     podman-compose up -d rabbitmq
 
 semantic-release:
