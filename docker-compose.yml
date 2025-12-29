@@ -88,22 +88,20 @@ services:
             - 8082:8080
 
     keycloak:
-        image: quay.io/keycloak/keycloak
+        image: quay.io/keycloak/keycloak:latest
         restart: always
         environment:
-            - KC_LOG_LEVEL=DEBUG
-            - KC_DB_URL_HOST=psql
-            - KC_DB=${PSQL_DB}
-            - KC_DB_USERNAME=${PSQL_USERNAME}
-            - KC_DB_PASSWORD=${PSQL_PASSWORD}
-            - KC_DB_URL=jdbc:postgresql://psql:5432/postgres
-            - KC_HOSTNAME=localhost
-            - KC_HOSTNAME_PORT=8083
-            - KC_HEALTH_ENABLED=true
-            - KC_METRICS_ENABLED=true
-            - KEYCLOAK_ADMIN=${KEYCLOAK_USER}
-            - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_PASSWORD}
-            - KEYCLOAK_STATISTICS=all
+            KC_LOG_LEVEL: INFO
+            KC_DB: postgres
+            KC_DB_USERNAME: ${PSQL_USERNAME}
+            KC_DB_PASSWORD: ${PSQL_PASSWORD}
+            KC_DB_URL: jdbc:postgresql://psql:5432/${PSQL_DB}
+            KC_HEALTH_ENABLED: "true"
+            KC_METRICS_ENABLED: "true"
+            KEYCLOAK_ADMIN: ${KEYCLOAK_USER}
+            KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD}
+            KC_HTTP_ENABLED: "true"
+            KC_HOSTNAME_STRICT: "false"
         depends_on:
             psql:
                 condition: service_healthy
