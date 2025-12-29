@@ -10,6 +10,7 @@
 
 ### Bug Fixes
 
+* **keycloak:** configuration ([74b87eb](https://github.com/jmfiaschi/chewdata/commit/74b87eb7c98ac429133d19f8814aab0a7f49c40a))
 * **keycloak:** rollback stabalize setup ([5615410](https://github.com/jmfiaschi/chewdata/commit/56154109ed613abb0239306cbc9099bb1f8eebc6))
 * **keycloak:** stabalize setup ([d3521b9](https://github.com/jmfiaschi/chewdata/commit/d3521b983bf95f36f74f2dfe747eeff95e750ddd))
 
