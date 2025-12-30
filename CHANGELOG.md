@@ -6,6 +6,29 @@
 * **keycloak:** configuration ([74b87eb](https://github.com/jmfiaschi/chewdata/commit/74b87eb7c98ac429133d19f8814aab0a7f49c40a))
 * **keycloak:** rollback stabalize setup ([5615410](https://github.com/jmfiaschi/chewdata/commit/56154109ed613abb0239306cbc9099bb1f8eebc6))
 * **keycloak:** stabalize setup ([d3521b9](https://github.com/jmfiaschi/chewdata/commit/d3521b983bf95f36f74f2dfe747eeff95e750ddd))
+* **keycloak:** var env ([5f1ced2](https://github.com/jmfiaschi/chewdata/commit/5f1ced2cc22d775ae4714c12a7c56ebe76a45e97))
+* **keycloak:** var env ([b2e80f2](https://github.com/jmfiaschi/chewdata/commit/b2e80f2c23d941c0702222cd5c056bd7119cbcd5))
+
+
+### Features
+
+* **libs:** upgrade ([4df9f76](https://github.com/jmfiaschi/chewdata/commit/4df9f7661cefa74ad1169d189e7927218aa6ad23))
+* **libs:** upgrade ([5c529d2](https://github.com/jmfiaschi/chewdata/commit/5c529d2eb2a308a71900827cb71c23ec70bcf904))
+* **libs:** upgrade ([4c08290](https://github.com/jmfiaschi/chewdata/commit/4c082904d9b047a747e5af8748a3ad3e8234eb82))
+* **libs:** upgrade quick-xml and improve xml2json ([14c9f69](https://github.com/jmfiaschi/chewdata/commit/14c9f69a95046a53eedbf614e5386c5a936b264c))
+* **parquet:** refactor ([e0014d4](https://github.com/jmfiaschi/chewdata/commit/e0014d4ebfc3b5c5310c0b93e1f2a3a9dddcce63))
+* **parquet:** refactor ([a939cbf](https://github.com/jmfiaschi/chewdata/commit/a939cbff2a7e2948670a8e45cda3c121f05c3e1f))
+* **parquet:** update default value ([45cc07d](https://github.com/jmfiaschi/chewdata/commit/45cc07d57d97e7976994d536fb2060a747affcf2))
+* **updater:** remove find/base64_encode/base64_decode from functions ([abf4bd4](https://github.com/jmfiaschi/chewdata/commit/abf4bd4f4c83b13e22f696e119da0fda4e723138))
+
+# [3.3.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2025-12-30)
+
+
+### Bug Fixes
+
+* **keycloak:** configuration ([74b87eb](https://github.com/jmfiaschi/chewdata/commit/74b87eb7c98ac429133d19f8814aab0a7f49c40a))
+* **keycloak:** rollback stabalize setup ([5615410](https://github.com/jmfiaschi/chewdata/commit/56154109ed613abb0239306cbc9099bb1f8eebc6))
+* **keycloak:** stabalize setup ([d3521b9](https://github.com/jmfiaschi/chewdata/commit/d3521b983bf95f36f74f2dfe747eeff95e750ddd))
 * **keycloak:** var env ([b2e80f2](https://github.com/jmfiaschi/chewdata/commit/b2e80f2c23d941c0702222cd5c056bd7119cbcd5))
 
 
