@@ -1,0 +1,36 @@
+module.exports = {
+  branches: [
+    "+([0-9])?(.{+([0-9]),x}).x",
+    "main",
+    "next",
+    "next-major",
+    { name: "beta", prerelease: true },
+    { name: "alpha", prerelease: true },
+    "+(fix|feat|docs|chore|perf|test)/**"
+  ],
+
+  plugins: [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    ...(process.env.BRANCH_NAME === "main" ? ["@semantic-release/changelog"]: []),
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "cargo set-version ${nextRelease.version} && cargo package --no-verify --allow-dirty",
+        "publishCmd": "cargo publish --no-verify --allow-dirty"
+      }
+    ],
+    ...(process.env.BRANCH_NAME === "main"
+      ? [[
+          "@semantic-release/git",
+          {
+            assets: ["Cargo.toml", "CHANGELOG.md"],
+            message:
+              "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+          }
+        ]]
+      : []),
+
+    "@semantic-release/github"
+  ]
+};
