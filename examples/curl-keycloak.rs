@@ -48,6 +48,8 @@ async fn main() -> io::Result<()> {
     }]
     "#;
 
+    println!("config: {:?}", config.apply().as_str());
+
     // Test example with validation rules
     let (sender_output, receiver_output) = async_channel::unbounded();
     chewdata::exec(
