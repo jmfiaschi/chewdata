@@ -48,8 +48,6 @@ async fn main() -> io::Result<()> {
     }]
     "#;
 
-    println!("config: {:?}", config.apply().as_str());
-
     // Test example with validation rules
     let (sender_output, receiver_output) = async_channel::unbounded();
     chewdata::exec(
@@ -132,7 +130,8 @@ async fn main() -> io::Result<()> {
             .clone()
             .search("/*/authenticated")?
             .unwrap_or_default(),
-        "The result not match the expected value"
+        "The result does not match the expected value. Result: {}",
+        result.to_string()
     );
 
     Ok(())
@@ -140,10 +139,11 @@ async fn main() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::main;
+    use super::*;
+    use smol_macros::test;
 
     #[test]
-    fn test_example() {
+    async fn test_example() {
         main().unwrap();
     }
 }
