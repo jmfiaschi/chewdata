@@ -44,11 +44,11 @@
 //! ```
 use crate::connector::Connector;
 use crate::{connector::curl::Curl, ConnectorStream};
-use smol::stream::StreamExt;
 use async_stream::stream;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::stream::StreamExt;
 use std::io::Result;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -83,7 +83,7 @@ impl Cursor {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
@@ -112,15 +112,15 @@ impl Cursor {
         let entry_path = self.entry_path.clone();
         let mut next_token_opt = self.next_token.clone();
 
-        let mut document = connector.document()?.clone();
+        let mut document = connector.document()?.clone_box();
         document.set_entry_path(entry_path.clone());
 
         let stream = Box::pin(stream! {
             let mut has_next = true;
-            
+
             while has_next {
                 let mut new_connector = connector.clone();
-                new_connector.set_document(document.clone())?;
+                new_connector.set_document(document.clone_box())?;
 
                 let mut new_parameters = connector.parameters.clone();
 
@@ -172,8 +172,8 @@ mod tests {
     use crate::connector::paginator::curl::cursor::Cursor;
     use crate::connector::Connector;
     use crate::document::json::Json;
-    use smol::stream::StreamExt;
     use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
     use smol_macros::test;
 
     #[apply(test!)]

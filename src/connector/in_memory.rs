@@ -118,14 +118,13 @@ impl Connector for InMemory {
         Ok(())
     }
     /// See [`Connector::document`] for more details.
-    fn document(&self) -> Result<&Box<dyn Document>> {
-        match &self.document {
-            Some(document) => Ok(document),
-            None => Err(Error::new(
+    fn document(&self) -> Result<&dyn Document> {
+        self.document.as_deref().ok_or_else(|| {
+            Error::new(
                 ErrorKind::InvalidInput,
                 "The document has not been set in the connector",
-            )),
-        }
+            )
+        })
     }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
@@ -146,7 +145,7 @@ impl Connector for InMemory {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = InMemory::new(r#"[{"column1":"value1"}]"#);
@@ -191,7 +190,7 @@ impl Connector for InMemory {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Jsonl::default());
@@ -239,7 +238,7 @@ impl Connector for InMemory {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Jsonl::default());
@@ -317,7 +316,7 @@ impl Connector for InMemory {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Jsonl::default());
@@ -356,8 +355,8 @@ mod tests {
     use crate::document::json::Json;
     use crate::document::jsonl::Jsonl;
     use crate::DataResult;
-    use smol::stream::StreamExt;
     use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
     use smol_macros::test;
 
     #[apply(test!)]

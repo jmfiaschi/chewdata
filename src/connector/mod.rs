@@ -123,7 +123,7 @@ pub trait Connector: Send + Sync + std::fmt::Debug + ConnectorClone + Unpin {
     fn set_document(&mut self, _document: Box<dyn Document>) -> Result<()> {
         Ok(())
     }
-    fn document(&self) -> Result<&Box<dyn Document>> {
+    fn document(&self) -> Result<&dyn Document> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "function not implemented",

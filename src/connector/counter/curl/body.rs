@@ -108,7 +108,7 @@ impl Body {
     #[instrument(name = "body::count")]
     pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
         let mut connector = connector.clone();
-        let mut document = connector.document()?.clone();
+        let mut document = connector.document()?.clone_box();
         document.set_entry_path(self.entry_path.clone());
         connector.set_document(document)?;
 
