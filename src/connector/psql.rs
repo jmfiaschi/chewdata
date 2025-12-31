@@ -39,7 +39,6 @@ use crate::helper::json_pointer::JsonPointer;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{helper::mustache::Mustache, DataResult};
 use crate::{DataSet, DataStream};
-use std::sync::Arc;
 use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -53,13 +52,15 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
 
-static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Pool<Postgres>>>>> = OnceLock::new();
+type SharedClients = Arc<Mutex<HashMap<String, Pool<Postgres>>>>;
+static CLIENTS: OnceLock<SharedClients> = OnceLock::new();
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -309,7 +310,7 @@ impl Connector for Psql {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
@@ -351,7 +352,7 @@ impl Connector for Psql {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
@@ -496,7 +497,7 @@ impl Connector for Psql {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
@@ -582,7 +583,7 @@ impl Connector for Psql {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();

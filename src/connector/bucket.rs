@@ -52,8 +52,6 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
-use smol::prelude::*;
-use std::sync::Arc;
 use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -65,11 +63,13 @@ use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use smol::prelude::*;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::env;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::vec::IntoIter;
 use std::{
@@ -253,7 +253,7 @@ impl Connector for Bucket {
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = Box::new(parameters);
+        *self.parameters = parameters
     }
     /// See [`Connector::is_variable`] for more details.
     ///
@@ -366,7 +366,7 @@ impl Connector for Bucket {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
@@ -432,7 +432,7 @@ impl Connector for Bucket {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
@@ -513,7 +513,7 @@ impl Connector for Bucket {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
@@ -820,7 +820,7 @@ impl BucketPaginator {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
@@ -861,8 +861,8 @@ mod tests {
     use super::*;
     use crate::document::json::Json;
     use crate::DataResult;
-    use smol::stream::StreamExt;
     use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
     use smol_macros::test;
 
     #[test]

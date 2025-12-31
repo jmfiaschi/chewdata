@@ -49,9 +49,9 @@ pub fn base64_encode(value: &Value, args: &HashMap<String, Value>) -> Result<Val
     let decode_string = match value {
         Value::String(s) => s,
         _ => {
-            return Err(Error::msg(format!(
-                "Filter `base64_encode` require a string in input"
-            )))
+            return Err(Error::msg(
+                "Filter `base64_encode` require a string in input".to_string(),
+            ))
         }
     };
 
@@ -94,9 +94,9 @@ pub fn base64_decode(value: &Value, args: &HashMap<String, Value>) -> Result<Val
     let encode_string = match value {
         Value::String(s) => s,
         _ => {
-            return Err(Error::msg(format!(
-                "Filter `base64_decode` require a string in input"
-            )))
+            return Err(Error::msg(
+                "Filter `base64_decode` require a string in input".to_string(),
+            ))
         }
     };
 
@@ -148,11 +148,7 @@ pub fn set_env(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 
     let value_string = match value {
         Value::String(s) => s,
-        _ => {
-            return Err(Error::msg(format!(
-                "Filter `set_env` require a string in input"
-            )))
-        }
+        _ => return Err(Error::msg("Filter `set_env` require a string in input")),
     };
 
     // Extracting and validating the 'name' argument
@@ -201,11 +197,7 @@ pub fn find(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     // Extracting and validating the 'value' argument
     let value_string = match value {
         Value::String(s) => s,
-        _ => {
-            return Err(Error::msg(format!(
-                "Filter `find` require a string in input"
-            )))
-        }
+        _ => return Err(Error::msg("Filter `find` require a string in input")),
     };
 
     // Extracting and validating the 'pattern' argument
@@ -219,7 +211,7 @@ pub fn find(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 
     // Collecting matching substrings into a Vec<Value>
     let vec = re
-        .find_iter(&value_string)
+        .find_iter(value_string)
         .map(|s| Value::String(s.as_str().to_string()))
         .collect();
 

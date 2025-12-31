@@ -414,9 +414,9 @@ impl Curl {
                 let mut buffer = Vec::default();
                 let mut document = self.document()?.clone_box();
                 document.set_entry_path(String::default());
-                buffer.write_all(&document.header(&dataset)?).await?;
-                buffer.write_all(&document.write(&dataset)?).await?;
-                buffer.write_all(&document.footer(&dataset)?).await?;
+                buffer.write_all(&document.header(dataset)?).await?;
+                buffer.write_all(&document.write(dataset)?).await?;
+                buffer.write_all(&document.footer(dataset)?).await?;
 
                 // Specific clean for x-www-form-urlencoded
                 if document.metadata().mime_subtype.as_deref() == Some("x-www-form-urlencoded") {
@@ -515,13 +515,13 @@ impl Curl {
             return Ok((request, response));
         }
 
-        return Err(Error::new(
+        Err(Error::new(
             ErrorKind::Interrupted,
             format!(
                 "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
                 self.redirection_limit
             ),
-        ));
+        ))
     }
 }
 
@@ -783,7 +783,7 @@ impl Connector for Curl {
         if self.is_cached {
             CachedEntry::new(
                 status,
-                headers_to_map(&request_headers),
+                headers_to_map(request_headers),
                 headers_to_map(&response_headers),
                 data.clone(),
             )
@@ -851,7 +851,7 @@ impl Connector for Curl {
         let mut request_builder = self.request_builder().await?;
         let path = self.path();
 
-        let (body, body_size) = self.get_request_body(&dataset).await?;
+        let (body, body_size) = self.get_request_body(dataset).await?;
 
         request_builder = request_builder.header(header::CONTENT_LENGTH, body_size.to_string());
 

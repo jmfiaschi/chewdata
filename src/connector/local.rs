@@ -1,35 +1,44 @@
-//! Read and write data in local files.
-//! It is possible to read multiple files with wildcards.
-//! If you want to write dynamically in different files,
-//! use the [mustache](http://mustache.github.io/) variable that will be replaced with the data in input.
+//! Local file connector
 //!
-//! ### Configuration
+//! This connector reads from and writes to **local filesystem files**.
 //!
-//! | key        | alias  | Description                                                                                      | Default Value | Possible Values       |
-//! | ---------- | ------ | ------------------------------------------------------------------------------------------------ | ------------- | --------------------- |
-//! | type       | -      | Required in order to use this connector                                                          | `local`       | `local`               |
-//! | metadata   | meta   | Override metadata information                                                                    | `null`        | [`crate::Metadata`] |
-//! | path       | -      | Path of a file or list of files. Allow wildcard charater `*` and mustache variables              | `null`        | String                |
-//! | parameters | params | Variable that can be use in the path. Parameters of the connector is merged with the current data | `null`       | List of key and value |
-//! | algo_with_checksum   | checksum | Text corresponding to '[algorithm]:[checksum to check]'                              | `null`        | 'sha224' / 'sha256' / 'sha384' / 'sha512'  / 'sha3_224'  / 'sha3_256'  / 'sha3_384'  / 'sha3_512' |
+//! It supports:
+//! - Reading **one or multiple files** using glob wildcards (`*`)
+//! - Dynamic paths using **Mustache templates**
+//! - Optional **checksum verification**
+//! - Optional **in-memory caching**
 //!
-//! ### Examples
+//! ---
+//!
+//! ## Configuration
+//!
+//! | Key | Alias | Description | Default | Possible Values |
+//! |-----|-------|-------------|---------|-----------------|
+//! | `type` | – | Required to select this connector | `local` | `local` |
+//! | `metadata` | `meta` | Override or enrich resource metadata | `null` | [`crate::Metadata`] |
+//! | `path` | – | File path or glob pattern. Supports `*` and Mustache variables | `null` | `String` |
+//! | `parameters` | `params` | Variables injected into the path template | `null` | JSON object |
+//! | `algo_with_checksum` | `checksum` | Checksum validation in the form `algorithm:checksum` | `null` | `sha224`, `sha256`, `sha384`, `sha512`, `sha3_*` |
+//!
+//! ---
+//!
+//! ## Example
 //!
 //! ```json
 //! [
-//!     {
-//!         "type": "reader",
-//!         "connector":{
-//!             "type": "local",
-//!             "path": "./{{ folder }}/*.json",
-//!             "metadata": {
-//!                 "content-type": "application/json; charset=utf-8"
-//!             },
-//!             "parameters": {
-//!                 "folder": "my_folder"
-//!             }
-//!         }
+//!   {
+//!     "type": "reader",
+//!     "connector": {
+//!       "type": "local",
+//!       "path": "./{{ folder }}/*.json",
+//!       "metadata": {
+//!         "content-type": "application/json; charset=utf-8"
+//!       },
+//!       "parameters": {
+//!         "folder": "my_folder"
+//!       }
 //!     }
+//!   }
 //! ]
 //! ```
 use super::paginator::local::wildcard::Wildcard;
@@ -39,19 +48,17 @@ use crate::helper::checksum::{hasher, str_to_algorithm_name_with_checksum};
 use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataResult, DataSet, DataStream, Metadata};
+use async_fs::OpenOptions;
 use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
 use glob::glob;
 use json_value_merge::Merge;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use smol::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::io;
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
@@ -59,9 +66,9 @@ use std::{
     fmt,
     io::{Error, ErrorKind, Result, SeekFrom},
 };
-use async_fs::OpenOptions;
 
-static CACHES: OnceLock<Arc<Mutex<HashMap<String, Vec<DataResult>>>>> = OnceLock::new();
+type SharedCache = Arc<Mutex<HashMap<String, Vec<DataResult>>>>;
+static CACHES: OnceLock<SharedCache> = OnceLock::new();
 
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
@@ -78,7 +85,6 @@ pub struct Local {
     #[serde(alias = "checksum")]
     pub algo_with_checksum: Option<String>,
 }
-
 
 impl fmt::Debug for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -99,30 +105,29 @@ impl Local {
             ..Default::default()
         }
     }
+    fn caches() -> &'static Arc<Mutex<HashMap<String, Vec<DataResult>>>> {
+        CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+    }
     fn cache_key(&self) -> String {
-        let mut hasher = DefaultHasher::new();
-        let key = self.path().to_string();
-        key.hash(&mut hasher);
-        hasher.finish().to_string()
+        self.path()
     }
-    pub async fn cache(&mut self) -> std::io::Result<Option<Vec<DataResult>>> {
-        let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+    pub async fn cache(&self) -> io::Result<Option<Vec<DataResult>>> {
+        let key = self.cache_key();
+        let caches = Self::caches();
+        let guard = caches.lock().await;
 
-        let cache_key = self.cache_key();
-        if let Some(data_results) = caches.lock().await.get(&self.cache_key()) {
-            info!(cache_key, "Retrieve entries in the cache");
-            return Ok(Some(data_results.clone()));
+        if let Some(dataset) = guard.get(&key) {
+            info!(cache_key = key, "Cache hit");
+            Ok(Some(dataset.clone()))
+        } else {
+            Ok(None)
         }
-
-        Ok(None)
     }
-    pub async fn set_cache(&mut self, dataset: &[DataResult]) {
-        let caches = CACHES.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
-
-        let cache_key = self.cache_key();
-        let mut map = caches.lock_arc().await;
-        map.insert(cache_key.clone(), dataset.to_owned());
-        info!(cache_key, "create entries in the cache");
+    pub async fn set_cache(&self, dataset: &[DataResult]) {
+        let key = self.cache_key();
+        let caches = Self::caches();
+        caches.lock().await.insert(key.clone(), dataset.to_vec());
+        info!(cache_key = key, "Cache stored");
     }
 }
 
@@ -160,21 +165,18 @@ impl Connector for Local {
     /// assert_eq!("/dir/filename_value.ext", connector.path());
     /// ```
     fn path(&self) -> String {
-        let mut path: String = self.path.clone();
-
-        match self.is_variable() {
-            true => {
-                let mut params = self.parameters.clone();
-                let mut metadata = Map::default();
-
-                metadata.insert("metadata".to_string(), self.metadata().into());
-                params.merge(&Value::Object(metadata));
-
-                path.replace_mustache(params.clone());
-                path
-            }
-            false => path,
+        if !self.is_variable() {
+            return self.path.clone();
         }
+
+        let mut params = self.parameters.clone();
+        params.merge(&serde_json::json!({
+            "metadata": self.metadata()
+        }));
+
+        let mut path = self.path.clone();
+        path.replace_mustache(params);
+        path
     }
     /// See [`Connector::len`] for more details.
     ///
@@ -187,7 +189,7 @@ impl Connector for Local {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Local::default();
@@ -200,12 +202,8 @@ impl Connector for Local {
     /// ```
     #[instrument(name = "local::len")]
     async fn len(&self) -> Result<usize> {
-        let reg = Regex::new("[*]").unwrap();
-        if reg.is_match(self.path.as_ref()) {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "len() method not available for wildcard path",
-            ));
+        if self.path.contains('*') {
+            return Err(Error::other("len() method not available for wildcard path"));
         }
 
         let len = match async_fs::metadata(self.path()).await {
@@ -316,7 +314,7 @@ impl Connector for Local {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
@@ -374,7 +372,9 @@ impl Connector for Local {
         }
 
         if let Some(algorithm_name_with_checksum) = &algo_with_checksum_opt {
-            if let (algorithm_name, Some(checksum)) = str_to_algorithm_name_with_checksum(algorithm_name_with_checksum)? {
+            if let (algorithm_name, Some(checksum)) =
+                str_to_algorithm_name_with_checksum(algorithm_name_with_checksum)?
+            {
                 let mut hasher = hasher(algorithm_name)?;
                 hasher.update(&buff);
 
@@ -418,7 +418,7 @@ impl Connector for Local {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
@@ -471,8 +471,8 @@ impl Connector for Local {
         };
 
         let mut file = OpenOptions::new()
-            .read(true)
             .create(true)
+            .read(true)
             .write(true)
             .truncate(false)
             .open(path.as_str())
@@ -503,7 +503,8 @@ impl Connector for Local {
 
         let checksum = match &self.algo_with_checksum {
             Some(algorithm_name_with_checksum) => {
-                let (algorithm_name, _) = str_to_algorithm_name_with_checksum(algorithm_name_with_checksum)?;
+                let (algorithm_name, _) =
+                    str_to_algorithm_name_with_checksum(algorithm_name_with_checksum)?;
                 let mut hasher = hasher(algorithm_name)?;
                 let mut buff = Vec::default();
                 file.seek(SeekFrom::Start(0)).await?;
@@ -511,14 +512,10 @@ impl Connector for Local {
                 hasher.update(&buff);
                 base16ct::lower::encode_string(&hasher.finalize())
             }
-            None => "algorithm undefined".to_string()
+            None => "algorithm undefined".to_string(),
         };
 
-        info!(
-            path = path,
-            checksum = checksum,
-            "Send data with success"
-        );
+        info!(path = path, checksum = checksum, "Send data with success");
 
         Ok(None)
     }
@@ -536,7 +533,7 @@ impl Connector for Local {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
@@ -570,14 +567,16 @@ impl Connector for Local {
         let paths = glob(path.as_str()).map_err(|e| Error::new(ErrorKind::NotFound, e))?;
         for path_result in paths {
             match path_result {
-                Ok(path) => OpenOptions::new()
-                    .read(false)
-                    .create(true)
-                    .append(false)
-                    .write(true)
-                    .truncate(true)
-                    .open(path.display().to_string())
-                    .await?,
+                Ok(path) => {
+                    OpenOptions::new()
+                        .read(false)
+                        .create(true)
+                        .append(false)
+                        .write(true)
+                        .truncate(true)
+                        .open(path.display().to_string())
+                        .await?
+                }
                 Err(e) => return Err(Error::new(ErrorKind::NotFound, e)),
             };
         }
