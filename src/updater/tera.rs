@@ -75,57 +75,54 @@ impl Updater for Tera {
 
             let mut field_new_value = Value::default();
 
-            match &action.pattern {
-                Some(pattern) => {
-                    trace!(
-                        field = action.field.as_str(),
-                        pattern = pattern,
-                        "Field/Pattern that will be apply on the output"
-                    );
+            if let Some(pattern) = &action.pattern {
+                trace!(
+                    field = action.field.as_str(),
+                    pattern = pattern,
+                    "Field/Pattern that will be apply on the output"
+                );
 
-                    let render_result: String =
-                        match engine.render_str(pattern.as_str(), &tera_context) {
-                            Ok(render_result) => Ok(render_result),
-                            Err(e) => Err(io::Error::new(
-                                io::ErrorKind::InvalidInput,
-                                format!(
-                                    "Failed to render the field '{}'. {}.",
-                                    action.field,
+                let render_result: String = match engine.render_str(pattern.as_str(), &tera_context)
+                {
+                    Ok(render_result) => Ok(render_result),
+                    Err(e) => Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "Failed to render the field '{}'. {}.",
+                            action.field,
+                            match e.source() {
+                                Some(e) => {
                                     match e.source() {
-                                        Some(e) => {
-                                            match e.source() {
-                                                Some(e) => e.to_string(),
-                                                None => e.to_string(),
-                                            }
-                                        }
-                                        None => format!("Please fix the pattern `{}`", pattern),
+                                        Some(e) => e.to_string(),
+                                        None => e.to_string(),
                                     }
-                                    .replace(" '__tera_one_off'", "")
-                                ),
-                            )),
-                        }?;
+                                }
+                                None => format!("Please fix the pattern `{}`", pattern),
+                            }
+                            .replace(" '__tera_one_off'", "")
+                        ),
+                    )),
+                }?;
 
-                    trace!(
-                        result = render_result.display_only_for_debugging(),
-                        field = action.field.as_str(),
-                        pattern = pattern,
-                        context = tera_context.display_only_for_debugging(),
-                        output = output.display_only_for_debugging(),
-                        "Field value before resolved it"
-                    );
+                trace!(
+                    result = render_result.display_only_for_debugging(),
+                    field = action.field.as_str(),
+                    pattern = pattern,
+                    context = tera_context.display_only_for_debugging(),
+                    output = output.display_only_for_debugging(),
+                    "Field value before resolved it"
+                );
 
-                    field_new_value = Value::resolve(render_result);
+                field_new_value = Value::resolve(render_result);
 
-                    trace!(
-                        result = field_new_value.display_only_for_debugging(),
-                        field = action.field.as_str(),
-                        pattern = pattern,
-                        context = tera_context.display_only_for_debugging(),
-                        output = output.display_only_for_debugging(),
-                        "Field value after resolved it"
-                    );
-                }
-                None => (),
+                trace!(
+                    result = field_new_value.display_only_for_debugging(),
+                    field = action.field.as_str(),
+                    pattern = pattern,
+                    context = tera_context.display_only_for_debugging(),
+                    output = output.display_only_for_debugging(),
+                    "Field value after resolved it"
+                );
             };
 
             let json_pointer = action.field.to_json_pointer();

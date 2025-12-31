@@ -518,8 +518,7 @@ pub fn map(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         None => {
             return Err(Error::msg(format!(
                 "Attribute '{}' not found in {}",
-                &attribute,
-                value.to_string()
+                &attribute, value
             )))
         }
     };

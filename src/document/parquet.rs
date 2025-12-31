@@ -214,7 +214,7 @@ impl Default for ParquetOptions {
             has_dictionary: Some(false),
             max_row_group_size: Some(128 * 1024 * 1024),
             dictionary_page_size_limit: None,
-            data_page_size_limit: Some(1 * 1024 * 1024),
+            data_page_size_limit: Some(1024 * 1024),
             version: Some(2),
         }
     }

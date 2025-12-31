@@ -158,7 +158,7 @@ impl JsonBuilder {
 
         let mut inner = stack
             .pop()
-            .ok_or_else(|| Error::new(ErrorKind::Other, "Expected stack item at close tag"))?;
+            .ok_or_else(|| Error::other("Expected stack item at close tag"))?;
         let stack_len = stack.len();
 
         let text_key = format!("{}text", self.charkey);
