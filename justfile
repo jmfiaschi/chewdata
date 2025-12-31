@@ -119,8 +119,12 @@ coverage_it:
     cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
 
 # Benchmark the project.
-bench: http-mock
-    cargo criterion --benches --output-format bencher --plotting-backend disabled --features "xml csv parquet toml bucket curl mongodb psql" 2>&1
+bench cpus="1" sample_size="10": http-mock
+    cargo criterion --benches \
+    --output-format bencher \
+    --plotting-backend disabled \
+    --features "xml csv parquet toml bucket curl mongodb psql" \
+    -- --sample-size {{sample_size}} --test-threads {{cpus}} 2>&1
 
 # Start minio in local.
 minio:
