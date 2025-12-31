@@ -140,14 +140,13 @@ impl Connector for Local {
         Ok(())
     }
     /// See [`Connector::document`] for more details.
-    fn document(&self) -> Result<&Box<dyn Document>> {
-        match &self.document {
-            Some(document) => Ok(document),
-            None => Err(Error::new(
+    fn document(&self) -> Result<&dyn Document> {
+        self.document.as_deref().ok_or_else(|| {
+            Error::new(
                 ErrorKind::InvalidInput,
                 "The document has not been set in the connector",
-            )),
-        }
+            )
+        })
     }
     /// See [`Connector::path`] for more details.
     ///
@@ -332,7 +331,7 @@ impl Connector for Local {
     /// ```
     #[instrument(name = "local::fetch")]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
-        let document = self.document()?.clone();
+        let document = self.document()?;
         let mut buff = Vec::default();
         let path = self.path();
         let algo_with_checksum_opt = self.algo_with_checksum.clone();

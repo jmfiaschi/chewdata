@@ -288,7 +288,7 @@ impl BucketSelect {
             .input_serialization(input_serialization)
             .output_serialization(output_serialization))
     }
-    async fn fetch_data(&mut self) -> Result<Vec<u8>> {
+    async fn fetch_data(&self) -> Result<Vec<u8>> {
         let mut event_stream = self
             .select_object_content()
             .compat()
@@ -408,19 +408,18 @@ impl BucketSelect {
 impl Connector for BucketSelect {
     /// See [`Connector::set_document`] for more details.
     fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
-        self.document = Some(document.clone());
+        self.document = Some(document);
 
         Ok(())
     }
     /// See [`Connector::document`] for more details.
-    fn document(&self) -> Result<&Box<dyn Document>> {
-        match &self.document {
-            Some(document) => Ok(document),
-            None => Err(Error::new(
+    fn document(&self) -> Result<&dyn Document> {
+        self.document.as_deref().ok_or_else(|| {
+            Error::new(
                 ErrorKind::InvalidInput,
                 "The document has not been set in the connector",
-            )),
-        }
+            )
+        })
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
@@ -619,7 +618,7 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument(name = "bucket_select::fetch")]
     async fn fetch(&mut self) -> Result<Option<DataStream>> {
-        let document = self.document()?.clone();
+        let document = self.document()?;
         let mut buffer = Vec::default();
         let path = self.path();
 
@@ -628,11 +627,11 @@ impl Connector for BucketSelect {
             self.metadata().mime_subtype.as_deref(),
         ) {
             let mut connector_for_header = self.clone();
-            let mut document_for_header = document.clone();
+            let mut document_for_header = document.clone_box();
             let mut metadata = document_for_header.metadata().clone();
             metadata.has_headers = Some(false);
             document_for_header.set_metadata(metadata);
-            connector_for_header.set_document(document_for_header.clone())?;
+            connector_for_header.set_document(document_for_header)?;
 
             connector_for_header.query = format!(
                 "{} {}",
