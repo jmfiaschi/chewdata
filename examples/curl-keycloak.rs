@@ -140,9 +140,9 @@ async fn main() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use smol_macros::test;
+    use async_std::task;
 
-    #[test]
+    #[async_std::test]
     async fn test_example() {
         main().unwrap();
     }
