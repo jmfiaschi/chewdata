@@ -96,7 +96,7 @@ test_libs_by_feature:
 test_integration:
     cargo test --tests --features "xml csv parquet toml bucket curl mongodb psql"
 
-example-tests:
+example-tests: start
     cargo test --examples --features "xml csv parquet toml bucket curl mongodb psql"
 
 unit-tests: start test_libs
