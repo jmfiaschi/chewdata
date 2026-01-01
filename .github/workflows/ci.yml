@@ -115,7 +115,7 @@ jobs:
           shared-key: benchmark
       - uses: webgtx/setup-podman-compose@v1
       - run: just setup
-      - run: just bench cpus=${{ runner.cpus }} | tee output.txt
+      - run: just bench | tee output.txt
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
