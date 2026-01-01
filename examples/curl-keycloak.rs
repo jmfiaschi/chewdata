@@ -9,7 +9,7 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{self, Layer};
 
 use macro_rules_attribute::apply;
-use smol_macros::{main, test};
+use smol_macros::main;
 
 #[apply(main!)]
 async fn main() -> io::Result<()> {
@@ -139,10 +139,10 @@ async fn main() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::main;
 
-    #[apply(test!)]
-    async fn test_example() {
+    #[test]
+    fn test_example() {
         main().unwrap();
     }
 }
