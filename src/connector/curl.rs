@@ -1,4 +1,30 @@
-//! Read and write data through http(s) connector.
+//! # HTTP(S) Connector (Curl)
+//!
+//! This connector executes HTTP requests and maps responses into datasets
+//! using a [`Document`] for serialization/deserialization.
+//!
+//! ## Request lifecycle
+//! 1. Build request from `endpoint`, `path`, `method`, headers, and parameters
+//! 2. Apply authentication (optional)
+//! 3. Send request (with redirection handling)
+//! 4. Deserialize response body using the configured `Document`
+//! 5. Optionally cache the response
+//!
+//! ## HTTP method behavior
+//!
+//! | Method        | Request body | Response body |
+//! |---------------|--------------|---------------|
+//! | GET / HEAD    | ❌           | ✔️ (HEAD ignored) |
+//! | POST / PUT    | ✔️           | ✔️ |
+//! | PATCH         | ✔️           | ✔️ |
+//! | DELETE        | ❌           | ✔️ (optional) |
+//!
+//! ## Cache behavior
+//!
+//! * Cache key: full request URI
+//! * Cache policy: HTTP semantics (`Cache-Control`, `Expires`, etc.)
+//! * Storage: OS temp directory (`cache/http`)
+//! * Cache is bypassed if response is stale
 //!
 //! ### Configuration
 //!
@@ -68,18 +94,21 @@ use bytes::Bytes;
 use futures::AsyncRead as AsyncReadIo;
 use futures::AsyncWrite as AsyncWriteIo;
 use futures::{AsyncWriteExt, Stream};
-use http::HeaderMap;
 use http::{
     header, request::Builder, HeaderName, HeaderValue, Method, Request, Response, StatusCode,
     Version,
 };
+use http::{HeaderMap, Uri};
 use http_body_util::{BodyExt, Full};
 use http_cache_semantics::{BeforeRequest, CachePolicy};
-use hyper::client::conn::http1::SendRequest as SendRequestHttp1;
+use hyper::body::Incoming;
+use hyper::client::conn::http1::{Connection as ConnectionHttp1, SendRequest as SendRequestHttp1};
+use hyper::client::conn::http2::SendRequest as SendRequestHttp2;
 use json_value_merge::Merge;
 use json_value_search::Search;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use smol::Timer;
 use smol::{io, net::TcpStream};
 use smol_hyper::rt::FuturesIo;
 use smol_timeout::TimeoutExt;
@@ -92,19 +121,17 @@ use std::{
     io::{Error, ErrorKind, Result},
 };
 
-const REDIRECT_CODES: &[StatusCode] = &[
+const REDIRECT_CODES: &[StatusCode; 5] = &[
     StatusCode::MOVED_PERMANENTLY,
     StatusCode::FOUND,
     StatusCode::SEE_OTHER,
     StatusCode::TEMPORARY_REDIRECT,
     StatusCode::PERMANENT_REDIRECT,
 ];
-
 const DEFAULT_TIMEOUT: u64 = 5;
-
 const DEFAULT_CACHE_DIR: &str = "cache/http";
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Curl {
     #[serde(skip)]
@@ -132,6 +159,36 @@ pub struct Curl {
     #[serde(alias = "cache")]
     #[serde(alias = "cache_enabled")]
     pub is_cached: bool,
+    #[serde(skip)]
+    #[serde(default)]
+    client: Option<ClientType>,
+}
+
+pub enum ClientType {
+    Http1(SendRequestHttp1<Pin<Box<Full<Bytes>>>>),
+    Http2(SendRequestHttp2<Pin<Box<Full<Bytes>>>>),
+}
+
+impl Clone for Curl {
+    fn clone(&self) -> Self {
+        Self {
+            document: self.document.clone(),
+            metadata: self.metadata.clone(),
+            authenticator_type: self.authenticator_type.clone(),
+            endpoint: self.endpoint.clone(),
+            path: self.path.clone(),
+            method: self.method.clone(),
+            headers: self.headers.clone(),
+            timeout: self.timeout,
+            parameters: self.parameters.clone(),
+            paginator_type: self.paginator_type.clone(),
+            counter_type: self.counter_type.clone(),
+            redirection_limit: self.redirection_limit,
+            version: self.version,
+            is_cached: self.is_cached,
+            client: None,
+        }
+    }
 }
 
 impl fmt::Debug for Curl {
@@ -174,6 +231,7 @@ impl Default for Curl {
             redirection_limit: 5,
             version: 1,
             is_cached: false,
+            client: None,
         }
     }
 }
@@ -227,52 +285,201 @@ impl AsyncWriteIo for SmolStream {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct SmolExecutor;
+
+impl<F> hyper::rt::Executor<F> for SmolExecutor
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    fn execute(&self, fut: F) {
+        smol::spawn(fut).detach();
+    }
+}
+
+#[derive(Clone, Copy)]
+struct RetryPolicy {
+    max_attempts: usize,
+    delay: Duration,
+    retry_on_status: &'static [StatusCode],
+    retry_on_method: &'static [Method],
+}
+
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self {
+            max_attempts: 3,
+            delay: Duration::from_millis(200),
+            retry_on_status: &[
+                StatusCode::REQUEST_TIMEOUT,
+                StatusCode::TOO_MANY_REQUESTS,
+                StatusCode::BAD_GATEWAY,
+                StatusCode::SERVICE_UNAVAILABLE,
+                StatusCode::GATEWAY_TIMEOUT,
+            ],
+            retry_on_method: &[
+                Method::GET,
+                Method::HEAD,
+                Method::PUT,
+                Method::DELETE,
+                Method::OPTIONS,
+            ],
+        }
+    }
+}
+
+impl RetryPolicy {
+    fn is_retryable_status(self, status: &StatusCode) -> bool {
+        self.retry_on_status.contains(&status)
+    }
+    fn is_retryable_method(self, method: &Method) -> bool {
+        self.retry_on_method.contains(&method)
+    }
+}
+
+async fn backoff(attempt: usize, base_delay: Duration) {
+    let max_delay = Duration::from_secs(30);
+
+    let delay = base_delay
+        .checked_mul(2u32.saturating_pow(attempt as u32))
+        .unwrap_or(max_delay)
+        .min(max_delay);
+
+    Timer::after(delay).await;
+}
+
 impl Curl {
-    async fn http1(&mut self) -> std::io::Result<SendRequestHttp1<Pin<Box<Full<Bytes>>>>> {
+    async fn get_or_create_client(&mut self) -> io::Result<&mut ClientType> {
+        if self.client.is_none() {
+            self.client = Some(match self.version {
+                1 => ClientType::Http1(self.http1().await?),
+                2 => ClientType::Http2(self.http2().await?),
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Unsupported HTTP version",
+                    ))
+                }
+            });
+        }
+        Ok(self.client.as_mut().unwrap())
+    }
+    async fn http1(&self) -> io::Result<SendRequestHttp1<Pin<Box<Full<Bytes>>>>> {
+        use hyper::client::conn::http1;
+
+        let uri: hyper::Uri = self
+            .endpoint
+            .parse()
+            .map_err(|e| io::Error::new(ErrorKind::InvalidInput, e))?;
+
+        let scheme = uri
+            .scheme_str()
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing scheme"))?;
+
+        let host = uri
+            .host()
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing host"))?;
+
+        let port = uri.port_u16().unwrap_or(match scheme {
+            "http" => 80,
+            "https" => 443,
+            _ => {
+                return Err(io::Error::new(
+                    ErrorKind::InvalidInput,
+                    "unsupported scheme",
+                ))
+            }
+        });
+
+        let tcp = TcpStream::connect((host, port))
+            .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT)))
+            .await
+            .ok_or_else(|| io::Error::new(ErrorKind::TimedOut, "connect timeout"))??;
+
+        tcp.set_nodelay(true)?;
+
+        let stream = match scheme {
+            "http" => SmolStream::Plain(tcp),
+            "https" => {
+                let tls: TlsStream<TcpStream> = async_native_tls::connect(host, tcp)
+                    .await
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                SmolStream::Tls(tls)
+            }
+            _ => unreachable!(),
+        };
+
+        let (sender, conn): (
+            SendRequestHttp1<Pin<Box<Full<Bytes>>>>,
+            ConnectionHttp1<FuturesIo<SmolStream>, Pin<Box<Full<Bytes>>>>,
+        ) = http1::Builder::new()
+            .title_case_headers(true)
+            .handshake(FuturesIo::new(stream))
+            .await
+            .map_err(|e| io::Error::new(ErrorKind::ConnectionAborted, e))?;
+
+        smol::spawn(async move {
+            if let Err(e) = conn.await {
+                warn!(error = %e, "HTTP/1 connection closed");
+            }
+        })
+        .detach();
+
+        Ok(sender)
+    }
+    async fn http2(&mut self) -> io::Result<SendRequestHttp2<Pin<Box<Full<Bytes>>>>> {
         let uri = self
             .endpoint
             .parse::<hyper::Uri>()
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
         let host = uri.host().unwrap_or("0.0.0.0");
+        let port = match uri.port_u16() {
+            Some(p) => p,
+            None => match uri.scheme_str() {
+                Some("http") => 80,
+                Some("https") => 443,
+                _ => {
+                    return Err(std::io::Error::new(
+                        ErrorKind::InvalidInput,
+                        "Unsupported scheme",
+                    ))
+                }
+            },
+        };
 
-        let (sender, conn) = hyper::client::conn::http1::handshake(FuturesIo::new({
-            match uri.scheme_str() {
-                Some("http") => {
-                    let stream = {
-                        let port = uri.port_u16().unwrap_or(80);
-                        TcpStream::connect((host, port))
-                            .await
-                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-                    };
-                    SmolStream::Plain(stream)
-                }
-                Some("https") => {
-                    // In case of HTTPS, establish a secure TLS connection first.
-                    let stream = {
-                        let port = uri.port_u16().unwrap_or(443);
-                        TcpStream::connect((host, port))
-                            .await
-                            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-                    };
-                    let stream = async_native_tls::connect(host, stream)
-                        .await
-                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-                    SmolStream::Tls(stream)
-                }
-                _ => return Err(Error::new(ErrorKind::InvalidData, "unsupported scheme")),
-            }
-        }))
-        .await
-        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+        // Connect with timeout
+        let tcp = TcpStream::connect((host, port))
+            .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT)))
+            .await
+            .ok_or_else(|| io::Error::new(ErrorKind::TimedOut, "connect timeout"))??;
 
-        smol::spawn(
-            async move {
-                if let Err(e) = conn.await {
-                    warn!(error = e.to_string(), "Connection failed");
-                }
+        // Wrap TLS if needed
+        let stream = match uri.scheme_str() {
+            Some("http") => SmolStream::Plain(tcp),
+            Some("https") => {
+                let tls: TlsStream<TcpStream> = async_native_tls::connect(host, tcp)
+                    .await
+                    .map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
+                SmolStream::Tls(tls)
             }
-            .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT))),
-        )
+            _ => unreachable!(),
+        };
+
+        let io = FuturesIo::new(stream);
+        let executor = SmolExecutor;
+
+        let (sender, connection) = hyper::client::conn::http2::Builder::new(executor)
+            .handshake(io)
+            .await
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::ConnectionAborted, e))?;
+
+        // Spawn connection task
+        smol::spawn(async move {
+            if let Err(e) = connection.await {
+                warn!(error = e.to_string(), "HTTP/2 connection failed");
+            }
+        })
         .detach();
 
         Ok(sender)
@@ -391,7 +598,9 @@ impl Curl {
             }
         }
 
-        let (_, final_response) = self.try_send_request_with_redirect(request).await?;
+        println!("request {:?}", request);
+
+        let (_, final_response) = self.follow_redirects(request).await?;
 
         info!(path, "✅ Fetch headers with success");
 
@@ -435,93 +644,127 @@ impl Curl {
             _ => Ok((Full::new(Bytes::new()), 0)),
         }
     }
-    async fn try_send_request_with_redirect(
+    async fn follow_redirects(
         &mut self,
-        request: hyper::Request<Pin<Box<Full<Bytes>>>>,
-    ) -> std::io::Result<(
-        hyper::Request<Pin<Box<Full<Bytes>>>>,
-        hyper::Response<hyper::body::Incoming>,
-    )> {
-        let mut client = self.http1().await?;
-        let mut redirect_count: u8 = 0;
-        let mut request = request;
-        let path = self.path();
+        mut request: Request<Pin<Box<Full<Bytes>>>>,
+    ) -> io::Result<(Request<Pin<Box<Full<Bytes>>>>, Response<Incoming>)> {
+        let base_uri = request.uri().clone();
 
-        while redirect_count <= self.redirection_limit as u8 {
-            let response = loop {
-                // Retry when :
-                //  * server close the connection.
-                trace!(
-                    request = format!("{:?}", request.display_only_for_debugging()),
-                    path,
-                    "Try to Sending request"
-                );
+        for _ in 0..=self.redirection_limit {
+            let response = self.send_with_retry(request.clone()).await?;
 
-                match client.try_send_request(request.clone()).await {
-                    Ok(res) => break Ok(res),
-                    Err(mut e) => {
-                        let req_back = e.take_message();
-                        let original_error = e.into_error();
-                        match req_back {
-                            Some(req_back) if original_error.is_canceled() => {
-                                request = req_back;
-                                warn!(
-                                    request = format!("{:?}", request).display_only_for_debugging(),
-                                    path, "Retrying the request after server closed the connection"
-                                );
-                                continue;
-                            }
-                            _ => break Err(Error::new(ErrorKind::Interrupted, original_error)),
-                        }
-                    }
-                }
-            }?;
-
-            if REDIRECT_CODES.contains(&response.status()) {
-                if let Some(location) = response.headers().get("location") {
-                    match location.to_str().unwrap().parse::<hyper::Uri>() {
-                        Ok(valid_url) => {
-                            *request.uri_mut() = valid_url;
-                        }
-                        Err(e) => return Err(Error::new(ErrorKind::InvalidData, e)),
-                    };
-                    redirect_count += 1;
-                    continue;
-                }
+            if !REDIRECT_CODES.contains(&response.status()) {
+                return Ok((request, response));
             }
 
-            if !response.status().is_success() {
-                let error_message = format!(
-                    "The http call on '{}' failed with status code '{}'",
-                    request.uri().path(),
-                    response.status()
-                );
+            let location = response
+                .headers()
+                .get(header::LOCATION)
+                .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing Location header"))?
+                .to_str()
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-                let payload = response
-                    .collect()
-                    .await
-                    .unwrap_or_default()
-                    .to_bytes()
-                    .to_vec();
-
-                warn!(
-                    request = format!("{:?}", request).display_only_for_debugging(),
-                    response_payload = format!("{}", String::from_utf8_lossy(&payload)),
-                    error_message,
+            let new_uri = if location.starts_with("http://") || location.starts_with("https://") {
+                println!("starts_with");
+                location
+                    .parse()
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+            } else {
+                println!("relative path");
+                let mut parts = base_uri.clone().into_parts();
+                parts.path_and_query = Some(
+                    location
+                        .parse()
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
                 );
-                return Err(Error::new(ErrorKind::Interrupted, error_message));
+                Uri::from_parts(parts).map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+            };
+
+            let status = response.status();
+
+            trace!(
+                base_uri = %base_uri.clone(),
+                status = %response.status(),
+                location,
+                method = %request.method(),
+                new_uri = %new_uri,
+                "following redirect"
+            );
+
+            // Update request URI
+            *request.uri_mut() = new_uri;
+
+            // Method rewrite rules (RFC + de facto)
+            match status {
+                StatusCode::SEE_OTHER | StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
+                    *request.method_mut() = Method::GET;
+                    *request.body_mut() = Box::pin(Full::default()); // clear body for GET
+                }
+                StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => {
+                    // preserve method + body
+                }
+                _ => {}
             }
-
-            return Ok((request, response));
         }
 
-        Err(Error::new(
-            ErrorKind::Interrupted,
-            format!(
-                "The number of HTTP redirections exceeds the maximum limit of '{}' calls",
-                self.redirection_limit
-            ),
-        ))
+        Err(Error::new(ErrorKind::InvalidInput, "too many redirects"))
+    }
+    async fn send_with_retry(
+        &mut self,
+        mut request: Request<Pin<Box<Full<Bytes>>>>,
+    ) -> io::Result<Response<hyper::body::Incoming>> {
+        let policy = RetryPolicy::default();
+        let method = request.method().clone();
+        let original_request = request.clone();
+
+        for attempt in 1..=policy.max_attempts {
+            let client = self.get_or_create_client().await?;
+
+            let result = match client {
+                ClientType::Http1(sender) => sender.try_send_request(request.clone()).await,
+                ClientType::Http2(sender) => sender.try_send_request(request.clone()).await,
+            };
+
+            match result {
+                Ok(response) => {
+                    if policy.is_retryable_status(&response.status())
+                        && policy.is_retryable_method(&method)
+                        && attempt < policy.max_attempts
+                    {
+                        backoff(attempt, policy.delay).await;
+                        request = original_request.clone();
+                        continue;
+                    }
+                    return Ok(response);
+                }
+
+                Err(e) => {
+                    // Determine retryable transport errors
+                    let retryable = e.error().is_closed()
+                        || e.error().is_incomplete_message()
+                        || e.error().is_timeout();
+
+                    if retryable
+                        && attempt < policy.max_attempts
+                        && policy.is_retryable_method(&method)
+                    {
+                        warn!(
+                            attempt,
+                            "Retrying request after transport error: {}",
+                            e.into_error()
+                        );
+                        self.client = None; // force reconnect
+                        backoff(attempt, policy.delay).await;
+                        request = original_request.clone();
+                        continue;
+                    }
+
+                    return Err(Error::new(ErrorKind::Interrupted, e.into_error()));
+                }
+            }
+        }
+
+        Err(Error::new(ErrorKind::TimedOut, "retry limit exceeded"))
     }
 }
 
@@ -740,10 +983,12 @@ impl Connector for Curl {
         let (body, body_size) = self.get_request_body(&dataset).await?;
 
         request_builder = request_builder.header(header::CONTENT_LENGTH, body_size.to_string());
-
+        println!("request_builder {:?}", request_builder);
         let request = request_builder
             .body(Box::pin(body))
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        println!("request {:?}", request);
 
         if self.is_cached {
             info!(path, "✅ Fetch data from cache with success");
@@ -760,7 +1005,7 @@ impl Connector for Curl {
             }
         }
 
-        let (final_request, final_response) = self.try_send_request_with_redirect(request).await?;
+        let (final_request, final_response) = self.follow_redirects(request).await?;
         let status = final_response.status().as_u16();
         let request_headers = final_request.headers();
         let response_headers = final_response.headers().clone();
@@ -845,7 +1090,14 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(skip(dataset), name = "curl::send")]
+    #[instrument(
+        name = "curl::send",
+        skip(self, dataset),
+        fields(
+            method = %self.method,
+            path = %self.path()
+        )
+    )]
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut request_builder = self.request_builder().await?;
         let path = self.path();
@@ -858,7 +1110,9 @@ impl Connector for Curl {
             .body(Box::pin(body))
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let (_, final_response) = self.try_send_request_with_redirect(request).await?;
+        println!("request {:?}", request);
+
+        let (_, final_response) = self.follow_redirects(request).await?;
         let data = final_response
             .collect()
             .await
@@ -914,7 +1168,7 @@ impl Connector for Curl {
             .body(Box::pin(Full::new(Bytes::new())))
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-        let (final_request, _) = self.try_send_request_with_redirect(request).await?;
+        let (final_request, _) = self.follow_redirects(request).await?;
 
         if self.is_cached {
             CachedEntry::remove(&final_request.uri().to_string()).await?;
@@ -1030,12 +1284,11 @@ impl CachedEntry {
 
 #[cfg(test)]
 mod tests {
-    use json_value_search::Search;
-
     use super::*;
     use crate::connector::authenticator::{basic::Basic, bearer::Bearer, AuthenticatorType};
     use crate::connector::counter::curl::CounterType;
     use crate::document::json::Json;
+    use json_value_search::Search;
     use macro_rules_attribute::apply;
     use smol::stream::StreamExt;
     use smol_macros::test;
@@ -1100,12 +1353,28 @@ mod tests {
         assert_eq!(false, connector.is_empty().await.unwrap());
     }
     #[apply(test!)]
-    async fn fetch() {
+    async fn fetch_http1() {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = "GET".into();
         connector.path = "/json".to_string();
+        connector.version = 1;
+        connector.set_document(Box::new(document)).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
+        assert!(
+            0 < datastream.count().await,
+            "The inner connector should have a size upper than zero."
+        );
+    }
+    #[apply(test!)]
+    async fn fetch_http2() {
+        let document = Json::default();
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.method = "GET".into();
+        connector.path = "/json".to_string();
+        connector.version = 2;
         connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
@@ -1252,7 +1521,8 @@ mod tests {
         let result = connector.erase().await;
         assert!(
             result.is_ok(),
-            "The inner connector shouldn't raise an error."
+            "The inner connector shouldn't raise this error: {:?}",
+            result
         );
     }
 }
