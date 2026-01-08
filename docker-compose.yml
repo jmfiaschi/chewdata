@@ -35,6 +35,17 @@ services:
         ports:
             - 8080:8080
 
+    https-mock:
+        image: mccutchen/go-httpbin
+        ports:
+            - 8084:8080
+        environment:
+            HTTPS_CERT_FILE: /tmp/server.crt
+            HTTPS_KEY_FILE: /tmp/erver.key
+        volumes:
+          - ./.config/server.crt:/tmp/server.crt
+          - ./.config/server.key:/tmp/erver.key
+
     mongo:
         image: mongo
         ports:
@@ -131,6 +142,23 @@ services:
         ports:
             - 5672:5672
             - 15672:15672
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "rabbitmq-diagnostics -q ping && rabbitmq-diagnostics -q check_running"
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 20s
+
+    rabbitmq-ready:
+        image: busybox
+        command: echo "I'm ready for tests"
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
 
     monitoring:
         image: jaegertracing/all-in-one:latest

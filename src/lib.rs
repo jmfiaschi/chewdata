@@ -21,9 +21,9 @@ pub mod updater;
 
 use self::step::StepType;
 use async_channel::{Receiver, Sender};
-use futures::StreamExt;
 use connector::Connector;
 use futures::stream::{self, Stream};
+use futures::StreamExt;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -31,13 +31,26 @@ use std::io::Result;
 use std::pin::Pin;
 use std::{collections::HashMap, io};
 
+#[cfg(feature = "curl")]
+use async_lock::OnceCell;
+
 pub const PROJECT_NAME: &str = "chewdata";
+
+pub type DataStream = Pin<Box<dyn Stream<Item = DataResult> + Send>>;
+pub type ConnectorStream = Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>;
+pub type DataSet = Vec<DataResult>;
+
+#[cfg(feature = "curl")]
+static TLS_INIT: OnceCell<()> = OnceCell::new();
 
 pub async fn exec(
     step_types: Vec<StepType>,
     input_receiver: Option<Receiver<Context>>,
     output_sender: Option<Sender<Context>>,
-) -> io::Result<()> {
+) -> Result<()> {
+    #[cfg(feature = "curl")]
+    init_tls().await?;
+
     let mut steps = Vec::default();
     let step_types_len = step_types.len();
     let mut previous_step_receiver = input_receiver;
@@ -325,6 +338,14 @@ impl Context {
     }
 }
 
-pub type DataStream = Pin<Box<dyn Stream<Item = DataResult> + Send>>;
-pub type ConnectorStream = Pin<Box<dyn Stream<Item = Result<Box<dyn Connector>>> + Send>>;
-pub type DataSet = Vec<DataResult>;
+#[cfg(feature = "curl")]
+async fn init_tls() -> io::Result<()> {
+    TLS_INIT
+        .get_or_init(|| async {
+            let _ = rustls::crypto::CryptoProvider::install_default(
+                rustls::crypto::ring::default_provider(),
+            );
+        })
+        .await;
+    Ok(())
+}

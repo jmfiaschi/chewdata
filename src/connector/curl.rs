@@ -42,8 +42,9 @@
 //! | paginator_type | paginator | Paginator parameters.                                | [`crate::connector::paginator::curl::offset::Offset`]      | [`crate::connector::paginator::curl::offset::Offset`] / [`crate::connector::paginator::curl::cursor::Cursor`]        |
 //! | counter_type  | count / counter | Use to find the total of elements in the resource.  | `null` | [`crate::connector::counter::curl::header::Header`] / [`crate::connector::counter::curl::body::Body`]                |
 //! | redirection_limit    | - | Limit of redirection |    `5`    | Integer |
-//! | version    | - | HTTP version|    `1`    | Integer |
+//! | version    | - | HTTP version|    `1`    | `1` / `2` |
 //! | is_cached  | cache | Enable the cache management. |    `false`    | `true` / `false` |
+//! | certificate | crt | Path to a local certificate file used to trust the HTTPS connection. | `null` | Local path of a .crt file |
 //!
 //! ### Examples
 //!
@@ -72,7 +73,8 @@
 //!                 "limit": 100,
 //!                 "skip": 0
 //!             },
-//!             "version": "1"
+//!             "version": "1",
+//!             "crt": "./crt/my_certificate.crt"
 //!         }
 //!     }
 //! ]
@@ -87,39 +89,49 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataResult, DataSet, DataStream, Metadata};
 use anyhow::Context as AnyContext;
-use async_native_tls::TlsStream;
 use async_stream::stream;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::AsyncRead as AsyncReadIo;
 use futures::AsyncWrite as AsyncWriteIo;
 use futures::{AsyncWriteExt, Stream};
+use futures_rustls::TlsConnector;
+use futures_rustls::TlsStream as RustlsTlsStream;
+use http::uri::Scheme;
+use http::HeaderMap;
 use http::{
     header, request::Builder, HeaderName, HeaderValue, Method, Request, Response, StatusCode,
     Version,
 };
-use http::{HeaderMap, Uri};
-use http_body_util::{BodyExt, Full};
+use http_body_util::{BodyExt, Empty, Full};
 use http_cache_semantics::{BeforeRequest, CachePolicy};
-use hyper::body::Incoming;
+use hyper::body::Body;
 use hyper::client::conn::http1::{Connection as ConnectionHttp1, SendRequest as SendRequestHttp1};
 use hyper::client::conn::http2::SendRequest as SendRequestHttp2;
 use json_value_merge::Merge;
 use json_value_search::Search;
+use rustls::pki_types::pem::PemObject;
+use rustls::pki_types::CertificateDer;
+use rustls::{ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use smol::Timer;
-use smol::{io, net::TcpStream};
-use smol_hyper::rt::FuturesIo;
+use smol::io;
+use smol::net::TcpStream;
+use smol::{Executor, Timer};
+use smol_hyper::rt::{FuturesIo, SmolExecutor};
 use smol_timeout::TimeoutExt;
 use std::collections::HashMap;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::{Duration, SystemTime};
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
+use webpki_roots::TLS_SERVER_ROOTS;
+
+type DynBody = Pin<Box<dyn Body<Data = Bytes, Error = io::Error> + Send + Sync>>;
 
 const REDIRECT_CODES: &[StatusCode; 5] = &[
     StatusCode::MOVED_PERMANENTLY,
@@ -159,14 +171,16 @@ pub struct Curl {
     #[serde(alias = "cache")]
     #[serde(alias = "cache_enabled")]
     pub is_cached: bool,
+    #[serde(alias = "crt")]
+    pub certificate: Option<String>,
     #[serde(skip)]
     #[serde(default)]
     client: Option<ClientType>,
 }
 
 pub enum ClientType {
-    Http1(SendRequestHttp1<Pin<Box<Full<Bytes>>>>),
-    Http2(SendRequestHttp2<Pin<Box<Full<Bytes>>>>),
+    Http1(SendRequestHttp1<DynBody>),
+    Http2(SendRequestHttp2<DynBody>),
 }
 
 impl Clone for Curl {
@@ -186,6 +200,7 @@ impl Clone for Curl {
             redirection_limit: self.redirection_limit,
             version: self.version,
             is_cached: self.is_cached,
+            certificate: None,
             client: None,
         }
     }
@@ -210,6 +225,7 @@ impl fmt::Debug for Curl {
             .field("redirection_limit", &self.redirection_limit)
             .field("version", &self.version)
             .field("is_cached", &self.is_cached)
+            .field("certificate", &self.certificate)
             .finish()
     }
 }
@@ -231,6 +247,7 @@ impl Default for Curl {
             redirection_limit: 5,
             version: 1,
             is_cached: false,
+            certificate: None,
             client: None,
         }
     }
@@ -242,7 +259,7 @@ enum SmolStream {
     Plain(TcpStream),
 
     /// A TCP connection secured by TLS.
-    Tls(TlsStream<TcpStream>),
+    Tls(RustlsTlsStream<TcpStream>),
 }
 
 impl AsyncReadIo for SmolStream {
@@ -282,19 +299,6 @@ impl AsyncWriteIo for SmolStream {
             SmolStream::Plain(stream) => Pin::new(stream).poll_flush(cx),
             SmolStream::Tls(stream) => Pin::new(stream).poll_flush(cx),
         }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct SmolExecutor;
-
-impl<F> hyper::rt::Executor<F> for SmolExecutor
-where
-    F: std::future::Future + Send + 'static,
-    F::Output: Send + 'static,
-{
-    fn execute(&self, fut: F) {
-        smol::spawn(fut).detach();
     }
 }
 
@@ -349,6 +353,34 @@ async fn backoff(attempt: usize, base_delay: Duration) {
     Timer::after(delay).await;
 }
 
+fn build_request(request_builder: Builder, body: Bytes) -> io::Result<Request<DynBody>> {
+    Ok(match body.len() {
+        0 => {
+            let mut request_builder = request_builder;
+            if let Some(headers) = request_builder.headers_mut() {
+                headers.remove(http::header::CONTENT_TYPE);
+            }
+            request_builder
+                .body(
+                    Box::pin(Empty::new().map_err(|e| Error::new(ErrorKind::InvalidData, e)))
+                        as DynBody,
+                )
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+        }
+        _ => {
+            let request_builder =
+                request_builder.header(header::CONTENT_LENGTH, body.len().to_string());
+
+            request_builder
+                .body(
+                    Box::pin(Full::from(body).map_err(|e| Error::new(ErrorKind::InvalidData, e)))
+                        as DynBody,
+                )
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+        }
+    })
+}
+
 impl Curl {
     async fn get_or_create_client(&mut self) -> io::Result<&mut ClientType> {
         if self.client.is_none() {
@@ -365,125 +397,188 @@ impl Curl {
         }
         Ok(self.client.as_mut().unwrap())
     }
-    async fn http1(&self) -> io::Result<SendRequestHttp1<Pin<Box<Full<Bytes>>>>> {
+    #[instrument(name = "curl::http1")]
+    async fn http1(&self) -> io::Result<SendRequestHttp1<DynBody>> {
         use hyper::client::conn::http1;
 
-        let uri: hyper::Uri = self
+        let base = self
             .endpoint
-            .parse()
-            .map_err(|e| io::Error::new(ErrorKind::InvalidInput, e))?;
+            .parse::<hyper::Uri>()
+            .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
 
-        let scheme = uri
+        let scheme: Scheme = base
             .scheme_str()
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing scheme"))?;
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing scheme"))?
+            .try_into()
+            .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "unsupported scheme"))?;
 
-        let host = uri
+        let host: String = base
             .host()
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing host"))?;
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing host"))?
+            .to_owned();
 
-        let port = uri.port_u16().unwrap_or(match scheme {
-            "http" => 80,
-            "https" => 443,
-            _ => {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidInput,
-                    "unsupported scheme",
-                ))
-            }
+        let port = base.port_u16().unwrap_or(if scheme == Scheme::HTTP {
+            80
+        } else if scheme == Scheme::HTTPS {
+            443
+        } else {
+            return Err(io::Error::new(ErrorKind::InvalidInput, "unsupported port"));
         });
 
-        let tcp = TcpStream::connect((host, port))
+        let tcp = match TcpStream::connect((host.clone(), port))
             .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT)))
             .await
-            .ok_or_else(|| io::Error::new(ErrorKind::TimedOut, "connect timeout"))??;
+        {
+            None => return Err(io::Error::new(ErrorKind::TimedOut, "connect timeout")),
+            Some(Err(e)) => return Err(e),
+            Some(Ok(tcp)) => tcp,
+        };
 
         tcp.set_nodelay(true)?;
 
-        let stream = match scheme {
-            "http" => SmolStream::Plain(tcp),
-            "https" => {
-                let tls: TlsStream<TcpStream> = async_native_tls::connect(host, tcp)
-                    .await
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-                SmolStream::Tls(tls)
+        let stream = if scheme == Scheme::HTTP {
+            SmolStream::Plain(tcp)
+        } else if scheme == Scheme::HTTPS {
+            let mut roots = RootCertStore::empty();
+            roots.extend(TLS_SERVER_ROOTS.iter().cloned());
+
+            if let Some(certificate_path) = &self.certificate {
+                let iter = CertificateDer::pem_file_iter(certificate_path)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+                let certs: Vec<CertificateDer<'_>> = iter.filter_map(|res| res.ok()).collect();
+
+                roots.add_parsable_certificates(certs.into_iter());
             }
-            _ => unreachable!(),
+
+            let mut config = ClientConfig::builder()
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+
+            config.alpn_protocols.clear();
+
+            let connector = TlsConnector::from(Arc::new(config));
+            let server_name = rustls::pki_types::ServerName::try_from(host)
+                .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "invalid DNS name"))?;
+
+            let tls = connector.connect(server_name, tcp).await?;
+            SmolStream::Tls(futures_rustls::TlsStream::Client(tls))
+        } else {
+            return Err(io::Error::new(
+                ErrorKind::InvalidInput,
+                "unsupported scheme",
+            ));
         };
 
-        let (sender, conn): (
-            SendRequestHttp1<Pin<Box<Full<Bytes>>>>,
-            ConnectionHttp1<FuturesIo<SmolStream>, Pin<Box<Full<Bytes>>>>,
+        let (sender, connection): (
+            SendRequestHttp1<DynBody>,
+            ConnectionHttp1<FuturesIo<SmolStream>, DynBody>,
         ) = http1::Builder::new()
-            .title_case_headers(true)
+            .title_case_headers(false)
             .handshake(FuturesIo::new(stream))
             .await
             .map_err(|e| io::Error::new(ErrorKind::ConnectionAborted, e))?;
 
         smol::spawn(async move {
-            if let Err(e) = conn.await {
-                warn!(error = %e, "HTTP/1 connection closed");
+            debug!("HTTP/2 connection task started");
+            if let Err(e) = connection.await {
+                warn!(error = %e, "HTTP/2 connection closed");
             }
         })
         .detach();
 
         Ok(sender)
     }
-    async fn http2(&mut self) -> io::Result<SendRequestHttp2<Pin<Box<Full<Bytes>>>>> {
-        let uri = self
+    #[instrument(name = "curl::http2")]
+    async fn http2(&mut self) -> io::Result<SendRequestHttp2<DynBody>> {
+        let base = self
             .endpoint
             .parse::<hyper::Uri>()
-            .map_err(|e| std::io::Error::new(ErrorKind::InvalidData, e))?;
-        let host = uri.host().unwrap_or("0.0.0.0");
-        let port = match uri.port_u16() {
-            Some(p) => p,
-            None => match uri.scheme_str() {
-                Some("http") => 80,
-                Some("https") => 443,
-                _ => {
-                    return Err(std::io::Error::new(
-                        ErrorKind::InvalidInput,
-                        "Unsupported scheme",
-                    ))
-                }
-            },
-        };
+            .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
 
-        // Connect with timeout
-        let tcp = TcpStream::connect((host, port))
+        let scheme: Scheme = base
+            .scheme_str()
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing scheme"))?
+            .try_into()
+            .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "unsupported scheme"))?;
+
+        let host: String = base
+            .host()
+            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing host"))?
+            .to_owned();
+
+        let port = base.port_u16().unwrap_or(if scheme == Scheme::HTTP {
+            80
+        } else if scheme == Scheme::HTTPS {
+            443
+        } else {
+            return Err(io::Error::new(ErrorKind::InvalidInput, "unsupported port"));
+        });
+
+        let tcp = match TcpStream::connect((host.clone(), port))
             .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT)))
             .await
-            .ok_or_else(|| io::Error::new(ErrorKind::TimedOut, "connect timeout"))??;
-
-        // Wrap TLS if needed
-        let stream = match uri.scheme_str() {
-            Some("http") => SmolStream::Plain(tcp),
-            Some("https") => {
-                let tls: TlsStream<TcpStream> = async_native_tls::connect(host, tcp)
-                    .await
-                    .map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
-                SmolStream::Tls(tls)
-            }
-            _ => unreachable!(),
+        {
+            None => return Err(io::Error::new(ErrorKind::TimedOut, "connect timeout")),
+            Some(Err(e)) => return Err(e),
+            Some(Ok(tcp)) => tcp,
         };
 
-        let io = FuturesIo::new(stream);
-        let executor = SmolExecutor;
+        // ---- TLS (rustls + ALPN h2) ----
+        let mut roots = RootCertStore::empty();
+        roots.extend(TLS_SERVER_ROOTS.iter().cloned());
+
+        if let Some(certificate_path) = &self.certificate {
+            let iter = CertificateDer::pem_file_iter(certificate_path)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+            let certs: Vec<CertificateDer<'_>> = iter.filter_map(|res| res.ok()).collect();
+
+            roots.add_parsable_certificates(certs.into_iter());
+        }
+
+        let mut config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+
+        config.alpn_protocols = vec![b"h2".to_vec()];
+
+        let connector = TlsConnector::from(Arc::new(config));
+        let server_name = rustls::pki_types::ServerName::try_from(host.clone())
+            .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "invalid DNS name"))?;
+
+        let tls = connector.connect(server_name, tcp).await?;
+
+        debug_assert_eq!(tls.get_ref().1.alpn_protocol(), Some(b"h2".as_slice()));
+
+        // ---- Hyper HTTP/2 ----
+        let io = FuturesIo::new(tls);
+        let exec = Arc::new(Executor::new());
+        smol::spawn({
+            let exec = exec.clone();
+            async move {
+                exec.run(futures::future::pending::<()>()).await;
+            }
+        })
+        .detach();
+        let executor = SmolExecutor::new(exec);
 
         let (sender, connection) = hyper::client::conn::http2::Builder::new(executor)
             .handshake(io)
             .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::ConnectionAborted, e))?;
+            .map_err(|e| io::Error::new(ErrorKind::ConnectionAborted, e))?;
 
-        // Spawn connection task
         smol::spawn(async move {
+            debug!("HTTP/2 connection task started");
             if let Err(e) = connection.await {
-                warn!(error = e.to_string(), "HTTP/2 connection failed");
+                warn!(error = %e, "HTTP/2 connection closed");
             }
         })
         .detach();
 
         Ok(sender)
     }
+
     /// Get a new request builder base on what has been setup in the configuration.
     async fn request_builder(&mut self) -> std::io::Result<Builder> {
         let path = self.path();
@@ -515,11 +610,9 @@ impl Curl {
                 .header(header::HOST, host)
                 .version(Version::HTTP_11),
             2 => request_builder
-                .header(":authority", host)
-                .version(Version::HTTP_2),
-            3 => request_builder
-                .header(":authority", host)
-                .version(Version::HTTP_3),
+                .version(Version::HTTP_2)
+                .header(header::HOST, host),
+            3 => request_builder.version(Version::HTTP_3),
             _ => {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
@@ -572,20 +665,17 @@ impl Curl {
         Ok(request_builder)
     }
     /// Retrieve headers from the remote resource.
+    #[instrument(name = "curl::headers")]
     pub async fn headers(&mut self) -> std::io::Result<Vec<(String, Vec<u8>)>> {
-        let mut request_builder = self.request_builder().await?;
+        let request_builder = self.request_builder().await?;
         let path = self.path();
 
         let mut parameters_without_context = self.parameters_without_context()?;
         parameters_without_context.replace_mustache(self.parameters.clone());
         let dataset = vec![DataResult::Ok(parameters_without_context)];
+        let body = self.body(&dataset).await?;
 
-        let (body, body_size) = self.get_request_body(&dataset).await?;
-
-        request_builder = request_builder.header(header::CONTENT_LENGTH, body_size.to_string());
-
-        let request = request_builder
-            .body(Box::pin(body))
+        let request = build_request(request_builder, body)
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         if self.is_cached {
@@ -598,14 +688,19 @@ impl Curl {
             }
         }
 
-        println!("request {:?}", request);
-
-        let (_, final_response) = self.follow_redirects(request).await?;
+        let entry_to_cache = self
+            .follow_redirects(
+                &path,
+                Method::from_bytes(self.method.as_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                Bytes::new(),
+            )
+            .await?;
 
         info!(path, "✅ Fetch headers with success");
 
-        Ok(final_response
-            .headers()
+        Ok(entry_to_cache
+            .resp_headers
             .iter()
             .map(|(key, value)| (key.to_string().clone(), value.as_bytes().to_vec()))
             .collect())
@@ -617,7 +712,7 @@ impl Curl {
             None => self.parameters.clone(),
         })
     }
-    async fn get_request_body(&self, dataset: &Vec<DataResult>) -> Result<(Full<Bytes>, usize)> {
+    async fn body(&self, dataset: &Vec<DataResult>) -> Result<Bytes> {
         match self.method.to_uppercase().as_str() {
             "POST" | "PUT" | "PATCH" => {
                 let mut buffer = Vec::default();
@@ -637,92 +732,107 @@ impl Curl {
                     }
                 }
 
-                let buffer_len = buffer.len();
-
-                Ok((Full::new(Bytes::from(buffer)), buffer_len))
+                Ok(Bytes::from(buffer))
             }
-            _ => Ok((Full::new(Bytes::new()), 0)),
+            _ => Ok(Bytes::new()),
         }
     }
+    #[instrument(name = "curl::follow_redirects")]
     async fn follow_redirects(
         &mut self,
-        mut request: Request<Pin<Box<Full<Bytes>>>>,
-    ) -> io::Result<(Request<Pin<Box<Full<Bytes>>>>, Response<Incoming>)> {
-        let base_uri = request.uri().clone();
+        path: &str,
+        method: Method,
+        original_bytes: Bytes,
+    ) -> io::Result<CachedEntry> {
+        let mut current_uri = path.to_string();
+        let mut current_method = method.clone();
+        let mut bytes = original_bytes.clone();
 
         for _ in 0..=self.redirection_limit {
-            let response = self.send_with_retry(request.clone()).await?;
+            let entry_to_cache = self
+                .send_with_retry(&current_uri, current_method.clone(), bytes.clone())
+                .await?;
 
-            if !REDIRECT_CODES.contains(&response.status()) {
-                return Ok((request, response));
+            if !REDIRECT_CODES.contains(
+                &StatusCode::from_u16(entry_to_cache.status)
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+            ) {
+                return Ok(entry_to_cache);
             }
 
-            let location = response
-                .headers()
-                .get(header::LOCATION)
-                .ok_or_else(|| Error::new(ErrorKind::InvalidData, "missing Location header"))?
-                .to_str()
-                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            let location = entry_to_cache
+                .resp_headers
+                .get(header::LOCATION.as_str())
+                .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Missing Location header"))?;
 
-            let new_uri = if location.starts_with("http://") || location.starts_with("https://") {
-                println!("starts_with");
-                location
-                    .parse()
-                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-            } else {
-                println!("relative path");
-                let mut parts = base_uri.clone().into_parts();
-                parts.path_and_query = Some(
-                    location
-                        .parse()
-                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
-                );
-                Uri::from_parts(parts).map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-            };
+            info!(%current_uri, %location, "Redirecting");
 
-            let status = response.status();
-
-            trace!(
-                base_uri = %base_uri.clone(),
-                status = %response.status(),
-                location,
-                method = %request.method(),
-                new_uri = %new_uri,
-                "following redirect"
-            );
-
-            // Update request URI
-            *request.uri_mut() = new_uri;
-
-            // Method rewrite rules (RFC + de facto)
-            match status {
-                StatusCode::SEE_OTHER | StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
-                    *request.method_mut() = Method::GET;
-                    *request.body_mut() = Box::pin(Full::default()); // clear body for GET
+            // Apply redirect rules for method/body
+            match StatusCode::from_u16(entry_to_cache.status)
+                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+            {
+                hyper::StatusCode::SEE_OTHER => {
+                    current_method = Method::GET;
+                    bytes = Bytes::new(); // drop body
                 }
-                StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT => {
-                    // preserve method + body
+                hyper::StatusCode::MOVED_PERMANENTLY | hyper::StatusCode::FOUND => {
+                    if current_method == Method::POST {
+                        current_method = Method::GET;
+                        bytes = Bytes::new();
+                    }
+                }
+                hyper::StatusCode::TEMPORARY_REDIRECT | hyper::StatusCode::PERMANENT_REDIRECT => {
+                    // keep method + body
                 }
                 _ => {}
             }
+
+            current_uri = location.to_string();
         }
 
         Err(Error::new(ErrorKind::InvalidInput, "too many redirects"))
     }
     async fn send_with_retry(
         &mut self,
-        mut request: Request<Pin<Box<Full<Bytes>>>>,
-    ) -> io::Result<Response<hyper::body::Incoming>> {
+        uri: &str,
+        method: Method,
+        body: Bytes,
+    ) -> io::Result<CachedEntry> {
         let policy = RetryPolicy::default();
-        let method = request.method().clone();
-        let original_request = request.clone();
 
         for attempt in 1..=policy.max_attempts {
+            let request_builder = {
+                let builder = self.request_builder().await?;
+
+                let final_uri = if uri.starts_with("/") {
+                    format!("{}{}", self.endpoint, uri)
+                } else {
+                    uri.to_string()
+                };
+
+                builder.uri(final_uri).method(method.clone())
+            };
+
             let client = self.get_or_create_client().await?;
 
+            let req_headers = match request_builder.headers_ref() {
+                Some(headers) => headers_to_map(headers),
+                None => HashMap::default(),
+            };
+
             let result = match client {
-                ClientType::Http1(sender) => sender.try_send_request(request.clone()).await,
-                ClientType::Http2(sender) => sender.try_send_request(request.clone()).await,
+                ClientType::Http1(sender) => {
+                    sender
+                        .send_request(build_request(request_builder, body.clone())?)
+                        .await
+                }
+                ClientType::Http2(sender) => {
+                    let resp = sender
+                        .send_request(build_request(request_builder, body.clone())?)
+                        .await;
+
+                    resp
+                }
             };
 
             match result {
@@ -732,34 +842,45 @@ impl Curl {
                         && attempt < policy.max_attempts
                     {
                         backoff(attempt, policy.delay).await;
-                        request = original_request.clone();
                         continue;
                     }
-                    return Ok(response);
+
+                    let resp_status = response.status().as_u16();
+                    let resp_headers = headers_to_map(response.headers());
+                    let data = response
+                        .collect()
+                        .await
+                        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+                        .to_bytes()
+                        .to_vec();
+
+                    let request_to_cache = CachedEntry::new(
+                        resp_status,
+                        method.to_string(),
+                        uri.to_string(),
+                        req_headers,
+                        resp_headers,
+                        data,
+                    );
+
+                    return Ok(request_to_cache);
                 }
 
                 Err(e) => {
                     // Determine retryable transport errors
-                    let retryable = e.error().is_closed()
-                        || e.error().is_incomplete_message()
-                        || e.error().is_timeout();
+                    let retryable = e.is_closed() || e.is_incomplete_message() || e.is_timeout();
 
                     if retryable
                         && attempt < policy.max_attempts
                         && policy.is_retryable_method(&method)
                     {
-                        warn!(
-                            attempt,
-                            "Retrying request after transport error: {}",
-                            e.into_error()
-                        );
+                        warn!(attempt, "Retrying request after transport error: {}", e);
                         self.client = None; // force reconnect
                         backoff(attempt, policy.delay).await;
-                        request = original_request.clone();
                         continue;
                     }
 
-                    return Err(Error::new(ErrorKind::Interrupted, e.into_error()));
+                    return Err(Error::new(ErrorKind::Interrupted, e));
                 }
             }
         }
@@ -971,24 +1092,16 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "curl::fetch")]
+    #[instrument(name = "curl::fetch", skip(self))]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
-        let mut request_builder = self.request_builder().await?;
         let path = self.path();
-
         let mut parameters_without_context = self.parameters_without_context()?;
         parameters_without_context.replace_mustache(self.parameters.clone());
         let dataset = vec![DataResult::Ok(parameters_without_context)];
 
-        let (body, body_size) = self.get_request_body(&dataset).await?;
-
-        request_builder = request_builder.header(header::CONTENT_LENGTH, body_size.to_string());
-        println!("request_builder {:?}", request_builder);
-        let request = request_builder
-            .body(Box::pin(body))
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        println!("request {:?}", request);
+        let request_builder = self.request_builder().await?;
+        let body = self.body(&dataset).await?;
+        let request = build_request(request_builder, body)?;
 
         if self.is_cached {
             info!(path, "✅ Fetch data from cache with success");
@@ -1005,35 +1118,20 @@ impl Connector for Curl {
             }
         }
 
-        let (final_request, final_response) = self.follow_redirects(request).await?;
-        let status = final_response.status().as_u16();
-        let request_headers = final_request.headers();
-        let response_headers = final_response.headers().clone();
-
-        let headers_to_map = |headers: &HeaderMap| {
-            headers
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().to_string()))
-                .collect()
-        };
-
-        let data = final_response
-            .collect()
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-            .to_bytes()
-            .to_vec();
+        let entry_to_cache = self
+            .follow_redirects(
+                &path,
+                Method::from_bytes(self.method.as_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                Bytes::new(),
+            )
+            .await?;
 
         if self.is_cached {
-            CachedEntry::new(
-                status,
-                headers_to_map(request_headers),
-                headers_to_map(&response_headers),
-                data.clone(),
-            )
-            .save(&final_request.uri().to_string())
-            .await?;
+            entry_to_cache.save().await?;
         }
+
+        let data = entry_to_cache.data;
 
         info!(path, "✅ Fetch data with success");
 
@@ -1090,35 +1188,21 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(
-        name = "curl::send",
-        skip(self, dataset),
-        fields(
-            method = %self.method,
-            path = %self.path()
-        )
-    )]
+    #[instrument(name = "curl::send")]
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
-        let mut request_builder = self.request_builder().await?;
         let path = self.path();
+        let body = self.body(&dataset).await?;
 
-        let (body, body_size) = self.get_request_body(dataset).await?;
+        let entry_to_cache = self
+            .follow_redirects(
+                &path,
+                Method::from_bytes(self.method.as_bytes())
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                body,
+            )
+            .await?;
 
-        request_builder = request_builder.header(header::CONTENT_LENGTH, body_size.to_string());
-
-        let request = request_builder
-            .body(Box::pin(body))
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        println!("request {:?}", request);
-
-        let (_, final_response) = self.follow_redirects(request).await?;
-        let data = final_response
-            .collect()
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-            .to_bytes()
-            .to_vec();
+        let data = entry_to_cache.data;
 
         info!(path, "✅ Send data with success");
 
@@ -1159,19 +1243,15 @@ impl Connector for Curl {
     /// ```
     #[instrument(name = "curl::erase")]
     async fn erase(&mut self) -> Result<()> {
-        let mut request_builder = self.request_builder().await?;
         let path = self.path();
+        let body = self.body(&Vec::default()).await?;
 
-        request_builder = request_builder.method(hyper::Method::DELETE);
-
-        let request = request_builder
-            .body(Box::pin(Full::new(Bytes::new())))
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        let (final_request, _) = self.follow_redirects(request).await?;
+        let entry_to_cache = self
+            .follow_redirects(&path, hyper::Method::DELETE, body)
+            .await?;
 
         if self.is_cached {
-            CachedEntry::remove(&final_request.uri().to_string()).await?;
+            entry_to_cache.remove().await?;
         }
 
         info!(path, "✅ Erase data with success");
@@ -1185,61 +1265,65 @@ impl Connector for Curl {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct CachedEntry {
-    status: u16,
-    req_headers: HashMap<String, String>,
-    resp_headers: HashMap<String, String>,
-    data: Vec<u8>,
+    pub status: u16,
+    pub method: String,
+    pub uri: String,
+    pub req_headers: HashMap<String, String>,
+    pub resp_headers: HashMap<String, String>,
+    pub data: Vec<u8>,
 }
 
 impl CachedEntry {
     fn new(
         status: u16,
+        method: String,
+        uri: String,
         req_headers: HashMap<String, String>,
         resp_headers: HashMap<String, String>,
         data: Vec<u8>,
     ) -> Self {
         Self {
             status,
+            method,
+            uri,
             req_headers,
             resp_headers,
             data,
         }
     }
-    /// Save the entry in the cache.
-    async fn save(&self, uri: &str) -> Result<()> {
-        let json = serde_json::to_vec(&self)?;
+    /// Persist the cache entry on disk using the request URI as the cache key.
+    async fn save(&self) -> Result<()> {
+        let cache_dir = std::env::temp_dir().join(self::DEFAULT_CACHE_DIR);
+        let payload = serde_json::to_vec(&self)?;
 
-        cacache::write(
-            std::env::temp_dir().join(self::DEFAULT_CACHE_DIR),
-            &uri,
-            json,
-        )
-        .await
-        .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+        cacache::write(cache_dir, &self.uri, payload)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         Ok(())
     }
-    /// Get the entry from the cache.
-    async fn get(
-        request: &Request<Pin<Box<http_body_util::Full<bytes::Bytes>>>>,
-    ) -> Result<Option<Self>> {
+    /// Attempt to retrieve a valid cached entry for the given request.
+    ///
+    /// Cache freshness is evaluated using HTTP cache headers
+    /// via `http_cache_semantics::CachePolicy`.
+    async fn get(request: &Request<DynBody>) -> Result<Option<Self>> {
         let uri = request.uri().to_string();
-        let data =
-            match cacache::read(std::env::temp_dir().join(self::DEFAULT_CACHE_DIR), &uri).await {
-                Ok(data) => data,
-                Err(e) => {
-                    trace!(uri, "{}", e);
-                    return Ok(None);
-                }
-            };
+        let cache_dir = std::env::temp_dir().join(self::DEFAULT_CACHE_DIR);
+
+        let data = match cacache::read(cache_dir, &uri).await {
+            Ok(data) => data,
+            Err(e) => {
+                trace!(uri, "cache miss: {}", e);
+                return Ok(None);
+            }
+        };
 
         let cached: Self = serde_json::from_slice(&data)?;
 
-        let method = request.method().clone();
-
-        let mut cache_req_builder = Request::builder().method(method).uri(&uri);
+        // Reconstruct request used to compute cache policy
+        let mut cache_req_builder = Request::builder().method(cached.method.as_str()).uri(&uri);
 
         for (k, v) in cached.req_headers.iter() {
             cache_req_builder = cache_req_builder.header(k, v);
@@ -1249,6 +1333,7 @@ impl CachedEntry {
             .body(())
             .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
+        // Reconstruct response used to compute cache policy
         let mut cache_resp_builder = Response::builder().status(cached.status);
 
         for (k, v) in cached.resp_headers.iter() {
@@ -1263,23 +1348,34 @@ impl CachedEntry {
 
         match policy.before_request(request, SystemTime::now()) {
             BeforeRequest::Fresh(_) => {
-                trace!(uri, "🔁 Data retrieved from cache");
+                trace!(uri, "🔁 cache hit");
                 Ok(Some(cached))
             }
             BeforeRequest::Stale { .. } => {
-                trace!(uri, "♻️ Cached data is stale");
+                trace!(uri, "♻️ cache stale");
                 Ok(None)
             }
         }
     }
-    /// Remove the entry from the cache.
-    async fn remove(uri: &str) -> Result<()> {
-        cacache::remove(std::env::temp_dir().join(self::DEFAULT_CACHE_DIR), &uri)
+    /// Remove this entry from the on-disk cache.
+    async fn remove(&self) -> Result<()> {
+        let cache_dir = std::env::temp_dir().join(self::DEFAULT_CACHE_DIR);
+
+        cacache::remove(cache_dir, &self.uri)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
         Ok(())
     }
+}
+
+/// Convert an HTTP `HeaderMap` into a `HashMap<String, String>`,
+/// discarding headers with non-UTF-8 values.
+fn headers_to_map(headers: &HeaderMap) -> HashMap<String, String> {
+    headers
+        .iter()
+        .filter_map(|(k, v)| Some((k.to_string(), v.to_str().ok()?.to_string())))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1353,7 +1449,7 @@ mod tests {
         assert_eq!(false, connector.is_empty().await.unwrap());
     }
     #[apply(test!)]
-    async fn fetch_http1() {
+    async fn http1_fetch() {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
@@ -1368,12 +1464,33 @@ mod tests {
         );
     }
     #[apply(test!)]
-    async fn fetch_http2() {
+    async fn http1_fetch_through_https() {
+        crate::init_tls().await.unwrap();
+
         let document = Json::default();
         let mut connector = Curl::default();
-        connector.endpoint = "http://localhost:8080".to_string();
+        connector.endpoint = "https://localhost:8084".to_string();
         connector.method = "GET".into();
         connector.path = "/json".to_string();
+        connector.certificate = Some("./.config/my-ca.crt".to_string());
+        connector.version = 1;
+        connector.set_document(Box::new(document)).unwrap();
+        let datastream = connector.fetch().await.unwrap().unwrap();
+        assert!(
+            0 < datastream.count().await,
+            "The inner connector should have a size upper than zero."
+        );
+    }
+    #[apply(test!)]
+    async fn http2_fetch_through_https() {
+        crate::init_tls().await.unwrap();
+
+        let document = Json::default();
+        let mut connector = Curl::default();
+        connector.endpoint = "https://localhost:8084".to_string();
+        connector.method = "GET".into();
+        connector.path = "/json".to_string();
+        connector.certificate = Some("./.config/my-ca.crt".to_string());
         connector.version = 2;
         connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();

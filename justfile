@@ -99,6 +99,9 @@ test_integration:
 example-tests: start
     cargo test --examples --features "xml csv parquet toml bucket curl mongodb psql"
 
+test-example-rabbit: rabbitmq
+    cargo test --example rabbitmq --features "xml csv parquet toml bucket curl mongodb psql"
+
 unit-tests: start test_libs
 
 integration-tests: start test_docs test_integration
@@ -141,8 +144,13 @@ minio_install:
 # Start mockhttp APIs in local.
 http-mock:
     @echo "Run http mock server."
-    @echo "Host: http://localhost:8080 "
+    @echo "Host: http://localhost:8080"
     podman-compose up -d http-mock
+
+https-mock:
+    @echo "Run http mock server."
+    @echo "Host: https://localhost:8084"
+    podman-compose up -d https-mock
 
 # Start mongo server in local.
 mongo:
@@ -180,13 +188,13 @@ apm:
 rabbitmq:
     @echo "Run rabbitmq"
     @echo "Host: http://localhost:15672"
-    podman-compose up -d rabbitmq
+    podman-compose up -d rabbitmq-ready
 
 semantic-release:
     npx semantic-release
 
 # Start all servers
-start: stop debug minio_install http-mock mongo keycloak rabbitmq
+start: stop debug minio_install http-mock https-mock mongo keycloak rabbitmq
 
 # Stop all servers
 stop:
