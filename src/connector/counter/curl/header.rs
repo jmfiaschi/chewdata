@@ -66,6 +66,7 @@ impl Header {
     /// use chewdata::connector::counter::curl::header::Header;
     /// use smol::prelude::*;
     /// use std::io;
+    /// use http::Method;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
@@ -74,7 +75,7 @@ impl Header {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = "GET".into();
+    ///     connector.method = Method::GET;
     ///     connector.path = "/get".to_string();
     ///
     ///     let mut counter = Header::default();
@@ -116,6 +117,7 @@ impl Header {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http::Method;
     use macro_rules_attribute::apply;
     use smol_macros::test;
 
@@ -123,7 +125,7 @@ mod tests {
     async fn count_return_value() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "GET".to_string();
+        connector.method = Method::GET;
         connector.path = "/get".to_string();
         let mut counter = Header::default();
         counter.name = "Content-Length".to_string();
@@ -136,7 +138,7 @@ mod tests {
     async fn count_not_return_value() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "GET".to_string();
+        connector.method = Method::GET;
         connector.path = "/get".to_string();
         let mut counter = Header::default();
         counter.name = "not_found".to_string();

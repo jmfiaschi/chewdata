@@ -80,6 +80,7 @@ impl Cursor {
     /// use chewdata::connector::paginator::curl::{PaginatorType, cursor::Cursor};
     /// use smol::prelude::*;
     /// use std::io;
+    /// use http::Method;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
@@ -88,7 +89,7 @@ impl Cursor {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = "GET".into();
+    ///     connector.method = Method::GET;
     ///     connector.path = "/uuid?next={{ paginator.next }}".to_string();
     ///
     ///     let paginator = Cursor {
@@ -172,6 +173,7 @@ mod tests {
     use crate::connector::paginator::curl::cursor::Cursor;
     use crate::connector::Connector;
     use crate::document::json::Json;
+    use http::Method;
     use macro_rules_attribute::apply;
     use smol::stream::StreamExt;
     use smol_macros::test;
@@ -181,7 +183,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "GET".into();
+        connector.method = Method::GET;
         connector.path = "/uuid?next={{ paginator.next }}".to_string();
         connector.set_document(Box::new(document)).unwrap();
 

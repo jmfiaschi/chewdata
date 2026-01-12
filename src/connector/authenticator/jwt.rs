@@ -152,6 +152,7 @@ impl Jwt {
     /// use chewdata::Metadata;
     /// use serde_json::Value;
     /// use smol::prelude::*;
+    /// use http::Method;
     /// use std::io;
     ///
     /// use macro_rules_attribute::apply;
@@ -162,7 +163,7 @@ impl Jwt {
     ///    let mut connector = Curl::default();
     ///    connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///    connector.path = "/tokens".to_string();
-    ///    connector.method = "POST".into();
+    ///    connector.method = Method::POST;
     ///    connector.parameters = serde_json::from_str(
     ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///    )?;
@@ -325,6 +326,7 @@ impl Authenticator for Jwt {
     /// use smol::prelude::*;
     /// use std::io;
     /// use smol::stream::StreamExt;
+    /// use http::Method;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
@@ -336,7 +338,7 @@ impl Authenticator for Jwt {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     connector.path = "/tokens".to_string();
-    ///     connector.method = "POST".into();
+    ///     connector.method = Method::POST;
     ///     connector.parameters = serde_json::from_str(
     ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///     ).unwrap();
@@ -423,6 +425,7 @@ mod tests {
     use crate::connector::Connector;
     use crate::document::json::Json;
     use crate::Metadata;
+    use http::Method;
     use macro_rules_attribute::apply;
     use smol_macros::test;
 
@@ -431,7 +434,7 @@ mod tests {
         let mut connector = Curl::default();
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         connector.path = "/tokens".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.parameters = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
@@ -455,7 +458,7 @@ mod tests {
         connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.timeout = Some(60);
         connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
@@ -477,7 +480,7 @@ mod tests {
         let mut connector = Curl::default();
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         connector.path = "/tokens".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.parameters = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
@@ -504,7 +507,7 @@ mod tests {
         jwk_connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         jwk_connector.path = "/certs".to_string();
-        jwk_connector.method = "GET".to_string();
+        jwk_connector.method = Method::GET;
         jwk_connector.timeout = Some(60);
         jwk_connector.set_document(Box::new(jwk_document)).unwrap();
 
@@ -516,7 +519,7 @@ mod tests {
         connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
         let mut auth = Jwt::default();

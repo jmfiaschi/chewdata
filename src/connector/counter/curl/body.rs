@@ -45,6 +45,7 @@
 //! }
 //! ```
 use crate::connector::{curl::Curl, Connector};
+use http::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smol::stream::StreamExt;
@@ -54,7 +55,8 @@ use std::io::Result;
 pub struct Body {
     pub entry_path: String,
     pub path: Option<String>,
-    pub method: Option<String>,
+    #[serde(with = "http_serde::option::method")]
+    pub method: Option<Method>,
 }
 
 impl Default for Body {
@@ -68,7 +70,7 @@ impl Default for Body {
 }
 
 impl Body {
-    pub fn new(entry_path: String, path: Option<String>, method: Option<String>) -> Self {
+    pub fn new(entry_path: String, path: Option<String>, method: Option<Method>) -> Self {
         Body {
             entry_path,
             path,
@@ -86,6 +88,7 @@ impl Body {
     /// use smol::prelude::*;
     /// use std::io;
     /// use crate::chewdata::document::Document;
+    /// use http::Method;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
@@ -94,7 +97,7 @@ impl Body {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = "POST".into();
+    ///     connector.method = Method::POST;
     ///     connector.path = "/anything?count=10".to_string();
     ///     connector.metadata = Json::default().metadata();
     ///
@@ -158,7 +161,7 @@ mod tests {
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.path = "/anything?count=10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -175,7 +178,7 @@ mod tests {
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.path = "/anything?count=10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 

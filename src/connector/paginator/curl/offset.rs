@@ -69,6 +69,7 @@ impl Offset {
     /// use chewdata::connector::paginator::curl::offset::Offset;
     /// use smol::prelude::*;
     /// use std::io;
+    /// use http::Method;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
@@ -77,7 +78,7 @@ impl Offset {
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = "GET".into();
+    ///     connector.method = Method::GET;
     ///     connector.path = "/get".to_string();
     ///    
     ///     let paginator = Offset {
@@ -155,6 +156,7 @@ mod tests {
     use crate::document::json::Json;
     #[cfg(feature = "xml")]
     use crate::document::xml::Xml;
+    use http::Method;
     use macro_rules_attribute::apply;
     use smol::stream::StreamExt;
     use smol_macros::test;
@@ -164,12 +166,14 @@ mod tests {
     #[cfg(feature = "xml")]
     #[apply(test!)]
     async fn paginate() {
+        use http::Method;
+
         let mut document = Xml::default();
         document.entry_path = "/html/body/*/a".to_string();
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "GET".into();
+        connector.method = Method::GET;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -201,7 +205,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "GET".into();
+        connector.method = Method::GET;
         connector.path = "/get".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -220,7 +224,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "GET".into();
+        connector.method = Method::GET;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -246,7 +250,7 @@ mod tests {
         let document = Json::default();
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "GET".into();
+        connector.method = Method::GET;
         connector.path = "/links/{{ paginator.skip }}/10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
