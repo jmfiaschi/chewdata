@@ -13,23 +13,7 @@ use smol_macros::main;
 
 #[apply(main!)]
 async fn main() -> io::Result<()> {
-    let mut layers = Vec::new();
-    let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
-    let layer = tracing_subscriber::fmt::layer()
-        .pretty()
-        .with_line_number(true)
-        .with_writer(non_blocking)
-        .with_filter(EnvFilter::from_default_env())
-        .boxed();
-    layers.push(layer);
-
-    tracing_subscriber::registry().with(layers).init();
-
-    self::publish().await?;
-    smol::Timer::after(Duration::from_secs(5)).await;
-    self::consume().await?;
-
-    Ok(())
+    run().await
 }
 
 async fn publish() -> io::Result<()> {
@@ -347,12 +331,31 @@ async fn consume() -> io::Result<()> {
     Ok(())
 }
 
+async fn run() -> io::Result<()> {
+    let mut layers = Vec::new();
+    let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
+    let layer = tracing_subscriber::fmt::layer()
+        .pretty()
+        .with_line_number(true)
+        .with_writer(non_blocking)
+        .with_filter(EnvFilter::from_default_env())
+        .boxed();
+    layers.push(layer);
+    tracing_subscriber::registry().with(layers).init();
+
+    publish().await?;
+    smol::Timer::after(Duration::from_secs(5)).await;
+    consume().await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::main;
+    use super::*;
+    use smol_macros::test;
 
-    #[test]
-    fn test_example() {
-        main().unwrap();
+    #[apply(test!)]
+    async fn test_example() {
+        run().await.unwrap();
     }
 }
