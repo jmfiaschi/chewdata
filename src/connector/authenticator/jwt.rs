@@ -357,7 +357,7 @@ impl Authenticator for Jwt {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
-    ///     connector.method = "GET".into();
+    ///     connector.method = Method::GET;
     ///     connector.path = "/bearer".to_string();
     ///     connector.set_document(document);
     ///

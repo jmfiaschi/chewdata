@@ -97,7 +97,7 @@ use futures::AsyncWrite as AsyncWriteIo;
 use futures::{AsyncWriteExt, Stream};
 use futures_rustls::TlsConnector;
 use futures_rustls::TlsStream as RustlsTlsStream;
-use http::uri::Scheme;
+use http::uri::{Authority, Scheme};
 use http::HeaderMap;
 use http::{
     header, request::Builder, HeaderName, HeaderValue, Method, Request, Response, StatusCode,
@@ -758,7 +758,12 @@ impl Curl {
 
         let (endpoint, mut current_uri) = match request_builder.uri_ref() {
             Some(uri) => (
-                format!("{}{}", uri.scheme().unwrap(), uri.authority().unwrap()),
+                format!(
+                    "{}://{}",
+                    uri.scheme().unwrap_or(&Scheme::HTTP),
+                    uri.authority()
+                        .unwrap_or(&Authority::from_static("localhost"))
+                ),
                 uri.to_string(),
             ),
             None => return Err(Error::new(ErrorKind::InvalidInput, "Uri is required")),
