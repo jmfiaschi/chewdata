@@ -13,6 +13,17 @@ use smol_macros::main;
 
 #[apply(main!)]
 async fn main() -> io::Result<()> {
+    let mut layers = Vec::new();
+    let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
+    let layer = tracing_subscriber::fmt::layer()
+        .pretty()
+        .with_line_number(true)
+        .with_writer(non_blocking)
+        .with_filter(EnvFilter::from_default_env())
+        .boxed();
+    layers.push(layer);
+    tracing_subscriber::registry().with(layers).init();
+
     run().await
 }
 
@@ -332,17 +343,6 @@ async fn consume() -> io::Result<()> {
 }
 
 async fn run() -> io::Result<()> {
-    let mut layers = Vec::new();
-    let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
-    let layer = tracing_subscriber::fmt::layer()
-        .pretty()
-        .with_line_number(true)
-        .with_writer(non_blocking)
-        .with_filter(EnvFilter::from_default_env())
-        .boxed();
-    layers.push(layer);
-    tracing_subscriber::registry().with(layers).init();
-
     publish().await?;
     smol::Timer::after(Duration::from_secs(5)).await;
     consume().await?;
