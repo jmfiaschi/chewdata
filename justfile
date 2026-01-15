@@ -99,8 +99,13 @@ test_integration:
 example-tests: start
     cargo test --examples --features "xml csv parquet toml bucket curl mongodb psql"
 
-test-example-rabbit: rabbitmq
-    cargo test --example rabbitmq --features "xml csv parquet toml bucket curl mongodb psql"
+test-example-rabbitmq: rabbitmq
+    cargo test --example rabbitmq --features "curl"
+
+test-example-curl: http-mock https-mock
+    cargo test --example curl-api --features "curl"
+    cargo test --example curl-api-parallel --features "curl"
+    cargo test --example curl-api-with_cache --features "curl"
 
 unit-tests: start test_libs
 

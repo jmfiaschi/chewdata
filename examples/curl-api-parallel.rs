@@ -22,6 +22,10 @@ async fn main() -> io::Result<()> {
 
     tracing_subscriber::registry().with(layers).init();
 
+    run().await
+}
+
+async fn run() -> io::Result<()> {
     let config = r#"
     [{
         "type": "r",
@@ -47,5 +51,30 @@ async fn main() -> io::Result<()> {
     }]
     "#;
 
-    chewdata::exec(serde_json::from_str(config.apply().as_str())?, None, None).await
+    let (sender_output, receiver_output) = async_channel::unbounded();
+    chewdata::exec(
+        deser_hjson::from_str(config.apply().as_str())
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        None,
+        Some(sender_output),
+    )
+    .await?;
+
+    assert!(
+        0 < receiver_output.recv().await.into_iter().count(),
+        "There should find some message."
+    );
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use smol_macros::test;
+
+    #[apply(test!)]
+    async fn test_example() {
+        run().await.unwrap();
+    }
 }
