@@ -96,8 +96,10 @@ test_libs_by_feature:
 test_integration:
     cargo test --tests --features "xml csv parquet toml bucket curl mongodb psql"
 
-example-tests: start
-    cargo test --examples --features "xml csv parquet toml bucket curl mongodb psql"
+example-tests: test-example-basics test-example-rabbitmq test-example-curl
+
+test-example-basics:
+    cargo test --example validator
 
 test-example-rabbitmq: rabbitmq
     cargo test --example rabbitmq --features "curl"
