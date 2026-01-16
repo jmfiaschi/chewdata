@@ -697,6 +697,8 @@ impl Curl {
 
         if self.is_cached {
             if let Ok(Some(cache_entry)) = CachedEntry::get(&request).await {
+                info!("Fetch headers from cache with success");
+
                 return Ok(cache_entry
                     .resp_headers
                     .iter()
@@ -1264,9 +1266,11 @@ impl Connector for Curl {
 
         if self.is_cached {
             entry_to_cache.remove().await?;
+
+            info!("Erase cache entry with success");
         }
 
-        info!(path, "✅ Erase data with success");
+        info!(path, "Erase data with success");
         Ok(())
     }
     /// See [`Connector::paginate`] for more details.
@@ -1277,7 +1281,7 @@ impl Connector for Curl {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct CachedEntry {
     pub status: u16,
     pub method: String,
@@ -1285,6 +1289,19 @@ struct CachedEntry {
     pub req_headers: HashMap<String, String>,
     pub resp_headers: HashMap<String, String>,
     pub data: Vec<u8>,
+}
+
+impl fmt::Debug for CachedEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CachedEntry")
+            .field("status", &self.status)
+            .field("method", &self.method)
+            .field("uri", &self.uri)
+            .field("req_headers", &self.req_headers)
+            .field("resp_headers", &self.resp_headers)
+            .field("data", &self.data.display_only_for_debugging())
+            .finish()
+    }
 }
 
 impl CachedEntry {
@@ -1306,6 +1323,7 @@ impl CachedEntry {
         }
     }
     /// Persist the cache entry on disk using the request URI as the cache key.
+    #[instrument(name = "curl::cache_entry::save")]
     async fn save(&self) -> Result<()> {
         let cache_dir = std::env::temp_dir().join(self::DEFAULT_CACHE_DIR);
         let payload = serde_json::to_vec(&self)?;
@@ -1314,12 +1332,14 @@ impl CachedEntry {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
+        trace!(uri = self.uri, "cache saved");
         Ok(())
     }
     /// Attempt to retrieve a valid cached entry for the given request.
     ///
     /// Cache freshness is evaluated using HTTP cache headers
     /// via `http_cache_semantics::CachePolicy`.
+    #[instrument(name = "curl::cache_entry::get", skip(request))]
     async fn get(request: &Request<DynBody>) -> Result<Option<Self>> {
         let uri = request.uri().to_string();
         let cache_dir = std::env::temp_dir().join(self::DEFAULT_CACHE_DIR);
@@ -1360,16 +1380,17 @@ impl CachedEntry {
 
         match policy.before_request(request, SystemTime::now()) {
             BeforeRequest::Fresh(_) => {
-                trace!(uri, "🔁 cache hit");
+                trace!(uri, entry = format!("{:?}", cached), "cache hit");
                 Ok(Some(cached))
             }
             BeforeRequest::Stale { .. } => {
-                trace!(uri, "♻️ cache stale");
+                trace!(uri, "cache stale");
                 Ok(None)
             }
         }
     }
     /// Remove this entry from the on-disk cache.
+    #[instrument(name = "curl::cache_entry::remove")]
     async fn remove(&self) -> Result<()> {
         let cache_dir = std::env::temp_dir().join(self::DEFAULT_CACHE_DIR);
 
@@ -1377,6 +1398,7 @@ impl CachedEntry {
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
+        trace!(uri = self.uri, "cache removed");
         Ok(())
     }
 }
