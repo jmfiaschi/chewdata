@@ -31,7 +31,7 @@ use async_trait::async_trait;
 use futures::Stream;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write};
+use std::io::{Cursor, Error, ErrorKind, Result, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::{fmt, io};
@@ -56,13 +56,15 @@ pub struct InMemory {
 
 impl fmt::Display for InMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        futures::executor::block_on(async {
+        if let Some(memory) = self.memory.try_lock() {
             write!(
                 f,
                 "{}",
-                String::from_utf8(self.memory.lock().await.get_ref().to_vec()).unwrap()
+                String::from_utf8(memory.get_ref().to_vec()).unwrap()
             )
-        })
+        } else {
+            write!(f, "<InMemory locked>")
+        }
     }
 }
 
@@ -208,15 +210,16 @@ impl Connector for InMemory {
     #[instrument(name = "in_memory::fetch")]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let document = self.document()?;
-        let resource = self.memory.lock().await;
+        let memory = self.memory.lock().await;
 
         info!("Fetch data with success");
 
-        if !document.has_data(resource.get_ref())? {
+        // Skip if memory is empty or document has no data
+        if memory.get_ref().is_empty() || !document.has_data(memory.get_ref())? {
             return Ok(None);
         }
 
-        let dataset = document.read(resource.get_ref())?;
+        let dataset = document.read(memory.get_ref())?;
 
         Ok(Some(Box::pin(stream! {
             for data in dataset {
@@ -270,32 +273,24 @@ impl Connector for InMemory {
     #[instrument(skip(dataset), name = "in_memory::send")]
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let document = self.document()?;
-        let position = match document.can_append() {
-            true => Some(-(document.footer(dataset)?.len() as isize)),
-            false => None,
-        };
+        let mut memory = self.memory.lock().await;
+
         let terminator = document.terminator()?;
         let footer = document.footer(dataset)?;
         let header = document.header(dataset)?;
         let body = document.write(dataset)?;
 
-        let mut memory = self.memory.lock().await;
-        let resource_len = memory.get_ref().len();
-
-        match position {
-            Some(pos) => match resource_len as isize + pos {
-                start if start > 0 => memory.seek(SeekFrom::Start(start as u64)),
-                _ => memory.seek(SeekFrom::Start(0)),
-            },
-            None => memory.seek(SeekFrom::Start(0)),
-        }?;
-
-        if 0 == resource_len {
+        if document.can_append() && !memory.get_ref().is_empty() {
+            // Append mode: position before the last footer
+            let start_pos = memory.get_ref().len().saturating_sub(footer.len());
+            memory.set_position(start_pos as u64);
+            memory.write_all(&terminator)?;
+        } else {
+            // Overwrite mode: clear buffer
+            memory.get_mut().clear();
             memory.write_all(&header)?;
         }
-        if 0 < resource_len && resource_len > (header.len() + footer.len()) {
-            memory.write_all(&terminator)?;
-        }
+
         memory.write_all(&body)?;
         memory.write_all(&footer)?;
         memory.set_position(0);

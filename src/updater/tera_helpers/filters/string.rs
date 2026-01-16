@@ -1,7 +1,7 @@
-use async_lock::Mutex;
 use base64::Engine;
 use regex::Regex;
 use serde_json::value::Value;
+use std::sync::Mutex;
 use std::{collections::HashMap, sync::Arc, sync::OnceLock, sync::RwLock};
 use tera::*;
 
@@ -13,9 +13,9 @@ pub fn get_shared_environment_variables() -> &'static SharedEnv {
 }
 
 static REGEX_CACHE: OnceLock<Mutex<HashMap<String, Regex>>> = OnceLock::new();
-async fn get_cached_regex(pattern: &str) -> Result<Regex> {
+fn cached_regex(pattern: &str) -> Result<Regex> {
     let cache = REGEX_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut cache = cache.lock().await;
+    let mut cache = cache.lock().map_err(|e| Error::msg(e))?;
 
     if let Some(re) = cache.get(pattern) {
         return Ok(re.clone());
@@ -207,7 +207,7 @@ pub fn find(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         .and_then(|pattern| Ok(try_get_value!("find", "pattern", String, pattern)))?;
 
     // Creating a regex from the pattern
-    let re = futures::executor::block_on(async { get_cached_regex(&pattern).await })?;
+    let re = cached_regex(&pattern)?;
 
     // Collecting matching substrings into a Vec<Value>
     let vec = re
