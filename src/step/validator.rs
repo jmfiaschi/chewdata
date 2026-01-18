@@ -24,6 +24,7 @@
 //! | concurrency_limit   | -   | Limit of steps to run in concurrence.                                                                              | `1`           | unsigned number                                 |
 //! | rules           | -       | List of [`self::Rule`] indexed by their names                                                                     | `null`        | `{"rule_0": Rule,"rule_1": Rule}`               |
 //! | error_separator | -       | Separator use to delimite two errors                                                                              | `\r\n`        | String                                          |
+//! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! ### Rule
 //!

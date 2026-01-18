@@ -10,13 +10,13 @@ pub mod writer;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{Context, DataResult};
 use async_channel::{Receiver, Sender};
-use smol::stream;
 use async_stream::stream;
 use async_trait::async_trait;
 use eraser::Eraser;
 use futures::Stream;
 use reader::Reader;
 use serde::Deserialize;
+use smol::stream;
 use std::{io, pin::Pin};
 use transformer::Transformer;
 use validator::Validator;
@@ -91,6 +91,10 @@ pub trait Step: Send + Sync + StepClone {
     async fn exec(&self) -> io::Result<()>;
     fn number(&self) -> usize {
         1
+    }
+    // The maximum number of records that this step can hold in memory at the same time.
+    fn record_limit(&self) -> usize {
+        100
     }
     fn name(&self) -> String {
         "default".to_string()

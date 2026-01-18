@@ -56,9 +56,10 @@ pub async fn exec(
     let mut previous_step_receiver = input_receiver;
 
     for (pos, step_type) in step_types.into_iter().enumerate() {
-        let (sender, receiver) = async_channel::unbounded();
         let mut step = step_type.step_inner();
         let step_number = step.number();
+        let record_limit = step.record_limit();
+        let (sender, receiver) = async_channel::bounded(record_limit);
 
         let mut sender_option = None;
         if pos != step_types_len - 1 {

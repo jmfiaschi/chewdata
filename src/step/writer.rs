@@ -19,7 +19,7 @@
 //! | name          | alias   | Name step.                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type     | data    | Data type read for writing. skip other data type.                             | `ok`          | `ok` / `err`                                 |
 //! | concurrency_limit | -| Limit of steps to run in concurrence.                                        | `1`           | unsigned number                              |
-//! | dataset_limit  | batch   | Stack size limit before to push data into the resource though the connector.     | `1000`        | unsigned number                              |
+//! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! ### Examples
 //!
@@ -37,7 +37,7 @@
 //!         },
 //!         "data": "ok",
 //!         "concurrency_limit": 1,
-//!         "dataset_limit": 1000
+//!         "record_limit": 1000
 //!     },
 //!     {
 //!         "type": "writer",
@@ -79,7 +79,7 @@ pub struct Writer {
     #[serde(alias = "data")]
     pub data_type: String,
     #[serde(alias = "batch")]
-    pub dataset_limit: usize,
+    pub record_limit: usize,
     pub concurrency_limit: usize,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
@@ -95,7 +95,7 @@ impl Default for Writer {
             document_type: DocumentType::default(),
             name: uuid.simple().to_string(),
             data_type: DataResult::OK.to_string(),
-            dataset_limit: 1000,
+            record_limit: 100,
             concurrency_limit: 1,
             receiver: None,
             sender: None,
@@ -127,7 +127,7 @@ impl Step for Writer {
         fields(name=self.name, 
         data_type=self.data_type,
         concurrency_limit=self.concurrency_limit,
-        dataset_limit=self.dataset_limit,
+        record_limit=self.record_limit,
     ))]
     async fn exec(&self) -> io::Result<()> {
         info!("Start writing data...");
@@ -202,7 +202,7 @@ impl Step for Writer {
             connector.set_parameters(context_received.to_value()?);
             dataset.push(context_received.input());
 
-            if self.dataset_limit <= dataset.len() && document.can_append() {
+            if self.record_limit <= dataset.len() && document.can_append() {
                 info!(dataset_length = dataset.len(), "Next write");
 
                 match connector.send(&dataset).await {

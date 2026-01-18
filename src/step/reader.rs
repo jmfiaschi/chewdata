@@ -20,6 +20,7 @@
 //! | name        | alias | Step name                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
 //! | concurrency_limit | - | Limit of steps to run in concurrence.                                          | `1`           | unsigned number                              |
+//! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! ### Examples
 //!

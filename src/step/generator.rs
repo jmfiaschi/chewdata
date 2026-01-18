@@ -18,7 +18,7 @@
 //! | type         | -     | Required in order to use generator step                                         | `generator`   | `generator` / `g`                |
 //! | name         | alias | Name step                                                                       | `null`        | Auto generate alphanumeric value |
 //! | data_type    | data  | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                     |
-//! | dataset_size | batch | Stack size limit before to push data into the resource though the connector     | `1000`        | unsigned number                  |
+//! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! ### Examples
 //!
@@ -28,7 +28,7 @@
 //!         "type": "generator",
 //!         "name": "my_generator",
 //!         "data_type": "ok",
-//!         "dataset_size": 1000,
+//!         "record_limit": 1000,
 //!     },
 //!     {
 //!         "type": "transformer",
@@ -91,7 +91,7 @@ pub struct Generator {
     pub data_type: String,
     #[serde(alias = "batch")]
     #[serde(alias = "size")]
-    pub dataset_size: usize,
+    pub record_limit: usize,
     #[serde(skip)]
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
@@ -104,7 +104,7 @@ impl Default for Generator {
         Generator {
             name: uuid.simple().to_string(),
             data_type: DataResult::OK.to_string(),
-            dataset_size: 1,
+            record_limit: 1,
             receiver: None,
             sender: None,
         }
@@ -133,14 +133,14 @@ impl Step for Generator {
         skip(self),
         fields(name=self.name, 
         data_type=self.data_type,
-        dataset_size=self.dataset_size,
+        record_limit=self.record_limit,
     ))]
     async fn exec(&self) -> io::Result<()> {
         info!("Start generating data...");
         
         let mut receiver_stream = self.receive().await;
         let mut has_data_been_received = false;
-        let dataset_size = self.dataset_size;
+        let record_limit = self.record_limit;
 
         while let Some(context_received) = receiver_stream.next().await {
             if !has_data_been_received {
@@ -153,7 +153,7 @@ impl Step for Generator {
                 continue;
             }
 
-            for _ in 0..dataset_size {
+            for _ in 0..record_limit {
                 let mut context = context_received.clone();
                 context.insert_step_result(self.name(), context.input());
                 self.send(&context).await;
@@ -161,7 +161,7 @@ impl Step for Generator {
         }
 
         if !has_data_been_received {
-            for _ in 0..dataset_size {
+            for _ in 0..record_limit {
                 let context = Context::new(self.name(), DataResult::Ok(Value::Null));
                 self.send(&context).await;
             }

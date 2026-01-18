@@ -19,6 +19,7 @@
 //! | name          | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                      |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                          |
 //! | concurrency_limit | -       | Limit of steps to run in concurrence.                                                                          | `1`           | unsigned number                                       |
+//! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! #### Action
 //!
