@@ -13,7 +13,7 @@ use crate::updater::tera_helpers::filters::string::get_shared_environment_variab
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::function::string::uuid_v4;
@@ -50,7 +50,7 @@ pub fn uuid_v4(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::function::string::env;

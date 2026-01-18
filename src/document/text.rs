@@ -73,7 +73,7 @@ impl Document for Text {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::text::Text;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -100,7 +100,7 @@ impl Document for Text {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::text::Text;
     /// use chewdata::document::Document;
     /// use serde_json::Value;

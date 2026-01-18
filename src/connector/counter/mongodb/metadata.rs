@@ -45,14 +45,14 @@ impl Metadata {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::mongodb::Mongodb;
     /// use smol::prelude::*;
     /// use std::io;
     /// use chewdata::connector::counter::mongodb::metadata::Metadata;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
@@ -78,10 +78,11 @@ impl Metadata {
 
         let count = Compat::new(async {
             collection
-            .estimated_document_count()
-            .await
-            .map_err(|e| Error::new(std::io::ErrorKind::Interrupted, e))
-        }).await?;
+                .estimated_document_count()
+                .await
+                .map_err(|e| Error::new(std::io::ErrorKind::Interrupted, e))
+        })
+        .await?;
 
         trace!(count = count, "Count successful");
 

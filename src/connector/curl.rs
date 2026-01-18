@@ -934,7 +934,7 @@ impl Connector for Curl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use serde_json::Value;
     ///
@@ -965,7 +965,7 @@ impl Connector for Curl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use serde_json::Value;
     ///
@@ -1014,7 +1014,7 @@ impl Connector for Curl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use serde_json::Value;
     ///
@@ -1043,7 +1043,7 @@ impl Connector for Curl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::counter::curl::CounterType;
     /// use std::io;
@@ -1088,7 +1088,7 @@ impl Connector for Curl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::document::json::Json;
     /// use smol::stream::StreamExt;
@@ -1172,7 +1172,7 @@ impl Connector for Curl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::DataResult;
@@ -1236,7 +1236,7 @@ impl Connector for Curl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use std::io;
     ///

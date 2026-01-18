@@ -258,7 +258,7 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -277,7 +277,7 @@ impl Connector for Bucket {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{bucket::Bucket, Connector};
     /// use serde_json::Value;
     ///
@@ -326,7 +326,7 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -358,7 +358,7 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -422,7 +422,7 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{bucket::Bucket, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
@@ -501,7 +501,7 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -515,33 +515,24 @@ impl Connector for Bucket {
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/out/test_bucket_send".to_string();
-    ///     connector.set_document(document.clone());
-    ///
     ///     connector.erase().await.unwrap();
     ///     let expected_result1 =
-    ///         DataResult::Ok(serde_json::from_str(r#"[{"column1":"value1"}]"#).unwrap());
+    ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
-    ///     connector
-    ///         .send(&dataset)
-    ///         .await
-    ///         .unwrap();
+    ///     connector.set_document(Box::new(document)).unwrap();
+    ///     connector.send(&dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read
-    ///         .fetch()
-    ///         .await
-    ///         .unwrap()
-    ///         .unwrap();
+    ///     let mut datastream = connector_read.fetch().await.unwrap().unwrap();
     ///     assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
     ///
     ///     let expected_result2 =
-    ///         DataResult::Ok(serde_json::from_str(r#"[{"column1":"value2"}]"#).unwrap());
+    ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
     ///     let dataset = vec![expected_result2.clone()];
     ///     connector.send(&dataset).await.unwrap();
     ///
@@ -811,7 +802,7 @@ impl BucketPaginator {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::{Bucket, BucketPaginator};
     /// use chewdata::connector::Connector;
     /// use smol::prelude::*;
@@ -830,7 +821,7 @@ impl BucketPaginator {
     ///     let paginator = BucketPaginator::new(&connector).await?;
     ///     let mut paging = paginator.paginate(&connector).await?;
     ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(paging.next().await.transpose()?.is_none(), "Should not have more readers.");
     ///
     ///     Ok(())
     /// }

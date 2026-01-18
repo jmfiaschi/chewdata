@@ -140,7 +140,7 @@ impl Connector for InMemory {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -181,7 +181,7 @@ impl Connector for InMemory {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::jsonl::Jsonl;
@@ -231,7 +231,7 @@ impl Connector for InMemory {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::jsonl::Jsonl;
@@ -249,7 +249,7 @@ impl Connector for InMemory {
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
-    ///     let mut connector = InMemory::new(r#"{"column1":"value1"}"#);
+    ///     let mut connector = InMemory::new(r#""#);
     ///     connector.set_document(document);
     ///     connector.send(&dataset).await.unwrap();
     ///
@@ -302,7 +302,7 @@ impl Connector for InMemory {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::in_memory::InMemory;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::jsonl::Jsonl;

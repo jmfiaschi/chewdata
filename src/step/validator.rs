@@ -173,7 +173,7 @@ impl Step for Validator {
     ///
     /// # Example: simple validations
     /// 
-    /// ```no_run
+    /// ```
     /// use std::io;
     /// use serde_json::Value;
     /// use json_value_search::Search;

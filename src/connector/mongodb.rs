@@ -207,7 +207,7 @@ impl Connector for Mongodb {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -218,10 +218,13 @@ impl Connector for Mongodb {
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
+    ///     connector.set_document(Box::new(document)).unwrap();
+    ///
     ///     let len = connector.len().await.unwrap();
     ///     assert!(
     ///         0 < len,
@@ -249,9 +252,10 @@ impl Connector for Mongodb {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
     /// use smol::prelude::*;
     /// use std::io;
     /// use macro_rules_attribute::apply;
@@ -259,10 +263,13 @@ impl Connector for Mongodb {
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
+    ///    connector.set_document(Box::new(document)).unwrap();
+    ///
     ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
@@ -313,7 +320,7 @@ impl Connector for Mongodb {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use chewdata::DataResult;
@@ -322,14 +329,17 @@ impl Connector for Mongodb {
     /// use std::io;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
+    /// use chewdata::document::json::Json;
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
     ///     connector.collection = "send_1".into();
     ///     connector.erase().await.unwrap();
+    ///     connector.set_document(Box::new(document)).unwrap();
     ///
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
@@ -410,7 +420,8 @@ impl Connector for Mongodb {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
+    /// use chewdata::document::json::Json;
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use chewdata::DataResult;
@@ -421,6 +432,7 @@ impl Connector for Mongodb {
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
@@ -429,6 +441,7 @@ impl Connector for Mongodb {
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1];
+    ///     connector.set_document(Box::new(document)).unwrap();
     ///     connector.send(&dataset).await.unwrap();
     ///     connector.erase().await.unwrap();
     ///

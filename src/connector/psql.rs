@@ -301,7 +301,7 @@ impl Connector for Psql {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -341,7 +341,7 @@ impl Connector for Psql {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -358,7 +358,7 @@ impl Connector for Psql {
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "postgres://admin:admin@localhost".into();
     ///     connector.database = "postgres".into();
-    ///     connector.collection = "public.send_with_key".into();
+    ///     connector.collection = "public.read".into();
     ///     connector.query =
     ///         Some("SELECT * FROM {{ collection }} WHERE \"number\" = {{ number }} AND \"string\" = {{ string }} AND \"boolean\" = {{ boolean }} AND \"null\" = {{ null }} AND \"array\" = {{ array }} AND \"object\" = {{ object }} AND \"date\" = {{ date }} AND \"round\" = {{ round }};".to_string());
     ///     let data: Value = serde_json::from_str(
@@ -487,7 +487,7 @@ impl Connector for Psql {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -573,7 +573,7 @@ impl Connector for Psql {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;

@@ -152,7 +152,7 @@ impl Connector for Local {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -181,7 +181,7 @@ impl Connector for Local {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use std::io;
@@ -228,7 +228,7 @@ impl Connector for Local {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -245,7 +245,7 @@ impl Connector for Local {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -302,7 +302,7 @@ impl Connector for Local {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -407,7 +407,7 @@ impl Connector for Local {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -522,7 +522,7 @@ impl Connector for Local {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;

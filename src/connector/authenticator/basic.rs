@@ -81,7 +81,7 @@ impl Basic {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::authenticator::basic::Basic;
     ///
     /// let auth = Basic::new("my_username", "my_password");
@@ -100,7 +100,7 @@ impl Authenticator for Basic {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic, Authenticator};
     /// use smol::prelude::*;
     /// use std::io;

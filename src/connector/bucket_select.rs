@@ -436,7 +436,7 @@ impl Connector for BucketSelect {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -455,7 +455,7 @@ impl Connector for BucketSelect {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use serde_json::Value;
     ///
@@ -504,7 +504,7 @@ impl Connector for BucketSelect {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -535,7 +535,7 @@ impl Connector for BucketSelect {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -548,7 +548,6 @@ impl Connector for BucketSelect {
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
@@ -586,7 +585,7 @@ impl Connector for BucketSelect {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
@@ -601,9 +600,8 @@ impl Connector for BucketSelect {
     ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = BucketSelect::default();
-    ///     connector.path = "/data/one_line.json".to_string();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.bucket = "my-bucket/".to_string();
+    ///     connector.path = "data/one_line.json".to_string();
+    ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.set_document(document);
     ///
@@ -708,9 +706,10 @@ impl BucketSelectPaginator {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket_select::{BucketSelect, BucketSelectPaginator};
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
     /// use smol::prelude::*;
     /// use std::io;
     ///
@@ -719,16 +718,28 @@ impl BucketSelectPaginator {
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
+    ///
     ///     let mut connector = BucketSelect::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
-    ///     connector.path = "data/one_line.json".to_string();
+    ///     connector.path = "data/*.json$".to_string();
+    ///     connector.query = "select * from s3object".to_string();
+    ///     connector.limit = Some(5);
+    ///     connector.skip = 1;
+    ///     connector.set_document(Box::new(document)).unwrap();
     ///
-    ///     let paginator = BucketSelectPaginator::new(&connector).await?;
+    ///     let paginator = BucketSelectPaginator::new(&connector).await.unwrap();
     ///
-    ///     let mut paging = paginator.paginate(&connector).await?;
-    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     let mut paging = paginator.paginate(&connector).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         "data/multi_lines.json".to_string(),
+    ///         paging.next().await.transpose().unwrap().unwrap().path()
+    ///     );
+    ///     assert_eq!(
+    ///         "data/one_line.json".to_string(),
+    ///         paging.next().await.transpose().unwrap().unwrap().path()
+    ///     );
     ///
     ///     Ok(())
     /// }

@@ -146,7 +146,7 @@ impl Jwt {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use chewdata::Metadata;
@@ -318,7 +318,7 @@ impl Authenticator for Jwt {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;

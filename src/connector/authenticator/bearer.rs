@@ -86,7 +86,7 @@ impl Bearer {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::authenticator::bearer::Bearer;
     ///
     /// let token = "my_token";
@@ -107,7 +107,7 @@ impl Authenticator for Bearer {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::authenticator::{AuthenticatorType, bearer::Bearer, Authenticator};
     /// use smol::prelude::*;
     /// use std::io;

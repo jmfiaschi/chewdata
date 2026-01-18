@@ -12,7 +12,7 @@ use std::io;
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use chewdata::helper::checksum::str_to_algorithm_name_with_checksum;
 /// use sha3::Sha3_256Core;
 /// use sha3::digest::OutputSizeUser;

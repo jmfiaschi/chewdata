@@ -61,7 +61,7 @@ impl Header {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::curl::Curl;
     /// use chewdata::connector::counter::curl::header::Header;
     /// use smol::prelude::*;

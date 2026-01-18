@@ -70,7 +70,7 @@ impl Document for Byte {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::byte::Byte;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -95,7 +95,7 @@ impl Document for Byte {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::byte::Byte;
     /// use chewdata::document::Document;
     /// use serde_json::Value;

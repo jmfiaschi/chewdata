@@ -246,7 +246,7 @@ impl Document for Parquet {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::parquet::Parquet;
     /// use chewdata::document::Document;
     /// use serde_json::Value;

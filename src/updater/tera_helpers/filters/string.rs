@@ -35,7 +35,7 @@ fn cached_regex(pattern: &str) -> Result<Regex> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::string::base64_encode;
@@ -80,7 +80,7 @@ pub fn base64_encode(value: &Value, args: &HashMap<String, Value>) -> Result<Val
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::string::base64_decode;
@@ -129,7 +129,7 @@ pub fn base64_decode(value: &Value, args: &HashMap<String, Value>) -> Result<Val
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::string::set_env;
@@ -174,7 +174,7 @@ pub fn set_env(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::string::find;

@@ -81,8 +81,9 @@ impl Body {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::curl::Curl;
+    /// use chewdata::connector::Connector;
     /// use chewdata::connector::counter::curl::body::Body;
     /// use chewdata::document::json::Json;
     /// use smol::prelude::*;
@@ -95,15 +96,24 @@ impl Body {
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::POST;
     ///     connector.path = "/anything?count=10".to_string();
     ///     connector.metadata = Json::default().metadata();
+    ///     connector.set_document(Box::new(document)).unwrap();
+    ///
+    ///     let mut counter = Body::default();
+    ///     counter.entry_path = "/args/count".to_string();
+    ///     assert!(
+    ///         Some(0) < counter.count(&connector).await.unwrap(),
+    ///         "Counter count() must return a value upper than 0."
+    ///     );
     ///
     ///     let mut counter = Body::default();
     ///     counter.entry_path = "/args/not_found".to_string();
-    ///     assert_eq!(Some(10), counter.count(&connector).await?);
+    ///     assert_eq!(None, counter.count(&connector).await?);
     ///
     ///     Ok(())
     /// }

@@ -263,7 +263,7 @@ impl Document for Csv {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -281,7 +281,7 @@ impl Document for Csv {
     /// assert_eq!(expected_data_2, data_2);
     /// ```
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -320,7 +320,7 @@ impl Document for Csv {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -367,7 +367,7 @@ impl Document for Csv {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::csv::Csv;
     /// use chewdata::document::Document;
     /// use serde_json::Value;

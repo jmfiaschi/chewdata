@@ -75,22 +75,24 @@ impl Cursor {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::{PaginatorType, cursor::Cursor};
     /// use smol::prelude::*;
     /// use std::io;
     /// use http::Method;
-    ///
+    /// use chewdata::document::json::Json;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.method = Method::GET;
     ///     connector.path = "/uuid?next={{ paginator.next }}".to_string();
+    ///     connector.set_document(Box::new(document)).unwrap();
     ///
     ///     let paginator = Cursor {
     ///         limit: 1,

@@ -18,7 +18,7 @@ use tera::*;
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use serde_json::json;
@@ -33,7 +33,7 @@ use tera::*;
 /// assert_eq!(result, json!(["a", "b"]));
 /// ```
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use serde_json::json;
@@ -79,7 +79,7 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use json_value_search::Search;
@@ -120,7 +120,7 @@ pub fn search(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::object::replace_key;
@@ -213,7 +213,7 @@ fn replace_key_recursively(
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::object::replace_value;
@@ -311,7 +311,7 @@ fn replace_value_recursively(
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::object::extract;
@@ -377,7 +377,7 @@ pub fn extract(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 /// A Result containing the updated serde_json::Value or an error if the operation fails.
 ///
 /// # Example
-/// ```no_run
+/// ```
 /// use serde_json::json;
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::filters::object::update;

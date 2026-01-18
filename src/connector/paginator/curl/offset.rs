@@ -64,7 +64,7 @@ impl Offset {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{curl::Curl, Connector};
     /// use chewdata::connector::paginator::curl::offset::Offset;
     /// use smol::prelude::*;
