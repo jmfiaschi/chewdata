@@ -1,4 +1,4 @@
-#[cfg(not(any(feature = "bucket", feature = "parquet")))]
+#[cfg(not(all(feature = "bucket", feature = "parquet")))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     return Err("the bucket and parquet features are required for this example. Please enable them in your Cargo.toml file. cargo example EXAMPLE_NAME --features bucket,parquet".into());
 }
@@ -7,7 +7,7 @@ use macro_rules_attribute::apply;
 use smol_macros::main;
 use std::io;
 
-#[cfg(any(feature = "bucket", feature = "parquet"))]
+#[cfg(all(feature = "bucket", feature = "parquet"))]
 #[apply(main!)]
 async fn main() -> io::Result<()> {
     use env_applier::EnvApply;

@@ -63,27 +63,43 @@ example name:
 release:
     cargo build --release --lib --bins
 
-test: start test-basic test-csv test-bucket test-postgres test-curl
+test: start test-basic test-csv test-toml test-parquet test-bucket test-postgres test-curl
 
 test-basic:
     cargo test --tests --features "ordered"
     cargo test --examples --features "ordered"
 
-test-csv:
-    cargo test --features "csv"
-    cargo test --examples --features "csv"
+test-xml:
+    cargo test --tests --features "ordered xml"
+    cargo test --examples --features "ordered xml"
 
-test-bucket: 
-    cargo test --features "bucket"
-    cargo test --examples --features "bucket"
+test-csv:
+    cargo test --tests --features "ordered csv"
+    cargo test --examples --features "ordered csv"
+
+test-toml:
+    cargo test --tests --features "ordered toml"
+    cargo test --examples --features "ordered toml"
+
+test-parquet:
+    cargo test --tests --features "ordered parquet"
+    cargo test --examples --features "ordered parquet"
+
+test-bucket: minio_install
+    cargo test --tests --features "ordered bucket csv"
+    cargo test --examples --features "ordered bucket csv"
 
 test-postgres: psql
-    cargo test --features "psql"
-    cargo test --examples --features "psql"
+    cargo test --tests --features "ordered psql"
+    cargo test --examples --features "ordered psql"
 
-test-curl:
-    cargo test --features "curl"
-    cargo test --examples --features "curl"
+test-curl: http-mock https-mock
+    cargo test --tests --features "ordered curl"
+    cargo test --examples --features "ordered curl"
+
+test-mongodb: mongodb
+    cargo test --tests --features "ordered mongodb"
+    cargo test --examples --features "ordered mongodb"
 
 # Lint with all features.
 lint:
@@ -131,14 +147,14 @@ https-mock:
     @echo "Host: https://localhost:8084"
     podman-compose up -d https-mock
 
-# Start mongo server in local.
-mongo:
-    @echo "Run mongo server."
-    podman-compose up -d mongo
+# Start mongodb server in local.
+mongodb:
+    @echo "Run mongodb server."
+    podman-compose up -d mongodb
 
-mongo-admin:
-    @echo "Run mongo admin server."
-    podman-compose up -d mongo-admin
+mongodb-admin:
+    @echo "Run mongodb admin server."
+    podman-compose up -d mongodb-admin
 
 # Start psql server in local.
 psql:
@@ -173,7 +189,7 @@ semantic-release:
     npx semantic-release
 
 # Start all servers
-start: stop debug minio_install http-mock https-mock mongo keycloak rabbitmq
+start: stop debug minio_install http-mock https-mock mongodb keycloak rabbitmq
 
 # Stop all servers
 stop:

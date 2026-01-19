@@ -46,7 +46,7 @@ services:
           - ./.config/server.crt:/tmp/server.crt
           - ./.config/server.key:/tmp/erver.key
 
-    mongo:
+    mongodb:
         image: mongo
         ports:
             - 27017:27017
@@ -60,7 +60,7 @@ services:
             retries: 3
             start_period: 5s
 
-    mongo-admin:
+    mongodb-admin:
         image: mongo-express
         ports:
             - 8081:8081

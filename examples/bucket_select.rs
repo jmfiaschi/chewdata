@@ -1,4 +1,4 @@
-#[cfg(not(any(feature = "bucket", feature = "csv")))]
+#[cfg(not(all(feature = "bucket", feature = "csv")))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     return Err("the bucket feature is required for this example. Please enable it in your Cargo.toml file. cargo example EXAMPLE_NAME --features bucket".into());
 }
@@ -10,7 +10,7 @@ use macro_rules_attribute::apply;
 use smol_macros::main;
 use std::io;
 
-#[cfg(any(feature = "bucket", feature = "csv"))]
+#[cfg(all(feature = "bucket", feature = "csv"))]
 #[apply(main!)]
 async fn main() -> io::Result<()> {
     use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
@@ -33,7 +33,7 @@ async fn main() -> io::Result<()> {
     run().await
 }
 
-#[cfg(any(feature = "bucket", feature = "csv"))]
+#[cfg(all(feature = "bucket", feature = "csv"))]
 async fn run() -> io::Result<()> {
     tracing::info!("---BucketSelect with Jsonl---");
 
@@ -185,7 +185,7 @@ async fn run() -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(any(feature = "bucket", feature = "csv"))]
+#[cfg(all(feature = "bucket", feature = "csv"))]
 #[cfg(test)]
 mod tests {
     use super::*;

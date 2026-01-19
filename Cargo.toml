@@ -107,7 +107,7 @@ curl = ["dep:bytes","dep:hyper","dep:smol-hyper","dep:jsonwebtoken","dep:http-bo
 mongodb = ["dep:mongodb","dep:async-compat"]
 psql = ["sqlx","sqlx/postgres"]
 apm = ["dep:opentelemetry","dep:opentelemetry-jaeger"]
-ordered = ["serde_json/preserve_order"]
+ordered = ["serde_json/preserve_order","toml/preserve_order"]
 log-release = [
     "tracing/release_max_level_info",
 ]
