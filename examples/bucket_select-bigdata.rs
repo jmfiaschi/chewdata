@@ -1,15 +1,21 @@
-use env_applier::EnvApply;
-use std::io;
-use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
-use tracing_subscriber::{self, Layer};
+#[cfg(not(feature = "bucket"))]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    return Err("the bucket feature is required for this example. Please enable it in your Cargo.toml file. cargo example EXAMPLE_NAME --features bucket".into());
+}
 
 use macro_rules_attribute::apply;
 use smol_macros::main;
+use std::io;
 
+#[cfg(feature = "bucket")]
 #[apply(main!)]
 async fn main() -> io::Result<()> {
+    use env_applier::EnvApply;
+    use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::{self, Layer};
+
     let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let layer = tracing_subscriber::fmt::layer()

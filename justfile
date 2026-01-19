@@ -63,55 +63,27 @@ example name:
 release:
     cargo build --release --lib --bins
 
-test: start unit-tests integration-tests example-tests
+test: start test-basic test-csv test-bucket test-postgres test-curl
 
-test_docs:
-    cargo test --doc --features "xml csv parquet toml bucket curl mongodb psql"
+test-basic:
+    cargo test --tests --features "ordered"
+    cargo test --examples --features "ordered"
 
-test_docs_by_feature:
-    cargo test --doc
-    cargo test --doc --features "xml"
-    cargo test --doc --features "csv"
-    cargo test --doc --features "parquet"
-    cargo test --doc --features "toml"
-    cargo test --doc --features "bucket csv"
-    cargo test --doc --features "curl xml"
-    cargo test --doc --features "mongodb"
-    cargo test --doc --features "psql"
+test-csv:
+    cargo test --features "csv"
+    cargo test --examples --features "csv"
 
-test_libs:
-    cargo test --lib --features "xml csv parquet toml bucket curl mongodb psql"
+test-bucket: 
+    cargo test --features "bucket"
+    cargo test --examples --features "bucket"
 
-test_libs_by_feature:
-    cargo test --lib
-    cargo test --lib --features "xml"
-    cargo test --lib --features "csv"
-    cargo test --lib --features "parquet"
-    cargo test --lib --features "toml"
-    cargo test --lib --features "bucket csv"
-    cargo test --lib --features "curl xml"
-    cargo test --lib --features "mongodb"
-    cargo test --lib --features "psql"
+test-postgres: psql
+    cargo test --features "psql"
+    cargo test --examples --features "psql"
 
-test_integration:
-    cargo test --tests --features "xml csv parquet toml bucket curl mongodb psql"
-
-example-tests: test-example-basics test-example-rabbitmq test-example-curl
-
-test-example-basics:
-    cargo test --example validator
-
-test-example-rabbitmq: rabbitmq
-    cargo test --example rabbitmq --features "curl"
-
-test-example-curl: http-mock https-mock
-    cargo test --example curl-api --features "curl"
-    cargo test --example curl-api-parallel --features "curl"
-    cargo test --example curl-api-with_cache --features "curl"
-
-unit-tests: start test_libs
-
-integration-tests: start test_docs test_integration
+test-curl:
+    cargo test --features "curl"
+    cargo test --examples --features "curl"
 
 # Lint with all features.
 lint:

@@ -1,12 +1,22 @@
+#[cfg(not(feature = "csv"))]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    return Err("the csv feature is required for this example. Please enable it in your Cargo.toml file. cargo example EXAMPLE_NAME --features csv".into());
+}
+
 use async_process::{Command, Stdio};
 use futures::{AsyncReadExt, AsyncWriteExt};
-use std::io;
-
 use macro_rules_attribute::apply;
 use smol_macros::main;
+use std::io;
 
+#[cfg(feature = "csv")]
 #[apply(main!)]
 async fn main() -> io::Result<()> {
+    run().await
+}
+
+#[cfg(feature = "csv")]
+async fn run() -> io::Result<()> {
     let data_to_transform = b"column1,column2\nvalue1,value2\n---\n";
     let config = r#"[{"type":"r","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"w","document":{"type":"jsonl"}}]"#;
 
@@ -38,12 +48,14 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "csv")]
 #[cfg(test)]
 mod tests {
-    use crate::main;
+    use super::*;
+    use smol_macros::test;
 
-    #[test]
-    fn test_example() {
-        main().unwrap();
+    #[apply(test!)]
+    async fn test_example() {
+        run().await.unwrap();
     }
 }

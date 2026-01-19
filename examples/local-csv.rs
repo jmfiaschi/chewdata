@@ -1,16 +1,22 @@
+#[cfg(not(feature = "csv"))]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    return Err("the csv feature is required for this example. Please enable it in your Cargo.toml file. cargo example EXAMPLE_NAME --features csv".into());
+}
+
 use json_value_merge::Merge;
 use json_value_search::Search;
-use std::io;
-use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
-use tracing_subscriber::{self, Layer};
-
 use macro_rules_attribute::apply;
 use smol_macros::main;
+use std::io;
 
+#[cfg(feature = "csv")]
 #[apply(main!)]
 async fn main() -> io::Result<()> {
+    use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::{self, Layer};
+
     let mut layers = Vec::new();
     let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
     let layer = tracing_subscriber::fmt::layer()
@@ -23,6 +29,11 @@ async fn main() -> io::Result<()> {
 
     tracing_subscriber::registry().with(layers).init();
 
+    run().await
+}
+
+#[cfg(feature = "csv")]
+async fn run() -> io::Result<()> {
     let config = r#"
     [{
         "type": "read",
@@ -68,12 +79,14 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "csv")]
 #[cfg(test)]
 mod tests {
-    use crate::main;
+    use super::*;
+    use smol_macros::test;
 
-    #[test]
-    fn test_example() {
-        main().unwrap();
+    #[apply(test!)]
+    async fn test_example() {
+        run().await.unwrap();
     }
 }
