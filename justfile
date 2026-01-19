@@ -14,7 +14,7 @@ setup:
 
 # Build the project
 build:
-    cargo build --lib --bins --tests --benches --features "xml csv parquet toml bucket curl mongodb psql"
+    cargo build --lib --bins --tests --benches --features "ordered xml csv parquet toml bucket curl mongodb psql"
 
 build-feature-csv:
     cargo build --lib --bins --tests --benches --features "csv"
@@ -63,43 +63,52 @@ example name:
 release:
     cargo build --release --lib --bins
 
-test: start test-basic test-csv test-toml test-parquet test-bucket test-postgres test-curl
+test: start test-basic test-xml test-csv test-toml test-parquet test-bucket test-postgres test-curl test-mongodb
 
 test-basic:
     cargo test --tests --features "ordered"
     cargo test --examples --features "ordered"
+    cargo test --doc --features "ordered"
 
 test-xml:
     cargo test --tests --features "ordered xml"
     cargo test --examples --features "ordered xml"
+    cargo test --doc --features "ordered xml"
 
 test-csv:
     cargo test --tests --features "ordered csv"
     cargo test --examples --features "ordered csv"
+    cargo test --doc --features "ordered csv"
 
 test-toml:
     cargo test --tests --features "ordered toml"
     cargo test --examples --features "ordered toml"
+    cargo test --doc --features "ordered toml"
 
 test-parquet:
     cargo test --tests --features "ordered parquet"
     cargo test --examples --features "ordered parquet"
+    cargo test --doc --features "ordered parquet"
 
 test-bucket: minio_install
     cargo test --tests --features "ordered bucket csv"
     cargo test --examples --features "ordered bucket csv"
+    cargo test --doc --features "ordered bucket csv"
 
 test-postgres: psql
     cargo test --tests --features "ordered psql"
     cargo test --examples --features "ordered psql"
+    cargo test --doc --features "ordered psql"
 
 test-curl: http-mock https-mock
     cargo test --tests --features "ordered curl"
     cargo test --examples --features "ordered curl"
+    cargo test --doc --features "ordered curl"
 
 test-mongodb: mongodb
     cargo test --tests --features "ordered mongodb"
     cargo test --examples --features "ordered mongodb"
+    cargo test --doc --features "ordered mongodb"
 
 # Lint with all features.
 lint:
