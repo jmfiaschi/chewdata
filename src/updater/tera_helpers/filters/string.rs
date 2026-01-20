@@ -15,7 +15,7 @@ pub fn get_shared_environment_variables() -> &'static SharedEnv {
 static REGEX_CACHE: OnceLock<Mutex<HashMap<String, Regex>>> = OnceLock::new();
 fn cached_regex(pattern: &str) -> Result<Regex> {
     let cache = REGEX_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut cache = cache.lock().map_err(|e| Error::msg(e))?;
+    let mut cache = cache.lock().map_err(Error::msg)?;
 
     if let Some(re) = cache.get(pattern) {
         return Ok(re.clone());

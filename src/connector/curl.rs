@@ -283,7 +283,7 @@ enum SmolStream {
     Plain(TcpStream),
 
     /// A TCP connection secured by TLS.
-    Tls(RustlsTlsStream<TcpStream>),
+    Tls(Box<RustlsTlsStream<TcpStream>>),
 }
 
 impl AsyncReadIo for SmolStream {
@@ -359,10 +359,10 @@ impl Default for RetryPolicy {
 
 impl RetryPolicy {
     fn is_retryable_status(self, status: &StatusCode) -> bool {
-        self.retry_on_status.contains(&status)
+        self.retry_on_status.contains(status)
     }
     fn is_retryable_method(self, method: &Method) -> bool {
-        self.retry_on_method.contains(&method)
+        self.retry_on_method.contains(method)
     }
 }
 
@@ -474,7 +474,7 @@ impl Curl {
                 .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "invalid DNS name"))?;
 
             let tls = connector.connect(server_name, tcp).await?;
-            SmolStream::Tls(futures_rustls::TlsStream::Client(tls))
+            SmolStream::Tls(Box::new(futures_rustls::TlsStream::Client(tls)))
         } else {
             return Err(io::Error::new(
                 ErrorKind::InvalidInput,
@@ -849,12 +849,12 @@ impl Curl {
             let result = match client {
                 ClientType::Http1(sender) => {
                     sender
-                        .send_request(build_request(request_builder, &body)?)
+                        .send_request(build_request(request_builder, body)?)
                         .await
                 }
                 ClientType::Http2(sender) => {
                     sender
-                        .send_request(build_request(request_builder, &body)?)
+                        .send_request(build_request(request_builder, body)?)
                         .await
                 }
             };
@@ -862,7 +862,7 @@ impl Curl {
             match result {
                 Ok(response) => {
                     if policy.is_retryable_status(&response.status())
-                        && policy.is_retryable_method(&method)
+                        && policy.is_retryable_method(method)
                         && attempt < policy.max_attempts
                     {
                         backoff(attempt, policy.delay).await;
@@ -896,7 +896,7 @@ impl Curl {
 
                     if retryable
                         && attempt < policy.max_attempts
-                        && policy.is_retryable_method(&method)
+                        && policy.is_retryable_method(method)
                     {
                         warn!(attempt, "Retrying request after transport error: {}", e);
                         self.client = None; // force reconnect
@@ -1210,7 +1210,7 @@ impl Connector for Curl {
     /// ```
     #[instrument(name = "curl::send")]
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
-        let body = self.body(&dataset).await?;
+        let body = self.body(dataset).await?;
 
         let request_builder = self.request_builder(None, None, Some(&body)).await?;
         let entry_to_cache = self.follow_redirects(request_builder, &body).await?;

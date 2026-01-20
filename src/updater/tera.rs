@@ -108,9 +108,7 @@ impl Updater for Tera {
         trace!("Update start...");
 
         let engine_arc = engine();
-        let mut engine = engine_arc
-            .lock()
-            .map_err(|e| Error::new(ErrorKind::Other, e.to_string()))?;
+        let mut engine = engine_arc.lock().map_err(|e| Error::other(e.to_string()))?;
 
         let mut context_value = Value::default();
         context_value.merge_in(format!("/{}", super::INPUT_FIELD_KEY).as_str(), object)?;

@@ -422,7 +422,7 @@ pub fn update(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         }
     }
 
-    let guard = engine.lock().map_err(|e| Error::msg(e))?;
+    let guard = engine.lock().map_err(Error::msg)?;
     let filter = guard.get_filter(fn_name)?;
     let new_value = &mut value.clone();
 
