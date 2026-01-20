@@ -47,32 +47,32 @@ async-process = { version = "2.5.0", default-features = false }
 mime = { version = "0.3.17", default-features = false }
 base64 = { version = "0.22.1", default-features = false, features = ["std"] }
 regex = { version = "1.12.2" }
-chrono = { version = "0.4.42", default-features = false, features = ["std","clock"] }
+chrono = { version = "0.4.43", default-features = false, features = ["std","clock"] }
 fake = { version = "4.4.0", default-features = false, features = ["random_color"] }
-clap = { version = "4.5.53" }
+clap = { version = "4.5.54" }
 version = { version = "3.0", default-features = false}
 serde_yaml = { version = "0.9.33", default-features = false }
 deser-hjson = { version = "2.2.5", default-features = false }
 sha2 = { version = "0.10.9", default-features = false, features = ["oid", "std"] }
 sha3 = { version = "0.10.8", default-features = false, features = ["oid", "std"] }
-base16ct = { version = "0.3.0", default-features = false, features = ["alloc"] }
+base16ct = { version = "1.0.0", default-features = false, features = ["alloc"] }
 # Lock local files
 async-fs = { version = "2.2.0" }
 # For Templates
 tera = { version = "1.20.1", default-features = false, features = ["builtins"] }
 uuid = { version = "1.19.0", features = ["std", "v4"] }
 # For readers
-quick-xml = { version = "0.38.4", default-features = false, optional = true, features = ["serialize"] }
-csv = { version = "1.3", default-features = false, optional = true }
+quick-xml = { version = "0.39.0", default-features = false, optional = true, features = ["serialize"] }
+csv = { version = "1.4.0", default-features = false, optional = true }
 toml = { version = "0.9.8", default-features = false, optional = true, features = ["parse", "display","serde"] }
-parquet = { version = "57.1.0", default-features = false, optional = true, features = ["cli","arrow","flate2-rust_backened","brotli","lz4","zstd","snap"] }
-arrow-json = { version = "57.1.0", default-features = false, optional = true } # used to create the batch with json_value
-arrow-integration-test = { version = "57.1.0", default-features = false, optional = true } # used to transform json_value to schema
+parquet = { version = "57.2.0", default-features = false, optional = true, features = ["cli","arrow","flate2-rust_backened","brotli","lz4","zstd","snap"] }
+arrow-json = { version = "57.2.0", default-features = false, optional = true } # used to create the batch with json_value
+arrow-integration-test = { version = "57.2.0", default-features = false, optional = true } # used to transform json_value to schema
 bytes = { version = "1.11.0", default-features = false, optional = true, features = ["std"] }
 # For Connectors
 ## bucket
 aws-config = { version = "1.8.12", optional = true }
-aws-sdk-s3 = { version = "1.119.0", default-features = false, optional = true, features = ["sigv4a","rustls","rt-tokio","behavior-version-latest"] }
+aws-sdk-s3 = { version = "1.120.0", default-features = false, optional = true, features = ["sigv4a","rustls","rt-tokio","behavior-version-latest"] }
 byteorder = { version = "1.5.0", default-features = false, optional = true, features = ["std"] }
 jsonwebtoken = { version = "10.2.0", default-features = false, features = ["use_pem","rust_crypto"], optional = true }
 ## curl
@@ -87,7 +87,7 @@ cacache = { version = "13.1.0", default-features = false, features = ["async-std
 http = {version = "1.4.0", optional = true}
 http-serde = {version = "2.1.1", optional = true}
 ## mongodb
-mongodb = { version = "3.4.1", optional = true }
+mongodb = { version = "3.5.0", optional = true }
 async-compat = { version = "0.2.5", default-features = false, optional = true }
 ## sql
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-async-std-rustls", "_unstable-all-types"], optional = true }
