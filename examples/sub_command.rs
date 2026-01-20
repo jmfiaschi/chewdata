@@ -25,7 +25,7 @@ async fn run() -> io::Result<()> {
         String::from_utf8_lossy(data_to_transform)
     );
 
-    let mut child = Command::new("./target/debug/chewdata")
+    let mut child = Command::new("chewdata")
         .args(&[config])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
