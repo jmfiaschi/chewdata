@@ -63,7 +63,7 @@ example name:
 release:
     cargo build --release --lib --bins
 
-test: start test-basic test-xml test-csv test-toml test-parquet test-bucket test-postgres test-curl test-mongodb
+test: start test-basic test-xml test-csv test-toml test-parquet test-bucket test-psql test-curl test-mongodb
 
 test-basic:
     cargo test --tests --features "ordered"
@@ -95,7 +95,7 @@ test-bucket: minio_install
     cargo test --examples --features "ordered bucket csv"
     cargo test --doc --features "ordered bucket csv"
 
-test-postgres: psql
+test-psql: psql
     cargo test --tests --features "ordered psql"
     cargo test --examples --features "ordered psql"
     cargo test --doc --features "ordered psql"
