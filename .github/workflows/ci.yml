@@ -123,7 +123,7 @@ jobs:
           fail-on-alert: true
           benchmark-data-dir-path: "docs/benches/${{ env.BRANCH_NAME }}"
   semantic-release:
-    needs: [benchmark, unit-tests, integration-tests, example-tests]
+    needs: [benchmark, tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
