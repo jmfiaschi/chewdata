@@ -14,7 +14,7 @@ setup:
 
 # Build the project
 build:
-    cargo build --lib --bins --tests --benches --features "ordered xml csv parquet toml bucket curl mongodb psql"
+    cargo build --lib --bins --tests --benches --features "ordered,xml,csv,parquet,toml,bucket,curl,mongodb,psql"
 
 build-feature-csv:
     cargo build --lib --bins --tests --benches --features "csv"
@@ -71,51 +71,51 @@ test-basic:
     cargo test --doc --features "ordered"
 
 test-xml:
-    cargo test --tests --features "ordered xml"
-    cargo test --examples --features "ordered xml"
-    cargo test --doc --features "ordered xml"
+    cargo test --tests --features "ordered,xml"
+    cargo test --examples --features "ordered,xml"
+    cargo test --doc --features "ordered,xml"
 
 test-csv:
-    cargo test --tests --features "ordered csv"
-    cargo test --examples --features "ordered csv"
-    cargo test --doc --features "ordered csv"
+    cargo test --tests --features "ordered,csv"
+    cargo test --examples --features "ordered,csv"
+    cargo test --doc --features "ordered,csv"
 
 test-toml:
-    cargo test --tests --features "ordered toml"
-    cargo test --examples --features "ordered toml"
-    cargo test --doc --features "ordered toml"
+    cargo test --tests --features "ordered,toml"
+    cargo test --examples --features "ordered,toml"
+    cargo test --doc --features "ordered,toml"
 
 test-parquet:
-    cargo test --tests --features "ordered parquet"
-    cargo test --examples --features "ordered parquet"
-    cargo test --doc --features "ordered parquet"
+    cargo test --tests --features "ordered,parquet"
+    cargo test --examples --features "ordered,parquet"
+    cargo test --doc --features "ordered,parquet"
 
 test-bucket: minio-install
-    cargo test --tests --features "ordered bucket csv"
-    cargo test --examples --features "ordered bucket csv"
-    cargo test --doc --features "ordered bucket csv"
+    cargo test --tests --features "ordered,bucket,csv"
+    cargo test --examples --features "ordered,bucket,csv"
+    cargo test --doc --features "ordered,bucket,csv"
 
 test-psql: psql
-    cargo test --tests --features "ordered psql"
-    cargo test --examples --features "ordered psql"
-    cargo test --doc --features "ordered psql"
+    cargo test --tests --features "ordered,psql"
+    cargo test --examples --features "ordered,psql"
+    cargo test --doc --features "ordered,psql"
 
 test-curl: http-mock https-mock keycloak rabbitmq
-    cargo test --tests --features "ordered curl"
-    cargo test --examples --features "ordered curl"
-    cargo test --doc --features "ordered curl"
+    cargo test --tests --features "ordered,curl"
+    cargo test --examples --features "ordered,curl"
+    cargo test --doc --features "ordered,curl"
 
 test-mongodb: mongodb
-    cargo test --tests --features "ordered mongodb"
-    cargo test --examples --features "ordered mongodb"
-    cargo test --doc --features "ordered mongodb"
+    cargo test --tests --features "ordered,mongodb"
+    cargo test --examples --features "ordered,mongodb"
+    cargo test --doc --features "ordered,mongodb"
 
 # Lint with all features.
 lint:
     cargo clippy --all-features
 
 coverage: start
-    cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "ordered xml csv parquet toml bucket curl mongodb psql"
+    cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "ordered,xml,csv,parquet,toml,bucket,curl,mongodb,psql"
 
 # Benchmark the project.
 bench cpus="1": http-mock
@@ -123,7 +123,7 @@ bench cpus="1": http-mock
     --output-format bencher \
     --jobs {{cpus}} \
     --plotting-backend disabled \
-    --features "xml csv parquet toml bucket curl mongodb psql" 2>&1
+    --features "xml,csv,parquet,toml,bucket,curl,mongodb,psql" 2>&1
 
 # Start minio in local.
 minio:
@@ -199,6 +199,7 @@ stop:
 # Clean the project and stop servers
 clean: stop
     sudo rm -Rf .cache
+    sudo rm -Rf data/out/*
     cargo clean
 
 version:

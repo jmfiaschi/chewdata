@@ -1,6 +1,6 @@
 #[cfg(not(all(feature = "bucket", feature = "csv")))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    return Err("the bucket feature is required for this example. Please enable it in your Cargo.toml file. cargo example EXAMPLE_NAME --features bucket".into());
+    return Err("the bucket and csv feature is required for this example. Please enable it in your Cargo.toml file. cargo example EXAMPLE_NAME --features bucket,csv".into());
 }
 
 use env_applier::EnvApply;
@@ -37,150 +37,159 @@ async fn main() -> io::Result<()> {
 async fn run() -> io::Result<()> {
     tracing::info!("---BucketSelect with Jsonl---");
 
-    let config = r#"
-    [
-        {
-            "type": "r",
-            "connector": {
-                "type": "bucket_select",
-                "bucket": "my-bucket",
-                "path": "data/multi_lines.jsonl",
-                "endpoint": "{{ BUCKET_ENDPOINT }}",
-                "region": "{{ BUCKET_REGION }}",
-                "query": "select * from s3object"
+    {
+        let config = r#"
+        [
+            {
+                "type": "r",
+                "connector": {
+                    "type": "bucket_select",
+                    "bucket": "my-bucket",
+                    "path": "data/multi_lines.jsonl",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}",
+                    "query": "select * from s3object"
+                },
+                "document" : {
+                    "type": "jsonl"
+                }
             },
-            "document" : {
-                "type": "jsonl"
+            {
+                "type": "w",
+                "document" : {
+                    "type": "jsonl"
+                }
             }
-        },
-        {
-            "type": "w",
-            "document" : {
-                "type": "jsonl"
-            }
+        ]
+        "#;
+
+        // Test example with asserts
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        chewdata::exec(
+            deser_hjson::from_str(config.apply().as_str())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            None,
+            Some(sender_output.clone()),
+        )
+        .await?;
+
+        drop(sender_output);
+        let mut result = serde_json::json!([]);
+        while let Ok(output) = receiver_output.recv().await {
+            result.merge(&output.input().to_value());
         }
-    ]
-    "#;
 
-    // Test example with asserts
-    let (sender_output, receiver_output) = async_channel::unbounded();
-    chewdata::exec(
-        deser_hjson::from_str(config.apply().as_str())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-        None,
-        Some(sender_output),
-    )
-    .await?;
+        let expected = serde_json::json!([10, 20, 30]);
 
-    let mut result = serde_json::json!([]);
-    while let Ok(output) = receiver_output.recv().await {
-        result.merge(&output.input().to_value());
+        assert_eq!(
+            expected,
+            result.clone().search("/*/number")?.unwrap_or_default(),
+            "The result not match the expected value"
+        );
     }
-
-    let expected = serde_json::json!([10, 20, 30]);
-
-    assert_eq!(
-        expected,
-        result.clone().search("/*/number")?.unwrap_or_default(),
-        "The result not match the expected value"
-    );
 
     tracing::info!("---BucketSelect with Json---");
 
-    let config = r#"
-    [
-        {
-            "type": "r",
-            "connector": {
-                "type": "bucket_select",
-                "bucket": "my-bucket",
-                "path": "data/multi_lines.{{ metadata.mime_subtype }}",
-                "endpoint": "{{ BUCKET_ENDPOINT }}",
-                "region": "{{ BUCKET_REGION }}",
-                "query": "select * from s3object[*]._1"
+    {
+        let config = r#"
+        [
+            {
+                "type": "r",
+                "connector": {
+                    "type": "bucket_select",
+                    "bucket": "my-bucket",
+                    "path": "data/multi_lines.{{ metadata.mime_subtype }}",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}",
+                    "query": "select * from s3object[*]._1"
+                }
+            },
+            {
+                "type": "w",
+                "document" : {
+                    "type": "jsonl"
+                }
             }
-        },
-        {
-            "type": "w",
-            "document" : {
-                "type": "jsonl"
-            }
+        ]
+        "#;
+
+        // Test example with asserts
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        chewdata::exec(
+            deser_hjson::from_str(config.apply().as_str())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            None,
+            Some(sender_output.clone()),
+        )
+        .await?;
+
+        drop(sender_output);
+        let mut result = serde_json::json!([]);
+        while let Ok(output) = receiver_output.recv().await {
+            result.merge(&output.input().to_value());
         }
-    ]
-    "#;
 
-    // Test example with asserts
-    let (sender_output, receiver_output) = async_channel::unbounded();
-    chewdata::exec(
-        deser_hjson::from_str(config.apply().as_str())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-        None,
-        Some(sender_output),
-    )
-    .await?;
+        let expected = serde_json::json!([10, 20, 30]);
 
-    let mut result = serde_json::json!([]);
-    while let Ok(output) = receiver_output.recv().await {
-        result.merge(&output.input().to_value());
+        assert_eq!(
+            expected,
+            result.clone().search("/*/number")?.unwrap_or_default(),
+            "The result not match the expected value"
+        );
     }
-
-    let expected = serde_json::json!([10, 20, 30]);
-
-    assert_eq!(
-        expected,
-        result.clone().search("/*/number")?.unwrap_or_default(),
-        "The result not match the expected value"
-    );
 
     tracing::info!("---BucketSelect with Csv---");
 
-    let config = r#"
-    [
-        {
-            "type": "r",
-            "connector": {
-                "type": "bucket_select",
-                "bucket": "my-bucket",
-                "path": "data/multi_lines.{{ metadata.mime_subtype }}",
-                "endpoint": "{{ BUCKET_ENDPOINT }}",
-                "region": "{{ BUCKET_REGION }}",
-                "query": "select * from s3object"
+    {
+        let config = r#"
+        [
+            {
+                "type": "r",
+                "connector": {
+                    "type": "bucket_select",
+                    "bucket": "my-bucket",
+                    "path": "data/multi_lines.{{ metadata.mime_subtype }}",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}",
+                    "query": "select * from s3object"
+                },
+                "document" : {
+                    "type": "csv"
+                }
             },
-            "document" : {
-                "type": "csv"
+            {
+                "type": "w",
+                "document" : {
+                    "type": "jsonl"
+                }
             }
-        },
-        {
-            "type": "w",
-            "document" : {
-                "type": "jsonl"
-            }
+        ]
+        "#;
+
+        // Test example with asserts
+        let (sender_output, receiver_output) = async_channel::unbounded();
+        chewdata::exec(
+            deser_hjson::from_str(config.apply().as_str())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            None,
+            Some(sender_output.clone()),
+        )
+        .await?;
+
+        drop(sender_output);
+        let mut result = serde_json::json!([]);
+        while let Ok(output) = receiver_output.recv().await {
+            result.merge(&output.input().to_value());
         }
-    ]
-    "#;
 
-    // Test example with asserts
-    let (sender_output, receiver_output) = async_channel::unbounded();
-    chewdata::exec(
-        deser_hjson::from_str(config.apply().as_str())
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-        None,
-        Some(sender_output),
-    )
-    .await?;
+        let expected = serde_json::json!([10, 20, 30]);
 
-    let mut result = serde_json::json!([]);
-    while let Ok(output) = receiver_output.recv().await {
-        result.merge(&output.input().to_value());
+        assert_eq!(
+            expected,
+            result.clone().search("/*/number")?.unwrap_or_default(),
+            "The result not match the expected value"
+        );
     }
-
-    let expected = serde_json::json!([10, 20, 30]);
-
-    assert_eq!(
-        expected,
-        result.clone().search("/*/number")?.unwrap_or_default(),
-        "The result not match the expected value"
-    );
 
     Ok(())
 }

@@ -34,7 +34,7 @@ More useful information:
 * The configuration easly versionable
 * Can generate data in the fly for testing purpose
 * Control and validate the data. Handle bad and valid data in a dedicated stream
-* Enable only required feature: --no-default-features --features "toml psql"
+* Enable only required feature: --no-default-features --features "toml,psql"
 
 ## Getting started
 
@@ -83,7 +83,7 @@ cargo install chewdata --no-default-features
 If you want to specify some features to add to your installation
 
 ```bash
-cargo install chewdata --no-default-features --features "xml bucket"
+cargo install chewdata --no-default-features --features "xml,bucket"
 ```
 
 Please, referer to the [features documentation](/docs/componants/features)</a>.

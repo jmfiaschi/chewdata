@@ -55,7 +55,7 @@ jobs:
       - uses: extractions/setup-just@v3
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: build
+          shared-key: build-${{ matrix.name }}
       - run: just setup
       - run: ${{ matrix.command }}
   tests:
@@ -92,7 +92,7 @@ jobs:
       - uses: extractions/setup-just@v3
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: tests
+          shared-key: tests-${{ matrix.name }}
       - uses: webgtx/setup-podman-compose@v1
       - run: ${{ matrix.command }}
   benchmark:
