@@ -90,7 +90,7 @@ test-parquet:
     cargo test --examples --features "ordered parquet"
     cargo test --doc --features "ordered parquet"
 
-test-bucket: minio_install
+test-bucket: minio-install
     cargo test --tests --features "ordered bucket csv"
     cargo test --examples --features "ordered bucket csv"
     cargo test --doc --features "ordered bucket csv"
@@ -100,7 +100,7 @@ test-psql: psql
     cargo test --examples --features "ordered psql"
     cargo test --doc --features "ordered psql"
 
-test-curl: http-mock https-mock
+test-curl: http-mock https-mock keycloak rabbitmq
     cargo test --tests --features "ordered curl"
     cargo test --examples --features "ordered curl"
     cargo test --doc --features "ordered curl"
@@ -131,7 +131,7 @@ minio:
     @echo "Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY}"
     podman-compose up -d minio
 
-minio_install:
+minio-install:
     @echo "Configure Minio server."
     podman-compose run --rm mc alias set s3 http://minio:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
     podman-compose run --rm mc mb -p s3/my-bucket
@@ -190,7 +190,7 @@ semantic-release:
     npx semantic-release
 
 # Start all servers
-start: stop debug minio_install http-mock https-mock mongodb keycloak rabbitmq
+start: stop debug minio-install http-mock https-mock mongodb keycloak rabbitmq
 
 # Stop all servers
 stop:
@@ -204,5 +204,5 @@ clean: stop
 version:
     grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml | head -1
 
-podman_build:
+podman-build:
     podman build -t chewdata .
