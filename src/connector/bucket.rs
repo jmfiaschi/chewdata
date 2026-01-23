@@ -110,8 +110,8 @@ pub struct Bucket {
 impl fmt::Debug for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Bucket")
-            .field("document", &self.document)
-            .field("metadata", &self.metadata)
+            .field("document", &self.document.display_only_for_debugging())
+            .field("metadata", &self.metadata.display_only_for_debugging())
             .field("endpoint", &self.endpoint)
             .field("profile", &self.profile)
             .field("region", &self.region)

@@ -24,6 +24,7 @@
 use super::Connector;
 use crate::connector::paginator::once::Once;
 use crate::document::Document;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataSet, DataStream, Metadata};
 use async_lock::Mutex;
 use async_stream::stream;
@@ -72,7 +73,7 @@ impl fmt::Display for InMemory {
 impl fmt::Debug for InMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InMemory")
-            .field("metadata", &self.metadata)
+            .field("metadata", &self.metadata.display_only_for_debugging())
             .finish()
     }
 }

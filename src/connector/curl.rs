@@ -233,9 +233,12 @@ impl Clone for Curl {
 impl fmt::Debug for Curl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Curl")
-            .field("document", &self.document)
-            .field("metadata", &self.metadata)
-            .field("authenticator_type", &self.authenticator_type)
+            .field("document", &self.document.display_only_for_debugging())
+            .field("metadata", &self.metadata.display_only_for_debugging())
+            .field(
+                "authenticator_type",
+                &self.authenticator_type.display_only_for_debugging(),
+            )
             .field("endpoint", &self.endpoint)
             .field("path", &self.path)
             .field("method", &self.method)

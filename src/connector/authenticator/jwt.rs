@@ -93,8 +93,11 @@ impl fmt::Debug for Jwt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Jwt")
             .field("algorithm", &self.algorithm)
-            .field("refresh_connector_type", &self.refresh_connector_type)
-            .field("document", &self.document)
+            .field(
+                "refresh_connector_type",
+                &self.refresh_connector_type.display_only_for_debugging(),
+            )
+            .field("document", &self.document.display_only_for_debugging())
             .field("jwk", &self.jwk.display_only_for_debugging())
             .field("signing_type", &self.signing_type)
             .field(

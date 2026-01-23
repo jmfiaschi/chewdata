@@ -89,7 +89,7 @@ pub struct Local {
 impl fmt::Debug for Local {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Local")
-            .field("metadata", &self.metadata)
+            .field("metadata", &self.metadata.display_only_for_debugging())
             .field("path", &self.path)
             .field("parameters", &self.parameters.display_only_for_debugging())
             .field("is_cached", &self.is_cached)

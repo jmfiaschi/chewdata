@@ -113,12 +113,12 @@ impl fmt::Debug for Mongodb {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Mongodb")
             // Can contain sensitive data
-            .field("document", &self.document)
+            .field("document", &self.document.display_only_for_debugging())
             .field("endpoint", &self.endpoint.display_only_for_debugging())
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("parameters", &self.parameters.display_only_for_debugging())
-            .field("filter", &self.filter)
+            .field("filter", &self.filter.display_only_for_debugging())
             .field("paginator_type", &self.paginator_type)
             .field("find_options", &self.find_options)
             .field("update_options", &self.update_options)

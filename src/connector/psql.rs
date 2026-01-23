@@ -102,8 +102,7 @@ impl Default for Psql {
 impl fmt::Debug for Psql {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Psql")
-            // Can contain sensitive data
-            .field("endpoint", &self.endpoint.display_only_for_debugging())
+            .field("endpoint", &self.endpoint)
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("parameters", &self.parameters.display_only_for_debugging())
