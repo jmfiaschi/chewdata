@@ -81,6 +81,7 @@ async fn run() -> io::Result<()> {
 
         let expected = serde_json::json!([10, 20, 30]);
 
+        println!("Result: {}", result);
         assert_eq!(
             expected,
             result.clone().search("/*/number")?.unwrap_or_default(),
