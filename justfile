@@ -90,7 +90,7 @@ test-parquet:
     cargo test --examples --features "ordered,parquet"
     cargo test --doc --features "ordered,parquet"
 
-test-bucket: minio minio-install
+test-bucket: minio-install
     cargo test --tests --features "ordered,bucket,csv,parquet"
     cargo test --examples --features "ordered,bucket,csv,parquet"
     cargo test --doc --features "ordered,bucket,csv,parquet"

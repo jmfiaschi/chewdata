@@ -76,15 +76,15 @@ async fn run() -> io::Result<()> {
         drop(sender_output);
         let mut result = serde_json::json!([]);
         while let Ok(output) = receiver_output.recv().await {
+            println!("output: {}", output.input().to_value());
             result.merge(&output.input().to_value());
         }
 
         let expected = serde_json::json!([10, 20, 30]);
 
-        println!("Result: {}", result);
         assert_eq!(
             expected,
-            result.clone().search("/*/number")?.unwrap_or_default(),
+            result.search("/*/number")?.unwrap_or_default(),
             "The result not match the expected value"
         );
     }
@@ -134,7 +134,7 @@ async fn run() -> io::Result<()> {
 
         assert_eq!(
             expected,
-            result.clone().search("/*/number")?.unwrap_or_default(),
+            result.search("/*/number")?.unwrap_or_default(),
             "The result not match the expected value"
         );
     }
@@ -187,7 +187,7 @@ async fn run() -> io::Result<()> {
 
         assert_eq!(
             expected,
-            result.clone().search("/*/number")?.unwrap_or_default(),
+            result.search("/*/number")?.unwrap_or_default(),
             "The result not match the expected value"
         );
     }
