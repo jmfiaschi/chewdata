@@ -8,20 +8,21 @@ pub trait Obfuscate {
 impl Obfuscate for String {
     /// obfuscate a part of the string.
     fn to_obfuscate(&mut self) -> &mut Self {
-        self.replace_range(
-            (self.len() / 2)..self.len(),
-            (0..(self.len() / 2))
-                .map(|_| "#")
-                .collect::<String>()
-                .as_str(),
-        );
+        let len = self.len();
+        if len == 0 {
+            return self;
+        }
+
+        let half = len / 2;
+        let obfuscation = "#".repeat(len - half); // second half replaced by #
+        self.replace_range(half..len, &obfuscation);
 
         self
     }
 }
 
 pub const LOG_DATA: &str = "LOG_DATA";
-pub const MESSAGE_SEE_VALUE_IN_DEBUG_MODE: &str = "[set LOG_DATA=1 to see 🔎]";
+pub const MESSAGE_SEE_VALUE_IN_DEBUG_MODE: &str = "[HIDDEN: set LOG_DATA=1 🔎]";
 
 pub trait DisplayOnlyForDebugging {
     /// Obfusctate a part of the object.
@@ -35,12 +36,18 @@ where
     T: Debug,
 {
     fn display_only_for_debugging(&self) -> String {
-        match env::var(LOG_DATA) {
-            Ok(env) => match env.as_str() {
-                "true" | "1" => format!("{:?}", self),
-                _ => MESSAGE_SEE_VALUE_IN_DEBUG_MODE.to_string(),
-            },
-            _ => MESSAGE_SEE_VALUE_IN_DEBUG_MODE.to_string(),
+        if log_enabled() {
+            format!("{:?}", self)
+        } else {
+            MESSAGE_SEE_VALUE_IN_DEBUG_MODE.to_string()
         }
+    }
+}
+
+/// Check if logging of full data is enabled
+fn log_enabled() -> bool {
+    match env::var(LOG_DATA) {
+        Ok(v) => matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"),
+        _ => false,
     }
 }

@@ -17,7 +17,7 @@ async fn main() -> io::Result<()> {
 
 #[cfg(feature = "csv")]
 async fn run() -> io::Result<()> {
-    let data_to_transform = b"column1,column2\nvalue1,value2\n---\n";
+    let data_to_transform = b"column1,column2\nvalue1,value2\n";
     let config = r#"[{"type":"r","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"w","document":{"type":"jsonl"}}]"#;
 
     println!(
@@ -25,7 +25,10 @@ async fn run() -> io::Result<()> {
         String::from_utf8_lossy(data_to_transform)
     );
 
-    let mut child = Command::new("chewdata")
+    let mut child = Command::new("cargo")
+        .arg("run")
+        .arg("--features")
+        .arg("csv")
         .args(&[config])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

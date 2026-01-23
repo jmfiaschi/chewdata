@@ -43,6 +43,7 @@
 //! ```
 use crate::connector::Connector;
 use crate::document::DocumentType;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, Context};
@@ -195,7 +196,7 @@ async fn read<'step>(
             dataset
         },
         Ok(None) => {
-            info!("No data found through the connector");
+            info!(document = connector.document().display_only_for_debugging(), "No data found through the connector. If it's not normal, check the document configuration.");
             return
         },
         Err(e) => {

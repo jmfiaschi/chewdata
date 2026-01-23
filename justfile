@@ -45,11 +45,11 @@ build-feature-apm:
 
 # Run the project with 'json_config' data in argument
 run-with-json json_config: debug
-    cargo run '{{json_config}}'
+    cargo run --all-features '{{json_config}}'
 
 # Run the project with json 'file_path' in argument
 run-with-file file_path: debug
-    cargo run -- --file '{{file_path}}'
+    cargo run --all-features -- --file '{{file_path}}'
 
 # Run the project without arguments
 run: debug

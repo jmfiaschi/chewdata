@@ -162,14 +162,14 @@ $ cat ./data/multi_lines.json | chewdata
 The configuration is usefull to customize a list of steps. It support [`hjson`](https://hjson.github.io/) format in order to enrich it.
 
 ```Bash
-$ cat ./data/multi_lines.csv | cargo run '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
+$ cat ./data/multi_lines.csv | cargo run --features "csv" '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
 [{...}] // Will transform the csv data into json format
 ```
 
 or
 
 ```Bash
-$ cat ./data/multi_lines.csv | just run json='[{\"type\":\"reader\",\"document\":{\"type\":\"csv\"}},{\"type\":\"writer\"}]'
+$ cat ./data/multi_lines.csv | just run-with-json '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
 [{...}] // Will transform the csv data into json format
 ```
 
@@ -184,7 +184,7 @@ Another example, With file configuration in argument
 
 ```Bash
 $ echo '[{"type":"reader","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
-$ cat ./data/multi_lines.csv | cargo run -- --file my_etl.conf.json
+$ cat ./data/multi_lines.csv | cargo run --features "csv" -- --file my_etl.conf.json
 [{...}]
 ```
 
@@ -192,7 +192,7 @@ or
 
 ```Bash
 $ echo '[{"type":"reader","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
-$ cat ./data/multi_lines.csv | just run file=my_etl.conf.json
+$ cat ./data/multi_lines.csv | just run-with-file my_etl.conf.json
 [{...}]
 ```
 
