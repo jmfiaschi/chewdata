@@ -1,24 +1,64 @@
 use std::{env, fmt::Debug};
 
+pub const OFUSCATE_CHAR: &str = "*";
+
 pub trait Obfuscate {
-    /// Obfusctate a part of the object.
-    fn to_obfuscate(&mut self) -> &mut String;
+    /// obfuscate the string.
+    fn to_obfuscate(&self) -> String;
 }
 
 impl Obfuscate for String {
-    /// obfuscate a part of the string.
-    fn to_obfuscate(&mut self) -> &mut Self {
-        let len = self.len();
-        if len == 0 {
-            return self;
+    /// obfuscate the string.
+    fn to_obfuscate(&self) -> String {
+        // Try URI-style obfuscation first
+        if let Some(obfuscated) = obfuscate_uri_password(self) {
+            return obfuscated;
         }
 
-        let half = len / 2;
-        let obfuscation = "#".repeat(len - half); // second half replaced by #
-        self.replace_range(half..len, &obfuscation);
+        // Fallback: generic obfuscation
+        if let Some(obfuscated) = obfuscate_tail(self) {
+            return obfuscated;
+        }
 
-        self
+        self.clone()
     }
+}
+
+fn obfuscate_uri_password(source: &String) -> Option<String> {
+    let mut s = source.clone();
+    let Some(proto_end) = s.find("://") else {
+        return None;
+    };
+    let Some(at_rel) = s[proto_end + 3..].find('@') else {
+        return None;
+    };
+    let at = proto_end + 3 + at_rel;
+
+    let Some(colon_rel) = s[proto_end + 3..at].find(':') else {
+        return None;
+    };
+    let colon = proto_end + 3 + colon_rel;
+
+    let password_range = colon + 1..at;
+    let password_len = password_range.end - password_range.start;
+
+    let obfuscation = OFUSCATE_CHAR.repeat(password_len);
+    s.replace_range(password_range, &obfuscation);
+
+    Some(s)
+}
+
+fn obfuscate_tail(source: &String) -> Option<String> {
+    let mut s = source.clone();
+    let len = s.len();
+    if len == 0 {
+        return None;
+    }
+
+    let half = len / 2;
+    let obfuscation = OFUSCATE_CHAR.repeat(len - half);
+    s.replace_range(half..len, &obfuscation);
+    Some(s)
 }
 
 pub const LOG_DATA: &str = "LOG_DATA";

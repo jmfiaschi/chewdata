@@ -66,11 +66,7 @@ impl fmt::Debug for Basic {
             .field("username", &self.username)
             .field(
                 "password",
-                &self
-                    .password
-                    .to_owned()
-                    .to_obfuscate()
-                    .display_only_for_debugging(),
+                &self.password.to_obfuscate().display_only_for_debugging(),
             )
             .finish()
     }

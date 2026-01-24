@@ -86,7 +86,7 @@ use super::paginator::curl::PaginatorType;
 use super::Connector;
 use crate::document::Document;
 use crate::helper::mustache::Mustache;
-use crate::helper::string::DisplayOnlyForDebugging;
+use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{DataResult, DataSet, DataStream, Metadata};
 use anyhow::Context as AnyContext;
 use async_stream::stream;
@@ -239,7 +239,7 @@ impl fmt::Debug for Curl {
                 "authenticator_type",
                 &self.authenticator_type.display_only_for_debugging(),
             )
-            .field("endpoint", &self.endpoint)
+            .field("endpoint", &self.endpoint.to_obfuscate())
             .field("path", &self.path)
             .field("method", &self.method)
             // Can contain sensitive data

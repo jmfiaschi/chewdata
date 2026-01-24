@@ -100,14 +100,7 @@ impl fmt::Debug for Jwt {
             .field("document", &self.document.display_only_for_debugging())
             .field("jwk", &self.jwk.display_only_for_debugging())
             .field("signing_type", &self.signing_type)
-            .field(
-                "key",
-                &self
-                    .key
-                    .to_owned()
-                    .to_obfuscate()
-                    .display_only_for_debugging(),
-            )
+            .field("key", &self.key.to_obfuscate().display_only_for_debugging())
             .finish()
     }
 }

@@ -36,7 +36,7 @@
 use super::counter::mongodb::CounterType;
 use super::Connector;
 use crate::connector::paginator::mongodb::PaginatorType;
-use crate::helper::string::DisplayOnlyForDebugging;
+use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{
     document::Document as ChewdataDocument, helper::mustache::Mustache, DataSet, DataStream,
 };
@@ -114,7 +114,7 @@ impl fmt::Debug for Mongodb {
         f.debug_struct("Mongodb")
             // Can contain sensitive data
             .field("document", &self.document.display_only_for_debugging())
-            .field("endpoint", &self.endpoint.display_only_for_debugging())
+            .field("endpoint", &self.endpoint.to_obfuscate())
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("parameters", &self.parameters.display_only_for_debugging())

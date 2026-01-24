@@ -49,23 +49,10 @@ pub struct Bearer {
 
 impl fmt::Debug for Bearer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut obfuscate_token = self.token.clone();
-        obfuscate_token.replace_range(
-            0..(obfuscate_token.len() / 2),
-            (0..(obfuscate_token.len() / 2))
-                .map(|_| "#")
-                .collect::<String>()
-                .as_str(),
-        );
-
         f.debug_struct("Bearer")
             .field(
                 "token",
-                &self
-                    .token
-                    .to_owned()
-                    .to_obfuscate()
-                    .display_only_for_debugging(),
+                &self.token.to_obfuscate().display_only_for_debugging(),
             )
             .field("is_base64", &self.is_base64)
             .finish()

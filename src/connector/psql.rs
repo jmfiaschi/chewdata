@@ -36,7 +36,7 @@ use super::counter::psql::CounterType;
 use super::paginator::psql::PaginatorType;
 use super::Connector;
 use crate::helper::json_pointer::JsonPointer;
-use crate::helper::string::DisplayOnlyForDebugging;
+use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{helper::mustache::Mustache, DataResult};
 use crate::{DataSet, DataStream};
 use async_lock::Mutex;
@@ -102,7 +102,7 @@ impl Default for Psql {
 impl fmt::Debug for Psql {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Psql")
-            .field("endpoint", &self.endpoint)
+            .field("endpoint", &self.endpoint.to_obfuscate())
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("parameters", &self.parameters.display_only_for_debugging())
