@@ -24,19 +24,13 @@ impl Obfuscate for String {
     }
 }
 
-fn obfuscate_uri_password(source: &String) -> Option<String> {
-    let mut s = source.clone();
-    let Some(proto_end) = s.find("://") else {
-        return None;
-    };
-    let Some(at_rel) = s[proto_end + 3..].find('@') else {
-        return None;
-    };
+fn obfuscate_uri_password(source: &str) -> Option<String> {
+    let mut s = source.to_owned();
+    let proto_end = s.find("://")?;
+    let at_rel = s[proto_end + 3..].find('@')?;
     let at = proto_end + 3 + at_rel;
 
-    let Some(colon_rel) = s[proto_end + 3..at].find(':') else {
-        return None;
-    };
+    let colon_rel = s[proto_end + 3..at].find(':')?;
     let colon = proto_end + 3 + colon_rel;
 
     let password_range = colon + 1..at;
@@ -48,8 +42,8 @@ fn obfuscate_uri_password(source: &String) -> Option<String> {
     Some(s)
 }
 
-fn obfuscate_tail(source: &String) -> Option<String> {
-    let mut s = source.clone();
+fn obfuscate_tail(source: &str) -> Option<String> {
+    let mut s = source.to_owned();
     let len = s.len();
     if len == 0 {
         return None;
