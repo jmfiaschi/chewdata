@@ -135,7 +135,7 @@ minio-install:
     @echo "Configure Minio server."
     podman-compose run --rm mc alias set s3 http://minio:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
     podman-compose run --rm mc mb -p s3/my-bucket
-    podman-compose run --rm mc cp -r /root/data s3/my-bucket
+    podman-compose run --rm mc mirror /root/data s3/my-bucket/data
 
 # Start mockhttp APIs in local.
 http-mock:

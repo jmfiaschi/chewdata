@@ -16,7 +16,7 @@ services:
             MINIO_ROOT_PASSWORD: ${BUCKET_SECRET_ACCESS_KEY}
             MINIO_API_SELECT_PARQUET: "on"
         healthcheck:
-            test: ["CMD", "mc", "ready", "local"]
+            test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
             interval: 5s
             timeout: 5s
             retries: 5

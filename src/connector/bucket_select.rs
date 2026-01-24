@@ -298,47 +298,40 @@ impl BucketSelect {
             .await
             .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
 
-        let mut buffer = Vec::default();
+        let mut buffer = Vec::new();
 
-        while let Some(event) = event_stream
-            .payload
-            .recv()
-            .compat()
-            .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
-        {
+        loop {
+            let event_opt = event_stream.payload.recv().compat().await;
+
+            let event = match event_opt {
+                Ok(Some(ev)) => ev,
+                Ok(None) => break,
+                Err(e) => {
+                    warn!("S3 Select failed: {:#?}", e);
+                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e));
+                }
+            };
+
             match event {
                 SelectObjectContentEventStream::Records(records) => {
-                    trace!("records Event");
                     if let Some(bytes) = records.payload() {
-                        buffer.append(&mut bytes.clone().into_inner());
-                    };
+                        buffer.extend_from_slice(bytes.as_ref());
+                    }
                 }
                 SelectObjectContentEventStream::Stats(stats) => {
-                    trace!(
-                        stats = format!("{:?}", stats.details()).as_str(),
-                        "Stats Event"
-                    );
+                    trace!(?stats, "Stats Event");
+                }
+                SelectObjectContentEventStream::Progress(progress) => {
+                    trace!(?progress, "Progress Event");
                 }
                 SelectObjectContentEventStream::End(_) => {
                     trace!("End Event");
                     break;
                 }
-                SelectObjectContentEventStream::Progress(progress) => {
-                    trace!(
-                        details = format!("{:?}", progress.details()).as_str(),
-                        "Progress Event"
-                    );
-                }
                 SelectObjectContentEventStream::Cont(_) => {
                     trace!("Continuation Event");
                 }
-                otherwise => {
-                    return Err(Error::new(
-                        ErrorKind::Interrupted,
-                        format!("{:?}", otherwise),
-                    ))
-                }
+                other => trace!(event = ?other, "Ignoring unknown event"),
             }
         }
 
@@ -354,53 +347,31 @@ impl BucketSelect {
             .await
             .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
 
-        let mut buffer: usize = 0;
+        let mut scanned: usize = 0;
 
         while let Some(event) = event_stream
             .payload
             .recv()
             .compat()
             .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
         {
             match event {
-                SelectObjectContentEventStream::Records(_) => {
-                    trace!("records Event");
-                }
                 SelectObjectContentEventStream::Stats(stats) => {
-                    trace!(
-                        stats = format!("{:?}", stats.details()).as_str(),
-                        "Stats Event"
-                    );
-                    if let Some(stats) = stats.details {
-                        if let Some(bytes_scanned) = stats.bytes_scanned() {
-                            buffer += bytes_scanned as usize;
+                    if let Some(details) = stats.details {
+                        if let Some(bytes) = details.bytes_scanned() {
+                            scanned = scanned.max(bytes as usize);
                         }
-                    };
+                    }
                 }
-                SelectObjectContentEventStream::End(_) => {
-                    trace!("End Event");
-                    break;
-                }
-                SelectObjectContentEventStream::Progress(progress) => {
-                    trace!(
-                        details = format!("{:?}", progress.details()).as_str(),
-                        "Progress Event"
-                    );
-                }
-                SelectObjectContentEventStream::Cont(_) => {
-                    trace!("Continuation Event");
-                }
-                otherwise => {
-                    return Err(Error::new(
-                        ErrorKind::Interrupted,
-                        format!("{:?}", otherwise),
-                    ))
+                SelectObjectContentEventStream::End(_) => break,
+                other => {
+                    trace!(event = ?other, "Ignoring unknown event");
                 }
             }
         }
 
-        Ok(buffer)
+        Ok(scanned)
     }
 }
 

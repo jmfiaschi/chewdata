@@ -33,8 +33,106 @@ async fn main() -> io::Result<()> {
     run().await
 }
 
-#[cfg(all(feature = "bucket", feature = "csv"))]
-async fn run() -> io::Result<()> {
+async fn send_data() -> io::Result<()> {
+    // Send data to bucket for select tests
+    tracing::info!("---Send data to bucket---");
+
+    // To avoid failure with linux, minio is strict and avoid to pretty jsonl files.
+
+    let config = r#"
+        [
+            {
+                "type": "e",
+                "connector": {
+                    "type": "bucket",
+                    "bucket": "my-bucket",
+                    "path": "data/out/bucket_select_multi_lines.jsonl",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}"
+                }
+            },
+            {
+                "type": "e",
+                "connector": {
+                    "type": "bucket",
+                    "bucket": "my-bucket",
+                    "path": "data/out/bucket_select_multi_lines.json",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}"
+                }
+            },
+            {
+                "type": "e",
+                "connector": {
+                    "type": "bucket",
+                    "bucket": "my-bucket",
+                    "path": "data/out/bucket_select_multi_lines.csv",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}"
+                }
+            },
+            {
+                "type": "r",
+                "connector": {
+                    "type": "local",
+                    "path": "./data/multi_lines.json",
+                },
+                "document" : {
+                    "type": "json"
+                }
+            },
+            {
+                "type": "w",
+                "connector": {
+                    "type": "bucket",
+                    "bucket": "my-bucket",
+                    "path": "data/out/bucket_select_multi_lines.jsonl",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}"
+                },
+                "document" : {
+                    "type": "jsonl"
+                }
+            },
+            {
+                "type": "w",
+                "connector": {
+                    "type": "bucket",
+                    "bucket": "my-bucket",
+                    "path": "data/out/bucket_select_multi_lines.json",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}"
+                },
+                "document" : {
+                    "type": "json"
+                }
+            },
+            {
+                "type": "w",
+                "connector": {
+                    "type": "bucket",
+                    "bucket": "my-bucket",
+                    "path": "data/out/bucket_select_multi_lines.csv",
+                    "endpoint": "{{ BUCKET_ENDPOINT }}",
+                    "region": "{{ BUCKET_REGION }}"
+                },
+                "document" : {
+                    "type": "csv"
+                }
+            }
+        ]
+        "#;
+
+    chewdata::exec(
+        deser_hjson::from_str(config.apply().as_str())
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        None,
+        None,
+    )
+    .await
+}
+
+async fn select_jsonl() -> io::Result<()> {
     tracing::info!("---BucketSelect with Jsonl---");
 
     {
@@ -45,10 +143,10 @@ async fn run() -> io::Result<()> {
                 "connector": {
                     "type": "bucket_select",
                     "bucket": "my-bucket",
-                    "path": "data/multi_lines.jsonl",
+                    "path": "data/out/bucket_select_multi_lines.jsonl",
                     "endpoint": "{{ BUCKET_ENDPOINT }}",
                     "region": "{{ BUCKET_REGION }}",
-                    "query": "select * from s3object"
+                    "query": "select * from S3Object"
                 },
                 "document" : {
                     "type": "jsonl"
@@ -89,6 +187,10 @@ async fn run() -> io::Result<()> {
         );
     }
 
+    Ok(())
+}
+
+async fn select_json() -> io::Result<()> {
     tracing::info!("---BucketSelect with Json---");
 
     {
@@ -99,10 +201,10 @@ async fn run() -> io::Result<()> {
                 "connector": {
                     "type": "bucket_select",
                     "bucket": "my-bucket",
-                    "path": "data/multi_lines.{{ metadata.mime_subtype }}",
+                    "path": "data/out/bucket_select_multi_lines.{{ metadata.mime_subtype }}",
                     "endpoint": "{{ BUCKET_ENDPOINT }}",
                     "region": "{{ BUCKET_REGION }}",
-                    "query": "select * from s3object[*]._1"
+                    "query": "select * from S3Object[*]._1"
                 }
             },
             {
@@ -139,6 +241,10 @@ async fn run() -> io::Result<()> {
         );
     }
 
+    Ok(())
+}
+
+async fn select_csv() -> io::Result<()> {
     tracing::info!("---BucketSelect with Csv---");
 
     {
@@ -149,10 +255,10 @@ async fn run() -> io::Result<()> {
                 "connector": {
                     "type": "bucket_select",
                     "bucket": "my-bucket",
-                    "path": "data/multi_lines.{{ metadata.mime_subtype }}",
+                    "path": "data/out/bucket_select_multi_lines.{{ metadata.mime_subtype }}",
                     "endpoint": "{{ BUCKET_ENDPOINT }}",
                     "region": "{{ BUCKET_REGION }}",
-                    "query": "select * from s3object"
+                    "query": "select * from S3Object"
                 },
                 "document" : {
                     "type": "csv"
@@ -191,6 +297,16 @@ async fn run() -> io::Result<()> {
             "The result not match the expected value"
         );
     }
+
+    Ok(())
+}
+
+#[cfg(all(feature = "bucket", feature = "csv"))]
+async fn run() -> io::Result<()> {
+    self::send_data().await?;
+    self::select_jsonl().await?;
+    self::select_json().await?;
+    self::select_csv().await?;
 
     Ok(())
 }
