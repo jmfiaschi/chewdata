@@ -1,40 +1,45 @@
 # Chewdata
 
-[![CI](https://github.com/jmfiaschi/chewdata/workflows/CI/badge.svg)](https://github.com/jmfiaschi/chewdata/actions)
+[![CI](https://github.com/jmfiaschi/chewdata/workflows/ci/badge.svg)](https://github.com/jmfiaschi/chewdata/actions)
 [![Coverage](https://codecov.io/gh/jmfiaschi/chewdata/branch/main/graph/badge.svg?token=EI62L7XQAH)](https://codecov.io/gh/jmfiaschi/chewdata)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
 
-This application is a light ETL in rust that can be used as a connector between systems
+This application is a lightweight ETL written in Rust, designed to act as a high-performance connector between heterogeneous systems.
+It focuses on parallelism, low overhead, and modular feature selection, making it suitable for both local workloads and cloud-native deployments.
 
-| Feature                                  | Values                                                                                                  | Description                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Generate data                            | -                                                                                                       | Generate data for testing                                          |
-| Supported formats                        | `json` [E] , `jsonl` [E] , `csv` [D] , `toml` [D] , `xml` [D] , `yaml` [E] , `text` [E] , `parquet` [D] | Read and Write in these formats                                    |
-| Multi Connectors                         | `mongodb` [D] , `bucket` [D], `curl` [D] , `psql` [D], `local` [E], `cli` [E], `inmemory` [E]           | Read / Write / Clean data                                          |
-| Multi Http auths                         | `basic` [D] , `bearer` [D], `jwt` [D]                                                                   | Give different possibilities to authenticate the `curl`            |
-| Transform data                           | [tera](https://tera.netlify.app/docs)    [E]                                                            | Transform the data in the fly                                      |
-| Configuration formats allowed            | `json` [E], `yaml`     [E]                                                                              | The project need a jobs configuration in input                     |
-| Read data in parallel or sequential mode | `cursor`[E] , `offset`     [E]                                                                          | With this type of paginator, the data can be read in different way |
-| Application Performance Monitoring (APM) | `apm`[D]                                                                                                | Send APM logs into Jaeger                                          |
+| Feature                                  | Values                                                                                                  | Description                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Generate data                            | -                                                                                                       | Generate synthetic data for testing and development            |
+| Supported data formats                   | `json` [E] , `jsonl` [E] , `csv` [D] , `toml` [D] , `xml` [D] , `yaml` [E] , `text` [E] , `parquet` [D] | Read and write multiple structured and semi-structured formats |
+| Multiple Connectors                      | `mongodb` [D] , `bucket` [D], `curl` [D] , `psql` [D], `local` [E], `cli` [E], `inmemory` [E]           | Read, write, and clean data across different backends          |
+| Multiple Http auths                      | `basic` [D] , `bearer` [D], `jwt` [D]                                                                   | Authentication strategies for the `curl` connector             |
+| Data transformation                      | [tera](https://keats.github.io/tera/docs/)    [E]                                                       | Transform data on the fly using templates                      |
+| Configuration formats allowed            | `json` [E], `yaml` [E], [hjson](https://hjson.github.io/) [E]                                           | Job definitions provided via versionable config files          |
+| Parallel / sequential reading            | `cursor`[E] , `offset`     [E]                                                                          | Flexible pagination strategies for data ingestion              |
+| Application Performance Monitoring (APM) | `apm`[D]                                                                                                | Export traces and metrics                                      |
 
-> [E] - Feature `E`nabled by default. Use `--no-default-features` argument to remove all enabled features by default.
->
-> [D] - Feature `D`isabled and must be enabled with the `--features` argument.
+> [E] - `E`nabled by default - disable with `--no-default-features`
+> [D] - `D`isabledby default - enable explicitly via `--features`
 
 More useful information:
 
-* It need only rustup
+* Requires only `rustup` — no external runtime dependencies
 * No garbage collector
 * Parallel works
-* Cross-platform
+* Fully cross-platform
 * Use async/await for concurrent execution with zero-cost
-* Read multi files in parallel into the local or in a bucket
-* Search data into multi csv/json/parquet files with S3 select
-* Can be deployed into AWS Lambda
-* The configuration easly versionable
-* Can generate data in the fly for testing purpose
-* Control and validate the data. Handle bad and valid data in a dedicated stream
-* Enable only required feature: --no-default-features --features "toml,psql"
+* Highly parallel execution model
+* Read multiple files concurrently from:
+*  - Local filesystem
+*  - S3 compatible bucket
+* Query CSV / JSON / Parquet files using S3 Select
+* Deployable as an AWS Lambda
+* Configuration is easy to version and review
+* Generate test data on the fly
+* Built-in data validation
+*  - Separate streams for valid and invalid records
+* Compile only what you need: 
+*  - cargo build --no-default-features --features "toml,psql"
 
 ## Getting started
 
