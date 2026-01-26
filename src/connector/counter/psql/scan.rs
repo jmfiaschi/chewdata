@@ -44,21 +44,20 @@ impl Scan {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use smol::prelude::*;
     /// use std::io;
     /// use chewdata::connector::counter::psql::scan::Scan;
-    ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
-    ///     connector.endpoint = "psql://admin:admin@localhost:27017".into();
-    ///     connector.database = "local".into();
-    ///     connector.collection = "startup_log".into();
+    ///     connector.endpoint = "postgres://admin:admin@localhost".into();
+    ///     connector.database = "postgres".into();
+    ///     connector.collection = "public.read".into();
     ///
     ///     let counter = Scan::default();
     ///     assert!(0 < counter.count(&connector).await.unwrap());

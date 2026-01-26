@@ -16,7 +16,7 @@ services:
             MINIO_ROOT_PASSWORD: ${BUCKET_SECRET_ACCESS_KEY}
             MINIO_API_SELECT_PARQUET: "on"
         healthcheck:
-            test: ["CMD", "mc", "ready", "local"]
+            test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
             interval: 5s
             timeout: 5s
             retries: 5
@@ -35,7 +35,18 @@ services:
         ports:
             - 8080:8080
 
-    mongo:
+    https-mock:
+        image: mccutchen/go-httpbin
+        ports:
+            - 8084:8080
+        environment:
+            HTTPS_CERT_FILE: /tmp/server.crt
+            HTTPS_KEY_FILE: /tmp/erver.key
+        volumes:
+          - ./.config/server.crt:/tmp/server.crt
+          - ./.config/server.key:/tmp/erver.key
+
+    mongodb:
         image: mongo
         ports:
             - 27017:27017
@@ -49,7 +60,7 @@ services:
             retries: 3
             start_period: 5s
 
-    mongo-admin:
+    mongodb-admin:
         image: mongo-express
         ports:
             - 8081:8081
@@ -88,22 +99,20 @@ services:
             - 8082:8080
 
     keycloak:
-        image: quay.io/keycloak/keycloak
+        image: quay.io/keycloak/keycloak:latest
         restart: always
         environment:
-            - KC_LOG_LEVEL=DEBUG
-            - KC_DB_URL_HOST=psql
-            - KC_DB=${PSQL_DB}
-            - KC_DB_USERNAME=${PSQL_USERNAME}
-            - KC_DB_PASSWORD=${PSQL_PASSWORD}
-            - KC_DB_URL=jdbc:postgresql://psql:5432/postgres
-            - KC_HOSTNAME=localhost
-            - KC_HOSTNAME_PORT=8083
-            - KC_HEALTH_ENABLED=true
-            - KC_METRICS_ENABLED=true
-            - KEYCLOAK_ADMIN=${KEYCLOAK_USER}
-            - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_PASSWORD}
-            - KEYCLOAK_STATISTICS=all
+            KC_LOG_LEVEL: INFO
+            KC_DB: postgres
+            KC_DB_USERNAME: ${PSQL_USERNAME}
+            KC_DB_PASSWORD: ${PSQL_PASSWORD}
+            KC_DB_URL: jdbc:postgresql://psql:5432/${PSQL_DB}
+            KC_HEALTH_ENABLED: "true"
+            KC_METRICS_ENABLED: "true"
+            KEYCLOAK_ADMIN: ${KEYCLOAK_USER}
+            KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD}
+            KC_HTTP_ENABLED: "true"
+            KC_HOSTNAME_STRICT: "false"
         depends_on:
             psql:
                 condition: service_healthy
@@ -127,12 +136,31 @@ services:
 
     rabbitmq:
         image: rabbitmq:3-management-alpine
+        restart: always
         environment:
             - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME}
             - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+            - RABBITMQ_DEFAULT_VHOST=/
         ports:
-            - 5672:5672
-            - 15672:15672
+            - "127.0.0.1:5672:5672"
+            - "127.0.0.1:15672:15672"
+        healthcheck:
+            test: >
+                rabbitmq-diagnostics -q ping &&
+                rabbitmq-diagnostics -q check_running &&
+                rabbitmq-diagnostics -q check_port_listener 5672 &&
+                rabbitmq-diagnostics -q check_port_listener 15672
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    rabbitmq-ready:
+        image: busybox
+        command: echo "I'm ready for tests"
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
 
     monitoring:
         image: jaegertracing/all-in-one:latest

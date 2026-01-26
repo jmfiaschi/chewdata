@@ -46,7 +46,7 @@ impl Referential {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::step::referential::Referential;
     /// use chewdata::step::reader::Reader;
     /// use chewdata::connector::in_memory::InMemory;

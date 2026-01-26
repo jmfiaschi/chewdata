@@ -173,7 +173,7 @@ impl Document for Xml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -188,10 +188,10 @@ impl Document for Xml {
     ///     .to_vec();
     /// let mut dataset = document.read(&buffer).unwrap().into_iter();
     /// let data_1 = dataset.next().unwrap().to_value();
-    /// let expected_data_1: Value = serde_json::from_str(r#"{"_":"value_1"}"#).unwrap();
+    /// let expected_data_1: Value = serde_json::from_str(r#"{"$text":"value_1"}"#).unwrap();
     /// assert_eq!(expected_data_1, data_1);
     /// let data_2 = dataset.next().unwrap().to_value();
-    /// let expected_data_2: Value = serde_json::from_str(r#"{"_":"value_2"}"#).unwrap();
+    /// let expected_data_2: Value = serde_json::from_str(r#"{"$text":"value_2"}"#).unwrap();
     /// assert_eq!(expected_data_2, data_2);
     /// ```
     #[instrument(skip(buffer), name = "xml::read")]
@@ -239,7 +239,7 @@ impl Document for Xml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use chewdata::DataResult;
@@ -298,7 +298,7 @@ impl Document for Xml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -336,7 +336,7 @@ impl Document for Xml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -374,7 +374,7 @@ impl Document for Xml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::xml::Xml;
     /// use chewdata::document::Document;
     ///

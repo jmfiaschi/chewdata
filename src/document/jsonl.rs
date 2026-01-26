@@ -110,7 +110,7 @@ impl Document for Jsonl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -200,7 +200,7 @@ impl Document for Jsonl {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::jsonl::Jsonl;
     /// use chewdata::document::Document;
     /// use serde_json::Value;

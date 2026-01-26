@@ -1,7 +1,7 @@
-use async_lock::Mutex;
 use base64::Engine;
 use regex::Regex;
 use serde_json::value::Value;
+use std::sync::Mutex;
 use std::{collections::HashMap, sync::Arc, sync::OnceLock, sync::RwLock};
 use tera::*;
 
@@ -13,9 +13,9 @@ pub fn get_shared_environment_variables() -> &'static SharedEnv {
 }
 
 static REGEX_CACHE: OnceLock<Mutex<HashMap<String, Regex>>> = OnceLock::new();
-async fn get_cached_regex(pattern: &str) -> Result<Regex> {
+fn cached_regex(pattern: &str) -> Result<Regex> {
     let cache = REGEX_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut cache = cache.lock().await;
+    let mut cache = cache.lock().map_err(Error::msg)?;
 
     if let Some(re) = cache.get(pattern) {
         return Ok(re.clone());
@@ -35,7 +35,7 @@ async fn get_cached_regex(pattern: &str) -> Result<Regex> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::string::base64_encode;
@@ -49,9 +49,9 @@ pub fn base64_encode(value: &Value, args: &HashMap<String, Value>) -> Result<Val
     let decode_string = match value {
         Value::String(s) => s,
         _ => {
-            return Err(Error::msg(format!(
-                "Filter `base64_encode` require a string in input"
-            )))
+            return Err(Error::msg(
+                "Filter `base64_encode` require a string in input".to_string(),
+            ))
         }
     };
 
@@ -80,7 +80,7 @@ pub fn base64_encode(value: &Value, args: &HashMap<String, Value>) -> Result<Val
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::string::base64_decode;
@@ -94,9 +94,9 @@ pub fn base64_decode(value: &Value, args: &HashMap<String, Value>) -> Result<Val
     let encode_string = match value {
         Value::String(s) => s,
         _ => {
-            return Err(Error::msg(format!(
-                "Filter `base64_decode` require a string in input"
-            )))
+            return Err(Error::msg(
+                "Filter `base64_decode` require a string in input".to_string(),
+            ))
         }
     };
 
@@ -129,7 +129,7 @@ pub fn base64_decode(value: &Value, args: &HashMap<String, Value>) -> Result<Val
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::string::set_env;
@@ -148,11 +148,7 @@ pub fn set_env(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 
     let value_string = match value {
         Value::String(s) => s,
-        _ => {
-            return Err(Error::msg(format!(
-                "Filter `set_env` require a string in input"
-            )))
-        }
+        _ => return Err(Error::msg("Filter `set_env` require a string in input")),
     };
 
     // Extracting and validating the 'name' argument
@@ -178,7 +174,7 @@ pub fn set_env(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::string::find;
@@ -201,11 +197,7 @@ pub fn find(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
     // Extracting and validating the 'value' argument
     let value_string = match value {
         Value::String(s) => s,
-        _ => {
-            return Err(Error::msg(format!(
-                "Filter `find` require a string in input"
-            )))
-        }
+        _ => return Err(Error::msg("Filter `find` require a string in input")),
     };
 
     // Extracting and validating the 'pattern' argument
@@ -215,11 +207,11 @@ pub fn find(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         .and_then(|pattern| Ok(try_get_value!("find", "pattern", String, pattern)))?;
 
     // Creating a regex from the pattern
-    let re = futures::executor::block_on(async { get_cached_regex(&pattern).await })?;
+    let re = cached_regex(&pattern)?;
 
     // Collecting matching substrings into a Vec<Value>
     let vec = re
-        .find_iter(&value_string)
+        .find_iter(value_string)
         .map(|s| Value::String(s.as_str().to_string()))
         .collect();
 

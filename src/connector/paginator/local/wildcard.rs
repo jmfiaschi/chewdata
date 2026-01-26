@@ -46,7 +46,7 @@ impl Wildcard {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::local::Local;
     /// use chewdata::connector::Connector;
     /// use smol::prelude::*;

@@ -27,6 +27,7 @@
 use super::Connector;
 use crate::connector::paginator::once::Once;
 use crate::document::Document;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{DataSet, DataStream, Metadata};
 use async_stream::stream;
 use async_trait::async_trait;
@@ -35,11 +36,12 @@ use serde_json::Value;
 use smol::io::BufReader;
 use smol::prelude::*;
 use smol::Unblock;
+use std::fmt;
 use std::io::{stdin, stdout};
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
 
-#[derive(Deserialize, Serialize, Clone, Default, Debug)]
+#[derive(Deserialize, Serialize, Clone, Default)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cli {
     #[serde(skip)]
@@ -56,6 +58,16 @@ fn default_eof() -> String {
     "".to_string()
 }
 
+impl fmt::Debug for Cli {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Cli")
+            .field("document", &self.document.display_only_for_debugging())
+            .field("metadata", &self.metadata.display_only_for_debugging())
+            .field("eoi", &self.eoi)
+            .finish()
+    }
+}
+
 #[async_trait]
 impl Connector for Cli {
     /// See [`Connector::set_document`] for more details.
@@ -65,14 +77,13 @@ impl Connector for Cli {
         Ok(())
     }
     /// See [`Connector::document`] for more details.
-    fn document(&self) -> Result<&Box<dyn Document>> {
-        match &self.document {
-            Some(document) => Ok(document),
-            None => Err(Error::new(
+    fn document(&self) -> Result<&dyn Document> {
+        self.document.as_deref().ok_or_else(|| {
+            Error::new(
                 ErrorKind::InvalidInput,
                 "The document has not been set in the connector",
-            )),
-        }
+            )
+        })
     }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
@@ -96,33 +107,27 @@ impl Connector for Cli {
         Ok(false)
     }
     /// See [`Connector::fetch`] for more details.
-    #[instrument(name = "io::fetch")]
+    #[instrument(name = "cli::fetch")]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let document = self.document()?;
-        let mut reader = BufReader::new(Unblock::new(stdin()));
         let mut buffer = String::default();
 
-        trace!("Retreive lines");
-        let mut line = String::default();
+        let mut lines = BufReader::new(Unblock::new(stdin())).lines();
 
-        trace!("Read lines");
-        loop {
-            let bytes_read = reader.read_line(&mut line).await?;
-            if bytes_read == 0 {
-                // EOF reached, exit loop
-                break;
-            }
+        while let Some(line) = lines.next().await {
+            let line = line?;
 
             if line.trim_end() == self.eoi {
                 break;
             }
 
             buffer.push_str(&line);
-            line.clear();
+            buffer.push('\n');
         }
 
         trace!("Lines saved into the buffer");
         if !document.has_data(buffer.as_bytes())? {
+            info!("No data found");
             return Ok(None);
         }
 
@@ -137,7 +142,7 @@ impl Connector for Cli {
         })))
     }
     /// See [`Connector::send`] for more details.
-    #[instrument(name = "io::send", skip(dataset))]
+    #[instrument(name = "cli::send", skip(dataset))]
     async fn send(&mut self, dataset: &DataSet) -> std::io::Result<Option<DataStream>> {
         let mut buffer = Vec::default();
         let document = self.document()?;

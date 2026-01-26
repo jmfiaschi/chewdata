@@ -93,18 +93,14 @@ impl fmt::Debug for Jwt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Jwt")
             .field("algorithm", &self.algorithm)
-            .field("refresh_connector_type", &self.refresh_connector_type)
-            .field("document", &self.document)
+            .field(
+                "refresh_connector_type",
+                &self.refresh_connector_type.display_only_for_debugging(),
+            )
+            .field("document", &self.document.display_only_for_debugging())
             .field("jwk", &self.jwk.display_only_for_debugging())
             .field("signing_type", &self.signing_type)
-            .field(
-                "key",
-                &self
-                    .key
-                    .to_owned()
-                    .to_obfuscate()
-                    .display_only_for_debugging(),
-            )
+            .field("key", &self.key.to_obfuscate().display_only_for_debugging())
             .finish()
     }
 }
@@ -146,12 +142,13 @@ impl Jwt {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
     /// use chewdata::connector::authenticator::{AuthenticatorType, jwt::Jwt};
     /// use chewdata::Metadata;
     /// use serde_json::Value;
     /// use smol::prelude::*;
+    /// use http::Method;
     /// use std::io;
     ///
     /// use macro_rules_attribute::apply;
@@ -162,7 +159,7 @@ impl Jwt {
     ///    let mut connector = Curl::default();
     ///    connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///    connector.path = "/tokens".to_string();
-    ///    connector.method = "POST".into();
+    ///    connector.method = Method::POST;
     ///    connector.parameters = serde_json::from_str(
     ///        r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///    )?;
@@ -317,7 +314,7 @@ impl Authenticator for Jwt {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{Connector, ConnectorType, curl::Curl};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
@@ -325,6 +322,7 @@ impl Authenticator for Jwt {
     /// use smol::prelude::*;
     /// use std::io;
     /// use smol::stream::StreamExt;
+    /// use http::Method;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
@@ -336,7 +334,7 @@ impl Authenticator for Jwt {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
     ///     connector.path = "/tokens".to_string();
-    ///     connector.method = "POST".into();
+    ///     connector.method = Method::POST;
     ///     connector.parameters = serde_json::from_str(
     ///         r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
     ///     ).unwrap();
@@ -355,7 +353,7 @@ impl Authenticator for Jwt {
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
     ///     connector.authenticator_type = Some(Box::new(AuthenticatorType::Jwt(auth)));
-    ///     connector.method = "GET".into();
+    ///     connector.method = Method::GET;
     ///     connector.path = "/bearer".to_string();
     ///     connector.set_document(document);
     ///
@@ -423,6 +421,7 @@ mod tests {
     use crate::connector::Connector;
     use crate::document::json::Json;
     use crate::Metadata;
+    use http::Method;
     use macro_rules_attribute::apply;
     use smol_macros::test;
 
@@ -431,7 +430,7 @@ mod tests {
         let mut connector = Curl::default();
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         connector.path = "/tokens".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.parameters = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
@@ -455,7 +454,7 @@ mod tests {
         connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.timeout = Some(60);
         connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
@@ -477,7 +476,7 @@ mod tests {
         let mut connector = Curl::default();
         connector.endpoint = "http://jwtbuilder.jamiekurtz.com".to_string();
         connector.path = "/tokens".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.parameters = serde_json::from_str(
             r#"{"alg":"HS256","claims":{"GivenName":"Johnny","iat":1599462755,"exp":33156416077},"key":"my_key"}"#,
         ).unwrap();
@@ -504,7 +503,7 @@ mod tests {
         jwk_connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         jwk_connector.path = "/certs".to_string();
-        jwk_connector.method = "GET".to_string();
+        jwk_connector.method = Method::GET;
         jwk_connector.timeout = Some(60);
         jwk_connector.set_document(Box::new(jwk_document)).unwrap();
 
@@ -516,7 +515,7 @@ mod tests {
         connector.endpoint =
             "http://localhost:8083/realms/test/protocol/openid-connect".to_string();
         connector.path = "/token".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
         let mut auth = Jwt::default();

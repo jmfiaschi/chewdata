@@ -52,8 +52,6 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
-use smol::prelude::*;
-use std::sync::Arc;
 use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -65,11 +63,13 @@ use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use smol::prelude::*;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::env;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::vec::IntoIter;
 use std::{
@@ -110,8 +110,8 @@ pub struct Bucket {
 impl fmt::Debug for Bucket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Bucket")
-            .field("document", &self.document)
-            .field("metadata", &self.metadata)
+            .field("document", &self.document.display_only_for_debugging())
+            .field("metadata", &self.metadata.display_only_for_debugging())
             .field("endpoint", &self.endpoint)
             .field("profile", &self.profile)
             .field("region", &self.region)
@@ -242,24 +242,23 @@ impl Connector for Bucket {
         Ok(())
     }
     /// See [`Connector::document`] for more details.
-    fn document(&self) -> Result<&Box<dyn Document>> {
-        match &self.document {
-            Some(document) => Ok(document),
-            None => Err(Error::new(
+    fn document(&self) -> Result<&dyn Document> {
+        self.document.as_deref().ok_or_else(|| {
+            Error::new(
                 ErrorKind::InvalidInput,
                 "The document has not been set in the connector",
-            )),
-        }
+            )
+        })
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = Box::new(parameters);
+        *self.parameters = parameters
     }
     /// See [`Connector::is_variable`] for more details.
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -278,7 +277,7 @@ impl Connector for Bucket {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{bucket::Bucket, Connector};
     /// use serde_json::Value;
     ///
@@ -327,7 +326,7 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -359,14 +358,14 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use std::io;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
@@ -423,7 +422,7 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{bucket::Bucket, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
@@ -432,7 +431,7 @@ impl Connector for Bucket {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
@@ -502,7 +501,7 @@ impl Connector for Bucket {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::Bucket;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -513,36 +512,27 @@ impl Connector for Bucket {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
-    ///     let document = Box::new(Json::default());
+    ///     let document = Json::default();
     ///
     ///     let mut connector = Bucket::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/out/test_bucket_send".to_string();
-    ///     connector.set_document(document.clone());
-    ///
     ///     connector.erase().await.unwrap();
     ///     let expected_result1 =
-    ///         DataResult::Ok(serde_json::from_str(r#"[{"column1":"value1"}]"#).unwrap());
+    ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1.clone()];
-    ///     connector
-    ///         .send(&dataset)
-    ///         .await
-    ///         .unwrap();
+    ///     connector.set_document(Box::new(document)).unwrap();
+    ///     connector.send(&dataset).await.unwrap();
     ///
     ///     let mut connector_read = connector.clone();
-    ///     let mut datastream = connector_read
-    ///         .fetch()
-    ///         .await
-    ///         .unwrap()
-    ///         .unwrap();
+    ///     let mut datastream = connector_read.fetch().await.unwrap().unwrap();
     ///     assert_eq!(expected_result1.clone(), datastream.next().await.unwrap());
     ///
     ///     let expected_result2 =
-    ///         DataResult::Ok(serde_json::from_str(r#"[{"column1":"value2"}]"#).unwrap());
+    ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value2"}"#).unwrap());
     ///     let dataset = vec![expected_result2.clone()];
     ///     connector.send(&dataset).await.unwrap();
     ///
@@ -812,7 +802,7 @@ impl BucketPaginator {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket::{Bucket, BucketPaginator};
     /// use chewdata::connector::Connector;
     /// use smol::prelude::*;
@@ -820,7 +810,7 @@ impl BucketPaginator {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Bucket::default();
@@ -831,7 +821,7 @@ impl BucketPaginator {
     ///     let paginator = BucketPaginator::new(&connector).await?;
     ///     let mut paging = paginator.paginate(&connector).await?;
     ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     assert!(paging.next().await.transpose()?.is_none(), "Should not have more readers.");
     ///
     ///     Ok(())
     /// }
@@ -861,8 +851,8 @@ mod tests {
     use super::*;
     use crate::document::json::Json;
     use crate::DataResult;
-    use smol::stream::StreamExt;
     use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
     use smol_macros::test;
 
     #[test]

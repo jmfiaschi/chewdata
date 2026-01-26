@@ -64,7 +64,7 @@ impl Cursor {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{mongodb::Mongodb, Connector};
     /// use smol::prelude::*;
     /// use chewdata::connector::paginator::mongodb::cursor::Cursor;

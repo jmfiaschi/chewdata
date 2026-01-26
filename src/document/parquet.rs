@@ -1,69 +1,118 @@
-//! Read and Write in Parquet format.
-//! this class read the resource with good performence but the writing will take time. It is not possible to parallize the writing with multi threads.
+//! Read and write data in **Parquet** format.
 //!
-//! ### Configuration
+//! This document handler provides **high-performance reading** of Parquet files.
+//! However, **writing is slower by design** and **cannot be parallelized**
+//! due to the sequential nature of the Parquet writer.
 //!
-//! | key        | alias | Description                                                                         | Default Value  | Possible Values                                                                                                    |
-//! | ---------- | ----- | ----------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------ |
-//! | type       | -     | Required in order to use this document.                                             | `parquet`      | `parquet`                                                                                                          |
-//! | metadata   | meta  | Metadata describe the resource.                                                     | `null`         | [`crate::Metadata`]                                                                                                |
-//! | entry_path | -     | Use this field if you want to target a specific field in the object.                | `/root/*/item` | String in [json pointer format](https://datatracker.ietf.org/doc/html/rfc6901)                                     |
-//! | schema     | -     | Schema that override the default schema found on the first entry found.             | `null`         | `"fields":[{"name": "my_field", "type": {"name": "int", "bitWidth": 64, "isSigned": false}, "nullable": false},...]` |
-//! | batch_size | -     | Number of items per page.                                                           | `1000`         | unsigned number                                                                                                    |
-//! | options    | -     | Parquet options.                                                                    | `null`         | [`crate::document::parquet::ParquetOptions`]                                                                        |
+//! ---
 //!
-//! examples:
+//! ## Configuration
+//!
+//! | Key        | Alias | Description                                                                 | Default Value   | Possible Values                                                                                                      |
+//! |------------|-------|-----------------------------------------------------------------------------|-----------------|----------------------------------------------------------------------------------------------------------------------|
+//! | `type`     | —     | Required to enable this document type.                                      | `parquet`       | `parquet`                                                                                                            |
+//! | `metadata` | `meta`| Metadata describing the resource.                                           | `null`          | [`crate::Metadata`]                                                                                                  |
+//! | `entry_path` | —   | Targets a specific field in the input object.                               | `/root/*/item`  | JSON Pointer string ([RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901))                                       |
+//! | `schema`   | —     | Overrides the schema inferred from the first entry.                          | `null`          | JSON schema definition (https://github.com/apache/arrow-rs/blob/main/arrow-schema/src/schema.rs)                                                                                               |
+//! | `batch_size` | —   | Number of records per page written to Parquet.                              | `1000`          | Unsigned integer                                                                                                      |
+//! | `options`  | —     | Advanced Parquet writer options.                                            | `null`          | [`crate::document::parquet::ParquetOptions`]                                                                          |
+//!
+//! ---
+//!
+//! ## Example
 //!
 //! ```json
 //! [
-//!     {
-//!         "type": "read"
-//!     },
-//!     {
-//!         "type": "write",
-//!         "document":{
-//!             "type":"parquet"
-//!         }
+//!   {
+//!     "type": "read",
+//!     "connector":{
+//!         "type": "local",
+//!         "path": "./data/multi_lines.json"
 //!     }
+//!   },
+//!   {
+//!     "type": "write",
+//!     "document": {
+//!       "type": "parquet",
+//!       "schema":{
+//!          "fields":[
+//!                {
+//!                    "name": "number",
+//!                    "nullable": false,
+//!                    "type": {
+//!                        "name": "int",
+//!                        "bitWidth": 8,
+//!                        "isSigned": false
+//!                    }
+//!                },
+//!                {
+//!                    "name": "string",
+//!                    "nullable": false,
+//!                    "type": {
+//!                        "name": "utf8"
+//!                    }
+//!                },
+//!                {
+//!                    "name": "boolean",
+//!                    "nullable": false,
+//!                    "type": {
+//!                        "name": "bool"
+//!                    }
+//!                },
+//!                {
+//!                    "name": "date",
+//!                    "nullable": false,
+//!                    "type": {
+//!                        "name": "date",
+//!                        "unit": "DAY"
+//!                    }
+//!                }
+//!            ]
+//!        }
+//!     }
+//!   }
 //! ]
 //! ```
 //!
-//! input:
+//! ## Output
 //!
-//! ```json
-//! [
-//!     {"field1":"value1"},
-//!     ...
-//! ]
-//! ```
+//! The output is a Parquet file.
+//! Use tools such as [parquet-tools](https://github.com/hangxie/parquet-tools) to inspect or analyze the generated file.
 //!
-//! output:
+//! ---
 //!
-//! You need to use a `parquet-tools` in order to analyse the file.
+//! ## Parquet Options
 //!
-//! #### ParquetOption
+//! | Key                    | Alias | Description                                                                 | Default Value | Possible Values                                                                                                               |
+//! |------------------------|-------|-----------------------------------------------------------------------------|---------------|-------------------------------------------------------------------------------------------------------------------------------|
+//! | `version`              | —     | Parquet file format version.                                                | `2`           | `1`, `2`                                                                                                                      |
+//! | `data_page_size_limit` | —     | Maximum size of a data page (bytes).                                        | `null`        | Unsigned integer                                                                                                              |
+//! | `max_row_group_size`   | —     | Maximum number of rows per row group.                                       | `null`        | Unsigned integer                                                                                                              |
+//! | `created_by`           | —     | Application or user that created the file.                                 | `chewdata`    | String                                                                                                                        |
+//! | `encoding`             | —     | Encoding used for column data.                                              | `PLAIN`       | `PLAIN`, `PLAIN_DICTIONARY`, `RLE`, `DELTA_BINARY_PACKED`, `DELTA_LENGTH_BYTE_ARRAY`, `DELTA_BYTE_ARRAY`, `RLE_DICTIONARY`, `BYTE_STREAM_SPLIT` |
+//! | `compression`          | —     | Compression algorithm.                                                      | `GZIP`        | `GZIP`, `UNCOMPRESSED`, `SNAPPY`, `LZO`, `BROTLI`, `LZ4`, `LZ4_RAW`, `ZSTD`                                                     |
+//! | `compression_level`    | —     | Compression level (depends on algorithm).                                   | `null`        | `0..11`                                                                                                                       |
+//! | `has_dictionary`       | —     | Enables dictionary encoding.                                                | `null`        | `true`, `false`                                                                                                               |
+//! | `has_statistics`       | —     | Enables column statistics.                                                  | `null`        | `true`, `false`                                                                                                               |
 //!
-//! | key                  | alias | Description                            | Default Value | Possible Values                                                                                                                                                       |
-//! | -------------------- | ----- | -------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-//! | version              | -     | Parquet version.                       | `2`           | `1` / `2`                                                                                                                                                             |
-//! | data_page_size_limit | -     | Page size limit.                       | `null`        | unsigned number                                                                                                                                                       |
-//! | max_row_group_size   | -     | Max row group size.                    | `null`        | unsigned number                                                                                                                                                       |
-//! | created_by           | -     | App/User that the create the resource. | `chewdata`    | String                                                                                                                                                                |
-//! | encoding             | -     | Resource encoding.                     | `PLAIN`       | `PLAIN` / `PLAIN_DICTIONARY` / `RLE` / `DELTA_BINARY_PACKED` / `DELTA_LENGTH_BYTE_ARRAY` / `DELTA_BYTE_ARRAY` / `RLE_DICTIONARY` / `BYTE_STREAM_SPLIT` |
-//! | compression          | -     | Resource compression.                  | `GZIP`        | `GZIP` / `UNCOMPRESSED` / `SNAPPY` / `LZO` / `BROTLI` / `LZ4` / `LZ4_RAW` / `ZSTD`                                                                                    |
-//! | compression level    | -     | Level of the compression. The value depend on the type of the compression | `null`        | 0..11                                                                                                                              |
-//! | has_dictionary       | -     | Use a dictionary.                      | `null`        | `true` / `false`                                                                                                                                                      |
-//! | has_statistics       | -     | Use statistics.                        | `null`        | `true` / `false`                                                                                                                                                      |
+//! ---
 //!
+//! ## Performance Notes
+//!
+//! - **Reading** is optimized for speed and low memory usage.
+//! - **Writing** is sequential and cannot be parallelized.
+//! - Increasing `batch_size` may improve throughput at the cost of memory usage.
+//! - Compression and encoding choices can significantly impact write performance.
+//!
+
 use crate::document::Document;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::DataResult;
 use crate::{DataSet, Metadata};
-use arrow_integration_test::{schema_from_json, schema_to_json};
+use arrow_integration_test::schema_from_json;
 use arrow_json::reader::infer_json_schema_from_iterator;
 use arrow_json::ReaderBuilder;
 use bytes::Bytes;
-use json_value_merge::Merge;
 use json_value_search::Search;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{BrotliLevel, Compression, Encoding, GzipLevel, ZstdLevel};
@@ -89,16 +138,49 @@ pub struct Parquet {
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ParquetOptions {
-    version: Option<usize>,
-    data_page_size_limit: Option<usize>,
-    dictionary_page_size_limit: Option<usize>,
-    max_row_group_size: Option<usize>,
-    created_by: Option<String>,
-    encoding: Option<String>,
-    compression: Option<String>,
-    compression_level: Option<usize>,
-    has_dictionary: Option<bool>,
-    has_statistics: Option<String>,
+    pub version: Option<usize>,
+    pub data_page_size_limit: Option<usize>,
+    pub dictionary_page_size_limit: Option<usize>,
+    pub max_row_group_size: Option<usize>,
+    pub created_by: Option<String>,
+    pub encoding: Option<EncodingType>,
+    pub compression: Option<CompressionType>,
+    pub compression_level: Option<usize>,
+    pub has_dictionary: Option<bool>,
+    pub has_statistics: Option<StatisticsType>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CompressionType {
+    Uncompressed,
+    Snappy,
+    Gzip,
+    Brotli,
+    Zstd,
+    Lz4,
+    Lz4Raw,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EncodingType {
+    Plain,
+    PlainDictionary,
+    Rle,
+    DeltaBinaryPacked,
+    DeltaLengthByteArray,
+    DeltaByteArray,
+    RleDictionary,
+    ByteStreamSplit,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum StatisticsType {
+    None,
+    Chunk,
+    Page,
 }
 
 const DEFAULT_SUBTYPE: &str = "parquet";
@@ -125,14 +207,14 @@ impl Default for ParquetOptions {
     fn default() -> Self {
         ParquetOptions {
             created_by: Some("chewdata".to_string()),
-            encoding: Some("PLAIN".to_string()),
-            compression: Some("GZIP".to_string()),
+            encoding: Some(EncodingType::Plain),
+            compression: None,
             compression_level: None,
-            has_statistics: None,
+            has_statistics: Some(StatisticsType::Chunk),
             has_dictionary: Some(false),
-            max_row_group_size: None,
+            max_row_group_size: Some(128 * 1024 * 1024),
             dictionary_page_size_limit: None,
-            data_page_size_limit: None,
+            data_page_size_limit: Some(1024 * 1024),
             version: Some(2),
         }
     }
@@ -164,7 +246,7 @@ impl Document for Parquet {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::parquet::Parquet;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -249,25 +331,13 @@ impl Document for Parquet {
     /// See [`Document::write`] for more details.
     #[instrument(skip(dataset), name = "parquet::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
-        let schema = match (&self.schema, dataset.first()) {
-            (Some(schema_value_params), Some(data_result)) => {
-                let schema_from_data =
-                    infer_json_schema_from_iterator(vec![Ok(data_result.to_value())].into_iter())
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let Some(first) = dataset.first() else {
+            return Ok(vec![]);
+        };
 
-                let schema_value_from_data = schema_to_json(&schema_from_data);
-
-                // Override the guessed schema by the schema in parameter.
-                let mut schema_merged = schema_value_params.clone();
-                schema_merged.merge(&schema_value_from_data);
-                schema_from_json(&schema_merged)
-            }
-            (Some(schema_value_params), _) => schema_from_json(schema_value_params),
-            (None, Some(data_result)) => {
-                // Fetch the first data in order to guess the schema.
-                infer_json_schema_from_iterator(vec![Ok(data_result.to_value())].into_iter())
-            }
-            (_, None) => return Ok(vec![]),
+        let schema = match &self.schema {
+            Some(schema) => schema_from_json(schema),
+            None => infer_json_schema_from_iterator(std::iter::once(Ok(first.to_value()))),
         }
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
@@ -275,111 +345,122 @@ impl Document for Parquet {
             .build_decoder()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        let values: Vec<Value> = dataset.iter().map(|data| data.to_value()).collect();
-        decoder
-            .serialize(&values)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        let batch_opt = decoder
-            .flush()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        for chunk in dataset.chunks(self.batch_size) {
+            let values: Vec<Value> = chunk.iter().map(|d| d.to_value()).collect();
 
-        let batch = match batch_opt {
-            Some(batch) => batch,
-            None => return Ok(vec![]),
-        };
-
-        let mut properties_builder = WriterProperties::builder();
-        properties_builder = properties_builder.set_write_batch_size(self.batch_size);
-
-        if let Some(options) = &self.options {
-            if let Some(compression) = &options.compression {
-                properties_builder =
-                    properties_builder.set_compression(match compression.to_uppercase().as_str() {
-                        "UNCOMPRESSED" => Compression::UNCOMPRESSED,
-                        "SNAPPY" => Compression::SNAPPY,
-                        "GZIP" => Compression::GZIP(match options.compression_level {
-                            Some(level) => GzipLevel::try_new(level as u32)
-                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-                            None => GzipLevel::default(),
-                        }),
-                        "LZO" => Compression::LZO,
-                        "BROTLI" => Compression::BROTLI(match options.compression_level {
-                            Some(level) => BrotliLevel::try_new(level as u32)
-                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-                            None => BrotliLevel::default(),
-                        }),
-                        "LZ4" => Compression::LZ4,
-                        "LZ4_RAW" => Compression::LZ4_RAW,
-                        "ZSTD" => Compression::ZSTD(match options.compression_level {
-                            Some(level) => ZstdLevel::try_new(level as i32)
-                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-                            None => ZstdLevel::default(),
-                        }),
-                        _ => Compression::UNCOMPRESSED,
-                    });
-            }
-            if let Some(by) = &options.created_by {
-                properties_builder = properties_builder.set_created_by(by.clone());
-            }
-            if let Some(limit) = options.data_page_size_limit {
-                properties_builder = properties_builder.set_data_page_size_limit(limit);
-            }
-            if let Some(limit) = options.dictionary_page_size_limit {
-                properties_builder = properties_builder.set_dictionary_page_size_limit(limit);
-            }
-            if let Some(encoding) = &options.encoding {
-                properties_builder =
-                    properties_builder.set_encoding(match encoding.to_uppercase().as_str() {
-                        "PLAIN" => Encoding::PLAIN,
-                        "PLAIN_DICTIONARY" => Encoding::PLAIN_DICTIONARY,
-                        "RLE" => Encoding::RLE,
-                        "DELTA_BINARY_PACKED" => Encoding::DELTA_BINARY_PACKED,
-                        "DELTA_LENGTH_BYTE_ARRAY" => Encoding::DELTA_LENGTH_BYTE_ARRAY,
-                        "DELTA_BYTE_ARRAY" => Encoding::DELTA_BYTE_ARRAY,
-                        "RLE_DICTIONARY" => Encoding::RLE_DICTIONARY,
-                        "BYTE_STREAM_SPLIT" => Encoding::BYTE_STREAM_SPLIT,
-                        _ => Encoding::PLAIN,
-                    });
-            }
-            if let Some(has_dictionary) = options.has_dictionary {
-                properties_builder = properties_builder.set_dictionary_enabled(has_dictionary);
-            }
-            if let Some(has_statistics) = &options.has_statistics {
-                properties_builder = properties_builder.set_statistics_enabled(
-                    match has_statistics.to_uppercase().as_str() {
-                        "NONE" => EnabledStatistics::None,
-                        "CHUNK" => EnabledStatistics::Chunk,
-                        "PAGE" => EnabledStatistics::Page,
-                        _ => EnabledStatistics::default(),
-                    },
-                );
-            }
-            if let Some(size) = options.max_row_group_size {
-                properties_builder = properties_builder.set_max_row_group_size(size);
-            }
-            if let Some(version) = options.version {
-                properties_builder = properties_builder.set_writer_version(match version {
-                    1 => WriterVersion::PARQUET_1_0,
-                    2 => WriterVersion::PARQUET_2_0,
-                    _ => WriterVersion::PARQUET_1_0,
-                });
-            }
+            decoder
+                .serialize(&values)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         }
 
-        let properties = properties_builder.build();
+        let Some(batch) = decoder
+            .flush()
+            .map_err(|e| io::Error::new(io::ErrorKind::Interrupted, e))?
+        else {
+            return Ok(vec![]);
+        };
+
+        let properties = build_writer_properties(self.batch_size, self.options.as_ref())?;
+
         let mut buffer = Vec::new();
-
         {
-            let mut writer = ArrowWriter::try_new(&mut buffer, Arc::new(schema), Some(properties))
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
+            let mut writer = ArrowWriter::try_new(&mut buffer, Arc::new(schema), Some(properties))?;
             writer.write(&batch)?;
-
             writer.close()?;
         }
 
         Ok(buffer)
     }
+}
+
+fn build_compression(options: &ParquetOptions) -> io::Result<Compression> {
+    Ok(match options.compression {
+        Some(CompressionType::Snappy) => Compression::SNAPPY,
+        Some(CompressionType::Gzip) => Compression::GZIP(
+            options
+                .compression_level
+                .map(|l| GzipLevel::try_new(l as u32))
+                .transpose()?
+                .unwrap_or_default(),
+        ),
+        Some(CompressionType::Brotli) => Compression::BROTLI(
+            options
+                .compression_level
+                .map(|l| BrotliLevel::try_new(l as u32))
+                .transpose()?
+                .unwrap_or_default(),
+        ),
+        Some(CompressionType::Zstd) => Compression::ZSTD(
+            options
+                .compression_level
+                .map(|l| ZstdLevel::try_new(l as i32))
+                .transpose()?
+                .unwrap_or_default(),
+        ),
+        Some(CompressionType::Lz4) => Compression::LZ4,
+        Some(CompressionType::Lz4Raw) => Compression::LZ4_RAW,
+        _ => Compression::UNCOMPRESSED,
+    })
+}
+
+fn build_encoding(encoding: &EncodingType) -> Encoding {
+    match encoding {
+        EncodingType::Plain => Encoding::PLAIN,
+        EncodingType::PlainDictionary => Encoding::PLAIN_DICTIONARY,
+        EncodingType::Rle => Encoding::RLE,
+        EncodingType::DeltaBinaryPacked => Encoding::DELTA_BINARY_PACKED,
+        EncodingType::DeltaLengthByteArray => Encoding::DELTA_LENGTH_BYTE_ARRAY,
+        EncodingType::DeltaByteArray => Encoding::DELTA_BYTE_ARRAY,
+        EncodingType::RleDictionary => Encoding::RLE_DICTIONARY,
+        EncodingType::ByteStreamSplit => Encoding::BYTE_STREAM_SPLIT,
+    }
+}
+
+fn build_writer_properties(
+    batch_size: usize,
+    options: Option<&ParquetOptions>,
+) -> io::Result<WriterProperties> {
+    let mut builder = WriterProperties::builder().set_write_batch_size(batch_size);
+
+    let Some(options) = options else {
+        return Ok(builder.build());
+    };
+
+    builder = builder.set_compression(build_compression(options)?);
+
+    if let Some(by) = &options.created_by {
+        builder = builder.set_created_by(by.clone());
+    }
+    if let Some(limit) = options.data_page_size_limit {
+        builder = builder.set_data_page_size_limit(limit);
+    }
+    if let Some(limit) = options.dictionary_page_size_limit {
+        builder = builder.set_dictionary_page_size_limit(limit);
+    }
+    if let Some(encoding) = &options.encoding {
+        builder = builder.set_encoding(build_encoding(encoding));
+    }
+    if let Some(enabled) = options.has_dictionary {
+        builder = builder.set_dictionary_enabled(enabled);
+    }
+    if let Some(stats) = &options.has_statistics {
+        builder = builder.set_statistics_enabled(match stats {
+            StatisticsType::None => EnabledStatistics::None,
+            StatisticsType::Chunk => EnabledStatistics::Chunk,
+            StatisticsType::Page => EnabledStatistics::Page,
+        });
+    }
+    if let Some(size) = options.max_row_group_size {
+        builder = builder.set_max_row_group_size(size);
+    }
+    if let Some(version) = options.version {
+        builder = builder.set_writer_version(match version {
+            2 => WriterVersion::PARQUET_2_0,
+            _ => WriterVersion::PARQUET_1_0,
+        });
+    }
+
+    Ok(builder.build())
 }
 
 #[cfg(test)]

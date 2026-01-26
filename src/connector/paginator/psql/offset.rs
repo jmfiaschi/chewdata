@@ -62,7 +62,7 @@ impl Offset {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{psql::Psql, Connector};
     /// use chewdata::connector::paginator::psql::offset::Offset;
     /// use smol::prelude::*;

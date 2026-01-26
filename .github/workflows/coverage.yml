@@ -29,5 +29,5 @@ jobs:
       - run: just coverage
       - uses: codecov/codecov-action@v1
         with:
-          flags: 'unit-tests, integration-tests'
+          flags: 'tests'
           verbose: true

@@ -2,9 +2,26 @@ use json_value_merge::Merge;
 use macro_rules_attribute::apply;
 use smol_macros::main;
 use std::io;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 
 #[apply(main!)]
 async fn main() -> io::Result<()> {
+    let mut layers = Vec::new();
+    let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
+    let layer = tracing_subscriber::fmt::layer()
+        .pretty()
+        .with_line_number(true)
+        .with_writer(non_blocking)
+        .with_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .boxed();
+    layers.push(layer);
+
+    tracing_subscriber::registry().with(layers).init();
+
+    run().await
+}
+
+async fn run() -> io::Result<()> {
     let config = r#"
     [{
         "type": "r",
@@ -42,10 +59,11 @@ async fn main() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::main;
+    use super::*;
+    use smol_macros::test;
 
-    #[test]
-    fn test_example() {
-        main().unwrap();
+    #[apply(test!)]
+    async fn test_example() {
+        run().await.unwrap();
     }
 }

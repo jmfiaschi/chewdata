@@ -47,19 +47,20 @@ pub struct Byte {
 
 impl Default for Byte {
     fn default() -> Self {
-        let metadata = Metadata {
-            mime_type: Some(mime::APPLICATION.to_string()),
-            mime_subtype: Some(mime::OCTET_STREAM.to_string()),
-            ..Default::default()
-        };
-        Byte { metadata }
+        Self {
+            metadata: Metadata {
+                mime_type: Some(mime::APPLICATION.to_string()),
+                mime_subtype: Some(mime::OCTET_STREAM.to_string()),
+                ..Default::default()
+            },
+        }
     }
 }
 
 impl Document for Byte {
     /// See [`Document::set_metadata`] for more details.
     fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata.clone();
+        self.metadata = metadata;
     }
     /// See [`Document::metadata`] for more details.
     fn metadata(&self) -> Metadata {
@@ -69,7 +70,7 @@ impl Document for Byte {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::byte::Byte;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -94,7 +95,7 @@ impl Document for Byte {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::byte::Byte;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -106,25 +107,44 @@ impl Document for Byte {
     /// let buffer = document.write(&dataset).unwrap();
     /// assert_eq!(b"My text".as_slice(), buffer);
     /// ```
-    #[instrument(skip(dataset), name = "text::write")]
+    #[instrument(skip(dataset), name = "byte::write")]
     fn write(&self, dataset: &DataSet) -> io::Result<Vec<u8>> {
-        let mut buffer = Vec::default();
-        for data in dataset {
-            let record = &data.to_value();
-            let mut bytes = record
-                .as_array()
-                .unwrap_or(&Vec::default())
-                .iter()
-                .map(|value| value.as_u64().unwrap_or_default() as u8)
-                .collect();
+        let mut buffer = Vec::new();
 
-            buffer.append(&mut bytes);
+        for data in dataset {
+            let record = data.to_value();
+
+            let array = record.as_array().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Byte document expects a JSON array of integers",
+                )
+            })?;
+
+            for value in array {
+                let byte = value.as_u64().ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Byte value must be an unsigned integer",
+                    )
+                })?;
+
+                if byte > u8::MAX as u64 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Byte value out of range (0–255)",
+                    ));
+                }
+
+                buffer.push(byte as u8);
+            }
 
             trace!(
                 record = record.display_only_for_debugging(),
                 "Record serialized"
             );
         }
+
         Ok(buffer)
     }
 }

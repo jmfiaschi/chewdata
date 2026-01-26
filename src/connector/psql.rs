@@ -36,10 +36,9 @@ use super::counter::psql::CounterType;
 use super::paginator::psql::PaginatorType;
 use super::Connector;
 use crate::helper::json_pointer::JsonPointer;
-use crate::helper::string::DisplayOnlyForDebugging;
+use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{helper::mustache::Mustache, DataResult};
 use crate::{DataSet, DataStream};
-use std::sync::Arc;
 use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -53,13 +52,15 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
 
-static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Pool<Postgres>>>>> = OnceLock::new();
+type SharedClients = Arc<Mutex<HashMap<String, Pool<Postgres>>>>;
+static CLIENTS: OnceLock<SharedClients> = OnceLock::new();
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -101,8 +102,7 @@ impl Default for Psql {
 impl fmt::Debug for Psql {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Psql")
-            // Can contain sensitive data
-            .field("endpoint", &self.endpoint.display_only_for_debugging())
+            .field("endpoint", &self.endpoint.to_obfuscate())
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("parameters", &self.parameters.display_only_for_debugging())
@@ -300,7 +300,7 @@ impl Connector for Psql {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -309,7 +309,7 @@ impl Connector for Psql {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
@@ -340,7 +340,7 @@ impl Connector for Psql {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -351,13 +351,13 @@ impl Connector for Psql {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
     ///     connector.endpoint = "postgres://admin:admin@localhost".into();
     ///     connector.database = "postgres".into();
-    ///     connector.collection = "public.send_with_key".into();
+    ///     connector.collection = "public.read".into();
     ///     connector.query =
     ///         Some("SELECT * FROM {{ collection }} WHERE \"number\" = {{ number }} AND \"string\" = {{ string }} AND \"boolean\" = {{ boolean }} AND \"null\" = {{ null }} AND \"array\" = {{ array }} AND \"object\" = {{ object }} AND \"date\" = {{ date }} AND \"round\" = {{ round }};".to_string());
     ///     let data: Value = serde_json::from_str(
@@ -486,7 +486,7 @@ impl Connector for Psql {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -496,7 +496,7 @@ impl Connector for Psql {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();
@@ -572,7 +572,7 @@ impl Connector for Psql {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::psql::Psql;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -582,7 +582,7 @@ impl Connector for Psql {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Psql::default();

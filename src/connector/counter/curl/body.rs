@@ -45,6 +45,7 @@
 //! }
 //! ```
 use crate::connector::{curl::Curl, Connector};
+use http::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smol::stream::StreamExt;
@@ -54,7 +55,8 @@ use std::io::Result;
 pub struct Body {
     pub entry_path: String,
     pub path: Option<String>,
-    pub method: Option<String>,
+    #[serde(with = "http_serde::option::method")]
+    pub method: Option<Method>,
 }
 
 impl Default for Body {
@@ -68,7 +70,7 @@ impl Default for Body {
 }
 
 impl Body {
-    pub fn new(entry_path: String, path: Option<String>, method: Option<String>) -> Self {
+    pub fn new(entry_path: String, path: Option<String>, method: Option<Method>) -> Self {
         Body {
             entry_path,
             path,
@@ -79,28 +81,39 @@ impl Body {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::curl::Curl;
+    /// use chewdata::connector::Connector;
     /// use chewdata::connector::counter::curl::body::Body;
     /// use chewdata::document::json::Json;
     /// use smol::prelude::*;
     /// use std::io;
     /// use crate::chewdata::document::Document;
+    /// use http::Method;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Curl::default();
     ///     connector.endpoint = "http://localhost:8080".to_string();
-    ///     connector.method = "POST".into();
+    ///     connector.method = Method::POST;
     ///     connector.path = "/anything?count=10".to_string();
     ///     connector.metadata = Json::default().metadata();
+    ///     connector.set_document(Box::new(document)).unwrap();
+    ///
+    ///     let mut counter = Body::default();
+    ///     counter.entry_path = "/args/count".to_string();
+    ///     assert!(
+    ///         Some(0) < counter.count(&connector).await.unwrap(),
+    ///         "Counter count() must return a value upper than 0."
+    ///     );
     ///
     ///     let mut counter = Body::default();
     ///     counter.entry_path = "/args/not_found".to_string();
-    ///     assert_eq!(Some(10), counter.count(&connector).await?);
+    ///     assert_eq!(None, counter.count(&connector).await?);
     ///
     ///     Ok(())
     /// }
@@ -108,7 +121,7 @@ impl Body {
     #[instrument(name = "body::count")]
     pub async fn count(&self, connector: &Curl) -> Result<Option<usize>> {
         let mut connector = connector.clone();
-        let mut document = connector.document()?.clone();
+        let mut document = connector.document()?.clone_box();
         document.set_entry_path(self.entry_path.clone());
         connector.set_document(document)?;
 
@@ -158,7 +171,7 @@ mod tests {
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.path = "/anything?count=10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 
@@ -175,7 +188,7 @@ mod tests {
 
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.method = "POST".to_string();
+        connector.method = Method::POST;
         connector.path = "/anything?count=10".to_string();
         connector.set_document(Box::new(document)).unwrap();
 

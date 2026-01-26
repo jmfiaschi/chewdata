@@ -1,27 +1,62 @@
 use std::{env, fmt::Debug};
 
+pub const OFUSCATE_CHAR: &str = "*";
+
 pub trait Obfuscate {
-    /// Obfusctate a part of the object.
-    fn to_obfuscate(&mut self) -> &mut String;
+    /// obfuscate the string.
+    fn to_obfuscate(&self) -> String;
 }
 
 impl Obfuscate for String {
-    /// obfuscate a part of the string.
-    fn to_obfuscate(&mut self) -> &mut Self {
-        self.replace_range(
-            (self.len() / 2)..self.len(),
-            (0..(self.len() / 2))
-                .map(|_| "#")
-                .collect::<String>()
-                .as_str(),
-        );
+    /// obfuscate the string.
+    fn to_obfuscate(&self) -> String {
+        // Try URI-style obfuscation first
+        if let Some(obfuscated) = obfuscate_uri_password(self) {
+            return obfuscated;
+        }
 
-        self
+        // Fallback: generic obfuscation
+        if let Some(obfuscated) = obfuscate_tail(self) {
+            return obfuscated;
+        }
+
+        self.clone()
     }
 }
 
+fn obfuscate_uri_password(source: &str) -> Option<String> {
+    let mut s = source.to_owned();
+    let proto_end = s.find("://")?;
+    let at_rel = s[proto_end + 3..].find('@')?;
+    let at = proto_end + 3 + at_rel;
+
+    let colon_rel = s[proto_end + 3..at].find(':')?;
+    let colon = proto_end + 3 + colon_rel;
+
+    let password_range = colon + 1..at;
+    let password_len = password_range.end - password_range.start;
+
+    let obfuscation = OFUSCATE_CHAR.repeat(password_len);
+    s.replace_range(password_range, &obfuscation);
+
+    Some(s)
+}
+
+fn obfuscate_tail(source: &str) -> Option<String> {
+    let mut s = source.to_owned();
+    let len = s.len();
+    if len == 0 {
+        return None;
+    }
+
+    let half = len / 2;
+    let obfuscation = OFUSCATE_CHAR.repeat(len - half);
+    s.replace_range(half..len, &obfuscation);
+    Some(s)
+}
+
 pub const LOG_DATA: &str = "LOG_DATA";
-pub const MESSAGE_SEE_VALUE_IN_DEBUG_MODE: &str = "[set LOG_DATA=1 to see 🔎]";
+pub const MESSAGE_SEE_VALUE_IN_DEBUG_MODE: &str = "[HIDDEN: set LOG_DATA=1 🔎]";
 
 pub trait DisplayOnlyForDebugging {
     /// Obfusctate a part of the object.
@@ -35,12 +70,18 @@ where
     T: Debug,
 {
     fn display_only_for_debugging(&self) -> String {
-        match env::var(LOG_DATA) {
-            Ok(env) => match env.as_str() {
-                "true" | "1" => format!("{:?}", self),
-                _ => MESSAGE_SEE_VALUE_IN_DEBUG_MODE.to_string(),
-            },
-            _ => MESSAGE_SEE_VALUE_IN_DEBUG_MODE.to_string(),
+        if log_enabled() {
+            format!("{:?}", self)
+        } else {
+            MESSAGE_SEE_VALUE_IN_DEBUG_MODE.to_string()
         }
+    }
+}
+
+/// Check if logging of full data is enabled
+fn log_enabled() -> bool {
+    match env::var(LOG_DATA) {
+        Ok(v) => matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"),
+        _ => false,
     }
 }

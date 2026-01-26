@@ -22,6 +22,10 @@ async fn main() -> io::Result<()> {
 
     tracing_subscriber::registry().with(layers).init();
 
+    run().await
+}
+
+async fn run() -> io::Result<()> {
     let config = r#"
     [
         {"type":"r","conn":{"type":"mem","data":"[{\"id\":1},{\"id\":2},{\"id\":3}]"}, "name": "file_ids"},
@@ -70,10 +74,11 @@ async fn main() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::main;
+    use super::*;
+    use smol_macros::test;
 
-    #[test]
-    fn test_example() {
-        main().unwrap();
+    #[apply(test!)]
+    async fn test_example() {
+        run().await.unwrap();
     }
 }

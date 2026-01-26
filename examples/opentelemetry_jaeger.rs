@@ -1,13 +1,12 @@
 use env_applier::EnvApply;
+use macro_rules_attribute::apply;
+use smol_macros::main;
 use std::io;
 use tracing_subscriber;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
-
-use macro_rules_attribute::apply;
-use smol_macros::main;
 
 #[apply(main!)]
 async fn main() -> io::Result<()> {

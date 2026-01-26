@@ -72,7 +72,7 @@ impl Document for Toml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::toml::Toml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -120,7 +120,7 @@ impl Document for Toml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::toml::Toml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
