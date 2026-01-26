@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1766392812834,
+  "lastUpdate": 1769461609654,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -4241,6 +4241,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1369813,
             "range": "± 4370",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f49786aeff51db4b2b793ee45153284607b6cb5c",
+          "message": "refactor(project): upgrade version, improve updater, fix tests,etc... (#67)\n\n* feat(tera): add function/filter keys & values for an object\n* feat(updater): add update/map filters\n* feat(updater): migrate search/merge into filters\n* feat(updater): migrate extract/values/keys from functions to filters\n* fix(keycloak): stabalize setup\n* feat(libs): upgrade\n* feat(libs): upgrade quick-xml and improve xml2json\n* feat(parquet): refactor\n* fix(cicd): remplace releaserc.json by release.config.js\n* feat(cicd): improve xplatform\n* feat(curl): support http1/http2\n* fix(examples): improve tests\n* fix(async): remove block_on\n* refactor(cicd): tests job\n* refactor(connector): ofuscate creds in endpoints\n* fix(cicd): run benchmark aside",
+          "timestamp": "2026-01-26T21:32:32+01:00",
+          "tree_id": "0e1a35a1f81bf41cc2bc654712095c6411e0cd17",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/f49786aeff51db4b2b793ee45153284607b6cb5c"
+        },
+        "date": 1769461609111,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4613,
+            "range": "± 52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4565,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 19064,
+            "range": "± 132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 23749,
+            "range": "± 180",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 5102,
+            "range": "± 30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 13749,
+            "range": "± 114",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 117717,
+            "range": "± 932",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 150156,
+            "range": "± 2219",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 149466,
+            "range": "± 2252",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 149858,
+            "range": "± 2371",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 149416,
+            "range": "± 2265",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 150103,
+            "range": "± 2508",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1858923,
+            "range": "± 5159",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1848236,
+            "range": "± 5140",
             "unit": "ns/iter"
           }
         ]
