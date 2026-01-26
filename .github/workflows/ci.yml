@@ -132,6 +132,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: release
+      - run: just setup
       - name: Install Semantic Release
         run: |
           npm install -g \
