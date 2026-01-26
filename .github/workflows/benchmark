@@ -1,0 +1,36 @@
+---
+name: benchmark
+
+on: push
+
+env:
+  CARGO_TERM_COLOR: always
+  CHEWDATA_TAG: latest
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nelonoel/branch-name@v1.0.1
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cp .env.ci .env
+      - uses: falti/dotenv-action@v1
+      - uses: extractions/setup-just@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: benchmark
+      - uses: webgtx/setup-podman-compose@v1
+      - run: just setup
+      - run: just bench | tee output.txt
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          tool: "cargo"
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          alert-threshold: "200%"
+          comment-on-alert: true
+          fail-on-alert: true
+          benchmark-data-dir-path: "docs/benches/${{ env.BRANCH_NAME }}"
