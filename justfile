@@ -203,7 +203,7 @@ clean: stop
     cargo clean
 
 version:
-    grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml | head -1
+    sed -n 's/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' Cargo.toml | head -1
 
 podman-build:
     podman build -t chewdata .
