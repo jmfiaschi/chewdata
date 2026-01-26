@@ -98,12 +98,14 @@ fn faker_benchmark(c: &mut Criterion) {
 
 #[cfg(feature = "curl")]
 fn curl_http1_benchmark(c: &mut Criterion) {
-    let curls: Vec<(&'static str, &'static str)> = vec![("/get", "GET"), ("/get", "HEAD")];
+    use http::Method;
+
+    let curls: Vec<(&'static str, Method)> = vec![("/get", Method::GET), ("/get", Method::HEAD)];
 
     for (path, method) in curls {
         let endpoint = "http://localhost:8080".to_string();
         let path = path.to_string();
-        let method = method.to_string();
+        let method = method;
         let document = Json::default();
 
         c.bench_function(&format!("curl/{}/", method), move |b| {

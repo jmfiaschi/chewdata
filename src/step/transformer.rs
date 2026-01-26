@@ -19,6 +19,7 @@
 //! | name          | alias   | Name step                                                                                                         | `null`        | Auto generate alphanumeric value                      |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                                                    | `ok`          | `ok` / `err`                                          |
 //! | concurrency_limit | -       | Limit of steps to run in concurrence.                                                                          | `1`           | unsigned number                                       |
+//! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! #### Action
 //!
@@ -149,6 +150,9 @@ impl Step for Transformer {
     fn sender(&self) -> Option<&Sender<Context>> {
         self.sender.as_ref()
     }
+    fn name(&self) -> String {
+        self.name.clone()
+    }
     #[instrument(name = "transformer::exec",
         skip(self),
         fields(name=self.name, 
@@ -156,44 +160,38 @@ impl Step for Transformer {
         concurrency_limit=self.concurrency_limit,
     ))]
     async fn exec(&self) -> io::Result<()> {
-        info!("Starts transforming data...");
+        info!("Starting data transformation...");
 
         let receiver_stream = self.receive().await;
 
-        trace!("Warm up static referential before using it in the concurrent execution.");
-        let referentials = self.referentials.clone().into_iter().filter(|(_name,referential)| {
-            !referential.connector_type.inner().is_variable()
-        }).collect();
+        let referentials = self.referentials.clone().into_iter().filter(|(_, r)| !r.connector_type.inner().is_variable()).collect();
         
         Referential::new(&referentials).to_value(&Context::new(String::default(), DataResult::Ok(Value::default()))).await?;
 
         // Transform in concurrence with parallelism.
-        let results: Vec<_> = receiver_stream.map(|context_received| {
+        let results: Vec<_> = receiver_stream.map(|mut context| {
             let step = self.clone();
-            smol::spawn(async move {
-                transform(&step, &mut context_received.clone()).await
-            })
+            async move {
+                transform(&step, &mut context).await
+            }
         }).buffer_unordered(self.concurrency_limit).collect().await;
 
         results
             .into_iter()
-            .filter(|result| result.is_err())
-            .map(|result| warn!("{:?}", result))
+            .filter_map(Result::err)
             .for_each(drop);
 
-        info!("Stops transforming data and sending context in the channel");
+        info!("Finished transformation and sending context in the channel");
 
         Ok(())
-    }
-    fn name(&self) -> String {
-        self.name.clone()
     }
 }
 
 #[instrument(name = "transformer::transform", skip(step, context_received))]
 async fn transform(step: &Transformer, context_received: &mut Context) -> io::Result<()> {
     let data_result = context_received.input();
-    if !data_result.is_type(step.data_type.as_ref()) {
+
+    if !data_result.is_type(&step.data_type) {
         trace!("Handles only this data type");
         step.send(context_received).await;
         return Ok(());
@@ -212,7 +210,7 @@ async fn transform(step: &Transformer, context_received: &mut Context) -> io::Re
                 info!(
                     from = record.display_only_for_debugging(),
                     to = new_record.display_only_for_debugging(),
-                    "data transformed with success"
+                    "Transformed array successfully"
                 );
 
                 for array_value in array {
@@ -223,14 +221,14 @@ async fn transform(step: &Transformer, context_received: &mut Context) -> io::Re
             Value::Null => {
                 info!(
                     record = new_record.display_only_for_debugging(),
-                    "Record skip because the value is null"
+                    "Skipping record with null value"
                 );
             }
             _ => {
                 info!(
                     from = record.display_only_for_debugging(),
                     to = new_record.display_only_for_debugging(),
-                    "data transformed with success"
+                    "Record transformed successfully"
                 );
 
                 context_received.insert_step_result(step.name(), DataResult::Ok(new_record.clone()));
@@ -242,7 +240,7 @@ async fn transform(step: &Transformer, context_received: &mut Context) -> io::Re
                 from = record.display_only_for_debugging(),
                 error = format!("{}", e).as_str(),
                 context = context_received.display_only_for_debugging(),
-                "The transformer's updater raise an error"
+                "Updater transformation failed"
             );
 
             context_received.insert_step_result(step.name(), DataResult::Err((record.clone(), e)));

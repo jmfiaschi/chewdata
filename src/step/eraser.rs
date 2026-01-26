@@ -18,6 +18,7 @@
 //! | name          | alias   | Name step                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | exclude_paths | exclude | resource to exclude for the erase step                                          | `null`        | List of string                               |
 //! | data_type     | data    | Type of data used for the transformation. skip other data type                  | `ok`          | `ok` / `err`                                 |
+//! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! ### Examples
 //!

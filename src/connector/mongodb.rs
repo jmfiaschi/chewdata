@@ -36,17 +36,15 @@
 use super::counter::mongodb::CounterType;
 use super::Connector;
 use crate::connector::paginator::mongodb::PaginatorType;
-use crate::helper::string::DisplayOnlyForDebugging;
+use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{
     document::Document as ChewdataDocument, helper::mustache::Mustache, DataSet, DataStream,
 };
-use std::sync::Arc;
 use async_compat::{Compat, CompatExt};
 use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
-use smol::stream::StreamExt;
 use mongodb::{
     bson::{doc, Document},
     options::{FindOptions, UpdateOptions},
@@ -54,10 +52,12 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use smol::stream::StreamExt;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::{
     fmt,
@@ -113,12 +113,12 @@ impl fmt::Debug for Mongodb {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Mongodb")
             // Can contain sensitive data
-            .field("document", &self.document)
-            .field("endpoint", &self.endpoint.display_only_for_debugging())
+            .field("document", &self.document.display_only_for_debugging())
+            .field("endpoint", &self.endpoint.to_obfuscate())
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("parameters", &self.parameters.display_only_for_debugging())
-            .field("filter", &self.filter)
+            .field("filter", &self.filter.display_only_for_debugging())
             .field("paginator_type", &self.paginator_type)
             .field("find_options", &self.find_options)
             .field("update_options", &self.update_options)
@@ -176,14 +176,13 @@ impl Connector for Mongodb {
         Ok(())
     }
     /// See [`Connector::document`] for more details.
-    fn document(&self) -> Result<&Box<dyn ChewdataDocument>> {
-        match &self.document {
-            Some(document) => Ok(document),
-            None => Err(Error::new(
+    fn document(&self) -> Result<&dyn ChewdataDocument> {
+        self.document.as_deref().ok_or_else(|| {
+            Error::new(
                 ErrorKind::InvalidInput,
                 "The document has not been set in the connector",
-            )),
-        }
+            )
+        })
     }
     /// See [`Connector::path`] for more details.
     fn path(&self) -> String {
@@ -208,7 +207,7 @@ impl Connector for Mongodb {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::document::json::Json;
     /// use chewdata::connector::Connector;
@@ -216,13 +215,16 @@ impl Connector for Mongodb {
     /// use std::io;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
+    ///     connector.set_document(Box::new(document)).unwrap();
+    ///
     ///     let len = connector.len().await.unwrap();
     ///     assert!(
     ///         0 < len,
@@ -250,20 +252,24 @@ impl Connector for Mongodb {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
     /// use smol::prelude::*;
     /// use std::io;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "local".into();
     ///     connector.collection = "startup_log".into();
+    ///    connector.set_document(Box::new(document)).unwrap();
+    ///
     ///     let datastream = connector.fetch().await.unwrap().unwrap();
     ///     assert!(
     ///         0 < datastream.count().await,
@@ -291,7 +297,8 @@ impl Connector for Mongodb {
                 .with_options(options)
                 .await
                 .map_err(|e| Error::new(ErrorKind::Interrupted, e))
-        }).await?;
+        })
+        .await?;
         let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect().await;
         let data = serde_json::to_vec(&docs)?;
 
@@ -313,7 +320,7 @@ impl Connector for Mongodb {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use chewdata::DataResult;
@@ -322,14 +329,17 @@ impl Connector for Mongodb {
     /// use std::io;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    /// use chewdata::document::json::Json;
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
     ///     connector.collection = "send_1".into();
     ///     connector.erase().await.unwrap();
+    ///     connector.set_document(Box::new(document)).unwrap();
     ///
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
@@ -382,14 +392,12 @@ impl Connector for Mongodb {
 
             let result = Compat::new(async {
                 collection
-                    .update_many(
-                        filter_update,
-                        doc! {"$set": doc_without_id}
-                    )
+                    .update_many(filter_update, doc! {"$set": doc_without_id})
                     .with_options(*update_options.clone())
                     .await
                     .map_err(|e| Error::new(ErrorKind::Interrupted, e))
-            }).await?;
+            })
+            .await?;
 
             if 0 < result.matched_count {
                 trace!(
@@ -412,7 +420,8 @@ impl Connector for Mongodb {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
+    /// use chewdata::document::json::Json;
     /// use chewdata::connector::mongodb::Mongodb;
     /// use chewdata::connector::Connector;
     /// use chewdata::DataResult;
@@ -420,9 +429,10 @@ impl Connector for Mongodb {
     /// use std::io;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = Mongodb::default();
     ///     connector.endpoint = "mongodb://admin:admin@localhost:27017".into();
     ///     connector.database = "tests".into();
@@ -431,6 +441,7 @@ impl Connector for Mongodb {
     ///     let expected_result1 =
     ///         DataResult::Ok(serde_json::from_str(r#"{"column1":"value1"}"#).unwrap());
     ///     let dataset = vec![expected_result1];
+    ///     connector.set_document(Box::new(document)).unwrap();
     ///     connector.send(&dataset).await.unwrap();
     ///     connector.erase().await.unwrap();
     ///
@@ -451,10 +462,11 @@ impl Connector for Mongodb {
 
         Compat::new(async {
             collection
-            .delete_many(doc! {})
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))
-        }).await?;
+                .delete_many(doc! {})
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))
+        })
+        .await?;
 
         info!("Erase data with success");
         Ok(())
@@ -472,10 +484,10 @@ mod tests {
     use super::*;
     use crate::document::json::Json;
     use crate::DataResult;
-    use macro_rules_attribute::apply;
-    use smol_macros::test;
     use json_value_merge::Merge;
     use json_value_search::Search;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
 
     #[apply(test!)]
     async fn is_empty() {

@@ -3,13 +3,15 @@
 
 ### Features
 
-* **updater:** add filter updage/map/keys/values for an object. Migrate some function into filters. ([#66](https://github.com/jmfiaschi/chewdata/issues/66)) ([3f4525a](https://github.com/jmfiaschi/chewdata/commit/3f4525a95b143e81f1d8c3c36a360fae8469040d))
+* **updater:** add filter update/map/keys/values for an object. Migrate some function into filters. ([#66](https://github.com/jmfiaschi/chewdata/issues/66)) ([3f4525a](https://github.com/jmfiaschi/chewdata/commit/3f4525a95b143e81f1d8c3c36a360fae8469040d))
+* **updater:** remove find/base64_encode/base64_decode from functions ([abf4bd4](https://github.com/jmfiaschi/chewdata/commit/abf4bd4f4c83b13e22f696e119da0fda4e723138))
 
 # [3.3.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2025-12-21)
 
 
 ### Bug Fixes
 
+* **keycloak:** configuration ([74b87eb](https://github.com/jmfiaschi/chewdata/commit/74b87eb7c98ac429133d19f8814aab0a7f49c40a))
 * **keycloak:** rollback stabalize setup ([5615410](https://github.com/jmfiaschi/chewdata/commit/56154109ed613abb0239306cbc9099bb1f8eebc6))
 * **keycloak:** stabalize setup ([d3521b9](https://github.com/jmfiaschi/chewdata/commit/d3521b983bf95f36f74f2dfe747eeff95e750ddd))
 

@@ -15,16 +15,16 @@ use std::collections::HashMap;
 use tera::*;
 
 /// Generate words.
-/// 
+///
 /// # Arguments
 ///
 /// * `min` - Minumal number of word.
 /// * `max` - Maximal number of word.
 /// * `separator` - Separator to seperate 2 words.
-/// 
+///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::words;
 ///
@@ -52,10 +52,7 @@ pub fn words(args: &HashMap<String, Value>) -> Result<Value> {
         ));
     }
 
-    let separator = args
-        .get("separator")
-        .and_then(Value::as_str)
-        .unwrap_or(" ");
+    let separator = args.get("separator").and_then(Value::as_str).unwrap_or(" ");
 
     let words = Words(min..max).fake::<Vec<String>>().join(separator);
 
@@ -66,7 +63,7 @@ pub fn words(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::sentences;
 ///
@@ -94,10 +91,7 @@ pub fn sentences(args: &HashMap<String, Value>) -> Result<Value> {
         ));
     }
 
-    let separator = args
-        .get("separator")
-        .and_then(Value::as_str)
-        .unwrap_or(" ");
+    let separator = args.get("separator").and_then(Value::as_str).unwrap_or(" ");
 
     let sentences = Sentences(min..max).fake::<Vec<String>>().join(separator);
     Ok(Value::String(sentences))
@@ -107,7 +101,7 @@ pub fn sentences(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::paragraphs;
 ///
@@ -148,7 +142,7 @@ pub fn paragraphs(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::first_name;
 ///
@@ -165,7 +159,7 @@ pub fn first_name(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::last_name;
 ///
@@ -182,7 +176,7 @@ pub fn last_name(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::title;
 ///
@@ -200,7 +194,7 @@ pub fn title(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::job_seniority;
 ///
@@ -217,7 +211,7 @@ pub fn job_seniority(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::job_field;
 ///
@@ -234,7 +228,7 @@ pub fn job_field(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::job_position;
 ///
@@ -251,7 +245,7 @@ pub fn job_position(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::city;
 ///
@@ -268,7 +262,7 @@ pub fn city(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::country_name;
 ///
@@ -285,7 +279,7 @@ pub fn country_name(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::country_code;
 ///
@@ -302,7 +296,7 @@ pub fn country_code(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::street_name;
 ///
@@ -319,7 +313,7 @@ pub fn street_name(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::state_name;
 ///
@@ -336,7 +330,7 @@ pub fn state_name(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::state_code;
 ///
@@ -353,7 +347,7 @@ pub fn state_code(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::zipcode;
 ///
@@ -370,7 +364,7 @@ pub fn zipcode(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::postcode;
 ///
@@ -387,7 +381,7 @@ pub fn postcode(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::timezone;
 ///
@@ -404,7 +398,7 @@ pub fn timezone(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::latitude;
 ///
@@ -421,7 +415,7 @@ pub fn latitude(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::longitude;
 ///
@@ -438,7 +432,7 @@ pub fn longitude(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::profession;
 ///
@@ -455,7 +449,7 @@ pub fn profession(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::industry;
 ///
@@ -472,7 +466,7 @@ pub fn industry(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::email;
 ///
@@ -489,7 +483,7 @@ pub fn email(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::ipv4;
 ///
@@ -506,7 +500,7 @@ pub fn ipv4(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::ipv6;
 ///
@@ -523,7 +517,7 @@ pub fn ipv6(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::mac_address;
 ///
@@ -540,7 +534,7 @@ pub fn mac_address(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::color_hex;
 ///
@@ -557,7 +551,7 @@ pub fn color_hex(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::user_agent;
 ///
@@ -574,7 +568,7 @@ pub fn user_agent(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::digit;
 ///
@@ -591,7 +585,7 @@ pub fn digit(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::phone_number;
 ///
@@ -608,13 +602,14 @@ pub fn phone_number(args: &HashMap<String, Value>) -> Result<Value> {
         .and_then(Value::as_str)
         .unwrap_or(default);
 
-    let phone: String = format.chars().map(|ch| {
-        match ch {
+    let phone: String = format
+        .chars()
+        .map(|ch| match ch {
             '^' => std::char::from_digit((1..10).fake(), 10).unwrap(),
             '#' => std::char::from_digit((0..10).fake(), 10).unwrap(),
             other => other,
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(Value::String(phone))
 }
@@ -623,7 +618,7 @@ pub fn phone_number(args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::currency_name;
 ///
@@ -640,7 +635,7 @@ pub fn currency_name(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::currency_code;
 ///
@@ -657,7 +652,7 @@ pub fn currency_code(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::currency_symbol;
 ///
@@ -674,7 +669,7 @@ pub fn currency_symbol(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::credit_card;
 ///
@@ -691,7 +686,7 @@ pub fn credit_card(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::barcode;
 ///
@@ -708,7 +703,7 @@ pub fn barcode(_args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use chewdata::updater::tera_helpers::function::faker::password;
 ///

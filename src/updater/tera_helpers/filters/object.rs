@@ -1,6 +1,6 @@
 use crate::helper::json_pointer::JsonPointer;
 use crate::helper::value::{Extract, MergeAndReplace};
-use crate::updater::tera::Tera;
+use crate::updater::tera::engine;
 use json_value_merge::Merge;
 use json_value_resolve::Resolve;
 use json_value_search::Search;
@@ -18,7 +18,7 @@ use tera::*;
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use serde_json::json;
@@ -33,7 +33,7 @@ use tera::*;
 /// assert_eq!(result, json!(["a", "b"]));
 /// ```
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use serde_json::json;
@@ -79,7 +79,7 @@ pub fn merge(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use json_value_search::Search;
@@ -120,7 +120,7 @@ pub fn search(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::object::replace_key;
@@ -213,7 +213,7 @@ fn replace_key_recursively(
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::object::replace_value;
@@ -311,7 +311,7 @@ fn replace_value_recursively(
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use std::collections::HashMap;
 /// use serde_json::value::Value;
 /// use chewdata::updater::tera_helpers::filters::object::extract;
@@ -377,14 +377,10 @@ pub fn extract(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 /// A Result containing the updated serde_json::Value or an error if the operation fails.
 ///
 /// # Example
-/// ```no_run
+/// ```
 /// use serde_json::json;
 /// use std::collections::HashMap;
-/// use chewdata::updater::tera::Tera;
 /// use chewdata::updater::tera_helpers::filters::object::update;
-///
-/// let tera = Tera::default();
-/// futures::executor::block_on(async { tera.engine().await });
 ///
 /// let mut args = HashMap::new();
 /// args.insert("fn".to_string(), json!("filter"));
@@ -397,6 +393,8 @@ pub fn extract(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
 /// assert_eq!(updated_value, json!({"name": "  Alice  ", "age": 30, "roles": [{"name": " Admin ","code": "admin"}]}));
 /// ```
 pub fn update(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
+    let engine = engine();
+
     let fn_name: &str = args
         .get("fn")
         .and_then(|v| v.as_str())
@@ -424,8 +422,8 @@ pub fn update(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         }
     }
 
-    let engine = futures::executor::block_on(async { Tera::default().engine().await });
-    let filter = engine.get_filter(fn_name)?;
+    let guard = engine.lock().map_err(Error::msg)?;
+    let filter = guard.get_filter(fn_name)?;
     let new_value = &mut value.clone();
 
     if !search_and_update(new_value, &fields, filter, &new_args)? {
@@ -518,8 +516,7 @@ pub fn map(value: &Value, args: &HashMap<String, Value>) -> Result<Value> {
         None => {
             return Err(Error::msg(format!(
                 "Attribute '{}' not found in {}",
-                &attribute,
-                value.to_string()
+                &attribute, value
             )))
         }
     };
@@ -557,17 +554,12 @@ pub fn keys(value: &Value, _args: &HashMap<String, Value>) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::updater::tera::Tera;
+    use macro_rules_attribute::apply;
     use serde_json::json;
+    use smol_macros::test;
     use std::collections::HashMap;
 
     // ---------- Helpers ----------
-    fn setup_tera() -> Tera {
-        let tera = Tera::default();
-        futures::executor::block_on(async { tera.engine().await });
-        tera
-    }
-
     fn args(pairs: &[(&str, serde_json::Value)]) -> HashMap<String, serde_json::Value> {
         pairs
             .iter()
@@ -783,20 +775,16 @@ mod tests {
     }
 
     // ---------- Update Object Tests ----------
-    #[test]
-    fn update_object_trims_field() {
-        setup_tera();
+    #[apply(test!)]
+    async fn update_object_trims_field() {
         let user = json!({ "name": "  alice ", "age": 30 });
-
         let args = args(&[("fn", json!("trim")), ("attribute", json!("name"))]);
-
         let result = update(&user, &args).unwrap();
         assert_eq!(result, json!({ "name": "alice", "age": 30 }));
     }
 
-    #[test]
-    fn update_object_regex_trim() {
-        setup_tera();
+    #[apply(test!)]
+    async fn update_object_regex_trim() {
         let user = json!({
             "name": "  alice ",
             "age": 30,
@@ -805,9 +793,7 @@ mod tests {
                 {"name_2": " Other ", "code": "other"}
             ]
         });
-
         let args = args(&[("fn", json!("trim")), ("attribute", json!("roles.*.name+"))]);
-
         let result = update(&user, &args).unwrap();
         let expected = json!({
             "name": "  alice ",
@@ -822,9 +808,8 @@ mod tests {
     }
 
     // ---------- Update Array Tests ----------
-    #[test]
-    fn update_array_positions() {
-        setup_tera();
+    #[apply(test!)]
+    async fn update_array_positions() {
         let input = json!([
             { "name": "  alice ", "age": 30 },
             { "name": "  bob ", "age": 25 }
@@ -850,9 +835,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn update_array_with_nested_roles() {
-        setup_tera();
+    #[apply(test!)]
+    async fn update_array_with_nested_roles() {
         let users = json!([
             { "name": "  alice ", "age": 30, "roles": [{"name": " Admin ", "code": "admin"}, {"name": " Other ", "code": "other"}] },
             { "name": "  bob ", "age": 25, "roles": [{"name": " Admin ", "code": "admin"}, {"name": " Other ", "code": "other"}] }
@@ -869,9 +853,8 @@ mod tests {
         assert_eq!(result, expected);
     }
 
-    #[test]
-    fn update_array_with_map_function() {
-        setup_tera();
+    #[apply(test!)]
+    async fn update_array_with_map_function() {
         let users = json!([
             { "name": "  alice ", "age": 30, "roles": [{"name": " Admin ", "code": "admin"}, {"name": " Other ", "code": "other"}] },
             { "name": "  bob ", "age": 25, "roles": [{"name": " Admin ", "code": "admin"}, {"name": " Other ", "code": "other"}] }
@@ -893,8 +876,8 @@ mod tests {
     }
 
     // ---------- Error Tests ----------
-    #[test]
-    fn update_with_recursive_call_fails() {
+    #[apply(test!)]
+    async fn update_with_recursive_call_fails() {
         let user = json!({ "name": "alice", "age": 30 });
         let args = args(&[("fn", json!("update")), ("attribute", json!("roles"))]);
 
@@ -906,8 +889,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn update_missing_attribute_returns_error() {
+    #[apply(test!)]
+    async fn update_missing_attribute_returns_error() {
         let user = json!({ "name": "alice" });
         let args = args(&[("fn", json!("trim"))]);
 

@@ -66,11 +66,7 @@ impl fmt::Debug for Basic {
             .field("username", &self.username)
             .field(
                 "password",
-                &self
-                    .password
-                    .to_owned()
-                    .to_obfuscate()
-                    .display_only_for_debugging(),
+                &self.password.to_obfuscate().display_only_for_debugging(),
             )
             .finish()
     }
@@ -81,7 +77,7 @@ impl Basic {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::authenticator::basic::Basic;
     ///
     /// let auth = Basic::new("my_username", "my_password");
@@ -100,7 +96,7 @@ impl Authenticator for Basic {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::authenticator::{AuthenticatorType, basic::Basic, Authenticator};
     /// use smol::prelude::*;
     /// use std::io;

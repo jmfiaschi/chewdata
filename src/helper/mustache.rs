@@ -18,7 +18,7 @@ impl Mustache for String {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use serde_json::Value;
     /// use chewdata::helper::mustache::Mustache;
     ///
@@ -35,7 +35,7 @@ impl Mustache for String {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use serde_json::Value;
     /// use json_value_merge::Merge;
     /// use chewdata::helper::mustache::Mustache;
@@ -93,7 +93,7 @@ impl Mustache for Value {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use serde_json::Value;
     /// use chewdata::helper::mustache::Mustache;
     ///
@@ -110,7 +110,7 @@ impl Mustache for Value {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use serde_json::Value;
     /// use json_value_merge::Merge;
     /// use chewdata::helper::mustache::Mustache;

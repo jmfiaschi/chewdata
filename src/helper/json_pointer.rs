@@ -11,7 +11,7 @@ impl JsonPointer for String {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::helper::json_pointer::JsonPointer;
     ///
     /// let field_path = "value.sub_value.0.array_value".to_string();

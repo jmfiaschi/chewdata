@@ -14,7 +14,7 @@ setup:
 
 # Build the project
 build:
-    cargo build --lib --bins --tests --benches --features "xml csv parquet toml bucket curl mongodb psql"
+    cargo build --lib --bins --tests --benches --features "ordered,xml,csv,parquet,toml,bucket,curl,mongodb,psql"
 
 build-feature-csv:
     cargo build --lib --bins --tests --benches --features "csv"
@@ -45,11 +45,11 @@ build-feature-apm:
 
 # Run the project with 'json_config' data in argument
 run-with-json json_config: debug
-    cargo run '{{json_config}}'
+    cargo run --all-features '{{json_config}}'
 
 # Run the project with json 'file_path' in argument
 run-with-file file_path: debug
-    cargo run -- --file '{{file_path}}'
+    cargo run --all-features -- --file '{{file_path}}'
 
 # Run the project without arguments
 run: debug
@@ -63,64 +63,67 @@ example name:
 release:
     cargo build --release --lib --bins
 
-test: start unit-tests integration-tests example-tests
+test: start test-basic test-xml test-csv test-toml test-parquet test-bucket test-psql test-curl test-mongodb
 
-test_docs:
-    cargo test --doc --features "xml csv parquet toml bucket curl mongodb psql"
+test-basic:
+    cargo test --tests --features "ordered"
+    cargo test --examples --features "ordered"
+    cargo test --doc --features "ordered"
 
-test_docs_by_feature:
-    cargo test --doc
-    cargo test --doc --features "xml"
-    cargo test --doc --features "csv"
-    cargo test --doc --features "parquet"
-    cargo test --doc --features "toml"
-    cargo test --doc --features "bucket csv"
-    cargo test --doc --features "curl xml"
-    cargo test --doc --features "mongodb"
-    cargo test --doc --features "psql"
+test-xml:
+    cargo test --tests --features "ordered,xml"
+    cargo test --examples --features "ordered,xml"
+    cargo test --doc --features "ordered,xml"
 
-test_libs:
-    cargo test --lib --features "xml csv parquet toml bucket curl mongodb psql"
+test-csv:
+    cargo test --tests --features "ordered,csv"
+    cargo test --examples --features "ordered,csv"
+    cargo test --doc --features "ordered,csv"
 
-test_libs_by_feature:
-    cargo test --lib
-    cargo test --lib --features "xml"
-    cargo test --lib --features "csv"
-    cargo test --lib --features "parquet"
-    cargo test --lib --features "toml"
-    cargo test --lib --features "bucket csv"
-    cargo test --lib --features "curl xml"
-    cargo test --lib --features "mongodb"
-    cargo test --lib --features "psql"
+test-toml:
+    cargo test --tests --features "ordered,toml"
+    cargo test --examples --features "ordered,toml"
+    cargo test --doc --features "ordered,toml"
 
-test_integration:
-    cargo test --tests --features "xml csv parquet toml bucket curl mongodb psql"
+test-parquet:
+    cargo test --tests --features "ordered,parquet"
+    cargo test --examples --features "ordered,parquet"
+    cargo test --doc --features "ordered,parquet"
 
-example-tests:
-    cargo test --examples --features "xml csv parquet toml bucket curl mongodb psql"
+test-bucket: minio-install
+    cargo test --tests --features "ordered,bucket,csv,parquet"
+    cargo test --examples --features "ordered,bucket,csv,parquet"
+    cargo test --doc --features "ordered,bucket,csv,parquet"
 
-unit-tests: start test_libs
+test-psql: psql
+    cargo test --tests --features "ordered,psql"
+    cargo test --examples --features "ordered,psql"
+    cargo test --doc --features "ordered,psql"
 
-integration-tests: start test_docs test_integration
+test-curl: http-mock https-mock keycloak rabbitmq
+    cargo test --tests --features "ordered,curl"
+    cargo test --examples --features "ordered,curl"
+    cargo test --doc --features "ordered,curl"
+
+test-mongodb: mongodb
+    cargo test --tests --features "ordered,mongodb"
+    cargo test --examples --features "ordered,mongodb"
+    cargo test --doc --features "ordered,mongodb"
 
 # Lint with all features.
 lint:
     cargo clippy --all-features
 
 coverage: start
-    cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
-
-coverage_ut:
-    rustup toolchain install nightly
-    cargo install cargo-tarpaulin
-    cargo +nightly tarpaulin --out Xml --lib --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
-
-coverage_it:
-    cargo tarpaulin --out Xml --doc --tests --skip-clean --jobs 1 --features "xml csv parquet toml bucket curl mongodb psql"
+    cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "ordered,xml,csv,parquet,toml,bucket,curl,mongodb,psql"
 
 # Benchmark the project.
-bench: http-mock
-    cargo criterion --benches --output-format bencher --plotting-backend disabled --features "xml csv parquet toml bucket curl mongodb psql" 2>&1
+bench cpus="1": http-mock
+    cargo criterion --benches \
+    --output-format bencher \
+    --jobs {{cpus}} \
+    --plotting-backend disabled \
+    --features "xml,csv,parquet,toml,bucket,curl,mongodb,psql" 2>&1
 
 # Start minio in local.
 minio:
@@ -128,26 +131,31 @@ minio:
     @echo "Host: http://localhost:9000 | Credentials: ${BUCKET_ACCESS_KEY_ID}/${BUCKET_SECRET_ACCESS_KEY}"
     podman-compose up -d minio
 
-minio_install:
+minio-install:
     @echo "Configure Minio server."
     podman-compose run --rm mc alias set s3 http://minio:9000 ${BUCKET_ACCESS_KEY_ID} ${BUCKET_SECRET_ACCESS_KEY} --api s3v4
     podman-compose run --rm mc mb -p s3/my-bucket
-    podman-compose run --rm mc cp -r /root/data s3/my-bucket
+    podman-compose run --rm mc mirror /root/data s3/my-bucket/data
 
 # Start mockhttp APIs in local.
 http-mock:
     @echo "Run http mock server."
-    @echo "Host: http://localhost:8080 "
+    @echo "Host: http://localhost:8080"
     podman-compose up -d http-mock
 
-# Start mongo server in local.
-mongo:
-    @echo "Run mongo server."
-    podman-compose up -d mongo
+https-mock:
+    @echo "Run http mock server."
+    @echo "Host: https://localhost:8084"
+    podman-compose up -d https-mock
 
-mongo-admin:
-    @echo "Run mongo admin server."
-    podman-compose up -d mongo-admin
+# Start mongodb server in local.
+mongodb:
+    @echo "Run mongodb server."
+    podman-compose up -d mongodb
+
+mongodb-admin:
+    @echo "Run mongodb admin server."
+    podman-compose up -d mongodb-admin
 
 # Start psql server in local.
 psql:
@@ -157,32 +165,32 @@ psql:
 # Start db admin in local.
 adminer:
     @echo "Run admin db"
-    @echo "Host: http://localhost:8081 "
+    @echo "Host: http://localhost:8081"
     podman-compose up -d adminer
 
 # Start keycloak server in local.
 keycloak:
     @echo "Run keycloak"
-    @echo "Host: http://localhost:8083 "
+    @echo "Host: http://localhost:8083"
     podman-compose up -d keycloak-ready
 
 # Start APM server in local.
 apm:
     @echo "Run monitoring"
-    @echo "Host: http://localhost:16686 "
+    @echo "Host: http://localhost:16686"
     podman-compose up -d monitoring
 
 # Start rabbitmq server in local.
 rabbitmq:
     @echo "Run rabbitmq"
-    @echo "Host: http://localhost:15672 "
-    podman-compose up -d rabbitmq
+    @echo "Host: http://localhost:15672"
+    podman-compose up -d rabbitmq-ready
 
 semantic-release:
     npx semantic-release
 
 # Start all servers
-start: stop debug minio_install http-mock mongo keycloak rabbitmq
+start: stop debug minio-install http-mock https-mock mongodb keycloak rabbitmq
 
 # Stop all servers
 stop:
@@ -191,10 +199,11 @@ stop:
 # Clean the project and stop servers
 clean: stop
     sudo rm -Rf .cache
+    sudo rm -Rf data/out/*
     cargo clean
 
 version:
     grep -Po '\b^version\s*=\s*"\K.*?(?=")' Cargo.toml | head -1
 
-podman_build:
+podman-build:
     podman build -t chewdata .

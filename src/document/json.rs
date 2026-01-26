@@ -122,7 +122,7 @@ impl Document for Json {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::json::Json;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -133,7 +133,7 @@ impl Document for Json {
     /// let mut dataset = document.read(&json_str).unwrap().into_iter();
     /// let data = dataset.next().unwrap().to_value();
     /// let expected_data: Value = serde_json::from_slice(&json_str).unwrap();
-    /// assert_eq!(expected_data, data);
+    /// assert_eq!(expected_data[0], data);
     /// ```
     #[instrument(skip(buffer), name = "json::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
@@ -210,7 +210,7 @@ impl Document for Json {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::json::Json;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -271,7 +271,7 @@ impl Document for Json {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::json::Json;
     /// use chewdata::document::Document;
     ///
@@ -300,7 +300,7 @@ impl Document for Json {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::json::Json;
     /// use chewdata::document::Document;
     ///

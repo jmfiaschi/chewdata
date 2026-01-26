@@ -47,8 +47,6 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
-use smol::prelude::*;
-use std::sync::Arc;
 use async_lock::Mutex;
 use async_stream::stream;
 use async_trait::async_trait;
@@ -64,11 +62,13 @@ use aws_sdk_s3::Client;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use smol::prelude::*;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::env;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 use std::vec::IntoIter;
@@ -107,8 +107,8 @@ pub struct BucketSelect {
 impl fmt::Debug for BucketSelect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BucketSelect")
-            .field("document", &self.document)
-            .field("metadata", &self.metadata)
+            .field("document", &self.document.display_only_for_debugging())
+            .field("metadata", &self.metadata.display_only_for_debugging())
             .field("endpoint", &self.endpoint)
             .field("profile", &self.profile)
             .field("region", &self.region)
@@ -288,7 +288,7 @@ impl BucketSelect {
             .input_serialization(input_serialization)
             .output_serialization(output_serialization))
     }
-    async fn fetch_data(&mut self) -> Result<Vec<u8>> {
+    async fn fetch_data(&self) -> Result<Vec<u8>> {
         let mut event_stream = self
             .select_object_content()
             .compat()
@@ -298,47 +298,40 @@ impl BucketSelect {
             .await
             .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
 
-        let mut buffer = Vec::default();
+        let mut buffer = Vec::new();
 
-        while let Some(event) = event_stream
-            .payload
-            .recv()
-            .compat()
-            .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
-        {
+        loop {
+            let event_opt = event_stream.payload.recv().compat().await;
+
+            let event = match event_opt {
+                Ok(Some(ev)) => ev,
+                Ok(None) => break,
+                Err(e) => {
+                    warn!("S3 Select failed: {:#?}", e);
+                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e));
+                }
+            };
+
             match event {
                 SelectObjectContentEventStream::Records(records) => {
-                    trace!("records Event");
                     if let Some(bytes) = records.payload() {
-                        buffer.append(&mut bytes.clone().into_inner());
-                    };
+                        buffer.extend_from_slice(bytes.as_ref());
+                    }
                 }
                 SelectObjectContentEventStream::Stats(stats) => {
-                    trace!(
-                        stats = format!("{:?}", stats.details()).as_str(),
-                        "Stats Event"
-                    );
+                    trace!(?stats, "Stats Event");
+                }
+                SelectObjectContentEventStream::Progress(progress) => {
+                    trace!(?progress, "Progress Event");
                 }
                 SelectObjectContentEventStream::End(_) => {
                     trace!("End Event");
                     break;
                 }
-                SelectObjectContentEventStream::Progress(progress) => {
-                    trace!(
-                        details = format!("{:?}", progress.details()).as_str(),
-                        "Progress Event"
-                    );
-                }
                 SelectObjectContentEventStream::Cont(_) => {
                     trace!("Continuation Event");
                 }
-                otherwise => {
-                    return Err(Error::new(
-                        ErrorKind::Interrupted,
-                        format!("{:?}", otherwise),
-                    ))
-                }
+                other => trace!(event = ?other, "Ignoring unknown event"),
             }
         }
 
@@ -354,53 +347,31 @@ impl BucketSelect {
             .await
             .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
 
-        let mut buffer: usize = 0;
+        let mut scanned: usize = 0;
 
         while let Some(event) = event_stream
             .payload
             .recv()
             .compat()
             .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
         {
             match event {
-                SelectObjectContentEventStream::Records(_) => {
-                    trace!("records Event");
-                }
                 SelectObjectContentEventStream::Stats(stats) => {
-                    trace!(
-                        stats = format!("{:?}", stats.details()).as_str(),
-                        "Stats Event"
-                    );
-                    if let Some(stats) = stats.details {
-                        if let Some(bytes_scanned) = stats.bytes_scanned() {
-                            buffer += bytes_scanned as usize;
+                    if let Some(details) = stats.details {
+                        if let Some(bytes) = details.bytes_scanned() {
+                            scanned = scanned.max(bytes as usize);
                         }
-                    };
+                    }
                 }
-                SelectObjectContentEventStream::End(_) => {
-                    trace!("End Event");
-                    break;
-                }
-                SelectObjectContentEventStream::Progress(progress) => {
-                    trace!(
-                        details = format!("{:?}", progress.details()).as_str(),
-                        "Progress Event"
-                    );
-                }
-                SelectObjectContentEventStream::Cont(_) => {
-                    trace!("Continuation Event");
-                }
-                otherwise => {
-                    return Err(Error::new(
-                        ErrorKind::Interrupted,
-                        format!("{:?}", otherwise),
-                    ))
+                SelectObjectContentEventStream::End(_) => break,
+                other => {
+                    trace!(event = ?other, "Ignoring unknown event");
                 }
             }
         }
 
-        Ok(buffer)
+        Ok(scanned)
     }
 }
 
@@ -408,23 +379,22 @@ impl BucketSelect {
 impl Connector for BucketSelect {
     /// See [`Connector::set_document`] for more details.
     fn set_document(&mut self, document: Box<dyn Document>) -> Result<()> {
-        self.document = Some(document.clone());
+        self.document = Some(document);
 
         Ok(())
     }
     /// See [`Connector::document`] for more details.
-    fn document(&self) -> Result<&Box<dyn Document>> {
-        match &self.document {
-            Some(document) => Ok(document),
-            None => Err(Error::new(
+    fn document(&self) -> Result<&dyn Document> {
+        self.document.as_deref().ok_or_else(|| {
+            Error::new(
                 ErrorKind::InvalidInput,
                 "The document has not been set in the connector",
-            )),
-        }
+            )
+        })
     }
     /// See [`Connector::set_parameters`] for more details.
     fn set_parameters(&mut self, parameters: Value) {
-        self.parameters = Box::new(parameters);
+        *self.parameters = parameters
     }
     /// See [`Connector::metadata`] for more details.
     fn metadata(&self) -> Metadata {
@@ -437,7 +407,7 @@ impl Connector for BucketSelect {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -456,7 +426,7 @@ impl Connector for BucketSelect {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use serde_json::Value;
     ///
@@ -505,7 +475,7 @@ impl Connector for BucketSelect {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use serde_json::Value;
@@ -536,7 +506,7 @@ impl Connector for BucketSelect {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket_select::BucketSelect;
     /// use chewdata::connector::Connector;
     /// use chewdata::document::json::Json;
@@ -545,11 +515,10 @@ impl Connector for BucketSelect {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = BucketSelect::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
     ///     connector.query = "select * from s3object".to_string();
@@ -587,7 +556,7 @@ impl Connector for BucketSelect {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::{bucket_select::BucketSelect, Connector};
     /// use chewdata::document::json::Json;
     /// use chewdata::Metadata;
@@ -596,15 +565,14 @@ impl Connector for BucketSelect {
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let document = Box::new(Json::default());
     ///
     ///     let mut connector = BucketSelect::default();
-    ///     connector.path = "/data/one_line.json".to_string();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
-    ///     connector.bucket = "my-bucket/".to_string();
+    ///     connector.path = "data/one_line.json".to_string();
+    ///     connector.bucket = "my-bucket".to_string();
     ///     connector.query = "select * from s3object".to_string();
     ///     connector.set_document(document);
     ///
@@ -619,7 +587,7 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument(name = "bucket_select::fetch")]
     async fn fetch(&mut self) -> Result<Option<DataStream>> {
-        let document = self.document()?.clone();
+        let document = self.document()?;
         let mut buffer = Vec::default();
         let path = self.path();
 
@@ -628,11 +596,11 @@ impl Connector for BucketSelect {
             self.metadata().mime_subtype.as_deref(),
         ) {
             let mut connector_for_header = self.clone();
-            let mut document_for_header = document.clone();
+            let mut document_for_header = document.clone_box();
             let mut metadata = document_for_header.metadata().clone();
             metadata.has_headers = Some(false);
             document_for_header.set_metadata(metadata);
-            connector_for_header.set_document(document_for_header.clone())?;
+            connector_for_header.set_document(document_for_header)?;
 
             connector_for_header.query = format!(
                 "{} {}",
@@ -709,27 +677,40 @@ impl BucketSelectPaginator {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::connector::bucket_select::{BucketSelect, BucketSelectPaginator};
     /// use chewdata::connector::Connector;
+    /// use chewdata::document::json::Json;
     /// use smol::prelude::*;
     /// use std::io;
     ///
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
+    ///
     ///     let mut connector = BucketSelect::default();
-    ///     connector.endpoint = Some("http://localhost:9000".to_string());
     ///     connector.bucket = "my-bucket".to_string();
-    ///     connector.path = "data/one_line.json".to_string();
+    ///     connector.path = "data/*.json$".to_string();
+    ///     connector.query = "select * from s3object".to_string();
+    ///     connector.limit = Some(5);
+    ///     connector.skip = 1;
+    ///     connector.set_document(Box::new(document)).unwrap();
     ///
-    ///     let paginator = BucketSelectPaginator::new(&connector).await?;
+    ///     let paginator = BucketSelectPaginator::new(&connector).await.unwrap();
     ///
-    ///     let mut paging = paginator.paginate(&connector).await?;
-    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
-    ///     assert!(paging.next().await.transpose()?.is_some(), "Can't get the first reader.");
+    ///     let mut paging = paginator.paginate(&connector).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         "data/multi_lines.json".to_string(),
+    ///         paging.next().await.transpose().unwrap().unwrap().path()
+    ///     );
+    ///     assert_eq!(
+    ///         "data/one_line.json".to_string(),
+    ///         paging.next().await.transpose().unwrap().unwrap().path()
+    ///     );
     ///
     ///     Ok(())
     /// }
@@ -763,8 +744,8 @@ mod tests {
     use crate::document::csv::Csv;
     use crate::document::json::Json;
     // use crate::document::jsonl::Jsonl;
-    use smol::stream::StreamExt;
     use macro_rules_attribute::apply;
+    use smol::stream::StreamExt;
     use smol_macros::test;
 
     #[test]

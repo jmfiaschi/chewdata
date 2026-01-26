@@ -1,13 +1,12 @@
 use json_value_merge::Merge;
 use json_value_search::Search;
+use macro_rules_attribute::apply;
+use smol_macros::main;
 use std::io;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{self, Layer};
-
-use macro_rules_attribute::apply;
-use smol_macros::main;
 
 #[apply(main!)]
 async fn main() -> io::Result<()> {
@@ -23,6 +22,10 @@ async fn main() -> io::Result<()> {
 
     tracing_subscriber::registry().with(layers).init();
 
+    run().await
+}
+
+async fn run() -> io::Result<()> {
     let config = r#"
     [{
         "type": "r",
@@ -72,10 +75,11 @@ async fn main() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::main;
+    use super::*;
+    use smol_macros::test;
 
-    #[test]
-    fn test_example() {
-        main().unwrap();
+    #[apply(test!)]
+    async fn test_example() {
+        run().await.unwrap();
     }
 }

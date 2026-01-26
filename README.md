@@ -34,7 +34,7 @@ More useful information:
 * The configuration easly versionable
 * Can generate data in the fly for testing purpose
 * Control and validate the data. Handle bad and valid data in a dedicated stream
-* Enable only required feature: --no-default-features --features "toml psql"
+* Enable only required feature: --no-default-features --features "toml,psql"
 
 ## Getting started
 
@@ -83,7 +83,7 @@ cargo install chewdata --no-default-features
 If you want to specify some features to add to your installation
 
 ```bash
-cargo install chewdata --no-default-features --features "xml bucket"
+cargo install chewdata --no-default-features --features "xml,bucket"
 ```
 
 Please, referer to the [features documentation](/docs/componants/features)</a>.
@@ -162,14 +162,14 @@ $ cat ./data/multi_lines.json | chewdata
 The configuration is usefull to customize a list of steps. It support [`hjson`](https://hjson.github.io/) format in order to enrich it.
 
 ```Bash
-$ cat ./data/multi_lines.csv | cargo run '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
+$ cat ./data/multi_lines.csv | cargo run --features "csv" '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
 [{...}] // Will transform the csv data into json format
 ```
 
 or
 
 ```Bash
-$ cat ./data/multi_lines.csv | just run json='[{\"type\":\"reader\",\"document\":{\"type\":\"csv\"}},{\"type\":\"writer\"}]'
+$ cat ./data/multi_lines.csv | just run-with-json '[{"type":"reader","document":{"type":"csv"}},{"type":"writer"}]'
 [{...}] // Will transform the csv data into json format
 ```
 
@@ -184,7 +184,7 @@ Another example, With file configuration in argument
 
 ```Bash
 $ echo '[{"type":"reader","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
-$ cat ./data/multi_lines.csv | cargo run -- --file my_etl.conf.json
+$ cat ./data/multi_lines.csv | cargo run --features "csv" -- --file my_etl.conf.json
 [{...}]
 ```
 
@@ -192,7 +192,7 @@ or
 
 ```Bash
 $ echo '[{"type":"reader","connector":{"type":"cli"},"document":{"type":"csv"}},{"type":"writer"}]' > my_etl.conf.json
-$ cat ./data/multi_lines.csv | just run file=my_etl.conf.json
+$ cat ./data/multi_lines.csv | just run-with-file my_etl.conf.json
 [{...}]
 ```
 

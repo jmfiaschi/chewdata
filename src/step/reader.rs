@@ -20,6 +20,7 @@
 //! | name        | alias | Step name                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
 //! | concurrency_limit | - | Limit of steps to run in concurrence.                                          | `1`           | unsigned number                              |
+//! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! ### Examples
 //!
@@ -42,6 +43,7 @@
 //! ```
 use crate::connector::Connector;
 use crate::document::DocumentType;
+use crate::helper::string::DisplayOnlyForDebugging;
 use crate::step::Step;
 use crate::DataResult;
 use crate::{connector::ConnectorType, Context};
@@ -194,7 +196,7 @@ async fn read<'step>(
             dataset
         },
         Ok(None) => {
-            info!("No data found through the connector");
+            info!(document = connector.document().display_only_for_debugging(), "No data found through the connector. If it's not normal, check the document configuration.");
             return
         },
         Err(e) => {

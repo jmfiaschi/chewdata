@@ -26,6 +26,10 @@ async fn main() -> io::Result<()> {
 
     tracing_subscriber::registry().with(layers).init();
 
+    run().await
+}
+
+async fn run() -> io::Result<()> {
     let (sender_input, receiver_input) = async_channel::unbounded();
     let (sender_output, receiver_output) = async_channel::unbounded();
 
@@ -72,16 +76,16 @@ async fn main() -> io::Result<()> {
         result.clone().search("/*/field_2")?.unwrap_or_default(),
         "The result not match the expected value"
     );
-
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::main;
+    use super::*;
+    use smol_macros::test;
 
-    #[test]
-    fn test_example() {
-        main().unwrap();
+    #[apply(test!)]
+    async fn test_example() {
+        run().await.unwrap();
     }
 }

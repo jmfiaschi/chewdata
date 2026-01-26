@@ -77,7 +77,7 @@ impl Document for Yaml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::yaml::Yaml;
     /// use chewdata::document::Document;
     /// use serde_json::Value;
@@ -121,7 +121,7 @@ impl Document for Yaml {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// use chewdata::document::yaml::Yaml;
     /// use chewdata::document::Document;
     /// use chewdata::DataResult;
