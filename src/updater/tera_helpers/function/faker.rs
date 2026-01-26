@@ -15,13 +15,13 @@ use std::collections::HashMap;
 use tera::*;
 
 /// Generate words.
-/// 
+///
 /// # Arguments
 ///
 /// * `min` - Minumal number of word.
 /// * `max` - Maximal number of word.
 /// * `separator` - Separator to seperate 2 words.
-/// 
+///
 /// # Examples
 ///
 /// ```
@@ -52,10 +52,7 @@ pub fn words(args: &HashMap<String, Value>) -> Result<Value> {
         ));
     }
 
-    let separator = args
-        .get("separator")
-        .and_then(Value::as_str)
-        .unwrap_or(" ");
+    let separator = args.get("separator").and_then(Value::as_str).unwrap_or(" ");
 
     let words = Words(min..max).fake::<Vec<String>>().join(separator);
 
@@ -94,10 +91,7 @@ pub fn sentences(args: &HashMap<String, Value>) -> Result<Value> {
         ));
     }
 
-    let separator = args
-        .get("separator")
-        .and_then(Value::as_str)
-        .unwrap_or(" ");
+    let separator = args.get("separator").and_then(Value::as_str).unwrap_or(" ");
 
     let sentences = Sentences(min..max).fake::<Vec<String>>().join(separator);
     Ok(Value::String(sentences))
@@ -608,13 +602,14 @@ pub fn phone_number(args: &HashMap<String, Value>) -> Result<Value> {
         .and_then(Value::as_str)
         .unwrap_or(default);
 
-    let phone: String = format.chars().map(|ch| {
-        match ch {
+    let phone: String = format
+        .chars()
+        .map(|ch| match ch {
             '^' => std::char::from_digit((1..10).fake(), 10).unwrap(),
             '#' => std::char::from_digit((0..10).fake(), 10).unwrap(),
             other => other,
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(Value::String(phone))
 }
