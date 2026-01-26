@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769461609654,
+  "lastUpdate": 1769464491943,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -4349,6 +4349,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1848236,
             "range": "± 5140",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "4577bae3d374b6566d4503e09cf2de9bace29da2",
+          "message": "feat(project): upgrade version, improve updater, fix tests,etc... (#67)\n\n* feat(tera): add function/filter keys & values for an object\n* feat(updater): add update/map filters\n* feat(updater): migrate search/merge into filters\n* feat(updater): migrate extract/values/keys from functions to filters\n* fix(keycloak): stabalize setup\n* feat(libs): upgrade\n* feat(libs): upgrade quick-xml and improve xml2json\n* feat(parquet): refactor\n* fix(cicd): remplace releaserc.json by release.config.js\n* feat(cicd): improve xplatform\n* feat(curl): support http1/http2\n* fix(examples): improve tests\n* fix(async): remove block_on\n* refactor(cicd): tests job\n* refactor(connector): ofuscate creds in endpoints\n* fix(cicd): run benchmark aside",
+          "timestamp": "2026-01-26T22:34:05+01:00",
+          "tree_id": "0e1a35a1f81bf41cc2bc654712095c6411e0cd17",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/4577bae3d374b6566d4503e09cf2de9bace29da2"
+        },
+        "date": 1769464490685,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4714,
+            "range": "± 147",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4642,
+            "range": "± 71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 19330,
+            "range": "± 541",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 23956,
+            "range": "± 235",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 5091,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 13739,
+            "range": "± 1140",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 118962,
+            "range": "± 973",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 148729,
+            "range": "± 1320",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 148229,
+            "range": "± 888",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 147860,
+            "range": "± 1272",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 148320,
+            "range": "± 1354",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 148347,
+            "range": "± 1075",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1900181,
+            "range": "± 16045",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1888084,
+            "range": "± 11595",
             "unit": "ns/iter"
           }
         ]
