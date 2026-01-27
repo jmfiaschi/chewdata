@@ -132,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          echo "Docker tag: ${{ CHEWDATA_TAG }}"
+          echo "Docker tag: ${{ env.CHEWDATA_TAG }}"
       - uses: extractions/setup-just@v3
       - uses: Swatinem/rust-cache@v2
         with:
