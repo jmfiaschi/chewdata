@@ -86,10 +86,7 @@ impl Document for Text {
     /// ```
     #[instrument(skip(buffer), name = "text::read")]
     fn read(&self, buffer: &[u8]) -> io::Result<DataSet> {
-        let record = Value::String(
-            String::from_utf8(buffer.to_vec())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-        );
+        let record = Value::String(String::from_utf8_lossy(buffer).to_string());
         trace!(record = record.display_only_for_debugging(), "Record read");
         Ok(vec![DataResult::Ok(record)])
     }
