@@ -129,6 +129,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - run: |
+          echo "Docker tag: ${{ env.CHEWDATA_TAG }}"
       - name: Checkout release tag
         run: |
           git fetch --tags
