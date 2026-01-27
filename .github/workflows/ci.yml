@@ -127,6 +127,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout release tag
+        run: |
+          git fetch --tags
+          git checkout $(git describe --tags --abbrev=0)
       - uses: extractions/setup-just@v3
       - uses: Swatinem/rust-cache@v2
         with:
