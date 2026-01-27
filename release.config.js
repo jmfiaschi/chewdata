@@ -1,3 +1,5 @@
+const isMain = process.env.GITHUB_REF_NAME === "main";
+
 module.exports = {
   branches: [
     "+([0-9])?(.{+([0-9]),x}).x",
@@ -12,7 +14,7 @@ module.exports = {
   plugins: [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
-    ...(process.env.BRANCH_NAME === "main" ? ["@semantic-release/changelog"]: []),
+    ...(isMain ? ["@semantic-release/changelog"] : []),
     [
       "@semantic-release/exec",
       {
@@ -20,17 +22,14 @@ module.exports = {
         "publishCmd": "cargo publish --no-verify --allow-dirty"
       }
     ],
-    ...(process.env.BRANCH_NAME === "main"
-      ? [[
-          "@semantic-release/git",
-          {
-            assets: ["Cargo.toml", "CHANGELOG.md"],
-            message:
-              "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-          }
-        ]]
-      : []),
-
+    [
+      "@semantic-release/git",
+      {
+        assets: ["Cargo.toml", "Cargo.lock", ...(isMain ? ["CHANGELOG.md"] : [])],
+        message:
+          "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
     "@semantic-release/github"
   ]
 };
