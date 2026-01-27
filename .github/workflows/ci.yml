@@ -122,19 +122,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Set Docker tag
+        run: echo "CHEWDATA_TAG=$(just version)" >> "$GITHUB_ENV"
   docker:
     needs: [semantic-release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - run: |
           echo "Docker tag: ${{ env.CHEWDATA_TAG }}"
-      - name: Checkout release tag
-        run: |
-          git fetch --tags
-          git checkout $(git describe --tags --abbrev=0)
       - uses: extractions/setup-just@v3
       - uses: Swatinem/rust-cache@v2
         with:
@@ -144,10 +140,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
       - run: cp .env.ci .env
-      - run: |
-          CHEWDATA_TAG=$(just version)
-          echo "$CHEWDATA_TAG"
-          echo "CHEWDATA_TAG=$CHEWDATA_TAG" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v5
         with:
