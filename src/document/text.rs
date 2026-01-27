@@ -90,10 +90,7 @@ impl Document for Text {
             String::from_utf8(buffer.to_vec())
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         );
-        trace!(
-            record = record.display_only_for_debugging(),
-            "Record deserialized"
-        );
+        trace!(record = record.display_only_for_debugging(), "Record read");
         Ok(vec![DataResult::Ok(record)])
     }
     /// See [`Document::write`] for more details.
@@ -116,12 +113,47 @@ impl Document for Text {
         let mut buffer = Vec::default();
         for data in dataset {
             let record = &data.to_value();
-            buffer.append(&mut record.as_str().unwrap_or("").as_bytes().to_vec());
-            trace!(
-                record = record.display_only_for_debugging(),
-                "Record serialized"
-            );
+
+            match record {
+                Value::String(ref s) => {
+                    buffer.extend_from_slice(s.as_bytes());
+                    trace!(
+                        record = record.display_only_for_debugging(),
+                        "Record written"
+                    );
+                }
+                Value::Array(_) => {
+                    warn!(
+                        record = record.display_only_for_debugging(),
+                        "record is an array, skipped"
+                    );
+                }
+                Value::Object(_) => {
+                    warn!(
+                        record = record.display_only_for_debugging(),
+                        "record is an object, skipped"
+                    );
+                }
+                Value::Number(ref n) => {
+                    buffer.extend_from_slice(n.to_string().as_bytes());
+                    trace!(
+                        record = record.display_only_for_debugging(),
+                        "Record written"
+                    );
+                }
+                Value::Bool(ref b) => {
+                    buffer.extend_from_slice(b.to_string().as_bytes());
+                    trace!(
+                        record = record.display_only_for_debugging(),
+                        "Record written"
+                    );
+                }
+                Value::Null => {
+                    trace!("record is null, skipped");
+                }
+            }
         }
+
         Ok(buffer)
     }
 }
@@ -139,10 +171,31 @@ mod tests {
         assert_eq!(r#"My text1 \n My text 2"#, data);
     }
     #[test]
-    fn write() {
+    fn write_string() {
         let document = Text::default();
         let dataset = vec![DataResult::Ok(Value::String("My text".to_string()))];
         let buffer = document.write(&dataset).unwrap();
         assert_eq!(r#"My text"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn write_number() {
+        let document = Text::default();
+        let dataset = vec![DataResult::Ok(Value::Number(42.into()))];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(r#"42"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn write_bool() {
+        let document = Text::default();
+        let dataset = vec![DataResult::Ok(Value::Bool(true))];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(r#"true"#.as_bytes().to_vec(), buffer);
+    }
+    #[test]
+    fn write_null() {
+        let document = Text::default();
+        let dataset = vec![DataResult::Ok(Value::Null)];
+        let buffer = document.write(&dataset).unwrap();
+        assert_eq!(Vec::<u8>::new(), buffer);
     }
 }
