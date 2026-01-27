@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769503356739,
+  "lastUpdate": 1769511424817,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -21567,6 +21567,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1843123,
             "range": "± 15150",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "d906e046c7a6207ac13aa0c167f53b028adb7dac",
+          "message": "fix(docker): force to fetch the last Cargo.toml version",
+          "timestamp": "2026-01-27T11:36:50+01:00",
+          "tree_id": "d90ad867d5320f30f61dd6beb390757dd6a7b08d",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/d906e046c7a6207ac13aa0c167f53b028adb7dac"
+        },
+        "date": 1769511423619,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4772,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4676,
+            "range": "± 35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 19301,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 24887,
+            "range": "± 185",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 5244,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 14068,
+            "range": "± 53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 120220,
+            "range": "± 456",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 151175,
+            "range": "± 1105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 150002,
+            "range": "± 1267",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 149868,
+            "range": "± 1581",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 150721,
+            "range": "± 1991",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 150782,
+            "range": "± 1580",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1916364,
+            "range": "± 4382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1907047,
+            "range": "± 18536",
             "unit": "ns/iter"
           }
         ]
