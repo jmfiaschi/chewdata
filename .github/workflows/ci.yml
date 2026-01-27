@@ -98,7 +98,7 @@ jobs:
     needs: [tests]
     runs-on: ubuntu-latest
     outputs:
-      release_tag: ${{ steps.version.outputs.release_tag }}
+      release_tag: ${{ steps.release_version.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -124,6 +124,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SEMANTIC_RELEASE_GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Set Docker tag
+        id: release_version
         run: |
           VERSION=$(just version)
           echo "release_tag=$VERSION" >> "$GITHUB_OUTPUT"
