@@ -5,7 +5,6 @@ on: push
 
 env:
   CARGO_TERM_COLOR: always
-  CHEWDATA_TAG: latest
 
 jobs:
   all:
