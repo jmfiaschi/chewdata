@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769521997886,
+  "lastUpdate": 1769522265730,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -21999,6 +21999,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1879858,
             "range": "± 37096",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "ba6182e8c8166d48b8457d3c280d6017c3651bee",
+          "message": "fix(docker): update last tag",
+          "timestamp": "2026-01-27T14:37:01+01:00",
+          "tree_id": "63ae11cda7001e75e15d8482e3a3162470937311",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/ba6182e8c8166d48b8457d3c280d6017c3651bee"
+        },
+        "date": 1769522265101,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4844,
+            "range": "± 88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4688,
+            "range": "± 42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 19368,
+            "range": "± 209",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 23264,
+            "range": "± 101",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 5124,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 13398,
+            "range": "± 368",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 144296,
+            "range": "± 4853",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 146459,
+            "range": "± 3694",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 145826,
+            "range": "± 1818",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 145875,
+            "range": "± 1333",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 146434,
+            "range": "± 3315",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 146999,
+            "range": "± 2762",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1933385,
+            "range": "± 7202",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1907819,
+            "range": "± 13557",
             "unit": "ns/iter"
           }
         ]
