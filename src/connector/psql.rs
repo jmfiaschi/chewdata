@@ -107,8 +107,14 @@ impl fmt::Debug for Psql {
             .field("collection", &self.collection)
             .field("parameters", &self.parameters.display_only_for_debugging())
             .field("query", &self.query)
-            .field("paginator_type", &self.paginator_type)
-            .field("counter_type", &self.counter_type)
+            .field(
+                "paginator_type",
+                &self.paginator_type.display_only_for_debugging(),
+            )
+            .field(
+                "counter_type",
+                &self.counter_type.display_only_for_debugging(),
+            )
             .field("max_connections", &self.max_connections)
             .finish()
     }

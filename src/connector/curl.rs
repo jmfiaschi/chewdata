@@ -247,8 +247,14 @@ impl fmt::Debug for Curl {
             .field("timeout", &self.timeout)
             // Can contain sensitive data
             .field("parameters", &self.parameters.display_only_for_debugging())
-            .field("paginator_type", &self.paginator_type)
-            .field("counter_type", &self.counter_type)
+            .field(
+                "paginator_type",
+                &self.paginator_type.display_only_for_debugging(),
+            )
+            .field(
+                "counter_type",
+                &self.counter_type.display_only_for_debugging(),
+            )
             .field("redirection_limit", &self.redirection_limit)
             .field("version", &self.version)
             .field("is_cached", &self.is_cached)
@@ -1120,7 +1126,7 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "curl::fetch", skip(self))]
+    #[instrument(name = "curl::fetch")]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let mut parameters_without_context = self.parameters_without_context()?;
         parameters_without_context.replace_mustache(self.parameters.clone());

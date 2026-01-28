@@ -119,10 +119,16 @@ impl fmt::Debug for Mongodb {
             .field("collection", &self.collection)
             .field("parameters", &self.parameters.display_only_for_debugging())
             .field("filter", &self.filter.display_only_for_debugging())
-            .field("paginator_type", &self.paginator_type)
+            .field(
+                "paginator_type",
+                &self.paginator_type.display_only_for_debugging(),
+            )
             .field("find_options", &self.find_options)
             .field("update_options", &self.update_options)
-            .field("counter_type", &self.counter_type)
+            .field(
+                "counter_type",
+                &self.counter_type.display_only_for_debugging(),
+            )
             .finish()
     }
 }
