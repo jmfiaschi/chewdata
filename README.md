@@ -98,14 +98,13 @@ Please, referer to the [features documentation](/docs/componants/features)</a>.
 If you need to change the log level of the command, you need to define it during the installation.
 
 ```bash
-cargo install chewdata --no-default-features --features "tracing/release_max_level_info"
+cargo install chewdata --no-default-features --features "log-release-trace"
 echo '{"field1":"value1"}' | RUST_LOG=trace chewdata '[{"type":"reader","document":{"type":"json"},"connector":{"type":"cli"}},{"type":"writer","document":{"type":"json"},"connector":{"type":"cli"}}]'
 ```
 
 If you want to filter logs, you can use the directive syntax from [tracing_subscriber](https://tracing.rs/tracing_subscriber/filter/struct.envfilter).
 
 ```bash
-cargo install chewdata --no-default-features --features "tracing/release_max_level_trace"
 echo '{"field1":"value1"}' | RUST_LOG=chewdata=trace chewdata '[{"type":"reader","document":{"type":"json"},"connector":{"type":"cli"}},{"type":"writer","document":{"type":"json"},"connector":{"type":"cli"}}]'
 ```
 
