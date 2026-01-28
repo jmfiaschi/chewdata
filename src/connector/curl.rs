@@ -1129,7 +1129,7 @@ impl Connector for Curl {
     ///     Ok(())
     /// }
     /// ```
-    #[instrument(name = "curl::fetch")]
+    #[instrument(name = "curl::fetch", skip(self))]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
         let mut parameters_without_context = self.parameters_without_context()?;
         parameters_without_context.replace_mustache(self.parameters.clone());
