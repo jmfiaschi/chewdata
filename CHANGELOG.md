@@ -1,3 +1,10 @@
+## [3.4.1](https://github.com/jmfiaschi/chewdata/compare/v3.4.0...v3.4.1) (2026-01-28)
+
+
+### Bug Fixes
+
+* **curl:** reuse Http2 client after cloning and improve perfs ([#74](https://github.com/jmfiaschi/chewdata/issues/74)) ([34c21b5](https://github.com/jmfiaschi/chewdata/commit/34c21b5d7e98ec075d1ad74fd435321e463e45b4))
+
 # [3.3.0](https://github.com/jmfiaschi/chewdata/compare/v3.2.0...v3.3.0) (2025-12-22)
 
 
