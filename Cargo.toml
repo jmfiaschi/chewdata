@@ -56,6 +56,7 @@ deser-hjson = { version = "2.2.5", default-features = false }
 sha2 = { version = "0.10.9", default-features = false, features = ["oid", "std"] }
 sha3 = { version = "0.10.8", default-features = false, features = ["oid", "std"] }
 base16ct = { version = "1.0.0", default-features = false, features = ["alloc"] }
+macro_rules_attribute = { version = "0.2.2", default-features = false }
 # Lock local files
 async-fs = { version = "2.2.0" }
 # For Templates
@@ -74,7 +75,7 @@ bytes = { version = "1.11.0", default-features = false, optional = true, feature
 aws-config = { version = "1.8.12", optional = true }
 aws-sdk-s3 = { version = "1.120.0", default-features = false, optional = true, features = ["sigv4a","rustls","rt-tokio","behavior-version-latest"] }
 byteorder = { version = "1.5.0", default-features = false, optional = true, features = ["std"] }
-jsonwebtoken = { version = "10.2.0", default-features = false, features = ["use_pem","rust_crypto"], optional = true }
+jsonwebtoken = { version = "10.3.0", default-features = false, features = ["use_pem","rust_crypto"], optional = true }
 ## curl
 hyper = { version = "1.8.1", default-features = false, optional = true, features = ["http1","client","http2"] }
 smol-hyper = { version = "0.1.1", optional = true, default-features = false, features = ["smol"] }
@@ -91,7 +92,6 @@ mongodb = { version = "3.5.0", optional = true }
 async-compat = { version = "0.2.5", default-features = false, optional = true }
 ## sql
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-async-std-rustls", "_unstable-all-types"], optional = true }
-macro_rules_attribute = "0.2.2"
 
 [dev-dependencies]
 criterion = { version = "0.8.1", default-features = false, features = ["default", "csv_output","html_reports","async_futures","async_smol"] }

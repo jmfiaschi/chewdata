@@ -25,7 +25,7 @@ module.exports = {
     [
       "@semantic-release/git",
       {
-        assets: ["Cargo.toml", "Cargo.lock", ...(isMain ? ["CHANGELOG.md"] : [])],
+        assets: ["Cargo.toml", ...(isMain ? ["CHANGELOG.md"] : [])],
         message:
           "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
