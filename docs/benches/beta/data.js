@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769591324789,
+  "lastUpdate": 1769610758730,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -22431,6 +22431,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1824262,
             "range": "± 10433",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "Jean-Marc FIASCHI",
+            "username": "jmfiaschi"
+          },
+          "distinct": true,
+          "id": "bd297135dbe183f26d2e81ffb1b434fc3f7e86ab",
+          "message": "fix(curl): reuse Http2 client after cloning and improve perfs",
+          "timestamp": "2026-01-28T14:21:23+01:00",
+          "tree_id": "8e943387ae7c3c7230e45b992d9763a5b2c301a3",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/bd297135dbe183f26d2e81ffb1b434fc3f7e86ab"
+        },
+        "date": 1769610757913,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4145,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4092,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 17861,
+            "range": "± 132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 21659,
+            "range": "± 78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 4954,
+            "range": "± 61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 12104,
+            "range": "± 88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 109665,
+            "range": "± 2584",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 121821,
+            "range": "± 1021",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 121162,
+            "range": "± 1625",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 121355,
+            "range": "± 1164",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 121430,
+            "range": "± 4004",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 121710,
+            "range": "± 932",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1619239,
+            "range": "± 14728",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1602231,
+            "range": "± 18132",
             "unit": "ns/iter"
           }
         ]
