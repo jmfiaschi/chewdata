@@ -225,7 +225,10 @@ impl Clone for Curl {
             version: self.version,
             is_cached: self.is_cached,
             certificate: None,
-            client: None,
+            client: match &self.client {
+                Some(ClientType::Http2(client)) => Some(ClientType::Http2(client.clone())),
+                _ => None,
+            },
         }
     }
 }
