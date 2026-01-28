@@ -6,41 +6,6 @@
 * **updater:** add filter update/map/keys/values for an object. Migrate some function into filters. ([#66](https://github.com/jmfiaschi/chewdata/issues/66)) ([3f4525a](https://github.com/jmfiaschi/chewdata/commit/3f4525a95b143e81f1d8c3c36a360fae8469040d))
 * **updater:** remove find/base64_encode/base64_decode from functions ([abf4bd4](https://github.com/jmfiaschi/chewdata/commit/abf4bd4f4c83b13e22f696e119da0fda4e723138))
 
-# [3.3.0-beta.3](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2025-12-21)
-
-
-### Bug Fixes
-
-* **keycloak:** configuration ([74b87eb](https://github.com/jmfiaschi/chewdata/commit/74b87eb7c98ac429133d19f8814aab0a7f49c40a))
-* **keycloak:** rollback stabalize setup ([5615410](https://github.com/jmfiaschi/chewdata/commit/56154109ed613abb0239306cbc9099bb1f8eebc6))
-* **keycloak:** stabalize setup ([d3521b9](https://github.com/jmfiaschi/chewdata/commit/d3521b983bf95f36f74f2dfe747eeff95e750ddd))
-
-
-### Features
-
-* **updater:** remove find/base64_encode/base64_decode from functions ([abf4bd4](https://github.com/jmfiaschi/chewdata/commit/abf4bd4f4c83b13e22f696e119da0fda4e723138))
-
-# [3.3.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v3.3.0-beta.1...v3.3.0-beta.2) (2025-12-21)
-
-
-### Features
-
-* **tera:** add function/filter keys & values for an object ([604cab8](https://github.com/jmfiaschi/chewdata/commit/604cab84b81ca537c512267fac5c31f64bcfc29e))
-* **updater:** add update/map filters ([0cbd673](https://github.com/jmfiaschi/chewdata/commit/0cbd673d78f5d788a00862e15b04335c83961efd))
-* **updater:** migrate extract/values/keys from functions to filters ([d47ee9b](https://github.com/jmfiaschi/chewdata/commit/d47ee9b2ec02beb442ba1eba0a0444cadd74e59d))
-* **updater:** migrate search/merge into filters ([e214c7f](https://github.com/jmfiaschi/chewdata/commit/e214c7fd24e8810c180a91cfc5b3bd5257d33a47))
-
-# [3.3.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.2.0...v3.3.0-beta.1) (2025-12-15)
-
-
-### Bug Fixes
-
-* **ci:** update docker job dependencies to require semantic-release ([49420ac](https://github.com/jmfiaschi/chewdata/commit/49420ac71a016f757fa7372ad5e216ad7a3d80fc))
-
-
-### Features
-
-* **Cargo.toml:** add logging features for release profiles ([e2d0901](https://github.com/jmfiaschi/chewdata/commit/e2d0901405e08733442681d011ea7d0a7fcb9507))
 
 # [3.2.0](https://github.com/jmfiaschi/chewdata/compare/v3.1.0...v3.2.0) (2025-12-15)
 
@@ -54,51 +19,12 @@
 
 * **readme:** docs & force cicd ([a4b1025](https://github.com/jmfiaschi/chewdata/commit/a4b10259cf2838d17787cca818f16f1f22ad7c52))
 
-# [3.2.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.1.1-beta.1...v3.2.0-beta.1) (2025-12-14)
-
-
-### Features
-
-* **bearer:** set is_base64 to true by default ([d505e87](https://github.com/jmfiaschi/chewdata/commit/d505e87b1e0198c6d3df422bba2676e811760dd5))
-* **curl:** update hyper dependency to version 1.8.1 and refactor request handling ([a265aa1](https://github.com/jmfiaschi/chewdata/commit/a265aa15ebe3c40488b61acbfb57d7a73df7dab8))
-* **example:** add gitlab ([0bf8600](https://github.com/jmfiaschi/chewdata/commit/0bf8600fb8f4ffe911d1b0852a50fff79904cf10))
-* **example:** gitlab with extract in the transformation ([f7fc970](https://github.com/jmfiaschi/chewdata/commit/f7fc970ff8967bc240e6f4fb8961413ed98c98a3))
-
-## [3.1.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.1.0...v3.1.1-beta.1) (2025-12-14)
-
-
-### Bug Fixes
-
-* **curl:** apply port on header host only if specify in the url ([0e58ac4](https://github.com/jmfiaschi/chewdata/commit/0e58ac4931122791e561e95483eff703a7b123f5))
-* **env:** add fallback on var env without prefix CHEWDATA_ ([4937744](https://github.com/jmfiaschi/chewdata/commit/4937744780942ddb75545c5fe4a9eec979f4c0d3))
-* **env:** use share env map to store vars and secure multi-threading ([753db79](https://github.com/jmfiaschi/chewdata/commit/753db793af0ceba01d885e32d2f331f169820a22))
-
 # [3.1.0](https://github.com/jmfiaschi/chewdata/compare/v3.0.2...v3.1.0) (2025-05-30)
 
 
 ### Features
 
 * **examples:** add test in examples to stabalize futur update ([#64](https://github.com/jmfiaschi/chewdata/issues/64)) ([fe5c00f](https://github.com/jmfiaschi/chewdata/commit/fe5c00fed08030e47ffe4141b49ef41434dfdfb7))
-
-# [3.1.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.2...v3.1.0-beta.1) (2025-05-28)
-
-
-### Bug Fixes
-
-* **cli:** clean line before to read_line ([20461a6](https://github.com/jmfiaschi/chewdata/commit/20461a67ded29dc6e2393a2fef8044c4bdaaa7b8))
-* **curl:** add error context and help for debug ([c7d3fc4](https://github.com/jmfiaschi/chewdata/commit/c7d3fc4a1e41313a12e254ea8924aa70cb897f9f))
-* **example:** add psql test ([ab11b78](https://github.com/jmfiaschi/chewdata/commit/ab11b7840a9163c0fa3dff8798e02df22a59fa59))
-* **example:** add tests ([bde77f7](https://github.com/jmfiaschi/chewdata/commit/bde77f7aa361522146566c4070204dc7744f6634))
-* **example:** improve rabbitmq example with API ([0f56427](https://github.com/jmfiaschi/chewdata/commit/0f56427d4b6bf4c1909c66241658cd250d4a0ac0))
-* **example:** sub_command test ([41f14fd](https://github.com/jmfiaschi/chewdata/commit/41f14fda6ed49485b7a2ac833e8945238aa6a39d))
-* **project:** test examples ([fe0088f](https://github.com/jmfiaschi/chewdata/commit/fe0088f5e7d4f8de546055f51dba5c2fdf16cb25))
-* **project:** tests ([afc85bf](https://github.com/jmfiaschi/chewdata/commit/afc85bfb41f36fa5ffce649acb96940edcae3cee))
-
-
-### Features
-
-* **example:** add document example tests ([7c4e8f5](https://github.com/jmfiaschi/chewdata/commit/7c4e8f5c013c6a701116a4d7c526ee7d602d453d))
-* **example:** add examples tests ([b58ce81](https://github.com/jmfiaschi/chewdata/commit/b58ce81097773a0c8aaeb140e26de369f7b07a55))
 
 ## [3.0.2](https://github.com/jmfiaschi/chewdata/compare/v3.0.1...v3.0.2) (2025-05-22)
 
@@ -107,15 +33,6 @@
 
 * **coverage:** start services ([#63](https://github.com/jmfiaschi/chewdata/issues/63)) ([9a0cdf2](https://github.com/jmfiaschi/chewdata/commit/9a0cdf25ad43bcec9be95c971f0f17548d8bc725))
 
-## [3.0.2-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.1...v3.0.2-beta.1) (2025-05-22)
-
-
-### Bug Fixes
-
-* **coverage:** start services ([db0d9a2](https://github.com/jmfiaschi/chewdata/commit/db0d9a2cf6687d4cd6e141447634f5bdce0255e6))
-* **semantic:** config update ([610e2fa](https://github.com/jmfiaschi/chewdata/commit/610e2fa2b6750528112c1dbbaaa2c1b634eba91b))
-* **semantic:** config update ([70efec8](https://github.com/jmfiaschi/chewdata/commit/70efec8860494dd0216db4030ecf95e69468038c))
-
 ## [3.0.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.0...v3.0.1) (2025-05-22)
 
 
@@ -123,13 +40,6 @@
 
 * **project:** individual feature not built ([#62](https://github.com/jmfiaschi/chewdata/issues/62)) ([4cda7fb](https://github.com/jmfiaschi/chewdata/commit/4cda7fbe5922a4dc8e8e54110df7dd112cc10e93))
 * **semantic:** not update changelog on other branches except main. ([08f5cdf](https://github.com/jmfiaschi/chewdata/commit/08f5cdff48a6797d3005d5ad9e975850d321ef0a))
-
-## [3.0.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v3.0.0...v3.0.1-beta.1) (2025-05-22)
-
-
-### Bug Fixes
-
-* **project:** individual feature not built ([c0a4a9a](https://github.com/jmfiaschi/chewdata/commit/c0a4a9a3a0cee428e039304537869a340cc1ce78))
 
 # [3.0.0](https://github.com/jmfiaschi/chewdata/compare/v2.12.0...v3.0.0) (2025-05-21)
 
@@ -148,45 +58,7 @@
 * feat(project): replace IO by CLI
 * feat(curl):use go-httpbin instead of httpbin
 * feat(curl): manage http call retry when server close the connection
-
-* chore(release): 2.13.0-beta.1 [skip ci]
-
-# [2.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.12.0...v2.13.0-beta.1) (2025-05-21)
-
-# [2.13.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.12.0...v2.13.0-beta.1) (2025-05-21)
-
-
-### Bug Fixes
-
-* **curl:** add authentication ([5edee05](https://github.com/jmfiaschi/chewdata/commit/5edee05c4f60834442be33273f6cff5b3e1870e1))
-* **just:** add start command ([f9335ec](https://github.com/jmfiaschi/chewdata/commit/f9335eca80384f5a68602c373ed9310c4a9177d4))
-* **surf:** h1-client-rustls feature has issue "invalid HTTP version" ([3962020](https://github.com/jmfiaschi/chewdata/commit/3962020cbe8f07665025906d15bd95202449cb00))
-* **updater:** control method input ([080f2b7](https://github.com/jmfiaschi/chewdata/commit/080f2b7f34a7a672344ad206020cca36c6d923f7))
-
-
-### Features
-
-* **bench:** update ([c47e54e](https://github.com/jmfiaschi/chewdata/commit/c47e54e72c3bb676206febf6a402d50943251e08))
-* **bench:** update ([5770f18](https://github.com/jmfiaschi/chewdata/commit/5770f183a75a0af1b9927f9785e8393abe5927ea))
-* **cicd:** add podman install ([c3d20e3](https://github.com/jmfiaschi/chewdata/commit/c3d20e36364c96f33ffdb00f816eebd76b82daf1))
-* **ci:** use webgtx/setup-podman-compose@v1 ([ee9e23c](https://github.com/jmfiaschi/chewdata/commit/ee9e23c6f240905722b146c841a526e6bed39306))
-* **curl:** add curl in bench ([9ed2e19](https://github.com/jmfiaschi/chewdata/commit/9ed2e19bbf86fd8ed959a97049dee6132239f1cd))
-* **curl:** add http cache with less configuration ([41aa71e](https://github.com/jmfiaschi/chewdata/commit/41aa71e62dc571f040dce32cdd036816779e83ac))
-* **curl:** add http cache with less configuration ([f40f8df](https://github.com/jmfiaschi/chewdata/commit/f40f8dfbe5b045e72767d284ae5c3a229ebaf75d))
-* **curl:** add http cache with less configuration ([f5d222d](https://github.com/jmfiaschi/chewdata/commit/f5d222d9097bcea53dc23080bb36236a2067527f))
-* **curl:** improve curl ([1332d58](https://github.com/jmfiaschi/chewdata/commit/1332d5818802ba615491527164bd55db6dabd957))
-* **curl:** manage http call retry when server close the connection ([1f4c5a0](https://github.com/jmfiaschi/chewdata/commit/1f4c5a09705d20a2323b88b9dfa3bee13c9dd5c9))
-* **curl:** remove useless parameters ([c0e5afc](https://github.com/jmfiaschi/chewdata/commit/c0e5afc7ef1505658565dd6c104acbfcca68877c))
-* **project:** add healthcheck to stabalize the E2E tests ([20d1063](https://github.com/jmfiaschi/chewdata/commit/20d10639c0908df8f93586c8d7a3380b6c2a69bf))
-* **project:** replace async_std by smol ([a1e9f8d](https://github.com/jmfiaschi/chewdata/commit/a1e9f8dfaaed2118a091ced4eac3fec2a080acd6))
-* **project:** replace IO by CLI ([5b46de1](https://github.com/jmfiaschi/chewdata/commit/5b46de1d8aab3bea4775b1c0924c663aee652ed5))
-* **project:** replace IO by CLI ([64619d3](https://github.com/jmfiaschi/chewdata/commit/64619d31e19237fdbb5983d79b79c145bb06dd2f))
-* **project:** replace makefile by justfile ([c7139dc](https://github.com/jmfiaschi/chewdata/commit/c7139dc6edf4c78705a3fe7d3d183f0eb3bf50fb))
-
-
-### Reverts
-
-* **surf:** h1-client-rustls ([07aae12](https://github.com/jmfiaschi/chewdata/commit/07aae128309b8e3d786be43f51d9c547e6c4684c))
+* chore(release): 2.12.0 [skip ci]
 
 # [2.12.0](https://github.com/jmfiaschi/chewdata/compare/v2.11.0...v2.12.0) (2024-12-16)
 
@@ -195,55 +67,12 @@
 
 * **project:** prefix variable environments with CHEWDATA ([#60](https://github.com/jmfiaschi/chewdata/issues/60)) ([19343e3](https://github.com/jmfiaschi/chewdata/commit/19343e3748e3f7f9a910d74f7f133b89d2bd3273))
 
-# [2.12.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v2.12.0-beta.1...v2.12.0-beta.2) (2024-12-16)
-
-
-### Bug Fixes
-
-* **cargo:** fix linter ([418b3b5](https://github.com/jmfiaschi/chewdata/commit/418b3b58b42f0e8ac4965df7745902f01b8867c5))
-* **cargo:** update ([eee39fe](https://github.com/jmfiaschi/chewdata/commit/eee39fe114c71d6a2bd9d5950bea925d728f755c))
-* **cargo:** update ([4207788](https://github.com/jmfiaschi/chewdata/commit/420778829703d0f788b87fa0d5ef816d60e45d69))
-* **cargo:** update ([4e9280f](https://github.com/jmfiaschi/chewdata/commit/4e9280f307eed7370efe85708f38361f400a4a18))
-
-# [2.12.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.11.0...v2.12.0-beta.1) (2024-12-16)
-
-
-### Bug Fixes
-
-* **makefile:** replace docker-compose by docker ([74b3e5d](https://github.com/jmfiaschi/chewdata/commit/74b3e5d6abca193b76b77324c0f24214b3daeed0))
-
-
-### Features
-
-* **project:** prefix variable environments with CHEWDATA ([d557046](https://github.com/jmfiaschi/chewdata/commit/d557046e2ed3901692cf0e0f5ec7b0f10ad94488))
-
 # [2.11.0](https://github.com/jmfiaschi/chewdata/compare/v2.10.0...v2.11.0) (2024-05-20)
 
 
 ### Features
 
 * **keycloak:** adapt test with new version of keycloak ([#59](https://github.com/jmfiaschi/chewdata/issues/59)) ([8653957](https://github.com/jmfiaschi/chewdata/commit/8653957ed61ed93225549a49c165d37c56e63df9))
-
-# [2.11.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.10.1-beta.1...v2.11.0-beta.1) (2024-05-19)
-
-
-### Bug Fixes
-
-* **helper:** change value in the test ([8b3a4e7](https://github.com/jmfiaschi/chewdata/commit/8b3a4e7d0b53bd2c816a26364425bd9340d6602a))
-
-
-### Features
-
-* **cargo:** upgrade versions ([f7689d1](https://github.com/jmfiaschi/chewdata/commit/f7689d1df08d3f284deb47c5a70409075429b922))
-
-## [2.10.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.10.0...v2.10.1-beta.1) (2024-05-19)
-
-
-### Bug Fixes
-
-* **csv:** remove terminator function, the serializer already add the terminator. ([c53aea2](https://github.com/jmfiaschi/chewdata/commit/c53aea266de27cef841e4bccd56da75678950173))
-* **curl:** test redirect with delete comment due the httpbin error. ([4aea513](https://github.com/jmfiaschi/chewdata/commit/4aea5130ffdddbdf80889725bed477c0dc0cc7a2))
-* **keycloak:** adapt test with new version of keycloak ([a8071c4](https://github.com/jmfiaschi/chewdata/commit/a8071c4150ecce796282bb9fe6acfc36070f47ba))
 
 # [2.10.0](https://github.com/jmfiaschi/chewdata/compare/v2.9.0...v2.10.0) (2024-03-08)
 
@@ -252,46 +81,12 @@
 
 * **curl:** handle redirection ([#58](https://github.com/jmfiaschi/chewdata/issues/58)) ([0fc663f](https://github.com/jmfiaschi/chewdata/commit/0fc663f7820f5b2bd22fb13ff15007466dd99d19))
 
-# [2.10.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.9.0...v2.10.0-beta.1) (2024-3-2)
-
-
-### Bug Fixes
-
-* **byte:** subtype mime ([9dd7b17](https://github.com/jmfiaschi/chewdata/commit/9dd7b174ab6d89f84636213688c366da48e5eb37))
-* **connector:** raise error if path not fully resolved ([9adeff8](https://github.com/jmfiaschi/chewdata/commit/9adeff88d117f68e0bbfa358a0f765688d4a718c))
-* **curl:** use document type guesser for paginators ([f5c921f](https://github.com/jmfiaschi/chewdata/commit/f5c921f80951e728f7580a864df7cfc5e176b374))
-* **document type guesser:** add jsonl and txt ([d74d85d](https://github.com/jmfiaschi/chewdata/commit/d74d85dbbe3bcdc96d7a3920f1076d703d788831))
-* **json/jsonl:** set entry_path to none if empty ([de41d98](https://github.com/jmfiaschi/chewdata/commit/de41d985e4223f41d63e87619a3f590c6a8c8ee3))
-* **parquet:** set entry_path to none if empty ([205c968](https://github.com/jmfiaschi/chewdata/commit/205c968dafa4d5cbb3a1ff8808b751df9be15333))
-* **test:** add exception in assertion ([7f1dd43](https://github.com/jmfiaschi/chewdata/commit/7f1dd432dc3acfa520727243b1576b90df645329))
-* **text:** mime type and subtype ([a673b90](https://github.com/jmfiaschi/chewdata/commit/a673b907eaaa24aacaffa63ff8ea0fb651c6bcd6))
-
-
-### Features
-
-* **curl:** add redirection limit ([ed85ef0](https://github.com/jmfiaschi/chewdata/commit/ed85ef02ba5442ea723b8f4aedc0cc2ed982ecf0))
-* **curl:** add redirection limit ([b39005c](https://github.com/jmfiaschi/chewdata/commit/b39005c3ab8a90b3397c271bfa74598804257fda))
-* **curl:** handle redirection ([5e98964](https://github.com/jmfiaschi/chewdata/commit/5e98964e331174f7c6f32169493f6a038c574795))
-* **jwt:** remove payload and token_entry. reuse document.entry_path and refresh_connector.parameters ([2de8565](https://github.com/jmfiaschi/chewdata/commit/2de8565b35987e8184ce29660a2685e0b02db87f))
-* **reader:** If context in input and the connector failed, forward in error the context ([f2d7749](https://github.com/jmfiaschi/chewdata/commit/f2d774994e154e0cd63fc574855a818803d1c036))
-* **writer:** display the total amount of data written. ([1fc54de](https://github.com/jmfiaschi/chewdata/commit/1fc54de297ed6398ed7dc519ba884a354a24c0c8))
-
 # [2.9.0](https://github.com/jmfiaschi/chewdata/compare/v2.8.1...v2.9.0) (2024-2-6)
 
 
 ### Features
 
 * **json/jsonl:** write entry_path if define ([#57](https://github.com/jmfiaschi/chewdata/issues/57)) ([81fa6f6](https://github.com/jmfiaschi/chewdata/commit/81fa6f602197b51472db091a13f209a57aa9c4e6))
-
-# [2.9.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.1...v2.9.0-beta.1) (2024-2-5)
-
-
-### Features
-
-* **curl:** remove " for data with "x-www-form-urlencoded" ([73db63e](https://github.com/jmfiaschi/chewdata/commit/73db63eadd4f18ed9cb08b3db3c2ab5c78a19fd8))
-* **json/jsonl:** write entry_path if define ([a431bdb](https://github.com/jmfiaschi/chewdata/commit/a431bdb3e545302904ef6af51f6440830c3bab2b))
-* **local:** add checksum generation and validation ([bb75236](https://github.com/jmfiaschi/chewdata/commit/bb75236a3d4328cb0bebe89aecdb11853656c3ee))
-* **local:** add checksum generation and validation ([a85c3b9](https://github.com/jmfiaschi/chewdata/commit/a85c3b9a55bcb8c9d2d4112c8160f7beba77936e))
 
 ## [2.8.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.0...v2.8.1) (2024-1-30)
 
@@ -300,39 +95,12 @@
 
 * **transform:** use tera::Context::from_value instead of tera_context.insert with Value serialization. ([#56](https://github.com/jmfiaschi/chewdata/issues/56)) ([acd1126](https://github.com/jmfiaschi/chewdata/commit/acd1126a412ca975238efdbf96a4addea06cfca0))
 
-# [2.9.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.8.0...v2.9.0-beta.1) (2024-1-29)
-
-
-### Bug Fixes
-
-* **cargo:** license ([81320e9](https://github.com/jmfiaschi/chewdata/commit/81320e9302821a83803b4e97a2d295ef1c5a39e1))
-* **project:** lint and tests ([9445e78](https://github.com/jmfiaschi/chewdata/commit/9445e78886a40d93763b1955dcf83ea148b4c790))
-
-
-### Features
-
-* **document:** hide record in the logs ([a24ac59](https://github.com/jmfiaschi/chewdata/commit/a24ac595a73439c33fa76f03b5f1eded3adaa10b))
-
 # [2.8.0](https://github.com/jmfiaschi/chewdata/compare/v2.7.0...v2.8.0) (2024-1-16)
 
 
 ### Features
 
 * **referential:** group in a struct and add cache for none dynamic connector ([#55](https://github.com/jmfiaschi/chewdata/issues/55)) ([5be00d4](https://github.com/jmfiaschi/chewdata/commit/5be00d492b8aab9f5b7f1853929eff386d751e6e))
-
-# [2.8.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.7.0...v2.8.0-beta.1) (2024-1-16)
-
-
-### Bug Fixes
-
-* **referential:** doc ([00c9371](https://github.com/jmfiaschi/chewdata/commit/00c9371ce0b3db290bf0f32339d94409c34151d2))
-* **semantic-release:** node version >=20.8.1 is required. Found v18.19.0 ([6ed23e7](https://github.com/jmfiaschi/chewdata/commit/6ed23e7e2692ab56a7068b47d15f0f801158237a))
-
-
-### Features
-
-* **referential:** group in a struct and add cache for none dynamic connector. ([c928e60](https://github.com/jmfiaschi/chewdata/commit/c928e602ad79a6dbb34d5c32b3826010edc15029))
-* **referential:** group in a struct and add cache for none dynamic connector. ([5f19c06](https://github.com/jmfiaschi/chewdata/commit/5f19c067f0608a61cf155b53c51987911cce5036))
 
 # [2.7.0](https://github.com/jmfiaschi/chewdata/compare/v2.6.0...v2.7.0) (2024-01-11)
 
@@ -341,18 +109,6 @@
 
 * **local:** add cache for local connector ([#54](https://github.com/jmfiaschi/chewdata/issues/54)) ([8512b4c](https://github.com/jmfiaschi/chewdata/commit/8512b4cb696a17d6df214a6d1965c1ba342d5ad5))
 
-# [2.7.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.6.0...v2.7.0-beta.1) (2024-01-11)
-
-
-### Bug Fixes
-
-* **apm:** fix error with pretty and jaeger ([a70cdb2](https://github.com/jmfiaschi/chewdata/commit/a70cdb21b27577e8959cc525aa0a520394c1589d))
-
-
-### Features
-
-* **local:** add cache for local connector ([f22f324](https://github.com/jmfiaschi/chewdata/commit/f22f324a4316d4c09bff5f4fda69f4218e975e76))
-
 # [2.6.0](https://github.com/jmfiaschi/chewdata/compare/v2.5.1...v2.6.0) (2024-01-11)
 
 
@@ -360,44 +116,12 @@
 
 * **extract:** add merge_replace method for Value. Same as value.merge() but instead of append elements in a array, keep the same position and merge Value. ([#53](https://github.com/jmfiaschi/chewdata/issues/53)) ([d5e7d29](https://github.com/jmfiaschi/chewdata/commit/d5e7d29caf532c27321ad5d4e58a4ed947ee8698))
 
-# [2.6.0-beta.2](https://github.com/jmfiaschi/chewdata/compare/v2.6.0-beta.1...v2.6.0-beta.2) (2024-01-11)
-
-
-### Bug Fixes
-
-* **extract:** able to extract from a object a list of attribute. allow to use regex. ([#52](https://github.com/jmfiaschi/chewdata/issues/52)) ([bf5e744](https://github.com/jmfiaschi/chewdata/commit/bf5e7443986f00729e7c841c3e803b7cb9aa8871))
-
 ## [2.5.1](https://github.com/jmfiaschi/chewdata/compare/v2.5.0...v2.5.1) (2024-01-09)
 
 
 ### Bug Fixes
 
 * **extract:** able to extract from a object a list of attribute. allow to use regex. ([#52](https://github.com/jmfiaschi/chewdata/issues/52)) ([bf5e744](https://github.com/jmfiaschi/chewdata/commit/bf5e7443986f00729e7c841c3e803b7cb9aa8871))
-
-## [2.5.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.5.0...v2.5.1-beta.1) (2024-01-08)
-
-
-### Bug Fixes
-
-* **csv:** find the most deep object and not miss any columns to write in the csv file. ([2b309d4](https://github.com/jmfiaschi/chewdata/commit/2b309d4d113bac913fa3a334d989d5dd83bf0f07))
-* **extract:** able to extract from a object a list of attribute. allow regex. ([4e2e887](https://github.com/jmfiaschi/chewdata/commit/4e2e887dd905daba04fd03dbff0c24589b213e54))
-* **json_pointer:** all to escape `.`if an attribute contain this value. ([3d06f93](https://github.com/jmfiaschi/chewdata/commit/3d06f937b24620bdf3c0c045e2aab47590b1dfde))
-
-## [2.5.1](https://github.com/jmfiaschi/chewdata/compare/v2.5.0...v2.5.1) (2024-01-09)
-
-
-### Bug Fixes
-
-* **extract:** able to extract from a object a list of attribute. allow to use regex. ([#52](https://github.com/jmfiaschi/chewdata/issues/52)) ([bf5e744](https://github.com/jmfiaschi/chewdata/commit/bf5e7443986f00729e7c841c3e803b7cb9aa8871))
-
-## [2.5.1-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.5.0...v2.5.1-beta.1) (2024-01-08)
-
-
-### Bug Fixes
-
-* **csv:** find the most deep object and not miss any columns to write in the csv file. ([2b309d4](https://github.com/jmfiaschi/chewdata/commit/2b309d4d113bac913fa3a334d989d5dd83bf0f07))
-* **extract:** able to extract from a object a list of attribute. allow regex. ([4e2e887](https://github.com/jmfiaschi/chewdata/commit/4e2e887dd905daba04fd03dbff0c24589b213e54))
-* **json_pointer:** all to escape `.`if an attribute contain this value. ([3d06f93](https://github.com/jmfiaschi/chewdata/commit/3d06f937b24620bdf3c0c045e2aab47590b1dfde))
 
 # [2.5.0](https://github.com/jmfiaschi/chewdata/compare/v2.4.0...v2.5.0) (2024-01-04)
 
@@ -406,13 +130,6 @@
 
 * **updater:** add new filter/function `extract` for tera. Extraction attributes from an object or list of object. ([#51](https://github.com/jmfiaschi/chewdata/issues/51)) ([a719289](https://github.com/jmfiaschi/chewdata/commit/a71928910d8aaaee4a886ff10162691969d210d3))
 
-# [2.5.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.4.0...v2.5.0-beta.1) (2024-01-04)
-
-
-### Features
-
-* **updater:** add new filter/function `extract` for tera. Extraction attributes from an object or list of object. ([3877868](https://github.com/jmfiaschi/chewdata/commit/38778688479f49fc9602a1df05819b3562ddfdd6))
-
 # [2.4.0](https://github.com/jmfiaschi/chewdata/compare/v2.3.0...v2.4.0) (2024-01-03)
 
 
@@ -420,31 +137,12 @@
 
 * **updater:** add new filter/function find for tera. ([#50](https://github.com/jmfiaschi/chewdata/issues/50)) ([5f457b1](https://github.com/jmfiaschi/chewdata/commit/5f457b16ec2ff58e875917ea72362178bf435ef7))
 
-# [2.4.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.3.0...v2.4.0-beta.1) (2024-01-02)
-
-
-### Features
-
-* **updater:** add new filter/function `find` for tera. ([430e2ec](https://github.com/jmfiaschi/chewdata/commit/430e2ec9c9af208e9a0bfc51cf3dd15762658553))
-
 # [2.3.0](https://github.com/jmfiaschi/chewdata/compare/v2.2.1...v2.3.0) (2023-12-29)
 
 
 ### Features
 
 * **updater:** add filter "find" and retreive all text match the pattern ([7321e89](https://github.com/jmfiaschi/chewdata/commit/7321e893e4c278f7b1b4ec4dbe12f243f9ded7fe))
-
-# [2.3.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.2.1...v2.3.0-beta.1) (2023-12-29)
-
-
-### Bug Fixes
-
-* **keycloak:** set a timeout for unit test ([1c16b9b](https://github.com/jmfiaschi/chewdata/commit/1c16b9b54d0f96966cf0aba9becf9777c14b6792))
-
-
-### Features
-
-* **updater:** add filter "find" and retreive all text match the pattern ([23308c4](https://github.com/jmfiaschi/chewdata/commit/23308c4ac05a0ae713ead9f6e5c31072cf5aeda2))
 
 ## [2.2.1](https://github.com/jmfiaschi/chewdata/compare/v2.2.0...v2.2.1) (2023-12-20)
 
@@ -455,19 +153,6 @@
 
 # [2.2.0](https://github.com/jmfiaschi/chewdata/compare/v2.1.0...v2.2.0) (2023-12-20)
 
-
-### Features
-
-* **jwt:** remove "token_name" and use the document.entry_path instead. Replace also format field by signing_type. ([#47](https://github.com/jmfiaschi/chewdata/issues/47)) ([b17a004](https://github.com/jmfiaschi/chewdata/commit/b17a00476857a6af1ebbe5678f4381d97a438a7e))
-
-# [2.2.0-beta.1](https://github.com/jmfiaschi/chewdata/compare/v2.1.0...v2.2.0-beta.1) (2023-12-20)
-
-
-### Features
-
-* **jwt:** remove "token_name" and use the document.entry_path instead. Replace also format field by signing_type. ([42982be](https://github.com/jmfiaschi/chewdata/commit/42982be3e592f642fc1bf9e9bdb64a5b5f8e0782))
-
-# [2.1.0](https://github.com/jmfiaschi/chewdata/compare/v2.0.0...v2.1.0) (2023-12-19)
 
 
 ### Features
