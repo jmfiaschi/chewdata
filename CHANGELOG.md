@@ -1,3 +1,10 @@
+# [3.5.0](https://github.com/jmfiaschi/chewdata/compare/v3.4.1...v3.5.0) (2026-01-30)
+
+
+### Features
+
+* **connector:** replace HashMap by DashMap for shared clients container ([#75](https://github.com/jmfiaschi/chewdata/issues/75)) ([1e7d233](https://github.com/jmfiaschi/chewdata/commit/1e7d233011915b22db915f2c8283153699d17796))
+
 ## [3.4.1](https://github.com/jmfiaschi/chewdata/compare/v3.4.0...v3.4.1) (2026-01-28)
 
 
