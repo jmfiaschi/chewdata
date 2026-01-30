@@ -1,6 +1,6 @@
 [package]
 name = "chewdata"
-version = "3.4.1"
+version = "3.5.0-beta.1"
 authors = ["Jean-Marc Fiaschi <jm.fiaschi@gmail.com>"]
 edition = "2021"
 description = "Extract Transform and Load data"
@@ -57,6 +57,7 @@ sha2 = { version = "0.10.9", default-features = false, features = ["oid", "std"]
 sha3 = { version = "0.10.8", default-features = false, features = ["oid", "std"] }
 base16ct = { version = "1.0.0", default-features = false, features = ["alloc"] }
 macro_rules_attribute = { version = "0.2.2", default-features = false }
+dashmap = { version = "6.1.0", default-features = false }
 # Lock local files
 async-fs = { version = "2.2.0" }
 # For Templates

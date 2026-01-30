@@ -89,9 +89,12 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{DataResult, DataSet, DataStream, Metadata};
 use anyhow::Context as AnyContext;
+use async_lock::Mutex;
+use async_lock::OnceCell;
 use async_stream::stream;
 use async_trait::async_trait;
 use bytes::Bytes;
+use dashmap::DashMap;
 use futures::AsyncRead as AsyncReadIo;
 use futures::AsyncWrite as AsyncWriteIo;
 use futures::{AsyncWriteExt, Stream};
@@ -122,7 +125,7 @@ use smol_hyper::rt::{FuturesIo, SmolExecutor};
 use smol_timeout::TimeoutExt;
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use std::time::{Duration, SystemTime};
 use std::{
@@ -130,8 +133,6 @@ use std::{
     io::{Error, ErrorKind, Result},
 };
 use webpki_roots::TLS_SERVER_ROOTS;
-
-type DynBody = Pin<Box<dyn Body<Data = Bytes, Error = io::Error> + Send + Sync>>;
 
 const REDIRECT_CODES: &[StatusCode; 5] = &[
     StatusCode::MOVED_PERMANENTLY,
@@ -142,6 +143,12 @@ const REDIRECT_CODES: &[StatusCode; 5] = &[
 ];
 const DEFAULT_TIMEOUT: u64 = 5;
 const DEFAULT_CACHE_DIR: &str = "cache/http";
+const DEFAULT_HOSTNAME: &str = "localhost";
+
+type DynBody = Pin<Box<dyn Body<Data = Bytes, Error = io::Error> + Send + Sync>>;
+type SharedClients = DashMap<SharedClientKey, Arc<OnceCell<ClientType>>>;
+
+static CLIENTS: OnceLock<SharedClients> = OnceLock::new();
 
 #[derive(Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -168,8 +175,9 @@ pub struct Curl {
     #[serde(alias = "counter")]
     #[serde(alias = "count")]
     pub counter_type: Option<CounterType>,
-    pub redirection_limit: usize,
-    pub version: usize,
+    pub redirection_limit: u8,
+    #[serde(with = "http_version_serde")]
+    pub version: Version,
     #[serde(alias = "cache")]
     #[serde(alias = "cache_enabled")]
     pub is_cached: bool,
@@ -178,6 +186,30 @@ pub struct Curl {
     #[serde(skip)]
     #[serde(default)]
     client: Option<ClientType>,
+}
+
+mod http_version_serde {
+    use http::Version;
+    use serde::{Deserialize, Deserializer};
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Version, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "1" | "1.1" | "HTTP/1.0" | "HTTP/1.1" => Ok(Version::HTTP_11),
+            "2" | "HTTP/2.0" => Ok(Version::HTTP_2),
+            "3" | "HTTP/3.0" => Ok(Version::HTTP_3),
+            _ => Err(serde::de::Error::custom("unsupported HTTP version")),
+        }
+    }
+    pub fn serialize<S>(version: &Version, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!("{:?}", version))
+    }
 }
 
 mod method_uppercase {
@@ -202,11 +234,6 @@ mod method_uppercase {
     }
 }
 
-pub enum ClientType {
-    Http1(SendRequestHttp1<DynBody>),
-    Http2(SendRequestHttp2<DynBody>),
-}
-
 impl Clone for Curl {
     fn clone(&self) -> Self {
         Self {
@@ -225,10 +252,7 @@ impl Clone for Curl {
             version: self.version,
             is_cached: self.is_cached,
             certificate: None,
-            client: match &self.client {
-                Some(ClientType::Http2(client)) => Some(ClientType::Http2(client.clone())),
-                _ => None,
-            },
+            client: None,
         }
     }
 }
@@ -281,7 +305,7 @@ impl Default for Curl {
             paginator_type: PaginatorType::default(),
             counter_type: None,
             redirection_limit: 5,
-            version: 1,
+            version: Version::default(),
             is_cached: false,
             certificate: None,
             client: None,
@@ -406,203 +430,24 @@ fn build_request(request_builder: Builder, body: &Bytes) -> io::Result<Request<D
 }
 
 impl Curl {
-    async fn get_or_create_client(&mut self) -> io::Result<&mut ClientType> {
+    /// Get client and updating the connector if the client hasn't been initialized.
+    #[instrument(name = "curl::client_mut")]
+    async fn client_mut(&mut self) -> io::Result<ClientType> {
         if self.client.is_none() {
-            self.client = Some(match self.version {
-                1 => ClientType::Http1(self.http1().await?),
-                2 => ClientType::Http2(self.http2().await?),
-                _ => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "Unsupported HTTP version",
-                    ))
-                }
-            });
-        }
-        Ok(self.client.as_mut().unwrap())
-    }
-    #[instrument(name = "curl::http1")]
-    async fn http1(&self) -> io::Result<SendRequestHttp1<DynBody>> {
-        use hyper::client::conn::http1;
+            let client = get_or_create_client(
+                self.version,
+                self.endpoint.clone(),
+                self.timeout.unwrap_or(DEFAULT_TIMEOUT),
+                self.certificate.clone(),
+            )
+            .await?;
 
-        let base = self
-            .endpoint
-            .parse::<hyper::Uri>()
-            .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
-
-        let scheme: Scheme = base
-            .scheme_str()
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing scheme"))?
-            .try_into()
-            .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "unsupported scheme"))?;
-
-        let host: String = base
-            .host()
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing host"))?
-            .to_owned();
-
-        let port = base.port_u16().unwrap_or(if scheme == Scheme::HTTP {
-            80
-        } else if scheme == Scheme::HTTPS {
-            443
-        } else {
-            return Err(io::Error::new(ErrorKind::InvalidInput, "unsupported port"));
-        });
-
-        let tcp = match TcpStream::connect((host.clone(), port))
-            .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT)))
-            .await
-        {
-            None => return Err(io::Error::new(ErrorKind::TimedOut, "connect timeout")),
-            Some(Err(e)) => return Err(e),
-            Some(Ok(tcp)) => tcp,
-        };
-
-        tcp.set_nodelay(true)?;
-
-        let stream = if scheme == Scheme::HTTP {
-            SmolStream::Plain(tcp)
-        } else if scheme == Scheme::HTTPS {
-            let mut roots = RootCertStore::empty();
-            roots.extend(TLS_SERVER_ROOTS.iter().cloned());
-
-            if let Some(certificate_path) = &self.certificate {
-                let iter = CertificateDer::pem_file_iter(certificate_path)
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
-                let certs: Vec<CertificateDer<'_>> = iter.filter_map(|res| res.ok()).collect();
-
-                roots.add_parsable_certificates(certs.into_iter());
-            }
-
-            let mut config = ClientConfig::builder()
-                .with_root_certificates(roots)
-                .with_no_client_auth();
-
-            config.alpn_protocols.clear();
-
-            let connector = TlsConnector::from(Arc::new(config));
-            let server_name = rustls::pki_types::ServerName::try_from(host)
-                .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "invalid DNS name"))?;
-
-            let tls = connector.connect(server_name, tcp).await?;
-            SmolStream::Tls(Box::new(futures_rustls::TlsStream::Client(tls)))
-        } else {
-            return Err(io::Error::new(
-                ErrorKind::InvalidInput,
-                "unsupported scheme",
-            ));
-        };
-
-        let (sender, connection): (
-            SendRequestHttp1<DynBody>,
-            ConnectionHttp1<FuturesIo<SmolStream>, DynBody>,
-        ) = http1::Builder::new()
-            .title_case_headers(false)
-            .handshake(FuturesIo::new(stream))
-            .await
-            .map_err(|e| io::Error::new(ErrorKind::ConnectionAborted, e))?;
-
-        smol::spawn(async move {
-            debug!("HTTP/1 connection task started");
-            if let Err(e) = connection.await {
-                warn!(error = %e, "HTTP/1 connection closed");
-            }
-        })
-        .detach();
-
-        Ok(sender)
-    }
-    #[instrument(name = "curl::http2")]
-    async fn http2(&mut self) -> io::Result<SendRequestHttp2<DynBody>> {
-        let base = self
-            .endpoint
-            .parse::<hyper::Uri>()
-            .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
-
-        let scheme: Scheme = base
-            .scheme_str()
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing scheme"))?
-            .try_into()
-            .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "unsupported scheme"))?;
-
-        let host: String = base
-            .host()
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing host"))?
-            .to_owned();
-
-        let port = base.port_u16().unwrap_or(if scheme == Scheme::HTTP {
-            80
-        } else if scheme == Scheme::HTTPS {
-            443
-        } else {
-            return Err(io::Error::new(ErrorKind::InvalidInput, "unsupported port"));
-        });
-
-        let tcp = match TcpStream::connect((host.clone(), port))
-            .timeout(Duration::from_secs(self.timeout.unwrap_or(DEFAULT_TIMEOUT)))
-            .await
-        {
-            None => return Err(io::Error::new(ErrorKind::TimedOut, "connect timeout")),
-            Some(Err(e)) => return Err(e),
-            Some(Ok(tcp)) => tcp,
-        };
-
-        // ---- TLS (rustls + ALPN h2) ----
-        let mut roots = RootCertStore::empty();
-        roots.extend(TLS_SERVER_ROOTS.iter().cloned());
-
-        if let Some(certificate_path) = &self.certificate {
-            let iter = CertificateDer::pem_file_iter(certificate_path)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
-            let certs: Vec<CertificateDer<'_>> = iter.filter_map(|res| res.ok()).collect();
-
-            roots.add_parsable_certificates(certs.into_iter());
+            trace!("initialize the client in the connector");
+            self.client = Some(client);
         }
 
-        let mut config = ClientConfig::builder()
-            .with_root_certificates(roots)
-            .with_no_client_auth();
-
-        config.alpn_protocols = vec![b"h2".to_vec()];
-
-        let connector = TlsConnector::from(Arc::new(config));
-        let server_name = rustls::pki_types::ServerName::try_from(host.clone())
-            .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "invalid DNS name"))?;
-
-        let tls = connector.connect(server_name, tcp).await?;
-
-        debug_assert_eq!(tls.get_ref().1.alpn_protocol(), Some(b"h2".as_slice()));
-
-        // ---- Hyper HTTP/2 ----
-        let io = FuturesIo::new(tls);
-        let exec = Arc::new(Executor::new());
-        smol::spawn({
-            let exec = exec.clone();
-            async move {
-                exec.run(futures::future::pending::<()>()).await;
-            }
-        })
-        .detach();
-        let executor = SmolExecutor::new(exec);
-
-        let (sender, connection) = hyper::client::conn::http2::Builder::new(executor)
-            .handshake(io)
-            .await
-            .map_err(|e| io::Error::new(ErrorKind::ConnectionAborted, e))?;
-
-        smol::spawn(async move {
-            debug!("HTTP/2 connection task started");
-            if let Err(e) = connection.await {
-                warn!(error = %e, "HTTP/2 connection closed");
-            }
-        })
-        .detach();
-
-        Ok(sender)
+        Ok(self.client.clone().unwrap())
     }
-
     /// Get a new request builder base on what has been setup in the configuration.
     async fn request_builder(
         &mut self,
@@ -631,8 +476,8 @@ impl Curl {
         .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         let host = match uri.port_u16() {
-            Some(port) => format!("{}:{}", uri.host().unwrap_or("localhost"), port),
-            None => uri.host().unwrap_or("localhost").to_string(),
+            Some(port) => format!("{}:{}", uri.host().unwrap_or(DEFAULT_HOSTNAME), port),
+            None => uri.host().unwrap_or(DEFAULT_HOSTNAME).to_string(),
         };
 
         let method = if let Some(method) = override_method {
@@ -644,17 +489,17 @@ impl Curl {
         request_builder = request_builder.uri(uri).method(method);
 
         request_builder = match self.version {
-            1 => request_builder
+            Version::HTTP_10 | Version::HTTP_11 => request_builder
                 .header(header::HOST, host)
                 .version(Version::HTTP_11),
-            2 => request_builder
+            Version::HTTP_2 => request_builder
                 .version(Version::HTTP_2)
                 .header(header::HOST, host),
-            3 => request_builder.version(Version::HTTP_3),
+            //Version::HTTP_3 => request_builder.version(Version::HTTP_3),
             _ => {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
-                    format!("This http version '{}' is not managed", self.version),
+                    format!("This http version '{:?}' is not managed", self.version),
                 ))
             }
         };
@@ -776,7 +621,7 @@ impl Curl {
                     "{}://{}",
                     uri.scheme().unwrap_or(&Scheme::HTTP),
                     uri.authority()
-                        .unwrap_or(&Authority::from_static("localhost"))
+                        .unwrap_or(&Authority::from_static(DEFAULT_HOSTNAME))
                 ),
                 uri.to_string(),
             ),
@@ -851,7 +696,7 @@ impl Curl {
                 .request_builder(Some(uri), Some(method), Some(body))
                 .await?;
 
-            let client = self.get_or_create_client().await?;
+            let client = self.client_mut().await?;
 
             let req_headers = match request_builder.headers_ref() {
                 Some(headers) => headers_to_map(headers),
@@ -860,12 +705,14 @@ impl Curl {
 
             let result = match client {
                 ClientType::Http1(sender) => {
+                    let mut sender = sender.lock().await;
                     sender
                         .send_request(build_request(request_builder, body)?)
                         .await
                 }
                 ClientType::Http2(sender) => {
                     sender
+                        .clone()
                         .send_request(build_request(request_builder, body)?)
                         .await
                 }
@@ -923,6 +770,42 @@ impl Curl {
 
         Err(Error::new(ErrorKind::TimedOut, "retry limit exceeded"))
     }
+}
+
+async fn get_or_create_client(
+    version: Version,
+    endpoint: String,
+    timeout: u64,
+    has_certificate: Option<String>,
+) -> Result<ClientType> {
+    let clients = CLIENTS.get_or_init(DashMap::new);
+    let key = SharedClientKey::new(version, endpoint.clone());
+
+    let cell = clients
+        .entry(key.clone())
+        .or_insert_with(|| Arc::new(OnceCell::new()))
+        .clone();
+
+    let client = cell
+        .get_or_try_init(|| async {
+            trace!(key = ?key, "storing client in shared container");
+
+            let client = match version {
+                Version::HTTP_10 | Version::HTTP_11 => ClientType::Http1(Arc::new(Mutex::new(
+                    http1(endpoint.clone(), timeout, has_certificate.clone()).await?,
+                ))),
+                Version::HTTP_2 => ClientType::Http2(
+                    http2(endpoint.clone(), timeout, has_certificate.clone()).await?,
+                ),
+                _ => panic!("Unsupported {:?} version", version),
+            };
+
+            Ok::<ClientType, anyhow::Error>(client)
+        })
+        .await
+        .unwrap();
+
+    Ok(client.clone())
 }
 
 #[async_trait]
@@ -1424,6 +1307,211 @@ fn headers_to_map(headers: &HeaderMap) -> HashMap<String, String> {
         .collect()
 }
 
+#[derive(Clone)]
+pub enum ClientType {
+    Http1(Arc<Mutex<SendRequestHttp1<DynBody>>>),
+    Http2(SendRequestHttp2<DynBody>),
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+struct SharedClientKey {
+    version: Version,
+    endpoint: String,
+}
+
+impl SharedClientKey {
+    fn new(version: Version, endpoint: String) -> Self {
+        Self { version, endpoint }
+    }
+}
+
+async fn http1(
+    endpoint: String,
+    timeout: u64,
+    has_certificate: Option<String>,
+) -> io::Result<SendRequestHttp1<DynBody>> {
+    use hyper::client::conn::http1;
+
+    let base = endpoint
+        .parse::<hyper::Uri>()
+        .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
+
+    let scheme: Scheme = base
+        .scheme_str()
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing scheme"))?
+        .try_into()
+        .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "unsupported scheme"))?;
+
+    let host: String = base
+        .host()
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing host"))?
+        .to_owned();
+
+    let port = base.port_u16().unwrap_or(if scheme == Scheme::HTTP {
+        80
+    } else if scheme == Scheme::HTTPS {
+        443
+    } else {
+        return Err(io::Error::new(ErrorKind::InvalidInput, "unsupported port"));
+    });
+
+    let tcp = match TcpStream::connect((host.clone(), port))
+        .timeout(Duration::from_secs(timeout))
+        .await
+    {
+        None => return Err(io::Error::new(ErrorKind::TimedOut, "connect timeout")),
+        Some(Err(e)) => return Err(e),
+        Some(Ok(tcp)) => tcp,
+    };
+
+    tcp.set_nodelay(true)?;
+
+    let stream = if scheme == Scheme::HTTP {
+        SmolStream::Plain(tcp)
+    } else if scheme == Scheme::HTTPS {
+        let mut roots = RootCertStore::empty();
+        roots.extend(TLS_SERVER_ROOTS.iter().cloned());
+
+        if let Some(certificate_path) = has_certificate {
+            let iter = CertificateDer::pem_file_iter(certificate_path)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+            let certs: Vec<CertificateDer<'_>> = iter.filter_map(|res| res.ok()).collect();
+
+            roots.add_parsable_certificates(certs.into_iter());
+        }
+
+        let mut config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+
+        config.alpn_protocols.clear();
+
+        let connector = TlsConnector::from(Arc::new(config));
+        let server_name = rustls::pki_types::ServerName::try_from(host)
+            .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "invalid DNS name"))?;
+
+        let tls = connector.connect(server_name, tcp).await?;
+        SmolStream::Tls(Box::new(futures_rustls::TlsStream::Client(tls)))
+    } else {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            "unsupported scheme",
+        ));
+    };
+
+    let (sender, connection): (
+        SendRequestHttp1<DynBody>,
+        ConnectionHttp1<FuturesIo<SmolStream>, DynBody>,
+    ) = http1::Builder::new()
+        .title_case_headers(false)
+        .handshake(FuturesIo::new(stream))
+        .await
+        .map_err(|e| io::Error::new(ErrorKind::ConnectionAborted, e))?;
+
+    smol::spawn(async move {
+        debug!("HTTP/1 connection task started");
+        if let Err(e) = connection.await {
+            warn!(error = %e, "HTTP/1 connection closed");
+        }
+    })
+    .detach();
+
+    Ok(sender)
+}
+
+async fn http2(
+    endpoint: String,
+    timeout: u64,
+    has_certificate: Option<String>,
+) -> io::Result<SendRequestHttp2<DynBody>> {
+    let base = endpoint
+        .parse::<hyper::Uri>()
+        .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
+
+    let scheme: Scheme = base
+        .scheme_str()
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing scheme"))?
+        .try_into()
+        .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "unsupported scheme"))?;
+
+    let host: String = base
+        .host()
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "missing host"))?
+        .to_owned();
+
+    let port = base.port_u16().unwrap_or(if scheme == Scheme::HTTP {
+        80
+    } else if scheme == Scheme::HTTPS {
+        443
+    } else {
+        return Err(io::Error::new(ErrorKind::InvalidInput, "unsupported port"));
+    });
+
+    let tcp = match TcpStream::connect((host.clone(), port))
+        .timeout(Duration::from_secs(timeout))
+        .await
+    {
+        None => return Err(io::Error::new(ErrorKind::TimedOut, "connect timeout")),
+        Some(Err(e)) => return Err(e),
+        Some(Ok(tcp)) => tcp,
+    };
+
+    // ---- TLS (rustls + ALPN h2) ----
+    let mut roots = RootCertStore::empty();
+    roots.extend(TLS_SERVER_ROOTS.iter().cloned());
+
+    if let Some(certificate_path) = has_certificate {
+        let iter = CertificateDer::pem_file_iter(certificate_path)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+        let certs: Vec<CertificateDer<'_>> = iter.filter_map(|res| res.ok()).collect();
+
+        roots.add_parsable_certificates(certs.into_iter());
+    }
+
+    let mut config = ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+
+    config.alpn_protocols = vec![b"h2".to_vec()];
+
+    let connector = TlsConnector::from(Arc::new(config));
+    let server_name = rustls::pki_types::ServerName::try_from(host.clone())
+        .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "invalid DNS name"))?;
+
+    let tls = connector.connect(server_name, tcp).await?;
+
+    debug_assert_eq!(tls.get_ref().1.alpn_protocol(), Some(b"h2".as_slice()));
+
+    // ---- Hyper HTTP/2 ----
+    let io = FuturesIo::new(tls);
+    let exec = Arc::new(Executor::new());
+    smol::spawn({
+        let exec = exec.clone();
+        async move {
+            exec.run(futures::future::pending::<()>()).await;
+        }
+    })
+    .detach();
+    let executor = SmolExecutor::new(exec);
+
+    let (sender, connection) = hyper::client::conn::http2::Builder::new(executor)
+        .handshake(io)
+        .await
+        .map_err(|e| io::Error::new(ErrorKind::ConnectionAborted, e))?;
+
+    smol::spawn(async move {
+        debug!("HTTP/2 connection task started");
+        if let Err(e) = connection.await {
+            warn!(error = %e, "HTTP/2 connection closed");
+        }
+    })
+    .detach();
+
+    Ok(sender)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1501,7 +1589,7 @@ mod tests {
         connector.endpoint = "http://localhost:8080".to_string();
         connector.method = Method::GET;
         connector.path = "/json".to_string();
-        connector.version = 1;
+        connector.version = Version::default();
         connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
@@ -1519,7 +1607,7 @@ mod tests {
         connector.method = Method::GET;
         connector.path = "/json".to_string();
         connector.certificate = Some("./.config/my-ca.crt".to_string());
-        connector.version = 1;
+        connector.version = Version::default();
         connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(
@@ -1537,7 +1625,7 @@ mod tests {
         connector.method = Method::GET;
         connector.path = "/json".to_string();
         connector.certificate = Some("./.config/my-ca.crt".to_string());
-        connector.version = 2;
+        connector.version = Version::HTTP_2;
         connector.set_document(Box::new(document)).unwrap();
         let datastream = connector.fetch().await.unwrap().unwrap();
         assert!(

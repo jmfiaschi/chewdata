@@ -52,32 +52,31 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
-use async_lock::Mutex;
+use async_lock::OnceCell;
 use async_stream::stream;
 use async_trait::async_trait;
 use aws_config::meta::credentials::CredentialsProviderChain;
 use aws_sdk_s3::config::Region;
 use aws_sdk_s3::primitives::DateTime;
 use aws_sdk_s3::Client;
+use dashmap::DashMap;
 use json_value_merge::Merge;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use smol::prelude::*;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::env;
-use std::hash::{Hash, Hasher};
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::vec::IntoIter;
 use std::{
     fmt,
     io::{Cursor, Error, ErrorKind, Result, Seek, SeekFrom, Write},
 };
 
-static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
+type SharedClients = DashMap<String, Arc<OnceCell<Client>>>;
+static CLIENTS: OnceLock<SharedClients> = OnceLock::new();
 
 const DEFAULT_TAG_SERVICE_WRITER_NAME: (&str, &str) = ("service:writer:name", "chewdata");
 const DEFAULT_REGION: &str = "us-west-2";
@@ -105,6 +104,9 @@ pub struct Bucket {
     pub tags: HashMap<String, String>,
     pub cache_control: Option<String>,
     pub expires: Option<i64>,
+    #[serde(skip)]
+    #[serde(default)]
+    client: Option<Client>,
 }
 
 impl fmt::Debug for Bucket {
@@ -151,6 +153,7 @@ impl Default for Bucket {
             tags,
             cache_control: None,
             expires: None,
+            client: None,
         }
     }
 }
@@ -193,44 +196,65 @@ impl Bucket {
         }
         tagging
     }
-    fn client_key(&self) -> String {
-        let mut hasher = DefaultHasher::new();
-        let client_key = format!("{}:{}", self.endpoint(), self.region());
-        client_key.hash(&mut hasher);
-        hasher.finish().to_string()
+    /// Get client and updating the connector if the client hasn't been initialized.
+    #[instrument(name = "bucket::client_mut")]
+    async fn client_mut(&mut self) -> Result<Client> {
+        if self.client.is_none() {
+            let client = get_or_create_client(self.endpoint(), self.region()).await?;
+
+            trace!("initialize the client in the connector");
+            self.client = Some(client);
+        }
+
+        Ok(self.client.clone().unwrap())
     }
-    /// Get the current client
-    pub async fn client(&self) -> Result<Client> {
-        let clients = CLIENTS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
-
-        let client_key = self.client_key();
-        if let Some(client) = clients.lock().await.get(&self.client_key()) {
-            trace!(client_key, "Retrieve the previous client");
-            return Ok(client.clone());
+    /// Get client without updating the connecter.
+    #[instrument(name = "bucket::client")]
+    async fn client(&self) -> Result<Client> {
+        if self.client.is_none() {
+            return get_or_create_client(self.endpoint(), self.region()).await;
         }
 
-        trace!(client_key, "Create a new client");
-
-        if let Ok(key) = env::var("BUCKET_ACCESS_KEY_ID") {
-            env::set_var("AWS_ACCESS_KEY_ID", key);
-        }
-        if let Ok(secret) = env::var("BUCKET_SECRET_ACCESS_KEY") {
-            env::set_var("AWS_SECRET_ACCESS_KEY", secret);
-        }
-
-        let provider = CredentialsProviderChain::default_provider().await;
-        let config = aws_sdk_s3::Config::builder()
-            .endpoint_url(self.endpoint())
-            .region(Region::new(self.region()))
-            .credentials_provider(provider)
-            .force_path_style(true);
-
-        let mut map = clients.lock_arc().await;
-        let client = Client::from_conf(config.build());
-        map.insert(client_key, client.clone());
-
-        Ok(client)
+        Ok(self.client.clone().unwrap())
     }
+}
+
+async fn get_or_create_client(endpoint: String, region: String) -> Result<Client> {
+    let clients = CLIENTS.get_or_init(DashMap::new);
+    let key = format!("{}:{}", endpoint, region);
+
+    let cell = clients
+        .entry(key.clone())
+        .or_insert_with(|| Arc::new(OnceCell::new()))
+        .clone();
+
+    let client = cell
+        .get_or_try_init(|| async {
+            trace!(key = ?key, "storing client in shared container");
+
+            if let Ok(key) = env::var("BUCKET_ACCESS_KEY_ID") {
+                env::set_var("AWS_ACCESS_KEY_ID", key);
+            }
+            if let Ok(secret) = env::var("BUCKET_SECRET_ACCESS_KEY") {
+                env::set_var("AWS_SECRET_ACCESS_KEY", secret);
+            }
+
+            let provider = CredentialsProviderChain::default_provider().await;
+            let config = aws_sdk_s3::Config::builder()
+                .endpoint_url(endpoint)
+                .region(Region::new(region))
+                .credentials_provider(provider)
+                .force_path_style(true)
+                .build();
+
+            let client = Client::from_conf(config);
+
+            Ok::<Client, anyhow::Error>(client)
+        })
+        .await
+        .unwrap();
+
+    Ok(client.clone())
 }
 
 #[async_trait]
@@ -390,7 +414,8 @@ impl Connector for Bucket {
         }
 
         let len = match self
-            .client()
+            .clone()
+            .client_mut()
             .compat()
             .await?
             .head_object()
@@ -451,6 +476,7 @@ impl Connector for Bucket {
     /// ```
     #[instrument(name = "bucket::fetch")]
     async fn fetch(&mut self) -> Result<Option<DataStream>> {
+        let client = self.client_mut().compat().await?;
         let document = self.document()?;
         let path = self.path();
 
@@ -461,10 +487,7 @@ impl Connector for Bucket {
             ));
         }
 
-        let get_object = self
-            .client()
-            .compat()
-            .await?
+        let get_object = client
             .get_object()
             .bucket(&self.bucket)
             .key(&path)
@@ -570,7 +593,7 @@ impl Connector for Bucket {
             info!(path = path.to_string().as_str(), "Fetch existing data");
             {
                 let get_object = self
-                    .client()
+                    .client_mut()
                     .compat()
                     .await?
                     .get_object()
@@ -615,7 +638,7 @@ impl Connector for Bucket {
 
         let buffer = cursor.into_inner();
 
-        self.client()
+        self.client_mut()
             .compat()
             .await?
             .put_object()
@@ -665,7 +688,7 @@ impl Connector for Bucket {
             ));
         }
 
-        self.client()
+        self.client_mut()
             .compat()
             .await?
             .put_object()

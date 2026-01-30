@@ -47,29 +47,26 @@ use crate::helper::mustache::Mustache;
 use crate::helper::string::DisplayOnlyForDebugging;
 use crate::{ConnectorStream, DataSet, DataStream, Metadata};
 use async_compat::CompatExt;
-use async_lock::Mutex;
+use async_lock::OnceCell;
 use async_stream::stream;
 use async_trait::async_trait;
 use aws_config::meta::credentials::CredentialsProviderChain;
 use aws_sdk_s3::config::Region;
-use aws_sdk_s3::operation::select_object_content::builders::SelectObjectContentFluentBuilder;
+use aws_sdk_s3::operation::select_object_content::SelectObjectContentOutput;
 use aws_sdk_s3::types::{
     CompressionType, CsvInput, CsvOutput, ExpressionType, FileHeaderInfo, InputSerialization,
     JsonInput, JsonOutput, JsonType, OutputSerialization, ParquetInput,
     SelectObjectContentEventStream,
 };
 use aws_sdk_s3::Client;
+use dashmap::DashMap;
 use json_value_merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use smol::prelude::*;
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
 use std::env;
-use std::hash::{Hash, Hasher};
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use std::vec::IntoIter;
 use std::{
@@ -77,7 +74,8 @@ use std::{
     io::{Error, ErrorKind, Result},
 };
 
-static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
+type SharedClients = DashMap<String, Arc<OnceCell<Client>>>;
+static CLIENTS: OnceLock<SharedClients> = OnceLock::new();
 
 const DEFAULT_REGION: &str = "us-west-2";
 const DEFAULT_ENDPOINT: &str = "http://localhost:9000";
@@ -102,6 +100,9 @@ pub struct BucketSelect {
     pub limit: Option<usize>,
     pub skip: usize,
     pub timeout: Option<Duration>,
+    #[serde(skip)]
+    #[serde(default)]
+    client: Option<Client>,
 }
 
 impl fmt::Debug for BucketSelect {
@@ -138,6 +139,7 @@ impl Default for BucketSelect {
             timeout: None,
             limit: None,
             skip: 0,
+            client: None,
         }
     }
 }
@@ -167,59 +169,35 @@ impl BucketSelect {
             (None, Err(_), Err(_)) => DEFAULT_ENDPOINT.to_string(),
         }
     }
-    fn client_key(&self) -> String {
-        let mut hasher = DefaultHasher::new();
-        let client_key = format!("{}:{}", self.endpoint(), self.region());
-        client_key.hash(&mut hasher);
-        hasher.finish().to_string()
+    /// Get client and updating the connector if the client hasn't been initialized.
+    #[instrument(name = "bucket_select::client_mut")]
+    async fn client_mut(&mut self) -> Result<Client> {
+        if self.client.is_none() {
+            let client = get_or_create_client(self.endpoint(), self.region()).await?;
+
+            trace!("initialize the client in the connector");
+            self.client = Some(client);
+        }
+
+        Ok(self.client.clone().unwrap())
     }
-    /// Get the current client
-    pub async fn client(&self) -> Result<Client> {
-        let clients = CLIENTS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
-
-        let client_key = self.client_key();
-        if let Some(client) = clients.lock().await.get(&self.client_key()) {
-            trace!(client_key, "Retrieve the previous client");
-            return Ok(client.clone());
+    /// Get client without updating the connecter.
+    #[instrument(name = "bucket_select::client")]
+    async fn client(&self) -> Result<Client> {
+        if self.client.is_none() {
+            return get_or_create_client(self.endpoint(), self.region()).await;
         }
 
-        trace!(client_key, "Create a new client");
-
-        if let Ok(key) = env::var("BUCKET_ACCESS_KEY_ID") {
-            env::set_var("AWS_ACCESS_KEY_ID", key);
-        }
-        if let Ok(secret) = env::var("BUCKET_SECRET_ACCESS_KEY") {
-            env::set_var("AWS_SECRET_ACCESS_KEY", secret);
-        }
-
-        let provider = CredentialsProviderChain::default_provider().await;
-        let config = aws_sdk_s3::Config::builder()
-            .endpoint_url(self.endpoint())
-            .region(Region::new(self.region()))
-            .credentials_provider(provider)
-            .behavior_version_latest()
-            .force_path_style(true)
-            .build();
-
-        let mut map = clients.lock_arc().await;
-        let client = Client::from_conf(config);
-        map.insert(client_key, client.clone());
-
-        Ok(client)
+        Ok(self.client.clone().unwrap())
     }
-    /// Get a Select object Content Request object with a BucketSelect connector.
-    pub async fn select_object_content(&self) -> Result<SelectObjectContentFluentBuilder> {
-        let metadata = self.metadata();
-        let path = self.path();
+}
 
-        if path.has_mustache() {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                format!("This path '{}' is not fully resolved", path),
-            ));
-        }
+/// Get a Select object Content Request object with a BucketSelect connector.
+pub async fn input_serialization(document: &dyn Document) -> Result<InputSerialization> {
+    let metadata = document.metadata();
 
-        let input_serialization = match metadata.mime_subtype.as_deref() {
+    let input_serialization =
+        match metadata.mime_subtype.as_deref() {
             Some("csv") => InputSerialization::builder().csv(
                 CsvInput::builder()
                     .set_field_delimiter(metadata.clone().delimiter)
@@ -250,129 +228,148 @@ impl BucketSelect {
         ))
         .build();
 
-        let output_serialization = match metadata.mime_subtype.as_deref() {
-            Some("csv") => OutputSerialization::builder().csv(
-                CsvOutput::builder()
-                    .set_field_delimiter(metadata.delimiter)
-                    .set_quote_character(metadata.quote)
-                    .set_quote_escape_character(metadata.escape)
-                    .record_delimiter(
-                        match metadata
-                            .terminator
-                            .unwrap_or_else(|| "\n".to_string())
-                            .as_str()
-                        {
-                            "CRLF" => "\n\r".to_string(),
-                            "CR" => "\n".to_string(),
-                            terminal => terminal.to_string(),
-                        },
-                    )
-                    .build(),
-            ),
-            _ => OutputSerialization::builder().json(
-                JsonOutput::builder()
-                    .set_record_delimiter(metadata.delimiter)
-                    .build(),
-            ),
-        }
-        .build();
+    Ok(input_serialization)
+}
+pub async fn output_serialization(document: &dyn Document) -> Result<OutputSerialization> {
+    let metadata = document.metadata();
 
-        Ok(self
-            .client()
-            .await?
-            .select_object_content()
-            .bucket(&self.bucket)
-            .key(path)
-            .expression(&self.query)
-            .expression_type(ExpressionType::Sql)
-            .input_serialization(input_serialization)
-            .output_serialization(output_serialization))
+    let output_serialization = match metadata.mime_subtype.as_deref() {
+        Some("csv") => OutputSerialization::builder().csv(
+            CsvOutput::builder()
+                .set_field_delimiter(metadata.delimiter)
+                .set_quote_character(metadata.quote)
+                .set_quote_escape_character(metadata.escape)
+                .record_delimiter(
+                    match metadata
+                        .terminator
+                        .unwrap_or_else(|| "\n".to_string())
+                        .as_str()
+                    {
+                        "CRLF" => "\n\r".to_string(),
+                        "CR" => "\n".to_string(),
+                        terminal => terminal.to_string(),
+                    },
+                )
+                .build(),
+        ),
+        _ => OutputSerialization::builder().json(
+            JsonOutput::builder()
+                .set_record_delimiter(metadata.delimiter)
+                .build(),
+        ),
     }
-    async fn fetch_data(&self) -> Result<Vec<u8>> {
-        let mut event_stream = self
-            .select_object_content()
-            .compat()
-            .await?
-            .send()
-            .compat()
-            .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
+    .build();
 
-        let mut buffer = Vec::new();
+    Ok(output_serialization)
+}
 
-        loop {
-            let event_opt = event_stream.payload.recv().compat().await;
+async fn read_event_stream(
+    event_stream: &mut SelectObjectContentOutput,
+    buffer: &mut Vec<u8>,
+) -> Result<()> {
+    loop {
+        let event_opt = event_stream.payload.recv().compat().await;
 
-            let event = match event_opt {
-                Ok(Some(ev)) => ev,
-                Ok(None) => break,
-                Err(e) => {
-                    warn!("S3 Select failed: {:#?}", e);
-                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e));
-                }
-            };
-
-            match event {
-                SelectObjectContentEventStream::Records(records) => {
-                    if let Some(bytes) = records.payload() {
-                        buffer.extend_from_slice(bytes.as_ref());
-                    }
-                }
-                SelectObjectContentEventStream::Stats(stats) => {
-                    trace!(?stats, "Stats Event");
-                }
-                SelectObjectContentEventStream::Progress(progress) => {
-                    trace!(?progress, "Progress Event");
-                }
-                SelectObjectContentEventStream::End(_) => {
-                    trace!("End Event");
-                    break;
-                }
-                SelectObjectContentEventStream::Cont(_) => {
-                    trace!("Continuation Event");
-                }
-                other => trace!(event = ?other, "Ignoring unknown event"),
+        let event = match event_opt {
+            Ok(Some(ev)) => ev,
+            Ok(None) => break,
+            Err(e) => {
+                warn!("S3 Select failed: {:#?}", e);
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e));
             }
-        }
+        };
 
-        Ok(buffer)
-    }
-    async fn fetch_length(&mut self) -> Result<usize> {
-        let mut event_stream = self
-            .select_object_content()
-            .compat()
-            .await?
-            .send()
-            .compat()
-            .await
-            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
-
-        let mut scanned: usize = 0;
-
-        while let Some(event) = event_stream
-            .payload
-            .recv()
-            .compat()
-            .await
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
-        {
-            match event {
-                SelectObjectContentEventStream::Stats(stats) => {
-                    if let Some(details) = stats.details {
-                        if let Some(bytes) = details.bytes_scanned() {
-                            scanned = scanned.max(bytes as usize);
-                        }
-                    }
-                }
-                SelectObjectContentEventStream::End(_) => break,
-                other => {
-                    trace!(event = ?other, "Ignoring unknown event");
+        match event {
+            SelectObjectContentEventStream::Records(records) => {
+                if let Some(bytes) = records.payload() {
+                    buffer.extend_from_slice(bytes.as_ref());
                 }
             }
+            SelectObjectContentEventStream::Stats(stats) => {
+                trace!(?stats, "Stats Event");
+            }
+            SelectObjectContentEventStream::Progress(progress) => {
+                trace!(?progress, "Progress Event");
+            }
+            SelectObjectContentEventStream::End(_) => {
+                trace!("End Event");
+                break;
+            }
+            SelectObjectContentEventStream::Cont(_) => {
+                trace!("Continuation Event");
+            }
+            other => trace!(event = ?other, "Ignoring unknown event"),
         }
-
-        Ok(scanned)
     }
+
+    Ok(())
+}
+
+async fn read_event_stream_length(
+    event_stream: &mut SelectObjectContentOutput,
+    length: &mut usize,
+) -> Result<()> {
+    let mut scanned = 0usize;
+
+    while let Some(event) = event_stream
+        .payload
+        .recv()
+        .compat()
+        .await
+        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
+    {
+        match event {
+            SelectObjectContentEventStream::Stats(stats) => {
+                if let Some(bytes) = stats.details.and_then(|d| d.bytes_scanned()) {
+                    scanned = bytes as usize;
+                }
+            }
+            SelectObjectContentEventStream::End(_) => break,
+            other => trace!(event = ?other, "Ignoring unknown event"),
+        }
+    }
+
+    *length = scanned;
+    Ok(())
+}
+
+async fn get_or_create_client(endpoint: String, region: String) -> Result<Client> {
+    let clients = CLIENTS.get_or_init(DashMap::new);
+    let key = format!("{}:{}", endpoint, region);
+
+    let cell = clients
+        .entry(key.clone())
+        .or_insert_with(|| Arc::new(OnceCell::new()))
+        .clone();
+
+    let client = cell
+        .get_or_try_init(|| async {
+            trace!(key = ?key, "storing client in shared container");
+
+            if let Ok(key) = env::var("BUCKET_ACCESS_KEY_ID") {
+                env::set_var("AWS_ACCESS_KEY_ID", key);
+            }
+            if let Ok(secret) = env::var("BUCKET_SECRET_ACCESS_KEY") {
+                env::set_var("AWS_SECRET_ACCESS_KEY", secret);
+            }
+
+            let provider = CredentialsProviderChain::default_provider().await;
+            let config = aws_sdk_s3::Config::builder()
+                .endpoint_url(endpoint)
+                .region(Region::new(region))
+                .credentials_provider(provider)
+                .behavior_version_latest()
+                .force_path_style(true)
+                .build();
+
+            let client = Client::from_conf(config);
+
+            Ok::<Client, anyhow::Error>(client)
+        })
+        .await
+        .unwrap();
+
+    Ok(client.clone())
 }
 
 #[async_trait]
@@ -518,6 +515,7 @@ impl Connector for BucketSelect {
     ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
+    ///     let document = Json::default();
     ///     let mut connector = BucketSelect::default();
     ///     connector.bucket = "my-bucket".to_string();
     ///     connector.path = "data/one_line.json".to_string();
@@ -525,6 +523,7 @@ impl Connector for BucketSelect {
     ///     connector.metadata = Metadata {
     ///         ..Json::default().metadata
     ///     };
+    ///     connector.set_document(Box::new(document)).unwrap();
     ///     assert!(0 < connector.len().await?, "The length of the document is not greather than 0");
     ///     connector.path = "data/not-found-file".to_string();
     ///     assert_eq!(0, connector.len().await?);
@@ -534,8 +533,8 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument(name = "bucket_select::len")]
     async fn len(&self) -> Result<usize> {
-        let mut connector = self.clone();
-        connector.query = format!(
+        let client = self.client().await?;
+        let query: String = format!(
             "{} {}",
             self.query
                 .clone()
@@ -545,10 +544,52 @@ impl Connector for BucketSelect {
                 .unwrap(),
             "limit 1"
         );
+        let document = self.document()?;
+        let body_input = input_serialization(document).await?;
+        let body_output = output_serialization(document).await?;
+        let bucket = self.bucket.clone();
+        let path = self.path();
 
-        let len = connector.fetch_length().await.unwrap_or_default();
+        if path.has_mustache() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
+        }
 
-        info!(len, "Find the length of the resource");
+        let mut event_stream = match client
+            .select_object_content()
+            .bucket(&bucket)
+            .key(&path)
+            .expression(&query)
+            .expression_type(ExpressionType::Sql)
+            .input_serialization(body_input.clone())
+            .output_serialization(body_output.clone())
+            .send()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))
+        {
+            Ok(event_stream) => event_stream,
+            Err(e) => {
+                warn!(error = ?e, "failed to send select request");
+
+                return Ok(0);
+            }
+        };
+
+        let mut len = 0;
+
+        match read_event_stream_length(&mut event_stream, &mut len).await {
+            Ok(_) => (),
+            Err(e) => {
+                warn!(error = ?e, "failed to read event stream length");
+
+                return Ok(0);
+            }
+        };
+
+        info!(len, "resource length resolved");
 
         Ok(len)
     }
@@ -587,22 +628,36 @@ impl Connector for BucketSelect {
     /// ```
     #[instrument(name = "bucket_select::fetch")]
     async fn fetch(&mut self) -> Result<Option<DataStream>> {
+        let client = self.client_mut().await?;
         let document = self.document()?;
-        let mut buffer = Vec::default();
+        let body_input = input_serialization(document).await?;
+        let body_output = output_serialization(document).await?;
         let path = self.path();
+        let bucket = self.bucket.clone();
+        let query = self.query.clone();
+
+        if path.has_mustache() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("This path '{}' is not fully resolved", path),
+            ));
+        }
+
+        let mut buffer = Vec::default();
 
         if let (Some(true), Some("csv")) = (
             self.metadata().has_headers,
             self.metadata().mime_subtype.as_deref(),
         ) {
-            let mut connector_for_header = self.clone();
             let mut document_for_header = document.clone_box();
             let mut metadata = document_for_header.metadata().clone();
             metadata.has_headers = Some(false);
             document_for_header.set_metadata(metadata);
-            connector_for_header.set_document(document_for_header)?;
 
-            connector_for_header.query = format!(
+            let csv_body_input = input_serialization(&*document_for_header).await?;
+            let csv_body_output = output_serialization(&*document_for_header).await?;
+
+            let csv_query_header = format!(
                 "{} {}",
                 self.query
                     .clone()
@@ -613,10 +668,37 @@ impl Connector for BucketSelect {
                 "limit 1"
             );
 
-            buffer.append(&mut connector_for_header.fetch_data().await?);
+            let mut event_stream = client
+                .select_object_content()
+                .bucket(&bucket)
+                .key(&path)
+                .expression(&csv_query_header)
+                .expression_type(ExpressionType::Sql)
+                .input_serialization(csv_body_input)
+                .output_serialization(csv_body_output)
+                .send()
+                .compat()
+                .await
+                .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
+
+            read_event_stream(&mut event_stream, &mut buffer).await?;
         }
 
-        buffer.append(&mut self.fetch_data().await?);
+        let mut event_stream = client
+            .select_object_content()
+            .bucket(&bucket)
+            .key(&path)
+            .expression(&query)
+            .expression_type(ExpressionType::Sql)
+            .input_serialization(body_input)
+            .output_serialization(body_output)
+            .send()
+            .compat()
+            .await
+            .map_err(|e| Error::new(ErrorKind::ConnectionAborted, e))?;
+
+        read_event_stream(&mut event_stream, &mut buffer).await?;
+
         info!(path = path, "Fetch data with success");
 
         if !document.has_data(&buffer)? {
