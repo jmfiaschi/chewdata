@@ -39,27 +39,24 @@ use crate::helper::json_pointer::JsonPointer;
 use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{helper::mustache::Mustache, DataResult};
 use crate::{DataSet, DataStream};
-use async_lock::Mutex;
+use async_lock::OnceCell;
 use async_stream::stream;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use dashmap::DashMap;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::postgres::{PgArguments, PgPoolOptions, PgRow};
 use sqlx::{Arguments, Column, Pool, Postgres, Row, TypeInfo};
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
 
-type SharedClients = Arc<Mutex<HashMap<String, Pool<Postgres>>>>;
+type SharedClients = DashMap<String, Arc<OnceCell<Pool<Postgres>>>>;
 static CLIENTS: OnceLock<SharedClients> = OnceLock::new();
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -81,7 +78,10 @@ pub struct Psql {
     #[serde(alias = "count")]
     pub counter_type: CounterType,
     #[serde(alias = "conn")]
-    pub max_connections: u32,
+    pub max_connections: usize,
+    #[serde(skip)]
+    #[serde(default)]
+    client: Option<Pool<Postgres>>,
 }
 
 impl Default for Psql {
@@ -95,6 +95,7 @@ impl Default for Psql {
             paginator_type: PaginatorType::default(),
             counter_type: CounterType::default(),
             max_connections: 5,
+            client: None,
         }
     }
 }
@@ -252,33 +253,53 @@ impl Psql {
 
         Ok((query_sanitized, query_binding))
     }
-    /// Get the current client
-    pub async fn client(&self) -> Result<Pool<Postgres>> {
-        let clients = CLIENTS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+    #[instrument(name = "psql::client_mut")]
+    pub async fn client_mut(&mut self) -> Result<Pool<Postgres>> {
+        if let None = self.client {
+            let client = get_or_create_client(self.path(), self.max_connections).await?;
 
-        let client_key = self.client_key();
-        if let Some(client) = clients.lock().await.get(&self.client_key()) {
-            trace!(client_key, "Retrieve the previous client");
-            return Ok(client.clone());
+            trace!("initialize the client in the connector");
+            self.client = Some(client);
         }
 
-        trace!(client_key, "Create a new client");
-        let mut map = clients.lock_arc().await;
-        let client = PgPoolOptions::new()
-            .max_connections(self.max_connections)
-            .connect(self.path().as_str())
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-        map.insert(client_key, client.clone());
+        Ok(self.client.clone().unwrap())
+    }
+    #[instrument(name = "psql::client")]
+    pub async fn client(&self) -> Result<Pool<Postgres>> {
+        if let None = self.client {
+            trace!("initialize client");
+            return get_or_create_client(self.path(), self.max_connections).await;
+        }
 
-        Ok(client)
+        Ok(self.client.clone().unwrap())
     }
-    fn client_key(&self) -> String {
-        let mut hasher = DefaultHasher::new();
-        let client_key = self.path().to_string();
-        client_key.hash(&mut hasher);
-        hasher.finish().to_string()
-    }
+}
+
+async fn get_or_create_client(path: String, max_connection: usize) -> Result<Pool<Postgres>> {
+    let clients = CLIENTS.get_or_init(DashMap::new);
+    let key = path.clone();
+
+    let cell = clients
+        .entry(key.clone())
+        .or_insert_with(|| Arc::new(OnceCell::new()))
+        .clone();
+
+    let client = cell
+        .get_or_try_init(|| async {
+            trace!(key = ?key, "storing client in shared container");
+
+            let client = PgPoolOptions::new()
+                .max_connections(max_connection as u32)
+                .connect(&path)
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+            Ok::<Pool<Postgres>, anyhow::Error>(client)
+        })
+        .await
+        .unwrap();
+
+    Ok(client.clone())
 }
 
 #[async_trait]
@@ -470,7 +491,7 @@ impl Connector for Psql {
                 }
                 Value::Object(map)
             })
-            .fetch_all(&self.client().await?)
+            .fetch_all(&self.client_mut().await?)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 
@@ -555,7 +576,7 @@ impl Connector for Psql {
             let (query_sanitized, binding) = self.query_sanitized(&query, &data.to_value())?;
 
             match sqlx::query_with(query_sanitized.as_str(), binding)
-                .execute(&self.client().await?)
+                .execute(&self.client_mut().await?)
                 .await
             {
                 Ok(_) => Ok(()),
@@ -615,7 +636,7 @@ impl Connector for Psql {
             self.query_sanitized("DELETE FROM {{ collection }}", &Value::Null)?;
 
         sqlx::query(query_sanitized.as_str())
-            .execute(&self.client().await?)
+            .execute(&self.client_mut().await?)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 

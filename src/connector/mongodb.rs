@@ -41,9 +41,10 @@ use crate::{
     document::Document as ChewdataDocument, helper::mustache::Mustache, DataSet, DataStream,
 };
 use async_compat::{Compat, CompatExt};
-use async_lock::Mutex;
+use async_lock::OnceCell;
 use async_stream::stream;
 use async_trait::async_trait;
+use dashmap::DashMap;
 use futures::Stream;
 use mongodb::{
     bson::{doc, Document},
@@ -53,18 +54,15 @@ use mongodb::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use smol::stream::StreamExt;
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::{
     fmt,
     io::{Error, ErrorKind, Result},
 };
 
-static CLIENTS: OnceLock<Arc<Mutex<HashMap<String, Client>>>> = OnceLock::new();
+type SharedClients = DashMap<String, Arc<OnceCell<Client>>>;
+static CLIENTS: OnceLock<SharedClients> = OnceLock::new();
 
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(default, deny_unknown_fields)]
@@ -87,6 +85,9 @@ pub struct Mongodb {
     #[serde(alias = "counter")]
     #[serde(alias = "count")]
     pub counter_type: CounterType,
+    #[serde(skip)]
+    #[serde(default)]
+    client: Option<Client>,
 }
 
 impl Default for Mongodb {
@@ -105,6 +106,7 @@ impl Default for Mongodb {
             update_options: Box::new(Some(update_option)),
             paginator_type: PaginatorType::default(),
             counter_type: CounterType::default(),
+            client: None,
         }
     }
 }
@@ -145,32 +147,55 @@ impl Mongodb {
 
         Some(filter)
     }
-    fn client_key(&self) -> String {
-        let mut hasher = DefaultHasher::new();
-        let client_key = format!("{}:{}", self.endpoint, self.database);
-        client_key.hash(&mut hasher);
-        hasher.finish().to_string()
-    }
-    /// Get the current client
-    pub async fn client(&self) -> Result<Client> {
-        let clients = CLIENTS.get_or_init(|| Arc::new(Mutex::new(HashMap::default())));
+    /// Get client and updating the connector if the client hasn't been initialized.
+    #[instrument(name = "mongodb::client_mut")]
+    pub async fn client_mut(&mut self) -> Result<Client> {
+        let endpoint = self.endpoint.clone();
+        if let None = self.client {
+            let client = get_or_create_client(endpoint).await?;
 
-        let client_key = self.client_key();
-        if let Some(client) = clients.lock().await.get(&self.client_key()) {
-            trace!(client_key, "Retrieve the previous client");
-            return Ok(client.clone());
+            trace!("initialize the client in the connector");
+            self.client = Some(client);
         }
 
-        trace!(client_key, "Create a new client");
-        let mut map = clients.lock_arc().await;
-        let client = Client::with_uri_str(&self.endpoint)
-            .compat()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
-        map.insert(client_key, client.clone());
-
-        Ok(client)
+        Ok(self.client.clone().unwrap())
     }
+    /// Get client without updating the connecter.
+    #[instrument(name = "mongodb::client")]
+    pub async fn client(&self) -> Result<Client> {
+        let endpoint = self.endpoint.clone();
+        if let None = self.client {
+            return get_or_create_client(endpoint).await;
+        }
+
+        Ok(self.client.clone().unwrap())
+    }
+}
+
+async fn get_or_create_client(endpoint: String) -> Result<Client> {
+    let clients = CLIENTS.get_or_init(DashMap::new);
+    let key = endpoint.clone();
+
+    let cell = clients
+        .entry(key.clone())
+        .or_insert_with(|| Arc::new(OnceCell::new()))
+        .clone();
+
+    let client = cell
+        .get_or_try_init(|| async {
+            trace!(key = ?key, "storing client in shared container");
+
+            let client = Client::with_uri_str(&endpoint)
+                .compat()
+                .await
+                .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
+
+            Ok::<Client, anyhow::Error>(client)
+        })
+        .await
+        .unwrap();
+
+    Ok(client.clone())
 }
 
 #[async_trait]
@@ -287,6 +312,7 @@ impl Connector for Mongodb {
     /// ```
     #[instrument(name = "mongodb::fetch")]
     async fn fetch(&mut self) -> std::io::Result<Option<DataStream>> {
+        let client = self.client_mut().await?;
         let document = self.document()?;
         let options = *self.find_options.clone();
         let filter: Document = match self.filter(&self.parameters) {
@@ -294,7 +320,6 @@ impl Connector for Mongodb {
             None => Document::new(),
         };
 
-        let client = self.client().await?;
         let db = client.database(&self.database);
         let collection = db.collection::<Document>(&self.collection);
         let cursor = Compat::new(async {
@@ -367,7 +392,7 @@ impl Connector for Mongodb {
 
         let update_options = self.update_options.clone();
 
-        let client = self.client().await?;
+        let client = self.client_mut().await?;
 
         let db = client.database(&self.database);
         let collection = db.collection::<Document>(&self.collection);
@@ -461,7 +486,7 @@ impl Connector for Mongodb {
     /// ```
     #[instrument(name = "mongodb::erase")]
     async fn erase(&mut self) -> Result<()> {
-        let client = self.client().await?;
+        let client = self.client_mut().await?;
 
         let db = client.database(&self.database);
         let collection = db.collection::<Document>(&self.collection);

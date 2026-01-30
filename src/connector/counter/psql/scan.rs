@@ -70,8 +70,10 @@ impl Scan {
         let (query_sanitized, _) =
             connector.query_sanitized("SELECT COUNT(1) FROM {{ collection }}", &Value::Null)?;
 
+        let client = connector.client().await?;
+
         let count: i64 = sqlx::query_scalar(query_sanitized.as_str())
-            .fetch_one(&connector.client().await?)
+            .fetch_one(&client)
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
 

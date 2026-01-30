@@ -31,7 +31,7 @@
 //!  ]
 //!  ```
 use async_compat::{Compat, CompatExt};
-use mongodb::{bson::Document, Client};
+use mongodb::bson::Document;
 use serde::{Deserialize, Serialize};
 
 use crate::connector::mongodb::Mongodb;
@@ -68,7 +68,8 @@ impl Metadata {
     /// ```
     #[instrument(name = "metadata::count")]
     pub async fn count(&self, connector: &Mongodb) -> Result<usize> {
-        let client = Client::with_uri_str(&connector.endpoint)
+        let client = connector
+            .client()
             .compat()
             .await
             .map_err(|e| Error::new(std::io::ErrorKind::Interrupted, e))?;

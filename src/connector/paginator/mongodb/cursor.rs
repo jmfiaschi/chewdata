@@ -35,12 +35,9 @@ use crate::{
 };
 use async_compat::{Compat, CompatExt};
 use async_stream::stream;
-use smol::stream::StreamExt;
-use mongodb::{
-    bson::{doc, Document},
-    Client,
-};
+use mongodb::bson::{doc, Document};
 use serde::{Deserialize, Serialize};
+use smol::stream::StreamExt;
 use std::io::{Error, ErrorKind, Result};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -71,7 +68,7 @@ impl Cursor {
     /// use std::io;
     /// use macro_rules_attribute::apply;
     /// use smol_macros::main;
-    /// 
+    ///
     /// #[apply(main!)]
     /// async fn main() -> io::Result<()> {
     ///     let mut connector = Mongodb::default();
@@ -94,7 +91,6 @@ impl Cursor {
     #[instrument(name = "cursor::paginate")]
     pub async fn paginate(&self, connector: &Mongodb) -> Result<ConnectorStream> {
         let connector = connector.clone();
-        let hostname = connector.endpoint.clone();
         let database = connector.database.clone();
         let collection = connector.collection.clone();
         let parameters = connector.parameters.clone();
@@ -109,7 +105,8 @@ impl Cursor {
             None => Document::new(),
         };
 
-        let client = Client::with_uri_str(&hostname)
+        let client = connector
+            .client()
             .compat()
             .await
             .map_err(|e| Error::new(ErrorKind::Interrupted, e))?;
@@ -121,7 +118,8 @@ impl Cursor {
                 .with_options(Some(options))
                 .await
                 .map_err(|e| Error::new(ErrorKind::Interrupted, e))
-        }).await?;
+        })
+        .await?;
         let cursor_size = cursor.count().await;
 
         Ok(Box::pin(stream! {
