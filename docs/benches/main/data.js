@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769615577075,
+  "lastUpdate": 1769815623266,
   "repoUrl": "https://github.com/jmfiaschi/chewdata",
   "entries": {
     "Benchmark": [
@@ -4565,6 +4565,114 @@ window.BENCHMARK_DATA = {
             "name": "curl/HEAD/",
             "value": 1841584,
             "range": "± 6693",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jm.fiaschi@gmail.com",
+            "name": "jm.fiaschi",
+            "username": "jmfiaschi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1e7d233011915b22db915f2c8283153699d17796",
+          "message": "feat(connector): replace HashMap by DashMap for shared clients container (#75)\n\n* feat(connector): replace HashMap by DashMap for shared clients container\n* fix(cicd): use cp instead of mirror to copy file in S3",
+          "timestamp": "2026-01-30T23:59:06+01:00",
+          "tree_id": "02d6f56772df8350c3576de6c880ac9da5e4f45b",
+          "url": "https://github.com/jmfiaschi/chewdata/commit/1e7d233011915b22db915f2c8283153699d17796"
+        },
+        "date": 1769815621760,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "read_json",
+            "value": 4782,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_jsonl",
+            "value": 4673,
+            "range": "± 80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_xml",
+            "value": 20343,
+            "range": "± 112",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_csv",
+            "value": 24144,
+            "range": "± 1217",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_toml",
+            "value": 5222,
+            "range": "± 44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_yaml",
+            "value": 13813,
+            "range": "± 75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "read_parquet",
+            "value": 120401,
+            "range": "± 927",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/words",
+            "value": 145738,
+            "range": "± 3302",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/sentences",
+            "value": 145355,
+            "range": "± 8090",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/paragraphs",
+            "value": 144871,
+            "range": "± 1212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/phone_number",
+            "value": 144691,
+            "range": "± 2329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "faker/password",
+            "value": 145376,
+            "range": "± 4218",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/GET/",
+            "value": 1317692,
+            "range": "± 6379",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "curl/HEAD/",
+            "value": 1293950,
+            "range": "± 5067",
             "unit": "ns/iter"
           }
         ]
