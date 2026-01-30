@@ -172,7 +172,7 @@ impl BucketSelect {
     /// Get client and updating the connector if the client hasn't been initialized.
     #[instrument(name = "bucket_select::client_mut")]
     async fn client_mut(&mut self) -> Result<Client> {
-        if let None = self.client {
+        if self.client.is_none() {
             let client = get_or_create_client(self.endpoint(), self.region()).await?;
 
             trace!("initialize the client in the connector");
@@ -184,7 +184,7 @@ impl BucketSelect {
     /// Get client without updating the connecter.
     #[instrument(name = "bucket_select::client")]
     async fn client(&self) -> Result<Client> {
-        if let None = self.client {
+        if self.client.is_none() {
             return get_or_create_client(self.endpoint(), self.region()).await;
         }
 

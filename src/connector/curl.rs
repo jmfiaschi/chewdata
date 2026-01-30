@@ -433,9 +433,9 @@ impl Curl {
     /// Get client and updating the connector if the client hasn't been initialized.
     #[instrument(name = "curl::client_mut")]
     async fn client_mut(&mut self) -> io::Result<ClientType> {
-        if let None = self.client {
+        if self.client.is_none() {
             let client = get_or_create_client(
-                self.version.clone(),
+                self.version,
                 self.endpoint.clone(),
                 self.timeout.unwrap_or(DEFAULT_TIMEOUT),
                 self.certificate.clone(),
@@ -1356,7 +1356,7 @@ async fn http1(
     });
 
     let tcp = match TcpStream::connect((host.clone(), port))
-        .timeout(Duration::from_secs(timeout as u64))
+        .timeout(Duration::from_secs(timeout))
         .await
     {
         None => return Err(io::Error::new(ErrorKind::TimedOut, "connect timeout")),
@@ -1449,7 +1449,7 @@ async fn http2(
     });
 
     let tcp = match TcpStream::connect((host.clone(), port))
-        .timeout(Duration::from_secs(timeout as u64))
+        .timeout(Duration::from_secs(timeout))
         .await
     {
         None => return Err(io::Error::new(ErrorKind::TimedOut, "connect timeout")),

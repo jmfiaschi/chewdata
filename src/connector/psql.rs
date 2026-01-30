@@ -255,7 +255,7 @@ impl Psql {
     }
     #[instrument(name = "psql::client_mut")]
     pub async fn client_mut(&mut self) -> Result<Pool<Postgres>> {
-        if let None = self.client {
+        if self.client.is_none() {
             let client = get_or_create_client(self.path(), self.max_connections).await?;
 
             trace!("initialize the client in the connector");
@@ -266,7 +266,7 @@ impl Psql {
     }
     #[instrument(name = "psql::client")]
     pub async fn client(&self) -> Result<Pool<Postgres>> {
-        if let None = self.client {
+        if self.client.is_none() {
             trace!("initialize client");
             return get_or_create_client(self.path(), self.max_connections).await;
         }

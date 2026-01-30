@@ -151,7 +151,7 @@ impl Mongodb {
     #[instrument(name = "mongodb::client_mut")]
     pub async fn client_mut(&mut self) -> Result<Client> {
         let endpoint = self.endpoint.clone();
-        if let None = self.client {
+        if self.client.is_none() {
             let client = get_or_create_client(endpoint).await?;
 
             trace!("initialize the client in the connector");
@@ -164,7 +164,7 @@ impl Mongodb {
     #[instrument(name = "mongodb::client")]
     pub async fn client(&self) -> Result<Client> {
         let endpoint = self.endpoint.clone();
-        if let None = self.client {
+        if self.client.is_none() {
             return get_or_create_client(endpoint).await;
         }
 
