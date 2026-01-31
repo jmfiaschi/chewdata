@@ -190,25 +190,113 @@ pub struct Curl {
 
 mod http_version_serde {
     use http::Version;
-    use serde::{Deserialize, Deserializer};
+    use serde::de::{self, Visitor};
+    use serde::{Deserializer, Serializer};
+    use std::fmt;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Version, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        match s.as_str() {
-            "1" | "1.1" | "HTTP/1.0" | "HTTP/1.1" => Ok(Version::HTTP_11),
-            "2" | "HTTP/2.0" => Ok(Version::HTTP_2),
-            "3" | "HTTP/3.0" => Ok(Version::HTTP_3),
-            _ => Err(serde::de::Error::custom("unsupported HTTP version")),
+        deserializer.deserialize_any(HttpVersionVisitor)
+    }
+
+    struct HttpVersionVisitor;
+
+    impl<'de> Visitor<'de> for HttpVersionVisitor {
+        type Value = Version;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("an HTTP version as integer, float, or string")
+        }
+
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            if !v.is_finite() {
+                return Err(E::custom("HTTP version must be finite"));
+            }
+
+            // Tolérance float minimale
+            const EPS: f64 = 1e-9;
+
+            if (v - 1.0).abs() < EPS {
+                Ok(Version::HTTP_10)
+            } else if (v - 1.1).abs() < EPS {
+                Ok(Version::HTTP_11)
+            } else if (v - 2.0).abs() < EPS {
+                Ok(Version::HTTP_2)
+            } else if (v - 3.0).abs() < EPS {
+                Ok(Version::HTTP_3)
+            } else {
+                Err(E::custom("unsupported HTTP version"))
+            }
+        }
+
+        fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            self.visit_f64(v as f64)
+        }
+
+        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            match v {
+                1 => Ok(Version::HTTP_10),
+                2 => Ok(Version::HTTP_2),
+                3 => Ok(Version::HTTP_3),
+                _ => Err(E::custom("unsupported HTTP version")),
+            }
+        }
+
+        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            if v < 0 {
+                return Err(E::custom("HTTP version cannot be negative"));
+            }
+            self.visit_u64(v as u64)
+        }
+
+        fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            match s {
+                "1" | "1.0" | "HTTP/1.0" => Ok(Version::HTTP_10),
+                "1.1" | "HTTP/1.1" => Ok(Version::HTTP_11),
+                "2" | "2.0" | "HTTP/2" | "HTTP/2.0" => Ok(Version::HTTP_2),
+                "3" | "3.0" | "HTTP/3" | "HTTP/3.0" => Ok(Version::HTTP_3),
+                _ => Err(E::custom("unsupported HTTP version")),
+            }
+        }
+
+        fn visit_string<E>(self, s: String) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            self.visit_str(&s)
         }
     }
+
     pub fn serialize<S>(version: &Version, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
-        serializer.serialize_str(&format!("{:?}", version))
+        let s = match *version {
+            Version::HTTP_10 => "1.0",
+            Version::HTTP_11 => "1.1",
+            Version::HTTP_2 => "2",
+            Version::HTTP_3 => "3",
+            _ => "unknown",
+        };
+
+        serializer.serialize_str(s)
     }
 }
 
