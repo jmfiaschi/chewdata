@@ -19,7 +19,6 @@
 //! | document_type    | doc  / document  | Document type to use in order to manipulate the resource                        | `json`        | See [`crate::document`]                      |
 //! | name        | alias | Step name                                                                       | `null`        | Auto generate alphanumeric value             |
 //! | data_type   | data  | Type of data the reader push in the queue : [ ok / err ]                        | `ok`          | `ok` / `err`                                 |
-//! | concurrency_limit | - | Limit of steps to run in concurrence.                                          | `1`           | unsigned number                              |
 //! | record_limit  | -   | Maximum number of records that this step can hold in memory at the same time.     | `100`        | unsigned number                              |
 //!
 //! ### Examples
@@ -36,7 +35,6 @@
 //!             "type": "json"
 //!         },
 //!         "data_type": "ok",
-//!         "concurrency_limit": 1
 //!     }
 //!     ...
 //! ]
@@ -71,7 +69,6 @@ pub struct Reader {
     pub receiver: Option<Receiver<Context>>,
     #[serde(skip)]
     pub sender: Option<Sender<Context>>,
-    pub concurrency_limit: usize,
 }
 
 impl Default for Reader {
@@ -84,7 +81,6 @@ impl Default for Reader {
             data_type: DataResult::OK.to_string(),
             receiver: None,
             sender: None,
-            concurrency_limit: 1,
         }
     }
 }
@@ -109,9 +105,8 @@ impl Step for Reader {
     }
     #[instrument(name = "reader::exec",
         skip(self),
-        fields(name=self.name, 
-        data_type=self.data_type,
-        concurrency_limit=self.concurrency_limit))]
+        fields(name=self.name), 
+        data_type=self.data_type)]
     async fn exec(&self) -> io::Result<()> {
         info!("Start reading data...");
         
