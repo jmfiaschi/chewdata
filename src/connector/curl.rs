@@ -655,6 +655,26 @@ impl Curl {
         let request_builder = self.request_builder(None, None, Some(&body)).await?;
         let entry_to_cache = self.follow_redirects(request_builder, &body).await?;
 
+        let status = StatusCode::from_u16(entry_to_cache.status)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if !status.is_success() {
+            error!(
+                status = %entry_to_cache.status,
+                uri = %entry_to_cache.uri,
+                body = %String::from_utf8_lossy(&entry_to_cache.data).display_only_for_debugging(),
+                "HTTP error"
+            );
+
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "HTTP error {} for request {}",
+                    entry_to_cache.status, entry_to_cache.uri
+                ),
+            ));
+        }
+
         info!("Fetch headers with success");
 
         Ok(entry_to_cache
@@ -1127,8 +1147,28 @@ impl Connector for Curl {
 
         entry_to_cache.method = self.method.to_string();
 
-        if self.is_cached {
+        let status = StatusCode::from_u16(entry_to_cache.status)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if self.is_cached && status.is_success() {
             entry_to_cache.save().await?;
+        }
+
+        if !status.is_success() {
+            error!(
+                status = %entry_to_cache.status,
+                uri = %entry_to_cache.uri,
+                body = %String::from_utf8_lossy(&entry_to_cache.data).display_only_for_debugging(),
+                "HTTP error"
+            );
+
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "HTTP error {} for request {}",
+                    entry_to_cache.status, entry_to_cache.uri
+                ),
+            ));
         }
 
         let data = entry_to_cache.data;
@@ -1196,6 +1236,26 @@ impl Connector for Curl {
         let request_builder = self.request_builder(None, None, Some(&body)).await?;
         let entry_to_cache = self.follow_redirects(request_builder, &body).await?;
 
+        let status = StatusCode::from_u16(entry_to_cache.status)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if !status.is_success() {
+            error!(
+                status = %entry_to_cache.status,
+                uri = %entry_to_cache.uri,
+                body = %String::from_utf8_lossy(&entry_to_cache.data).display_only_for_debugging(),
+                "HTTP error"
+            );
+
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "HTTP error {} for request {}",
+                    entry_to_cache.status, entry_to_cache.uri
+                ),
+            ));
+        }
+
         let data = entry_to_cache.data;
 
         info!("Send data with success");
@@ -1244,6 +1304,26 @@ impl Connector for Curl {
             .request_builder(None, Some(&Method::DELETE), Some(&body))
             .await?;
         let entry_to_cache = self.follow_redirects(request_builder, &body).await?;
+
+        let status = StatusCode::from_u16(entry_to_cache.status)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if !status.is_success() {
+            error!(
+                status = %entry_to_cache.status,
+                uri = %entry_to_cache.uri,
+                body = %String::from_utf8_lossy(&entry_to_cache.data).display_only_for_debugging(),
+                "HTTP error"
+            );
+
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "HTTP error {} for request {}",
+                    entry_to_cache.status, entry_to_cache.uri
+                ),
+            ));
+        }
 
         if self.is_cached {
             entry_to_cache.remove().await?;
