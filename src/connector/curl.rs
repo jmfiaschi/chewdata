@@ -752,12 +752,10 @@ impl Curl {
             match StatusCode::from_u16(entry_to_cache.status)
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
             {
-                hyper::StatusCode::SEE_OTHER => {
-                    current_method = Method::GET;
-                    bytes = Bytes::new(); // drop body
-                }
-                hyper::StatusCode::MOVED_PERMANENTLY | hyper::StatusCode::FOUND => {
-                    if current_method == Method::POST {
+                hyper::StatusCode::SEE_OTHER
+                | hyper::StatusCode::MOVED_PERMANENTLY
+                | hyper::StatusCode::FOUND => {
+                    if current_method != Method::HEAD || current_method != Method::GET {
                         current_method = Method::GET;
                         bytes = Bytes::new();
                     }

@@ -101,9 +101,9 @@ test-psql: psql
     cargo test --doc --features "ordered,psql"
 
 test-curl: http-mock https-mock keycloak rabbitmq
-    cargo test --tests --features "ordered,curl"
-    cargo test --examples --features "ordered,curl"
-    cargo test --doc --features "ordered,curl"
+    cargo test --tests --features "ordered,curl" -- --test-threads=1
+    cargo test --examples --features "ordered,curl" -- --test-threads=1
+    cargo test --doc --features "ordered,curl" -- --test-threads=1
 
 test-mongodb: mongodb
     cargo test --tests --features "ordered,mongodb"
