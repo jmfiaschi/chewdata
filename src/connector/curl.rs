@@ -666,13 +666,10 @@ impl Curl {
                 "HTTP error"
             );
 
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "HTTP error {} for request {}",
-                    entry_to_cache.status, entry_to_cache.uri
-                ),
-            ));
+            return Err(std::io::Error::other(format!(
+                "HTTP error {} for request {}",
+                entry_to_cache.status, entry_to_cache.uri
+            )));
         }
 
         info!("Fetch headers with success");
@@ -1162,13 +1159,10 @@ impl Connector for Curl {
                 "HTTP error"
             );
 
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "HTTP error {} for request {}",
-                    entry_to_cache.status, entry_to_cache.uri
-                ),
-            ));
+            return Err(std::io::Error::other(format!(
+                "HTTP error {} for request {}",
+                entry_to_cache.status, entry_to_cache.uri
+            )));
         }
 
         let data = entry_to_cache.data;
@@ -1247,13 +1241,10 @@ impl Connector for Curl {
                 "HTTP error"
             );
 
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "HTTP error {} for request {}",
-                    entry_to_cache.status, entry_to_cache.uri
-                ),
-            ));
+            return Err(std::io::Error::other(format!(
+                "HTTP error {} for request {}",
+                entry_to_cache.status, entry_to_cache.uri
+            )));
         }
 
         let data = entry_to_cache.data;
@@ -1316,13 +1307,10 @@ impl Connector for Curl {
                 "HTTP error"
             );
 
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "HTTP error {} for request {}",
-                    entry_to_cache.status, entry_to_cache.uri
-                ),
-            ));
+            return Err(std::io::Error::other(format!(
+                "HTTP error {} for request {}",
+                entry_to_cache.status, entry_to_cache.uri
+            )));
         }
 
         if self.is_cached {
