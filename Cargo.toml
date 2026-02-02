@@ -88,6 +88,7 @@ http-cache-semantics = { version = "2.1.0", default-features = false, optional =
 cacache = { version = "13.1.0", default-features = false, features = ["async-std"], optional = true }
 http = {version = "1.4.0", optional = true}
 http-serde = {version = "2.1.1", optional = true}
+rand = { version = "0.9.2", default-features = false, optional = true, features = ["std_rng","thread_rng"]}
 ## mongodb
 mongodb = { version = "3.5.0", optional = true }
 async-compat = { version = "0.2.5", default-features = false, optional = true }
@@ -104,7 +105,7 @@ csv = ["dep:csv"]
 toml = ["dep:toml"]
 parquet = ["dep:parquet","dep:byteorder","dep:arrow-json","dep:bytes","dep:arrow-integration-test"]
 bucket = ["dep:aws-sdk-s3","dep:aws-config","dep:async-compat"]
-curl = ["dep:bytes","dep:hyper","dep:smol-hyper","dep:jsonwebtoken","dep:http-body-util","dep:http","dep:http-cache-semantics","dep:cacache","dep:webpki-roots","dep:rustls","dep:futures-rustls","http-serde"]
+curl = ["dep:bytes","dep:hyper","dep:smol-hyper","dep:jsonwebtoken","dep:http-body-util","dep:http","dep:http-cache-semantics","dep:cacache","dep:webpki-roots","dep:rustls","dep:futures-rustls","http-serde","rand"]
 mongodb = ["dep:mongodb","dep:async-compat"]
 psql = ["sqlx","sqlx/postgres"]
 apm = ["dep:opentelemetry","dep:opentelemetry-jaeger"]
