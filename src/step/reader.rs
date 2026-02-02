@@ -129,7 +129,7 @@ impl Step for Reader {
             }
 
             if !context_received.input().is_type(self.data_type.as_ref()) {
-                trace!("Handles only this data type");
+                trace!("handles only this data type");
                 self.send(&context_received).await;
                 continue;
             }
@@ -141,8 +141,8 @@ impl Step for Reader {
                     Ok(connector) => Some(connector),
                     Err(e) => {
                         warn!(
-                            error = e.to_string().as_str(),
-                            "Pagination through the paginator failed"
+                            error = %e,
+                            "pagination through the paginator failed"
                         );
                         None
                     }
@@ -163,8 +163,8 @@ impl Step for Reader {
                     Ok(connector) => Some(connector),
                     Err(e) => {
                         warn!(
-                            error = e.to_string().as_str(),
-                            "Pagination through the paginator failed"
+                            error = %e,
+                            "pagination through the paginator failed"
                         );
                         None
                     }
@@ -176,7 +176,7 @@ impl Step for Reader {
                 }}).await;
         }
 
-        info!("Stops reading data and sending context in the channel");
+        info!("stops reading data and sending context in the channel");
 
         Ok(())
     }
@@ -201,7 +201,7 @@ async fn read<'step>(
         },
         Err(e) => {
             warn!(
-                error = e.to_string().as_str(),
+                error = %e,
                 "fetch data failed"
             );
 
@@ -224,22 +224,20 @@ async fn read<'step>(
 
     let step = step.clone();
     let context = context.clone();
-
-    smol::spawn(async move {
-        let step: Reader = step.clone();
-        dataset.map(|data_result| async {
-            let context = match context.clone() {
-                Some(ref mut context) => {
-                    context.insert_step_result(step.name(), data_result);
-                    context.clone()
-                },
-                None => Context::new(step.name(), data_result),
-            };
-            step.send(&context).await;
-        }).buffer_unordered(usize::MAX)
-        .collect::<Vec<_>>()
-        .await;
-    }).await;
+    let max_concurrency = step.concurrency_limit;
+    
+    dataset.map(|data_result| async {
+        let context = match context.clone() {
+            Some(ref mut context) => {
+                context.insert_step_result(step.name(), data_result);
+                context.clone()
+            },
+            None => Context::new(step.name(), data_result),
+        };
+        step.send(&context).await;
+    }).buffer_unordered(max_concurrency)
+    .collect::<Vec<_>>()
+    .await;
 }
 
 #[cfg(test)]

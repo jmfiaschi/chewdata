@@ -113,6 +113,7 @@ use hyper::client::conn::http1::{Connection as ConnectionHttp1, SendRequest as S
 use hyper::client::conn::http2::SendRequest as SendRequestHttp2;
 use json_value_merge::Merge;
 use json_value_search::Search;
+use rand::Rng;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::CertificateDer;
 use rustls::{ClientConfig, RootCertStore};
@@ -144,6 +145,7 @@ const REDIRECT_CODES: &[StatusCode; 5] = &[
 const DEFAULT_TIMEOUT: u64 = 5;
 const DEFAULT_CACHE_DIR: &str = "cache/http";
 const DEFAULT_HOSTNAME: &str = "localhost";
+const DEFAULT_MAX_RETRY_DELAY: u64 = 30;
 
 type DynBody = Pin<Box<dyn Body<Data = Bytes, Error = io::Error> + Send + Sync>>;
 type SharedClients = DashMap<SharedClientKey, Arc<OnceCell<ClientType>>>;
@@ -183,6 +185,8 @@ pub struct Curl {
     pub is_cached: bool,
     #[serde(alias = "crt")]
     pub certificate: Option<String>,
+    #[serde(alias = "retry")]
+    pub retry_policy: Option<RetryPolicy>,
     #[serde(skip)]
     #[serde(default)]
     client: Option<ClientType>,
@@ -190,25 +194,113 @@ pub struct Curl {
 
 mod http_version_serde {
     use http::Version;
-    use serde::{Deserialize, Deserializer};
+    use serde::de::{self, Visitor};
+    use serde::{Deserializer, Serializer};
+    use std::fmt;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Version, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        match s.as_str() {
-            "1" | "1.1" | "HTTP/1.0" | "HTTP/1.1" => Ok(Version::HTTP_11),
-            "2" | "HTTP/2.0" => Ok(Version::HTTP_2),
-            "3" | "HTTP/3.0" => Ok(Version::HTTP_3),
-            _ => Err(serde::de::Error::custom("unsupported HTTP version")),
+        deserializer.deserialize_any(HttpVersionVisitor)
+    }
+
+    struct HttpVersionVisitor;
+
+    impl<'de> Visitor<'de> for HttpVersionVisitor {
+        type Value = Version;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("an HTTP version as integer, float, or string")
+        }
+
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            if !v.is_finite() {
+                return Err(E::custom("HTTP version must be finite"));
+            }
+
+            // Tolérance float minimale
+            const EPS: f64 = 1e-9;
+
+            if (v - 1.0).abs() < EPS {
+                Ok(Version::HTTP_10)
+            } else if (v - 1.1).abs() < EPS {
+                Ok(Version::HTTP_11)
+            } else if (v - 2.0).abs() < EPS {
+                Ok(Version::HTTP_2)
+            } else if (v - 3.0).abs() < EPS {
+                Ok(Version::HTTP_3)
+            } else {
+                Err(E::custom("unsupported HTTP version"))
+            }
+        }
+
+        fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            self.visit_f64(v as f64)
+        }
+
+        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            match v {
+                1 => Ok(Version::HTTP_10),
+                2 => Ok(Version::HTTP_2),
+                3 => Ok(Version::HTTP_3),
+                _ => Err(E::custom("unsupported HTTP version")),
+            }
+        }
+
+        fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            if v < 0 {
+                return Err(E::custom("HTTP version cannot be negative"));
+            }
+            self.visit_u64(v as u64)
+        }
+
+        fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            match s {
+                "1" | "1.0" | "HTTP/1.0" => Ok(Version::HTTP_10),
+                "1.1" | "HTTP/1.1" => Ok(Version::HTTP_11),
+                "2" | "2.0" | "HTTP/2" | "HTTP/2.0" => Ok(Version::HTTP_2),
+                "3" | "3.0" | "HTTP/3" | "HTTP/3.0" => Ok(Version::HTTP_3),
+                _ => Err(E::custom("unsupported HTTP version")),
+            }
+        }
+
+        fn visit_string<E>(self, s: String) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            self.visit_str(&s)
         }
     }
+
     pub fn serialize<S>(version: &Version, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
-        serializer.serialize_str(&format!("{:?}", version))
+        let s = match *version {
+            Version::HTTP_10 => "1.0",
+            Version::HTTP_11 => "1.1",
+            Version::HTTP_2 => "2",
+            Version::HTTP_3 => "3",
+            _ => "unknown",
+        };
+
+        serializer.serialize_str(s)
     }
 }
 
@@ -252,6 +344,7 @@ impl Clone for Curl {
             version: self.version,
             is_cached: self.is_cached,
             certificate: None,
+            retry_policy: self.retry_policy.clone(),
             client: None,
         }
     }
@@ -308,6 +401,7 @@ impl Default for Curl {
             version: Version::default(),
             is_cached: false,
             certificate: None,
+            retry_policy: Some(RetryPolicy::default()),
             client: None,
         }
     }
@@ -362,12 +456,63 @@ impl AsyncWriteIo for SmolStream {
     }
 }
 
-#[derive(Clone, Copy)]
-struct RetryPolicy {
-    max_attempts: usize,
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(default, deny_unknown_fields)]
+pub struct RetryPolicy {
+    max_attempts: u32,
     delay: Duration,
-    retry_on_status: &'static [StatusCode],
-    retry_on_method: &'static [Method],
+    #[serde(
+        deserialize_with = "deserialize_status_codes",
+        serialize_with = "serialize_status_codes"
+    )]
+    retry_on_status: Vec<StatusCode>,
+    #[serde(
+        deserialize_with = "deserialize_methods",
+        serialize_with = "serialize_methods"
+    )]
+    retry_on_method: Vec<Method>,
+}
+
+fn deserialize_status_codes<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Vec<StatusCode>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw: Vec<u16> = Vec::deserialize(deserializer)?;
+    raw.into_iter()
+        .map(StatusCode::from_u16)
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(serde::de::Error::custom)
+}
+
+fn serialize_status_codes<S>(
+    codes: &[StatusCode],
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let raw: Vec<u16> = codes.iter().map(|c| c.as_u16()).collect();
+    raw.serialize(serializer)
+}
+
+fn deserialize_methods<'de, D>(deserializer: D) -> std::result::Result<Vec<Method>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw: Vec<String> = Vec::deserialize(deserializer)?;
+    raw.into_iter()
+        .map(|s| s.parse::<Method>().map_err(serde::de::Error::custom))
+        .collect()
+}
+
+fn serialize_methods<S>(methods: &[Method], serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let raw: Vec<&str> = methods.iter().map(|m| m.as_str()).collect();
+    raw.serialize(serializer)
 }
 
 impl Default for RetryPolicy {
@@ -375,14 +520,14 @@ impl Default for RetryPolicy {
         Self {
             max_attempts: 3,
             delay: Duration::from_millis(200),
-            retry_on_status: &[
+            retry_on_status: vec![
                 StatusCode::REQUEST_TIMEOUT,
                 StatusCode::TOO_MANY_REQUESTS,
                 StatusCode::BAD_GATEWAY,
                 StatusCode::SERVICE_UNAVAILABLE,
                 StatusCode::GATEWAY_TIMEOUT,
             ],
-            retry_on_method: &[
+            retry_on_method: vec![
                 Method::GET,
                 Method::HEAD,
                 Method::PUT,
@@ -393,22 +538,18 @@ impl Default for RetryPolicy {
     }
 }
 
-impl RetryPolicy {
-    fn is_retryable_status(self, status: &StatusCode) -> bool {
-        self.retry_on_status.contains(status)
-    }
-    fn is_retryable_method(self, method: &Method) -> bool {
-        self.retry_on_method.contains(method)
-    }
-}
+async fn backoff(attempt: u32, base_delay: Duration) {
+    let max_delay = Duration::from_secs(DEFAULT_MAX_RETRY_DELAY);
 
-async fn backoff(attempt: usize, base_delay: Duration) {
-    let max_delay = Duration::from_secs(30);
+    // backoff exponentiel
+    let mut delay = base_delay.saturating_mul(2u32.pow(attempt));
+    if delay > max_delay {
+        delay = max_delay;
+    }
 
-    let delay = base_delay
-        .checked_mul(2u32.saturating_pow(attempt as u32))
-        .unwrap_or(max_delay)
-        .min(max_delay);
+    // jitter ±50%
+    let jitter = rand::rng().random_range(0.5..1.5);
+    delay = delay.mul_f64(jitter);
 
     Timer::after(delay).await;
 }
@@ -567,6 +708,25 @@ impl Curl {
         let request_builder = self.request_builder(None, None, Some(&body)).await?;
         let entry_to_cache = self.follow_redirects(request_builder, &body).await?;
 
+        let status = StatusCode::from_u16(entry_to_cache.status)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if !status.is_success() {
+            error!(
+                status = %entry_to_cache.status,
+                uri = %entry_to_cache.uri,
+                body = %String::from_utf8_lossy(&entry_to_cache.data).display_only_for_debugging(),
+                "HTTP error"
+            );
+
+            return Err(std::io::Error::other(format!(
+                "HTTP error '{}' for request '{}'",
+                StatusCode::from_u16(entry_to_cache.status)
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                entry_to_cache.uri
+            )));
+        }
+
         info!("Fetch headers with success");
 
         Ok(entry_to_cache
@@ -664,12 +824,10 @@ impl Curl {
             match StatusCode::from_u16(entry_to_cache.status)
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?
             {
-                hyper::StatusCode::SEE_OTHER => {
-                    current_method = Method::GET;
-                    bytes = Bytes::new(); // drop body
-                }
-                hyper::StatusCode::MOVED_PERMANENTLY | hyper::StatusCode::FOUND => {
-                    if current_method == Method::POST {
+                hyper::StatusCode::SEE_OTHER
+                | hyper::StatusCode::MOVED_PERMANENTLY
+                | hyper::StatusCode::FOUND => {
+                    if current_method != Method::HEAD || current_method != Method::GET {
                         current_method = Method::GET;
                         bytes = Bytes::new();
                     }
@@ -689,9 +847,17 @@ impl Curl {
         method: &Method,
         body: &Bytes,
     ) -> io::Result<CachedEntry> {
-        let policy = RetryPolicy::default();
+        let retry_policy = match &self.retry_policy {
+            Some(p) => p.clone(),
+            None => RetryPolicy::default(),
+        };
 
-        for attempt in 1..=policy.max_attempts {
+        let max_attempts = retry_policy.max_attempts;
+        let delay = retry_policy.delay;
+        let retry_on_status = retry_policy.retry_on_status.clone();
+        let retry_on_method = retry_policy.retry_on_method.clone();
+
+        for attempt in 1..=max_attempts {
             let request_builder = self
                 .request_builder(Some(uri), Some(method), Some(body))
                 .await?;
@@ -720,16 +886,17 @@ impl Curl {
 
             match result {
                 Ok(response) => {
-                    if policy.is_retryable_status(&response.status())
-                        && policy.is_retryable_method(method)
-                        && attempt < policy.max_attempts
+                    if retry_on_status.contains(&response.status())
+                        && retry_on_method.contains(method)
+                        && attempt < max_attempts
                     {
-                        backoff(attempt, policy.delay).await;
+                        backoff(attempt, delay).await;
                         continue;
                     }
 
                     let resp_status = response.status().as_u16();
                     let resp_headers = headers_to_map(response.headers());
+
                     let data = response
                         .collect()
                         .await
@@ -737,29 +904,23 @@ impl Curl {
                         .to_bytes()
                         .to_vec();
 
-                    let request_to_cache = CachedEntry::new(
+                    return Ok(CachedEntry::new(
                         resp_status,
                         method.to_string(),
                         uri.to_string(),
                         req_headers,
                         resp_headers,
                         data,
-                    );
-
-                    return Ok(request_to_cache);
+                    ));
                 }
 
                 Err(e) => {
-                    // Determine retryable transport errors
                     let retryable = e.is_closed() || e.is_incomplete_message() || e.is_timeout();
 
-                    if retryable
-                        && attempt < policy.max_attempts
-                        && policy.is_retryable_method(method)
-                    {
+                    if retryable && attempt < max_attempts && retry_on_method.contains(method) {
                         warn!(attempt, "Retrying request after transport error: {}", e);
-                        self.client = None; // force reconnect
-                        backoff(attempt, policy.delay).await;
+                        self.client = None;
+                        backoff(attempt, delay).await;
                         continue;
                     }
 
@@ -768,7 +929,7 @@ impl Curl {
             }
         }
 
-        Err(Error::new(ErrorKind::TimedOut, "retry limit exceeded"))
+        Err(Error::other("retry limit exceeded"))
     }
 }
 
@@ -1038,11 +1199,29 @@ impl Connector for Curl {
 
         let request_builder = self.request_builder(None, None, Some(&body)).await?;
         let mut entry_to_cache = self.follow_redirects(request_builder, &body).await?;
-
         entry_to_cache.method = self.method.to_string();
 
-        if self.is_cached {
+        let status = StatusCode::from_u16(entry_to_cache.status)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if self.is_cached && status.is_success() {
             entry_to_cache.save().await?;
+        }
+
+        if !status.is_success() {
+            error!(
+                status = %entry_to_cache.status,
+                uri = %entry_to_cache.uri,
+                body = %String::from_utf8_lossy(&entry_to_cache.data).display_only_for_debugging(),
+                "HTTP error"
+            );
+
+            return Err(std::io::Error::other(format!(
+                "HTTP error '{}' for request '{}'",
+                StatusCode::from_u16(entry_to_cache.status)
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                entry_to_cache.uri
+            )));
         }
 
         let data = entry_to_cache.data;
@@ -1110,6 +1289,25 @@ impl Connector for Curl {
         let request_builder = self.request_builder(None, None, Some(&body)).await?;
         let entry_to_cache = self.follow_redirects(request_builder, &body).await?;
 
+        let status = StatusCode::from_u16(entry_to_cache.status)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if !status.is_success() {
+            error!(
+                status = %entry_to_cache.status,
+                uri = %entry_to_cache.uri,
+                body = %String::from_utf8_lossy(&entry_to_cache.data).display_only_for_debugging(),
+                "HTTP error"
+            );
+
+            return Err(std::io::Error::other(format!(
+                "HTTP error '{}' for request '{}'",
+                StatusCode::from_u16(entry_to_cache.status)
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                entry_to_cache.uri
+            )));
+        }
+
         let data = entry_to_cache.data;
 
         info!("Send data with success");
@@ -1158,6 +1356,25 @@ impl Connector for Curl {
             .request_builder(None, Some(&Method::DELETE), Some(&body))
             .await?;
         let entry_to_cache = self.follow_redirects(request_builder, &body).await?;
+
+        let status = StatusCode::from_u16(entry_to_cache.status)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        if !status.is_success() {
+            error!(
+                status = %entry_to_cache.status,
+                uri = %entry_to_cache.uri,
+                body = %String::from_utf8_lossy(&entry_to_cache.data).display_only_for_debugging(),
+                "HTTP error"
+            );
+
+            return Err(std::io::Error::other(format!(
+                "HTTP error '{}' for request '{}'",
+                StatusCode::from_u16(entry_to_cache.status)
+                    .map_err(|e| Error::new(ErrorKind::InvalidData, e))?,
+                entry_to_cache.uri
+            )));
+        }
 
         if self.is_cached {
             entry_to_cache.remove().await?;
@@ -1766,7 +1983,7 @@ mod tests {
     async fn test_redirection_with_erase() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.path = "/redirect-to?url=/delete".to_string();
+        connector.path = "/redirect-to?url=/delete&status_code=307".to_string();
         connector.redirection_limit = 1;
 
         let result = connector.erase().await;
@@ -1774,6 +1991,18 @@ mod tests {
             result.is_ok(),
             "The inner connector shouldn't raise this error: {:?}",
             result
+        );
+    }
+    #[apply(test!)]
+    async fn test_retry_timeout() {
+        let mut connector = Curl::default();
+        connector.endpoint = "http://localhost:8080".to_string();
+        connector.path = format!("/status/{}", http::StatusCode::GATEWAY_TIMEOUT.as_u16());
+
+        let result = connector.fetch().await;
+        assert!(
+            result.is_err(),
+            "The inner connector should raise a Timeout error"
         );
     }
 }

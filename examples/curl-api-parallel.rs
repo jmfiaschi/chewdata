@@ -46,7 +46,8 @@ async fn run() -> io::Result<()> {
                 "skip":0,
                 "limit": 1,
                 "count": 10
-            }
+            },
+            "version": 1.1
         },
         "document":{
             "type": "text"
