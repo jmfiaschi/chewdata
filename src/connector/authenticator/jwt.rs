@@ -166,7 +166,7 @@ impl Jwt {
     ///
     ///    let mut auth = Jwt::default();
     ///    auth.key = "my_key".to_string();
-    ///    auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
+    ///    auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(Box::new(connector))));
     ///    auth.document.entry_path = Some("/token".to_string());
     ///    auth.document.metadata = Metadata {
     ///        mime_type: Some("application".to_string()),
@@ -342,7 +342,7 @@ impl Authenticator for Jwt {
     ///
     ///     let mut auth = Jwt::default();
     ///     auth.key = "my_key".to_string();
-    ///     auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
+    ///     auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(Box::new(connector))));
     ///     auth.document.entry_path = Some("/token".to_string());
     ///     auth.document.metadata = Metadata {
     ///         mime_type: Some("application".to_string()),
