@@ -1,3 +1,10 @@
+# [3.6.0](https://github.com/jmfiaschi/chewdata/compare/v3.5.0...v3.6.0) (2026-02-02)
+
+
+### Features
+
+* **curl:** throw exception if response is in error. ([fd85b16](https://github.com/jmfiaschi/chewdata/commit/fd85b16c5a3aa3c66afe3ffa1be8718f05818e11))
+
 # [3.5.0](https://github.com/jmfiaschi/chewdata/compare/v3.4.1...v3.5.0) (2026-01-30)
 
 
