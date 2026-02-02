@@ -436,7 +436,7 @@ mod tests {
         ).unwrap();
 
         let mut auth = Jwt::default();
-        auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(Box::new(connector))));
         auth.document.metadata = Metadata {
             mime_subtype: Some("json".to_string()),
             ..Default::default()
@@ -459,7 +459,7 @@ mod tests {
         connector.parameters = Value::String("client_id=client-test&client_secret=my_secret&scope=openid&username=obiwan&password=yoda&grant_type=password".to_string());
 
         let mut auth = Jwt::default();
-        auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(Box::new(connector))));
         auth.document.entry_path = Some("/access_token".to_string());
         auth.document.metadata = Metadata {
             mime_subtype: Some("x-www-form-urlencoded".to_string()),
@@ -483,7 +483,7 @@ mod tests {
 
         let mut auth = Jwt::default();
         auth.key = "my_key".to_string();
-        auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(Box::new(connector))));
         auth.document.entry_path = Some("/token".to_string());
         auth.document.metadata = Metadata {
             mime_subtype: Some("json".to_string()),
@@ -522,7 +522,7 @@ mod tests {
         auth.algorithm = Algorithm::RS256;
         auth.signing_type = Some(SigningType::RsaComponents);
         auth.jwk = Some(jwk);
-        auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(connector)));
+        auth.refresh_connector_type = Some(Box::new(ConnectorType::Curl(Box::new(connector))));
         auth.document.entry_path = Some("/access_token".to_string());
         auth.document.metadata = Metadata {
             mime_subtype: Some("x-www-form-urlencoded".to_string()),

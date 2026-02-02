@@ -53,13 +53,13 @@ pub enum ConnectorType {
     Local(Local),
     #[cfg(feature = "bucket")]
     #[serde(rename = "bucket")]
-    Bucket(Bucket),
+    Bucket(Box<Bucket>),
     #[cfg(feature = "bucket")]
     #[serde(rename = "bucket_select")]
-    BucketSelect(BucketSelect),
+    BucketSelect(Box<BucketSelect>),
     #[cfg(feature = "curl")]
     #[serde(rename = "curl")]
-    Curl(Curl),
+    Curl(Box<Curl>),
     #[cfg(feature = "mongodb")]
     #[serde(rename = "mongodb")]
     #[serde(alias = "mongo")]
@@ -84,11 +84,11 @@ impl ConnectorType {
             ConnectorType::Cli(connector) => Box::new(connector),
             ConnectorType::Local(connector) => Box::new(connector),
             #[cfg(feature = "curl")]
-            ConnectorType::Curl(connector) => Box::new(connector),
+            ConnectorType::Curl(connector) => connector,
             #[cfg(feature = "bucket")]
-            ConnectorType::Bucket(connector) => Box::new(connector),
+            ConnectorType::Bucket(connector) => connector,
             #[cfg(feature = "bucket")]
-            ConnectorType::BucketSelect(connector) => Box::new(connector),
+            ConnectorType::BucketSelect(connector) => connector,
             #[cfg(feature = "mongodb")]
             ConnectorType::Mongodb(connector) => Box::new(connector),
             #[cfg(feature = "psql")]
@@ -104,11 +104,11 @@ impl ConnectorType {
             ConnectorType::Cli(connector) => connector,
             ConnectorType::Local(connector) => connector,
             #[cfg(feature = "curl")]
-            ConnectorType::Curl(connector) => connector,
+            ConnectorType::Curl(connector) => &**connector,
             #[cfg(feature = "bucket")]
-            ConnectorType::Bucket(connector) => connector,
+            ConnectorType::Bucket(connector) => &**connector,
             #[cfg(feature = "bucket")]
-            ConnectorType::BucketSelect(connector) => connector,
+            ConnectorType::BucketSelect(connector) => &**connector,
             #[cfg(feature = "mongodb")]
             ConnectorType::Mongodb(connector) => connector,
             #[cfg(feature = "psql")]

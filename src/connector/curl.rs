@@ -401,7 +401,7 @@ impl Default for Curl {
             version: Version::default(),
             is_cached: false,
             certificate: None,
-            retry_policy: None,
+            retry_policy: Some(RetryPolicy::default()),
             client: None,
         }
     }
