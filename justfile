@@ -115,7 +115,7 @@ lint:
     cargo clippy --all-features
 
 coverage: start
-    cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "ordered,xml,csv,parquet,toml,bucket,curl,mongodb,psql"
+    cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "ordered,xml,csv,parquet,toml,bucket,curl,mongodb,psql" -- --test-threads=1
 
 # Benchmark the project.
 bench cpus="1": http-mock

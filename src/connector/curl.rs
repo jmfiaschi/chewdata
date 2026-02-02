@@ -1920,7 +1920,7 @@ mod tests {
     async fn test_redirection_with_erase() {
         let mut connector = Curl::default();
         connector.endpoint = "http://localhost:8080".to_string();
-        connector.path = "/redirect-to?url=/delete".to_string();
+        connector.path = "/redirect-to?url=/delete&status_code=307".to_string();
         connector.redirection_limit = 1;
 
         let result = connector.erase().await;
