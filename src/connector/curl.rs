@@ -186,7 +186,7 @@ pub struct Curl {
     #[serde(alias = "crt")]
     pub certificate: Option<String>,
     #[serde(alias = "retry")]
-    pub retry_policy: RetryPolicy,
+    pub retry_policy: Option<RetryPolicy>,
     #[serde(skip)]
     #[serde(default)]
     client: Option<ClientType>,
@@ -401,7 +401,7 @@ impl Default for Curl {
             version: Version::default(),
             is_cached: false,
             certificate: None,
-            retry_policy: RetryPolicy::default(),
+            retry_policy: Some(RetryPolicy::default()),
             client: None,
         }
     }
@@ -847,10 +847,15 @@ impl Curl {
         method: &Method,
         body: &Bytes,
     ) -> io::Result<CachedEntry> {
-        let max_attempts = self.retry_policy.max_attempts;
-        let delay = self.retry_policy.delay;
-        let retry_on_status = self.retry_policy.retry_on_status.clone();
-        let retry_on_method = self.retry_policy.retry_on_method.clone();
+        let retry_policy = match &self.retry_policy {
+            Some(p) => p.clone(),
+            None => RetryPolicy::default(),
+        };
+
+        let max_attempts = retry_policy.max_attempts;
+        let delay = retry_policy.delay;
+        let retry_on_status = retry_policy.retry_on_status.clone();
+        let retry_on_method = retry_policy.retry_on_method.clone();
 
         for attempt in 1..=max_attempts {
             let request_builder = self
