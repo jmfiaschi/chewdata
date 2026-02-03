@@ -101,9 +101,9 @@ test-psql: psql
     cargo test --doc --features "ordered,psql"
 
 test-curl: http-mock https-mock keycloak rabbitmq
-    cargo test --tests --features "ordered,curl" -- --test-threads=1
-    cargo test --examples --features "ordered,curl" -- --test-threads=1
-    cargo test --doc --features "ordered,curl" -- --test-threads=1
+    cargo test --tests --features "ordered,curl"
+    cargo test --examples --features "ordered,curl"
+    cargo test --doc --features "ordered,curl"
 
 test-mongodb: mongodb
     cargo test --tests --features "ordered,mongodb"
@@ -115,7 +115,7 @@ lint:
     cargo clippy --all-features
 
 coverage: start
-    cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "ordered,xml,csv,parquet,toml,bucket,curl,mongodb,psql" -- --test-threads=1
+    cargo tarpaulin --out Xml --skip-clean --jobs 1 --features "ordered,xml,csv,parquet,toml,bucket,curl,mongodb,psql"
 
 # Benchmark the project.
 bench cpus="1": http-mock
