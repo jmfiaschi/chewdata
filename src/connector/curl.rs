@@ -90,7 +90,6 @@ use crate::helper::string::{DisplayOnlyForDebugging, Obfuscate};
 use crate::{DataResult, DataSet, DataStream, Metadata};
 use anyhow::Context as AnyContext;
 use async_lock::Mutex;
-use async_lock::OnceCell;
 use async_stream::stream;
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -148,7 +147,7 @@ const DEFAULT_HOSTNAME: &str = "localhost";
 const DEFAULT_MAX_RETRY_DELAY: u64 = 30;
 
 type DynBody = Pin<Box<dyn Body<Data = Bytes, Error = io::Error> + Send + Sync>>;
-type SharedClients = DashMap<SharedClientKey, Arc<OnceCell<ClientType>>>;
+type SharedClients = DashMap<SharedClientKey, Arc<ClientType>>;
 
 static CLIENTS: OnceLock<SharedClients> = OnceLock::new();
 
@@ -189,7 +188,7 @@ pub struct Curl {
     pub retry_policy: Option<RetryPolicy>,
     #[serde(skip)]
     #[serde(default)]
-    client: Option<ClientType>,
+    client: Option<Arc<ClientType>>,
 }
 
 mod http_version_serde {
@@ -573,7 +572,7 @@ fn build_request(request_builder: Builder, body: &Bytes) -> io::Result<Request<D
 impl Curl {
     /// Get client and updating the connector if the client hasn't been initialized.
     #[instrument(name = "curl::client_mut")]
-    async fn client_mut(&mut self) -> io::Result<ClientType> {
+    async fn client(&mut self) -> io::Result<Arc<ClientType>> {
         if self.client.is_none() {
             let client = get_or_create_client(
                 self.version,
@@ -587,7 +586,7 @@ impl Curl {
             self.client = Some(client);
         }
 
-        Ok(self.client.clone().unwrap())
+        Ok(self.client.as_ref().unwrap().clone())
     }
     /// Get a new request builder base on what has been setup in the configuration.
     async fn request_builder(
@@ -862,16 +861,16 @@ impl Curl {
                 .request_builder(Some(uri), Some(method), Some(body))
                 .await?;
 
-            let client = self.client_mut().await?;
+            let client = self.client().await?;
 
             let req_headers = match request_builder.headers_ref() {
                 Some(headers) => headers_to_map(headers),
                 None => HashMap::default(),
             };
 
-            let result = match client {
-                ClientType::Http1(sender) => {
-                    let mut sender = sender.lock().await;
+            let result = match &*client {
+                ClientType::Http1(sender_mutex) => {
+                    let mut sender = sender_mutex.lock().await;
                     sender
                         .send_request(build_request(request_builder, body)?)
                         .await
@@ -938,35 +937,41 @@ async fn get_or_create_client(
     endpoint: String,
     timeout: u64,
     has_certificate: Option<String>,
-) -> Result<ClientType> {
-    let clients = CLIENTS.get_or_init(DashMap::new);
-    let key = SharedClientKey::new(version, endpoint.clone());
+) -> Result<Arc<ClientType>> {
+    match version {
+        Version::HTTP_2 => {
+            let clients = CLIENTS.get_or_init(DashMap::new);
+            let key = SharedClientKey::new(version, endpoint.clone());
 
-    let cell = clients
-        .entry(key.clone())
-        .or_insert_with(|| Arc::new(OnceCell::new()))
-        .clone();
+            if let Some(existing) = clients.get(&key) {
+                trace!(key = ?key, "reuse client store in shared container");
 
-    let client = cell
-        .get_or_try_init(|| async {
-            trace!(key = ?key, "storing client in shared container");
+                return Ok(existing.clone());
+            }
 
-            let client = match version {
-                Version::HTTP_10 | Version::HTTP_11 => ClientType::Http1(Arc::new(Mutex::new(
-                    http1(endpoint.clone(), timeout, has_certificate.clone()).await?,
-                ))),
-                Version::HTTP_2 => ClientType::Http2(
-                    http2(endpoint.clone(), timeout, has_certificate.clone()).await?,
-                ),
-                _ => panic!("Unsupported {:?} version", version),
-            };
+            let client = Arc::new(ClientType::Http2(
+                http2(endpoint.clone(), timeout, has_certificate.clone()).await?,
+            ));
 
-            Ok::<ClientType, anyhow::Error>(client)
-        })
-        .await
-        .unwrap();
+            trace!(key = ?key, "create and storing new client in shared container");
+            let client = clients
+                .entry(key)
+                .or_insert_with(|| client.clone())
+                .value()
+                .clone();
 
-    Ok(client.clone())
+            Ok(client)
+        }
+        Version::HTTP_10 | Version::HTTP_11 => {
+            // 🔥 No share cache
+            trace!("create new client without shared container");
+            Ok(Arc::new(ClientType::Http1(Arc::new(Mutex::new(
+                http1(endpoint, timeout, has_certificate).await?,
+            )))))
+        }
+
+        _ => panic!("Unsupported {:?}", version),
+    }
 }
 
 #[async_trait]
@@ -1524,7 +1529,6 @@ fn headers_to_map(headers: &HeaderMap) -> HashMap<String, String> {
         .collect()
 }
 
-#[derive(Clone)]
 pub enum ClientType {
     Http1(Arc<Mutex<SendRequestHttp1<DynBody>>>),
     Http2(SendRequestHttp2<DynBody>),
