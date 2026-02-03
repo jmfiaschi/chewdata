@@ -1,3 +1,10 @@
+## [3.6.1](https://github.com/jmfiaschi/chewdata/compare/v3.6.0...v3.6.1) (2026-02-03)
+
+
+### Bug Fixes
+
+* **curl:** operation was canceled ([#77](https://github.com/jmfiaschi/chewdata/issues/77)) ([e2449f6](https://github.com/jmfiaschi/chewdata/commit/e2449f68e78de55e0b5337588a3028fe640dd2ba))
+
 # [3.6.0](https://github.com/jmfiaschi/chewdata/compare/v3.5.0...v3.6.0) (2026-02-02)
 
 
